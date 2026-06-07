@@ -58,6 +58,12 @@ export type StoreProduct = {
   price: number;
   currency: string;
   image_url: string | null;
+  sku?: string;
+  category?: string;
+  stock_quantity?: number;
+  status?: "active" | "draft";
+  variants?: { name: string; options: string[] }[];
+  perks?: string[];
 };
 
 export type StorePageSource = "merchant" | "ai_generated" | "platform_default";
@@ -84,6 +90,14 @@ export type StorefrontContent = {
     id: StorefrontTemplateId;
     source: "merchant_selected" | "ai_selected";
   };
+  data_plugs?: {
+    home_products_source?: "merchant_products" | "theme_products";
+  };
+  media?: {
+    hero_image_url?: string | null;
+    about_image_url?: string | null;
+    category_images?: (string | null)[];
+  };
   hero: { headline: string; subheadline: string; cta_label: string };
   about: { title: string; body: string };
   value_props: { title: string; body: string }[];
@@ -96,6 +110,76 @@ export type PublicStorefront = {
   store: Store;
   storefront: StorefrontContent;
   generation_id: string | null;
+};
+
+export type StoreOrderStatus = "pending" | "processing" | "fulfilled" | "cancelled" | "refunded";
+
+export type StoreOrderItem = {
+  product_id: string;
+  name: string;
+  quantity: number;
+  unit_price: number;
+  total: number;
+  currency: string;
+};
+
+export type StoreOrder = {
+  id: string;
+  order_number: string;
+  customer_name: string;
+  customer_email: string;
+  customer_phone: string;
+  delivery_address: string;
+  status: StoreOrderStatus;
+  payment_status: string;
+  currency: string;
+  subtotal: number;
+  total_amount: number;
+  items: StoreOrderItem[];
+  notes: string | null;
+  placed_at: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+export type StoreOrdersResponse = {
+  data: StoreOrder[];
+  meta: {
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+  };
+};
+
+export type MerchantDashboardMetrics = {
+  total_orders: number;
+  pending_orders: number;
+  fulfilled_orders: number;
+  total_sales: number;
+  average_order_value: number;
+  total_visits: number;
+  visits_today: number;
+  conversion_rate: number;
+  products_count: number;
+};
+
+export type MerchantDashboardOverview = {
+  metrics: MerchantDashboardMetrics;
+  sales_by_day: { date: string; orders: number; sales: number }[];
+  recent_orders: StoreOrder[];
+};
+
+export type CreateStoreOrderInput = {
+  customer: {
+    first_name: string;
+    last_name: string;
+    email: string;
+    phone: string;
+  };
+  delivery_address: string;
+  notes?: string;
+  items: { product_id: string; quantity: number }[];
 };
 
 export const INDUSTRY_OPTIONS: { value: Industry; label: string }[] = [

@@ -3,11 +3,26 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ExternalLink, Eye, Loader2, Pencil, RefreshCcw, Save, Sparkles, X } from "lucide-react";
+import {
+  Banknote,
+  BarChart3,
+  ExternalLink,
+  Eye,
+  Loader2,
+  Package,
+  Pencil,
+  RefreshCcw,
+  ShoppingBag,
+  Sparkles,
+  TrendingUp,
+  Users,
+  X,
+} from "lucide-react";
 import { getStoreSubdomainHost, getStorefrontUrl } from "@/lib/store-host";
 import { toast } from "sonner";
 import { GeneratingSkeleton } from "@/components/storefront/generating-skeleton";
 import { StorefrontPreview } from "@/components/storefront/storefront-preview";
+import { VisualStorefrontEditor } from "@/components/storefront/editor/visual-storefront-editor";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api/client";
 import {
@@ -17,31 +32,58 @@ import {
   type StorefrontTemplateId,
 } from "@/lib/api/types";
 
-function NextCard({ title, body }: { title: string; body: string }) {
+function formatMoney(value: number, currency = "NGN") {
+  return new Intl.NumberFormat("en-NG", {
+    style: "currency",
+    currency,
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
+function formatNumber(value: number) {
+  return new Intl.NumberFormat("en-NG").format(value);
+}
+
+function formatDate(value: string | null) {
+  if (!value) return "Unknown";
+  return new Intl.DateTimeFormat("en-NG", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
+function MetricCard({
+  label,
+  value,
+  hint,
+  icon: Icon,
+  loading,
+}: {
+  label: string;
+  value: string;
+  hint: string;
+  icon: typeof BarChart3;
+  loading: boolean;
+}) {
   return (
-    <div className="rounded-xl border border-border bg-card p-5 opacity-60 shadow-soft">
-      <div className="flex items-center justify-between">
-        <h4 className="font-display text-base font-semibold">{title}</h4>
-        <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-soft">
-          Soon
-        </span>
+    <div className="rounded-2xl border border-border bg-card p-5 shadow-soft">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-sm font-medium text-ink-soft">{label}</p>
+          <div className="mt-2 font-display text-2xl font-bold">
+            {loading ? <span className="inline-block h-8 w-20 animate-pulse rounded bg-secondary" /> : value}
+          </div>
+        </div>
+        <div className="grid h-10 w-10 place-items-center rounded-xl bg-primary/10 text-primary">
+          <Icon className="h-5 w-5" />
+        </div>
       </div>
-      <p className="mt-2 text-sm text-ink-soft">{body}</p>
+      <p className="mt-3 text-xs text-ink-soft">{hint}</p>
     </div>
   );
 }
-
-type StorefrontDraft = {
-  templateId: StorefrontTemplateId;
-  heroHeadline: string;
-  heroSubheadline: string;
-  heroCtaLabel: string;
-  aboutTitle: string;
-  aboutBody: string;
-  seoTitle: string;
-  seoDescription: string;
-  valueProps: { title: string; body: string }[];
-};
 
 const concreteTemplateOptions = STOREFRONT_TEMPLATE_OPTIONS.filter(
   (
@@ -168,25 +210,6 @@ function TemplateGrid({
   );
 }
 
-function getDraftFromStorefront(store: Store, storefront: StorefrontContent): StorefrontDraft {
-  const chosenTemplate = store.storefront_template_id;
-  const templateId =
-    storefront.template?.id ??
-    (chosenTemplate && chosenTemplate !== "ai_pick" ? chosenTemplate : "classic");
-
-  return {
-    templateId,
-    heroHeadline: storefront.hero.headline,
-    heroSubheadline: storefront.hero.subheadline,
-    heroCtaLabel: storefront.hero.cta_label,
-    aboutTitle: storefront.about.title,
-    aboutBody: storefront.about.body,
-    seoTitle: storefront.seo.title,
-    seoDescription: storefront.seo.description,
-    valueProps: storefront.value_props.slice(0, 3).map((valueProp) => ({ ...valueProp })),
-  };
-}
-
 function getConcreteTemplateId(store: Store): StorefrontTemplateId {
   return store.storefront_template_id && store.storefront_template_id !== "ai_pick"
     ? store.storefront_template_id
@@ -205,6 +228,9 @@ function createStarterStorefront(
     template: {
       id: templateId,
       source: "merchant_selected",
+    },
+    data_plugs: {
+      home_products_source: "merchant_products",
     },
     hero: {
       headline: `Welcome to ${store.business_name}`,
@@ -350,219 +376,7 @@ function StorefrontCreationChoice({
   );
 }
 
-function StorefrontEditor({
-  store,
-  storefront,
-  saving,
-  onSave,
-}: {
-  store: Store;
-  storefront: StorefrontContent;
-  saving: boolean;
-  onSave: (updated: StorefrontContent, templateId: StorefrontTemplateId) => void;
-}) {
-  const [draft, setDraft] = useState(() => getDraftFromStorefront(store, storefront));
-
-  useEffect(() => {
-    setDraft(getDraftFromStorefront(store, storefront));
-  }, [store, storefront]);
-
-  function updateValueProp(
-    index: number,
-    field: keyof StorefrontDraft["valueProps"][number],
-    value: string,
-  ) {
-    setDraft((current) => ({
-      ...current,
-      valueProps: current.valueProps.map((valueProp, valuePropIndex) =>
-        valuePropIndex === index ? { ...valueProp, [field]: value } : valueProp,
-      ),
-    }));
-  }
-
-  function submit() {
-    const updated: StorefrontContent = {
-      ...storefront,
-      template: {
-        id: draft.templateId,
-        source: "merchant_selected",
-      },
-      hero: {
-        headline: draft.heroHeadline.trim(),
-        subheadline: draft.heroSubheadline.trim(),
-        cta_label: draft.heroCtaLabel.trim(),
-      },
-      about: {
-        title: draft.aboutTitle.trim(),
-        body: draft.aboutBody.trim(),
-      },
-      value_props: draft.valueProps.map((valueProp) => ({
-        title: valueProp.title.trim(),
-        body: valueProp.body.trim(),
-      })),
-      pages: storefront.pages
-        ? {
-            ...storefront.pages,
-            about: {
-              ...storefront.pages.about,
-              title: draft.aboutTitle.trim(),
-              body: draft.aboutBody.trim(),
-              source: "merchant",
-            },
-          }
-        : storefront.pages,
-      seo: {
-        title: draft.seoTitle.trim(),
-        description: draft.seoDescription.trim(),
-      },
-    };
-
-    onSave(updated, draft.templateId);
-  }
-
-  return (
-    <div className="rounded-2xl border border-border bg-card p-6 shadow-soft">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2 text-sm font-medium text-ink-soft">
-            <Pencil className="h-4 w-4 text-primary" /> Edit published website
-          </div>
-          <h2 className="mt-1 font-display text-xl font-bold">Storefront content</h2>
-          <p className="mt-1 text-sm text-ink-soft">
-            Changes are saved to the live storefront content, so merchants can edit after launch.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={submit}
-          disabled={saving}
-          className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-soft hover:opacity-90 disabled:opacity-60"
-        >
-          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-          {saving ? "Saving..." : "Save live edits"}
-        </button>
-      </div>
-
-      <div className="mt-6">
-        <span className="mb-3 block text-sm font-medium">Template</span>
-        <TemplateGrid
-          brandColor={store.brand_color}
-          selectedTemplateId={draft.templateId}
-          onSelect={(templateId) => setDraft((current) => ({ ...current, templateId }))}
-        />
-      </div>
-
-      <div className="mt-6 grid gap-5 lg:grid-cols-2">
-        <label className="block">
-          <span className="mb-1.5 block text-sm font-medium">CTA label</span>
-          <input
-            value={draft.heroCtaLabel}
-            onChange={(event) =>
-              setDraft((current) => ({ ...current, heroCtaLabel: event.target.value }))
-            }
-            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-soft outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-          />
-        </label>
-
-        <label className="block lg:col-span-2">
-          <span className="mb-1.5 block text-sm font-medium">Hero headline</span>
-          <input
-            value={draft.heroHeadline}
-            onChange={(event) =>
-              setDraft((current) => ({ ...current, heroHeadline: event.target.value }))
-            }
-            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-soft outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-          />
-        </label>
-
-        <label className="block lg:col-span-2">
-          <span className="mb-1.5 block text-sm font-medium">Hero subheadline</span>
-          <textarea
-            value={draft.heroSubheadline}
-            rows={3}
-            onChange={(event) =>
-              setDraft((current) => ({ ...current, heroSubheadline: event.target.value }))
-            }
-            className="w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-sm shadow-soft outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-          />
-        </label>
-
-        <label className="block">
-          <span className="mb-1.5 block text-sm font-medium">About title</span>
-          <input
-            value={draft.aboutTitle}
-            onChange={(event) =>
-              setDraft((current) => ({ ...current, aboutTitle: event.target.value }))
-            }
-            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-soft outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-          />
-        </label>
-
-        <label className="block">
-          <span className="mb-1.5 block text-sm font-medium">SEO title</span>
-          <input
-            value={draft.seoTitle}
-            onChange={(event) =>
-              setDraft((current) => ({ ...current, seoTitle: event.target.value }))
-            }
-            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-soft outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-          />
-        </label>
-
-        <label className="block lg:col-span-2">
-          <span className="mb-1.5 block text-sm font-medium">About body</span>
-          <textarea
-            value={draft.aboutBody}
-            rows={4}
-            onChange={(event) =>
-              setDraft((current) => ({ ...current, aboutBody: event.target.value }))
-            }
-            className="w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-sm shadow-soft outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-          />
-        </label>
-
-        <label className="block lg:col-span-2">
-          <span className="mb-1.5 block text-sm font-medium">SEO description</span>
-          <textarea
-            value={draft.seoDescription}
-            rows={2}
-            onChange={(event) =>
-              setDraft((current) => ({ ...current, seoDescription: event.target.value }))
-            }
-            className="w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-sm shadow-soft outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-          />
-        </label>
-      </div>
-
-      <div className="mt-6">
-        <h3 className="font-display text-base font-semibold">Value propositions</h3>
-        <div className="mt-3 grid gap-3">
-          {draft.valueProps.map((valueProp, index) => (
-            <div
-              key={index}
-              className="grid gap-3 rounded-xl border border-border bg-background p-4 md:grid-cols-2"
-            >
-              <input
-                value={valueProp.title}
-                onChange={(event) => updateValueProp(index, "title", event.target.value)}
-                className="rounded-md border border-border bg-card px-3 py-2 text-sm shadow-soft outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                aria-label={`Value proposition ${index + 1} title`}
-              />
-              <input
-                value={valueProp.body}
-                onChange={(event) => updateValueProp(index, "body", event.target.value)}
-                className="rounded-md border border-border bg-card px-3 py-2 text-sm shadow-soft outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                aria-label={`Value proposition ${index + 1} body`}
-              />
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-export default function AdminDashboardPage() {
+export function WebsiteEditorPage() {
   const router = useRouter();
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -589,7 +403,8 @@ export default function AdminDashboardPage() {
   });
 
   const generate = useMutation({
-    mutationFn: (storeId: string) => api.generateStorefront(storeId),
+    mutationFn: ({ storeId, templateId }: { storeId: string; templateId?: StorefrontTemplateId }) =>
+      api.generateStorefront(storeId, templateId),
     onSuccess: (data) => {
       if (store) queryClient.setQueryData(["storefront", store.id], data);
       toast.success("Storefront generated!");
@@ -619,7 +434,6 @@ export default function AdminDashboardPage() {
   });
 
   const generatedStorefront = generate.data;
-  const generateStorefront = generate.mutate;
   const generationPending = generate.isPending;
 
   if (storeQuery.isLoading) {
@@ -640,13 +454,14 @@ export default function AdminDashboardPage() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <span className="text-xs font-medium uppercase tracking-wide text-ink-soft">
-            Your store
+            Website
           </span>
           <h1 className="mt-1 font-display text-3xl font-bold tracking-tight">
             {store.business_name}
           </h1>
           <p className="mt-1 text-sm text-ink-soft">
-            {store.subdomain_host ?? getStoreSubdomainHost(store.slug)}
+            Design, preview, and publish your storefront at{" "}
+            {store.subdomain_host ?? getStoreSubdomainHost(store.slug)}.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -669,7 +484,7 @@ export default function AdminDashboardPage() {
             View live store
           </a>
           <button
-            onClick={() => generateStorefront(store.id)}
+            onClick={() => generate.mutate({ storeId: store.id })}
             disabled={generationPending}
             className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-4 py-2 text-sm font-semibold text-ink shadow-soft hover:bg-secondary disabled:opacity-60"
           >
@@ -691,17 +506,28 @@ export default function AdminDashboardPage() {
 
       {storefront ? (
         <section className="mt-8">
-          <StorefrontEditor
+          <VisualStorefrontEditor
             store={store}
             storefront={storefront}
             saving={saveStorefront.isPending}
-            onSave={(updatedStorefront, templateId) =>
+            onSave={async (updatedStorefront, templateId, brandColor) => {
+              if (brandColor !== store.brand_color) {
+                try {
+                  const updatedStore = await api.updateMyStore({ brand_color: brandColor });
+                  queryClient.setQueryData(["store", "me"], updatedStore);
+                } catch {
+                  queryClient.setQueryData(["store", "me"], {
+                    ...store,
+                    brand_color: brandColor,
+                  });
+                }
+              }
               saveStorefront.mutate({
                 storeId: store.id,
                 storefront: updatedStorefront,
                 templateId,
-              })
-            }
+              });
+            }}
           />
         </section>
       ) : null}
@@ -711,7 +537,7 @@ export default function AdminDashboardPage() {
           store={store}
           generating={generationPending}
           saving={saveStorefront.isPending}
-          onGenerate={(templateId) => generateStorefront(store.id, templateId)}
+          onGenerate={(templateId) => generate.mutate({ storeId: store.id, templateId })}
           onStartEditing={(templateId) =>
             saveStorefront.mutate({
               storeId: store.id,
@@ -752,16 +578,176 @@ export default function AdminDashboardPage() {
         </div>
       ) : null}
 
-      <section className="mt-12 grid gap-4 sm:grid-cols-3">
-        <NextCard
-          title="Add products"
-          body="Upload your catalog so customers can browse and buy."
+    </div>
+  );
+}
+
+export default function AdminDashboardPage() {
+  const router = useRouter();
+  const { user } = useAuth();
+
+  const storeQuery = useQuery({
+    queryKey: ["store", "me"],
+    queryFn: () => api.getMyStore(),
+    enabled: !!user,
+  });
+
+  const store = storeQuery.data;
+
+  useEffect(() => {
+    if (storeQuery.isFetched && !storeQuery.data && user) {
+      router.replace("/admin/onboarding");
+    }
+  }, [storeQuery.isFetched, storeQuery.data, user, router]);
+
+  const dashboardQuery = useQuery({
+    queryKey: ["merchant-dashboard-overview"],
+    queryFn: () => api.getDashboardOverview(),
+    enabled: !!store,
+  });
+
+  if (storeQuery.isLoading) {
+    return (
+      <div className="grid min-h-[50vh] place-items-center">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!store) return null;
+
+  const overview = dashboardQuery.data;
+  const metrics = overview?.metrics;
+  const maxDailySales = Math.max(...(overview?.sales_by_day.map((day) => day.sales) ?? [0]), 1);
+
+  return (
+    <div className="w-full px-6 py-10">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <span className="text-xs font-medium uppercase tracking-wide text-ink-soft">
+            Overview
+          </span>
+          <h1 className="mt-1 font-display text-3xl font-bold tracking-tight">
+            {store.business_name}
+          </h1>
+          <p className="mt-1 text-sm text-ink-soft">
+            Sales, traffic, conversion, and order activity for your storefront.
+          </p>
+        </div>
+        <a
+          href={getStorefrontUrl(store.slug)}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-4 py-2 text-sm font-semibold text-ink shadow-soft hover:bg-secondary"
+        >
+          <ExternalLink className="h-4 w-4" />
+          View live store
+        </a>
+      </div>
+
+      <section className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <MetricCard
+          label="Total sales"
+          value={formatMoney(metrics?.total_sales ?? 0)}
+          hint={`${formatMoney(metrics?.average_order_value ?? 0)} average order value`}
+          icon={Banknote}
+          loading={dashboardQuery.isLoading}
         />
-        <NextCard
-          title="Connect payments"
-          body="Wire up Paystack or Flutterwave to start collecting orders."
+        <MetricCard
+          label="Orders"
+          value={formatNumber(metrics?.total_orders ?? 0)}
+          hint={`${formatNumber(metrics?.pending_orders ?? 0)} pending fulfillment`}
+          icon={ShoppingBag}
+          loading={dashboardQuery.isLoading}
         />
-        <NextCard title="Set up delivery" body="Plug in a courier partner for shipping quotes." />
+        <MetricCard
+          label="Store visits"
+          value={formatNumber(metrics?.total_visits ?? 0)}
+          hint={`${formatNumber(metrics?.visits_today ?? 0)} visits today`}
+          icon={Users}
+          loading={dashboardQuery.isLoading}
+        />
+        <MetricCard
+          label="Conversion"
+          value={`${metrics?.conversion_rate ?? 0}%`}
+          hint={`${formatNumber(metrics?.products_count ?? 0)} live products in catalog`}
+          icon={TrendingUp}
+          loading={dashboardQuery.isLoading}
+        />
+      </section>
+
+      <section className="mt-6 grid gap-4 xl:grid-cols-[1.4fr_1fr]">
+        <div className="rounded-2xl border border-border bg-card p-6 shadow-soft">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h2 className="font-display text-lg font-bold">Sales trend</h2>
+              <p className="text-sm text-ink-soft">Orders and revenue over the last 14 days.</p>
+            </div>
+            <BarChart3 className="h-5 w-5 text-ink-soft" />
+          </div>
+          <div className="mt-6 flex h-48 items-end gap-2">
+            {(overview?.sales_by_day ?? []).map((day) => (
+              <div key={day.date} className="flex min-w-0 flex-1 flex-col items-center gap-2">
+                <div
+                  className="w-full rounded-t-md bg-primary/70"
+                  style={{
+                    height: `${Math.max((day.sales / maxDailySales) * 100, day.sales > 0 ? 8 : 2)}%`,
+                  }}
+                  title={`${day.date}: ${formatMoney(day.sales)} from ${day.orders} orders`}
+                />
+                <span className="w-full truncate text-center text-[10px] text-ink-soft">
+                  {new Date(day.date).toLocaleDateString("en-NG", { day: "numeric" })}
+                </span>
+              </div>
+            ))}
+            {!dashboardQuery.isLoading && !overview?.sales_by_day.length ? (
+              <div className="grid h-full w-full place-items-center rounded-xl border border-dashed border-border text-sm text-ink-soft">
+                Sales activity will appear after customers start ordering.
+              </div>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-border bg-card p-6 shadow-soft">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h2 className="font-display text-lg font-bold">Recent orders</h2>
+              <p className="text-sm text-ink-soft">Latest checkout activity from your storefront.</p>
+            </div>
+            <Package className="h-5 w-5 text-ink-soft" />
+          </div>
+          <div className="mt-5 space-y-3">
+            {dashboardQuery.isLoading ? (
+              Array.from({ length: 3 }).map((_, index) => (
+                <div key={index} className="h-14 animate-pulse rounded-lg bg-secondary" />
+              ))
+            ) : overview?.recent_orders.length ? (
+              overview.recent_orders.map((order) => (
+                <div
+                  key={order.id}
+                  className="flex items-center justify-between gap-3 rounded-xl border border-border bg-background p-3"
+                >
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-semibold">{order.order_number}</div>
+                    <div className="truncate text-xs text-ink-soft">
+                      {order.customer_name} • {formatDate(order.placed_at)}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm font-semibold">
+                      {formatMoney(order.total_amount, order.currency)}
+                    </div>
+                    <div className="text-xs capitalize text-ink-soft">{order.status}</div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-ink-soft">
+                No orders yet. Completed checkouts will show here.
+              </div>
+            )}
+          </div>
+        </div>
       </section>
     </div>
   );

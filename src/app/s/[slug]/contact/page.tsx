@@ -1,6 +1,6 @@
 "use client";
 
-import { ContentPage } from "@/components/storefront/content-page";
+import { ContentPageView } from "@/components/storefront/pages/content-page-view";
 import { useStorefront } from "@/lib/storefront/store-context";
 
 export default function ContactPage() {
@@ -8,7 +8,7 @@ export default function ContactPage() {
   const page = storefront.pages?.contact;
 
   if (!page) {
-    return <ContentPage title="Contact us" body="Reach out to the store owner for support." />;
+    return <ContentPageView title="Contact us" body="Reach out to the store owner for support." />;
   }
 
   const details = [
@@ -19,6 +19,6 @@ export default function ContactPage() {
     .join("\n");
 
   return (
-    <ContentPage title={page.title} body={[page.body, details].filter(Boolean).join("\n\n")} />
+    <ContentPageView title={page.title} body={[page.body, details].filter(Boolean).join("\n\n")} />
   );
 }

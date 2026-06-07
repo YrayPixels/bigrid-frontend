@@ -2,7 +2,11 @@ import { mockApi } from "./mocks";
 import type {
   AuthResponse,
   CreateStoreInput,
+  MerchantDashboardOverview,
   Store,
+  StoreOrder,
+  StoreOrdersResponse,
+  StoreOrderStatus,
   StorefrontContent,
   StorefrontTemplateId,
   UpdateStorefrontInput,
@@ -46,6 +50,21 @@ async function http<T>(path: string, init: RequestInit = {}): Promise<T> {
     },
   });
   if (res.status === 204) return undefined as T;
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new ApiError(res.status, data?.message ?? "Request failed");
+  return data as T;
+}
+
+async function httpForm<T>(path: string, body: FormData): Promise<T> {
+  const token = getToken();
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body,
+  });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new ApiError(res.status, data?.message ?? "Request failed");
   return data as T;
@@ -121,6 +140,44 @@ export const api = {
     return res.store;
   },
 
+  async getDashboardOverview(): Promise<MerchantDashboardOverview> {
+    const token = requireToken();
+    if (USE_MOCKS) return mockApi.getDashboardOverview(token);
+    return http<MerchantDashboardOverview>(`${STOREHAUSE_API_PREFIX}/dashboard`);
+  },
+
+  async getOrders(filters: {
+    status?: string;
+    search?: string;
+    page?: number;
+    per_page?: number;
+  } = {}): Promise<StoreOrdersResponse> {
+    const token = requireToken();
+    if (USE_MOCKS) return mockApi.getOrders(token, filters);
+
+    const params = new URLSearchParams();
+    if (filters.status && filters.status !== "all") params.set("status", filters.status);
+    if (filters.search) params.set("search", filters.search);
+    if (filters.page) params.set("page", String(filters.page));
+    if (filters.per_page) params.set("per_page", String(filters.per_page));
+
+    return http<StoreOrdersResponse>(
+      `${STOREHAUSE_API_PREFIX}/orders${params.toString() ? `?${params.toString()}` : ""}`,
+    );
+  },
+
+  async updateOrderStatus(
+    orderId: string,
+    body: { status: StoreOrderStatus; notes?: string },
+  ): Promise<{ order: StoreOrder; message: string }> {
+    const token = requireToken();
+    if (USE_MOCKS) return mockApi.updateOrderStatus(token, orderId, body);
+    return http<{ order: StoreOrder; message: string }>(
+      `${STOREHAUSE_API_PREFIX}/orders/${orderId}/status`,
+      { method: "PATCH", body: JSON.stringify(body) },
+    );
+  },
+
   async generateStorefront(
     storeId: string,
     storefrontTemplateId?: StorefrontTemplateId,
@@ -158,6 +215,28 @@ export const api = {
           { method: "PATCH", body: JSON.stringify(body) },
         );
     return res.storefront;
+  },
+
+  async updateMyStore(body: { brand_color?: string }): Promise<Store> {
+    const token = requireToken();
+    if (USE_MOCKS) {
+      const res = await mockApi.updateMyStore(token, body);
+      return res.store;
+    }
+    const res = await http<{ store: Store }>(`${STOREHAUSE_API_PREFIX}/stores/me`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
+    return res.store;
+  },
+
+  async uploadStorefrontImage(storeId: string, file: File): Promise<{ url: string }> {
+    const token = requireToken();
+    if (USE_MOCKS) return mockApi.uploadStorefrontImage(token, storeId, file);
+
+    const body = new FormData();
+    body.append("image", file);
+    return httpForm<{ url: string }>(`${STOREHAUSE_API_PREFIX}/stores/${storeId}/images`, body);
   },
 };
 

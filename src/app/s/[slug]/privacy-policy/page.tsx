@@ -1,6 +1,6 @@
 "use client";
 
-import { ContentPage } from "@/components/storefront/content-page";
+import { ContentPageView } from "@/components/storefront/pages/content-page-view";
 import { useStorefront } from "@/lib/storefront/store-context";
 
 export default function PrivacyPolicyPage() {
@@ -8,7 +8,7 @@ export default function PrivacyPolicyPage() {
   const page = storefront.pages?.privacy_policy;
 
   return (
-    <ContentPage
+    <ContentPageView
       title={page?.title ?? "Privacy policy"}
       body={
         page?.body ??

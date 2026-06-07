@@ -1,1 +1,1 @@
-export { default } from "../page";
+export { WebsiteEditorPage as default } from "../page";
