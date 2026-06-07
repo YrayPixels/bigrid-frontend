@@ -611,9 +611,7 @@ export function ProductDetailPageView({ product }: { product: StoreProduct | nul
     return <MinimalisticProductDetail product={product} />;
   }
 
-  const fallbackImage =
-    theme.id === "minimalistic" ? minimalisticTemplateImages.products[0] : product.image_url;
-  const productImageUrl = product.image_url ?? fallbackImage;
+  const productImageUrl = product.image_url;
 
   return (
     <PageContainer>

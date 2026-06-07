@@ -8,6 +8,7 @@ import { useCart } from "@/lib/storefront/cart-context";
 import { useStorefront } from "@/lib/storefront/store-context";
 import { useStorefrontTheme } from "@/lib/storefront/theme-context";
 import { STOREFRONT_FOOTER_LINKS, STOREFRONT_NAV_ITEMS } from "@/lib/storefront/template";
+import { StorefrontLink } from "@/components/storefront/theme/storefront-link";
 import { cn } from "@/lib/utils";
 
 export function DefaultShell({ children }: { children: React.ReactNode }) {
@@ -17,8 +18,6 @@ export function DefaultShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  const NavLink = mode === "edit" ? "span" : Link;
-
   return (
     <div className={`${theme.pageBg} min-h-screen ${theme.pageText}`}>
       <header
@@ -26,10 +25,7 @@ export function DefaultShell({ children }: { children: React.ReactNode }) {
         style={{ backgroundColor: `${theme.palette.surface}f2` }}
       >
         <div className="flex w-full items-center justify-between gap-4 px-4 py-4 sm:px-6">
-          <NavLink
-            {...(mode === "edit" ? {} : { href: "/" })}
-            className="flex min-w-0 items-center gap-3"
-          >
+          <StorefrontLink href="/" className="flex min-w-0 items-center gap-3">
             {store.logo_url ? (
               <img
                 src={store.logo_url}
@@ -50,13 +46,13 @@ export function DefaultShell({ children }: { children: React.ReactNode }) {
             >
               {store.business_name}
             </span>
-          </NavLink>
+          </StorefrontLink>
 
           <nav className="hidden items-center gap-6 md:flex">
             {STOREFRONT_NAV_ITEMS.map((item) => (
-              <NavLink
+              <StorefrontLink
                 key={item.href}
-                {...(mode === "edit" ? {} : { href: item.href })}
+                href={item.href}
                 className={cn(
                   "text-sm font-medium transition-colors hover:text-foreground",
                   mode === "edit"
@@ -68,7 +64,7 @@ export function DefaultShell({ children }: { children: React.ReactNode }) {
                 )}
               >
                 {item.label}
-              </NavLink>
+              </StorefrontLink>
             ))}
           </nav>
 
@@ -109,15 +105,14 @@ export function DefaultShell({ children }: { children: React.ReactNode }) {
           <div className="border-t border-border px-4 py-4 md:hidden">
             <nav className="flex flex-col gap-3">
               {STOREFRONT_NAV_ITEMS.map((item) => (
-                <NavLink
+                <StorefrontLink
                   key={item.href}
-                  {...(mode === "edit"
-                    ? {}
-                    : { href: item.href, onClick: () => setMobileOpen(false) })}
+                  href={item.href}
+                  onClick={() => setMobileOpen(false)}
                   className="text-sm font-medium text-foreground"
                 >
                   {item.label}
-                </NavLink>
+                </StorefrontLink>
               ))}
             </nav>
           </div>

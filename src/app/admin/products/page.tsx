@@ -166,7 +166,8 @@ function createStarterStorefront(store: Store): StorefrontContent {
 }
 
 function formFromProduct(product?: StoreProduct): ProductForm {
-  if (!product) return { ...blankForm, variants: [...blankForm.variants], perks: [...blankForm.perks] };
+  if (!product)
+    return { ...blankForm, variants: [...blankForm.variants], perks: [...blankForm.perks] };
 
   return {
     id: product.id,
@@ -261,9 +262,9 @@ function parseList(value: string) {
     .filter(Boolean);
 }
 
-function productsFromRows(rows: ImportRow[]) {
+function productsFromRows(rows: ImportRow[]): StoreProduct[] {
   return rows
-    .map((row) => {
+    .map<StoreProduct | null>((row) => {
       const name = rowString(row, "name") || rowString(row, "product name");
       if (!name) return null;
       const price = Number(rowString(row, "price") || 0);
@@ -272,7 +273,7 @@ function productsFromRows(rows: ImportRow[]) {
       const variants = parseVariants(rowString(row, "variants"));
       const perks = parseList(rowString(row, "perks"));
 
-      return {
+      const product: StoreProduct = {
         id: uid(),
         slug: slugify(rowString(row, "slug") || name),
         name,
@@ -286,7 +287,8 @@ function productsFromRows(rows: ImportRow[]) {
         status: rowString(row, "status").toLowerCase() === "draft" ? "draft" : "active",
         variants,
         perks: perks.length ? perks : undefined,
-      } satisfies StoreProduct;
+      };
+      return product;
     })
     .filter((product): product is StoreProduct => Boolean(product));
 }
@@ -333,7 +335,7 @@ export default function AdminProductsPage() {
     return storefrontQuery.data ?? createStarterStorefront(store);
   }, [store, storefrontQuery.data]);
 
-  const products = storefront?.products ?? [];
+  const products = useMemo(() => storefront?.products ?? [], [storefront?.products]);
   const categoryOptions = useMemo(() => {
     const categories = products
       .map((product) => product.category)
@@ -344,7 +346,9 @@ export default function AdminProductsPage() {
       : ["Clothing", "Shoes", "Bags", "Accessories", "Jewelry"];
   }, [products]);
   const variantOptions = useMemo(() => {
-    const names = products.flatMap((product) => product.variants?.map((variant) => variant.name) ?? []);
+    const names = products.flatMap(
+      (product) => product.variants?.map((variant) => variant.name) ?? [],
+    );
     return Array.from(new Set(names)).slice(0, 5);
   }, [products]);
   const filteredProducts = products.filter((product) => {
@@ -369,7 +373,9 @@ export default function AdminProductsPage() {
     return matchesSearch && matchesStatus && matchesCategory && matchesPrice && matchesStock;
   });
 
-  const activeCount = products.filter((product) => (product.status ?? "active") === "active").length;
+  const activeCount = products.filter(
+    (product) => (product.status ?? "active") === "active",
+  ).length;
   const draftCount = products.length - activeCount;
   const inventoryCount = products.reduce((sum, product) => sum + (product.stock_quantity ?? 0), 0);
 
@@ -527,7 +533,10 @@ export default function AdminProductsPage() {
                     {categoryOptions.slice(0, 6).map((category) => {
                       const checked = selectedCategories.includes(category);
                       return (
-                        <label key={category} className="flex items-center gap-2 text-xs text-ink-soft">
+                        <label
+                          key={category}
+                          className="flex items-center gap-2 text-xs text-ink-soft"
+                        >
                           <input
                             type="checkbox"
                             checked={checked}
@@ -554,10 +563,15 @@ export default function AdminProductsPage() {
                   </div>
                   <div className="max-h-36 space-y-2 overflow-y-auto pr-2">
                     {categoryOptions.map((category) => {
-                      const count = products.filter((product) => product.category === category).length;
+                      const count = products.filter(
+                        (product) => product.category === category,
+                      ).length;
                       const checked = selectedCategories.includes(category);
                       return (
-                        <label key={category} className="flex items-center gap-2 text-xs text-ink-soft">
+                        <label
+                          key={category}
+                          className="flex items-center gap-2 text-xs text-ink-soft"
+                        >
                           <input
                             type="checkbox"
                             checked={checked}
@@ -620,15 +634,23 @@ export default function AdminProductsPage() {
                     <X className="h-3.5 w-3.5 text-ink-soft" />
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {["#e64d3c", "#f05a28", "#f5c542", "#4f8f63", "#517da3", "#5d54a4", "#292929", "#d7d7d7", "#02a83a"].map(
-                      (color) => (
-                        <span
-                          key={color}
-                          className="h-4 w-4 rounded-full border border-white shadow ring-1 ring-border"
-                          style={{ backgroundColor: color }}
-                        />
-                      ),
-                    )}
+                    {[
+                      "#e64d3c",
+                      "#f05a28",
+                      "#f5c542",
+                      "#4f8f63",
+                      "#517da3",
+                      "#5d54a4",
+                      "#292929",
+                      "#d7d7d7",
+                      "#02a83a",
+                    ].map((color) => (
+                      <span
+                        key={color}
+                        className="h-4 w-4 rounded-full border border-white shadow ring-1 ring-border"
+                        style={{ backgroundColor: color }}
+                      />
+                    ))}
                   </div>
                 </div>
 
@@ -648,7 +670,10 @@ export default function AdminProductsPage() {
                       In stock ({inventoryCount})
                     </label>
                     {variantOptions.map((variant) => (
-                      <label key={variant} className="flex items-center gap-2 text-xs text-ink-soft">
+                      <label
+                        key={variant}
+                        className="flex items-center gap-2 text-xs text-ink-soft"
+                      >
                         <input type="checkbox" className="h-3.5 w-3.5 accent-primary" />
                         Has {variant}
                       </label>
@@ -713,7 +738,10 @@ export default function AdminProductsPage() {
                       disabled={importing || saveProducts.isPending}
                     />
                   </label>
-                  <Button onClick={openNewProduct} className="h-10 rounded-xl bg-[#1f1f1f] text-white">
+                  <Button
+                    onClick={openNewProduct}
+                    className="h-10 rounded-xl bg-[#1f1f1f] text-white"
+                  >
                     <Plus className="h-4 w-4" />
                     New Product
                   </Button>
@@ -723,7 +751,7 @@ export default function AdminProductsPage() {
               {filteredProducts.length ? (
                 <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                   {filteredProducts.map((product, index) => {
-                    const rating = (4.4 + ((index % 4) * 0.1)).toFixed(1);
+                    const rating = (4.4 + (index % 4) * 0.1).toFixed(1);
                     return (
                       <article
                         key={product.id}
@@ -873,7 +901,9 @@ export default function AdminProductsPage() {
                 Slug
                 <Input
                   value={form.slug}
-                  onChange={(event) => setForm((current) => ({ ...current, slug: event.target.value }))}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, slug: event.target.value }))
+                  }
                   placeholder="oversized-hoodie"
                 />
               </label>
@@ -898,7 +928,9 @@ export default function AdminProductsPage() {
                   type="number"
                   min="0"
                   value={form.price}
-                  onChange={(event) => setForm((current) => ({ ...current, price: event.target.value }))}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, price: event.target.value }))
+                  }
                   placeholder="28500"
                   required
                 />
@@ -946,7 +978,9 @@ export default function AdminProductsPage() {
                 SKU
                 <Input
                   value={form.sku}
-                  onChange={(event) => setForm((current) => ({ ...current, sku: event.target.value }))}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, sku: event.target.value }))
+                  }
                   placeholder="HD-001"
                 />
               </label>
@@ -998,7 +1032,9 @@ export default function AdminProductsPage() {
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <h3 className="text-sm font-semibold">Variants</h3>
-                  <p className="text-xs text-ink-soft">Use groups like Size: S, M, L or Color: Black.</p>
+                  <p className="text-xs text-ink-soft">
+                    Use groups like Size: S, M, L or Color: Black.
+                  </p>
                 </div>
                 <Button
                   type="button"
@@ -1066,7 +1102,9 @@ export default function AdminProductsPage() {
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <h3 className="text-sm font-semibold">Perks</h3>
-                  <p className="text-xs text-ink-soft">Highlight benefits like warranty or free delivery.</p>
+                  <p className="text-xs text-ink-soft">
+                    Highlight benefits like warranty or free delivery.
+                  </p>
                 </div>
                 <Button
                   type="button"

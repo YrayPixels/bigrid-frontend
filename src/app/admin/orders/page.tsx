@@ -96,7 +96,8 @@ export default function AdminOrdersPage() {
           <span className="text-xs font-medium uppercase tracking-wide text-ink-soft">Sales</span>
           <h1 className="mt-1 font-display text-3xl font-bold tracking-tight">Orders</h1>
           <p className="mt-2 w-full text-sm text-ink-soft">
-            Manage customer checkout orders, delivery details, payment state, and fulfillment status.
+            Manage customer checkout orders, delivery details, payment state, and fulfillment
+            status.
           </p>
         </div>
         <button
@@ -191,7 +192,9 @@ export default function AdminOrdersPage() {
                       <div className="font-medium">{order.customer_name}</div>
                       <div className="text-xs text-ink-soft">{order.customer_email}</div>
                       <div className="text-xs text-ink-soft">{order.customer_phone}</div>
-                      <div className="mt-2 max-w-xs text-xs text-ink-soft">{order.delivery_address}</div>
+                      <div className="mt-2 max-w-xs text-xs text-ink-soft">
+                        {order.delivery_address}
+                      </div>
                     </td>
                     <td className="px-5 py-4">
                       <div className="space-y-1">
@@ -206,7 +209,9 @@ export default function AdminOrdersPage() {
                       {formatMoney(order.total_amount, order.currency)}
                     </td>
                     <td className="px-5 py-4">
-                      <div className={`mb-2 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${statusClass(order.status)}`}>
+                      <div
+                        className={`mb-2 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${statusClass(order.status)}`}
+                      >
                         {order.status}
                       </div>
                       <select

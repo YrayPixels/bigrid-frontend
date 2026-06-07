@@ -24,7 +24,9 @@ function CheckoutSuccessContent() {
             Order placed
             <span className="h-2 w-5 rounded-full bg-[#073e3f]" />
           </div>
-          <h1 className="mt-5 text-4xl font-semibold tracking-[-0.04em]">Your order is confirmed</h1>
+          <h1 className="mt-5 text-4xl font-semibold tracking-[-0.04em]">
+            Your order is confirmed
+          </h1>
           <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-[#073e3f]/65">
             Thank you for shopping with {store.business_name}. Your order reference is{" "}
             <span className="font-bold text-[#073e3f]">{orderNumber}</span>.

@@ -146,12 +146,14 @@ export const api = {
     return http<MerchantDashboardOverview>(`${STOREHAUSE_API_PREFIX}/dashboard`);
   },
 
-  async getOrders(filters: {
-    status?: string;
-    search?: string;
-    page?: number;
-    per_page?: number;
-  } = {}): Promise<StoreOrdersResponse> {
+  async getOrders(
+    filters: {
+      status?: string;
+      search?: string;
+      page?: number;
+      per_page?: number;
+    } = {},
+  ): Promise<StoreOrdersResponse> {
     const token = requireToken();
     if (USE_MOCKS) return mockApi.getOrders(token, filters);
 

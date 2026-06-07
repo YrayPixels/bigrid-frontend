@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { StorefrontLink } from "@/components/storefront/theme/storefront-link";
 import { ArrowRight, BadgeCheck, RotateCcw, ShieldCheck, Truck } from "lucide-react";
 import type { CSSProperties } from "react";
 import type { Store, StorefrontContent } from "@/lib/api/types";
@@ -66,8 +67,6 @@ export function FashionLookbookHome({
   const aboutImageUrl = storefront.media?.about_image_url ?? fashionTemplateImages.about;
   const faqPage = storefront.pages?.faq;
 
-  const CtaLink = mode === "edit" ? "span" : Link;
-
   return (
     <div style={{ backgroundColor: theme.palette.background, color: theme.palette.text }}>
       <section className="relative">
@@ -100,31 +99,16 @@ export function FashionLookbookHome({
               className="mx-auto mt-4 max-w-md text-xs font-medium leading-6 text-white/90 sm:text-sm"
               multiline
             />
-            <CtaLink
-              {...(mode === "edit"
-                ? {}
-                : {
-                    href: "/products",
-                    className:
-                      "mt-7 inline-flex items-center gap-2 px-7 py-3 text-[11px] font-extrabold uppercase tracking-[0.12em] transition",
-                    style: {
-                      backgroundColor: theme.palette.surface,
-                      color: theme.palette.text,
-                    },
-                  })}
-              className={
-                mode === "edit"
-                  ? "mt-7 inline-flex cursor-default items-center gap-2 px-7 py-3 text-[11px] font-extrabold uppercase tracking-[0.12em]"
-                  : undefined
-              }
-              style={
-                mode === "edit"
-                  ? { backgroundColor: theme.palette.surface, color: theme.palette.text }
-                  : undefined
-              }
+            <StorefrontLink
+              href="/products"
+              className="mt-7 inline-flex items-center gap-2 px-7 py-3 text-[11px] font-extrabold uppercase tracking-[0.12em] transition"
+              style={{
+                backgroundColor: theme.palette.surface,
+                color: theme.palette.text,
+              }}
             >
               <EditableText path="hero.cta_label" value={storefront.hero.cta_label} as="span" />
-            </CtaLink>
+            </StorefrontLink>
           </div>
         </div>
       </section>
@@ -189,8 +173,7 @@ export function FashionLookbookHome({
                 />
                 <div
                   className="mx-auto mt-3 flex w-fit items-center justify-center gap-2 border-b pb-0.5 text-lg font-bold leading-none"
-                  style={{ borderColor: theme.palette.text }}
-                  style={{ fontFamily: "var(--font-editorial)" }}
+                  style={{ borderColor: theme.palette.text, fontFamily: "var(--font-editorial)" }}
                 >
                   {category.title}
                   <ArrowRight className="h-4 w-4" />

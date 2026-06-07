@@ -138,15 +138,7 @@ function ToggleRow({
   );
 }
 
-function Field({
-  label,
-  children,
-  hint,
-}: {
-  label: string;
-  children: ReactNode;
-  hint?: string;
-}) {
+function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
   return (
     <div className="space-y-2">
       <Label>{label}</Label>
@@ -254,7 +246,10 @@ export default function AdminSettingsPage() {
                 <CardContent className="space-y-6">
                   <div className="grid gap-3 md:grid-cols-4">
                     {currentPlan.usage.map((item) => (
-                      <div key={item.label} className="rounded-xl border border-border bg-background p-4">
+                      <div
+                        key={item.label}
+                        className="rounded-xl border border-border bg-background p-4"
+                      >
                         <p className="text-xs font-medium uppercase tracking-wide text-ink-soft">
                           {item.label}
                         </p>
@@ -292,7 +287,10 @@ export default function AdminSettingsPage() {
                             </li>
                           ))}
                         </ul>
-                        <Button className="mt-5 w-full" variant={plan.active ? "secondary" : "default"}>
+                        <Button
+                          className="mt-5 w-full"
+                          variant={plan.active ? "secondary" : "default"}
+                        >
                           {plan.active ? "Current plan" : "Switch to plan"}
                         </Button>
                       </div>
@@ -308,7 +306,8 @@ export default function AdminSettingsPage() {
                     SMS wallet
                   </CardTitle>
                   <CardDescription>
-                    Track SMS units for order updates, delivery notices, marketing campaigns, and OTPs.
+                    Track SMS units for order updates, delivery notices, marketing campaigns, and
+                    OTPs.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
@@ -325,7 +324,8 @@ export default function AdminSettingsPage() {
                       </div>
                       <Progress value={smsPercent} className="mt-5" />
                       <p className="mt-3 text-xs text-ink-soft">
-                        Auto reminders pause when the balance drops below 100 units unless auto top-up is enabled.
+                        Auto reminders pause when the balance drops below 100 units unless auto
+                        top-up is enabled.
                       </p>
                     </div>
                     <ToggleRow
@@ -439,7 +439,8 @@ export default function AdminSettingsPage() {
                     Store profile and branding
                   </CardTitle>
                   <CardDescription>
-                    Keep your public store information accurate for customers and AI-generated content.
+                    Keep your public store information accurate for customers and AI-generated
+                    content.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="grid gap-5 lg:grid-cols-2">
@@ -462,11 +463,18 @@ export default function AdminSettingsPage() {
                     <Input defaultValue={store.slug} />
                   </Field>
                   <Field label="Custom domain">
-                    <Input defaultValue={store.primary_domain ?? ""} placeholder="shop.yourdomain.com" />
+                    <Input
+                      defaultValue={store.primary_domain ?? ""}
+                      placeholder="shop.yourdomain.com"
+                    />
                   </Field>
                   <Field label="Brand color">
                     <div className="flex gap-3">
-                      <Input type="color" defaultValue={store.brand_color} className="h-10 w-16 p-1" />
+                      <Input
+                        type="color"
+                        defaultValue={store.brand_color}
+                        className="h-10 w-16 p-1"
+                      />
                       <Input defaultValue={store.brand_color} />
                     </div>
                   </Field>

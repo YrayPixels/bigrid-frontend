@@ -1,1 +1,1 @@
-export { WebsiteEditorPage as default } from "../page";
+export { default } from "@/components/admin/website-editor-page";

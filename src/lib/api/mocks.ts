@@ -22,7 +22,10 @@ type MockDB = {
   stores: Record<string, Store>;
   storefronts: Record<string, StorefrontContent>;
   orders: Record<string, StoreOrder[]>;
-  visits: Record<string, { session_id?: string; path?: string; referrer?: string; visited_at: string }[]>;
+  visits: Record<
+    string,
+    { session_id?: string; path?: string; referrer?: string; visited_at: string }[]
+  >;
   sessions: Record<string, string>;
 };
 
@@ -64,7 +67,10 @@ function findStoreForToken(token: string): { db: MockDB; store: Store } {
 }
 
 function byLatestOrder(a: StoreOrder, b: StoreOrder) {
-  return new Date(b.placed_at ?? b.created_at ?? 0).getTime() - new Date(a.placed_at ?? a.created_at ?? 0).getTime();
+  return (
+    new Date(b.placed_at ?? b.created_at ?? 0).getTime() -
+    new Date(a.placed_at ?? a.created_at ?? 0).getTime()
+  );
 }
 
 function uid() {
@@ -162,7 +168,9 @@ export const mockApi = {
     const { db, store } = findStoreForToken(token);
     const orders = db.orders[store.id] ?? [];
     const visits = db.visits[store.id] ?? [];
-    const activeOrders = orders.filter((order) => !["cancelled", "refunded"].includes(order.status));
+    const activeOrders = orders.filter(
+      (order) => !["cancelled", "refunded"].includes(order.status),
+    );
     const totalSales = activeOrders.reduce((sum, order) => sum + order.total_amount, 0);
     const today = new Date().toISOString().slice(0, 10);
     const salesByDay = Array.from({ length: 14 }, (_, index) => {
@@ -186,8 +194,11 @@ export const mockApi = {
         average_order_value: orders.length ? totalSales / orders.length : 0,
         total_visits: visits.length,
         visits_today: visits.filter((visit) => visit.visited_at.slice(0, 10) === today).length,
-        conversion_rate: visits.length ? Number(((orders.length / visits.length) * 100).toFixed(2)) : 0,
-        products_count: (db.storefronts[store.id] ?? synthesizeStorefront(store)).products?.length ?? 0,
+        conversion_rate: visits.length
+          ? Number(((orders.length / visits.length) * 100).toFixed(2))
+          : 0,
+        products_count:
+          (db.storefronts[store.id] ?? synthesizeStorefront(store)).products?.length ?? 0,
       },
       sales_by_day: salesByDay,
       recent_orders: [...orders].sort(byLatestOrder).slice(0, 5),
@@ -365,7 +376,8 @@ export const mockApi = {
     const products = new Map((storefront.products ?? []).map((product) => [product.id, product]));
     const items = body.items.map((line) => {
       const product = products.get(line.product_id);
-      if (!product) throw { status: 422, message: `Product ${line.product_id} is no longer available.` };
+      if (!product)
+        throw { status: 422, message: `Product ${line.product_id} is no longer available.` };
       return {
         product_id: product.id,
         name: product.name,

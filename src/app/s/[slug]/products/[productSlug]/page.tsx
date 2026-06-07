@@ -11,7 +11,8 @@ export default function ProductDetailPage() {
   const { mode } = useStorefrontTheme();
   const product = (storefront.products ?? []).find(
     (entry) =>
-      entry.slug === params.productSlug && (mode === "edit" || (entry.status ?? "active") === "active"),
+      entry.slug === params.productSlug &&
+      (mode === "edit" || (entry.status ?? "active") === "active"),
   );
 
   return <ProductDetailPageView product={product ?? null} />;

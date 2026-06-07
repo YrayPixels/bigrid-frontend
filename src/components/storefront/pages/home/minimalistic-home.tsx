@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import type { Store, StorefrontContent, StoreProduct } from "@/lib/api/types";
 import { EditableImage } from "@/components/storefront/theme/editable-image";
 import { EditableText } from "@/components/storefront/theme/editable-text";
+import { StorefrontLink } from "@/components/storefront/theme/storefront-link";
 import { StorefrontFaqSection } from "@/components/storefront/pages/storefront-faq-section";
 import { formatMoney } from "@/lib/storefront/format";
 import { useCart } from "@/lib/storefront/cart-context";
@@ -120,8 +121,6 @@ export function MinimalisticHome({
   );
   const heroImageUrl = storefront.media?.hero_image_url ?? minimalisticTemplateImages.hero;
   const aboutImageUrl = storefront.media?.about_image_url ?? minimalisticTemplateImages.about;
-  const CtaLink = mode === "edit" ? "span" : Link;
-
   return (
     <div style={{ backgroundColor: theme.palette.background, color: theme.palette.text }}>
       <section className="relative overflow-hidden px-4 pb-14 pt-14 text-center sm:px-6 lg:pb-20 lg:pt-20">
@@ -292,12 +291,7 @@ export function MinimalisticHome({
               style={{ color: `${theme.palette.background}bf` }}
               multiline
             />
-            <CtaLink
-              {...(mode === "edit"
-                ? {}
-                : { href: "/products", className: "mt-6 inline-flex w-fit items-center gap-2" })}
-              className={mode === "edit" ? "mt-6 inline-flex w-fit items-center gap-2" : undefined}
-            >
+            <StorefrontLink href="/products" className="mt-6 inline-flex w-fit items-center gap-2">
               <span
                 className="rounded-full px-4 py-2 text-xs font-semibold"
                 style={{ backgroundColor: theme.palette.background, color: theme.palette.primary }}
@@ -305,7 +299,7 @@ export function MinimalisticHome({
                 Explore now
               </span>
               <ArrowUpRight className="h-4 w-4" />
-            </CtaLink>
+            </StorefrontLink>
           </div>
         </div>
       </section>

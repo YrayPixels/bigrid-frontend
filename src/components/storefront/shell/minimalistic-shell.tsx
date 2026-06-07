@@ -8,6 +8,7 @@ import { useCart } from "@/lib/storefront/cart-context";
 import { useStorefront } from "@/lib/storefront/store-context";
 import { useStorefrontTheme } from "@/lib/storefront/theme-context";
 import { STOREFRONT_FOOTER_LINKS, STOREFRONT_NAV_ITEMS } from "@/lib/storefront/template";
+import { StorefrontLink } from "@/components/storefront/theme/storefront-link";
 import { cn } from "@/lib/utils";
 
 export function MinimalisticShell({ children }: { children: React.ReactNode }) {
@@ -16,8 +17,6 @@ export function MinimalisticShell({ children }: { children: React.ReactNode }) {
   const { itemCount } = useCart();
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const NavLink = mode === "edit" ? "span" : Link;
-
   return (
     <div className={`${theme.pageBg} min-h-screen ${theme.pageText}`}>
       <header
@@ -25,10 +24,7 @@ export function MinimalisticShell({ children }: { children: React.ReactNode }) {
         style={{ backgroundColor: `${theme.palette.background}e6` }}
       >
         <div className="mx-auto flex min-h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6">
-          <NavLink
-            {...(mode === "edit" ? {} : { href: "/" })}
-            className="flex min-w-0 items-center gap-2"
-          >
+          <StorefrontLink href="/" className="flex min-w-0 items-center gap-2">
             {store.logo_url ? (
               <img
                 src={store.logo_url}
@@ -42,16 +38,16 @@ export function MinimalisticShell({ children }: { children: React.ReactNode }) {
               />
             )}
             <span className="truncate text-lg font-bold tracking-tight">{store.business_name}</span>
-          </NavLink>
+          </StorefrontLink>
 
           <nav
             className="hidden rounded-full p-1 lg:flex"
             style={{ backgroundColor: `${theme.palette.surface}cc` }}
           >
             {STOREFRONT_NAV_ITEMS.slice(0, 5).map((item) => (
-              <NavLink
+              <StorefrontLink
                 key={item.href}
-                {...(mode === "edit" ? {} : { href: item.href })}
+                href={item.href}
                 className={cn(
                   "rounded-full px-4 py-2 text-[11px] font-semibold transition",
                   mode !== "edit" &&
@@ -76,7 +72,7 @@ export function MinimalisticShell({ children }: { children: React.ReactNode }) {
                 }}
               >
                 {item.label}
-              </NavLink>
+              </StorefrontLink>
             ))}
           </nav>
 
@@ -143,16 +139,15 @@ export function MinimalisticShell({ children }: { children: React.ReactNode }) {
           >
             <nav className="flex flex-col gap-2">
               {STOREFRONT_NAV_ITEMS.map((item) => (
-                <NavLink
+                <StorefrontLink
                   key={item.href}
-                  {...(mode === "edit"
-                    ? {}
-                    : { href: item.href, onClick: () => setMobileOpen(false) })}
+                  href={item.href}
+                  onClick={() => setMobileOpen(false)}
                   className="rounded-full px-4 py-2 text-sm font-semibold"
                   style={{ color: theme.palette.text }}
                 >
                   {item.label}
-                </NavLink>
+                </StorefrontLink>
               ))}
             </nav>
           </div>

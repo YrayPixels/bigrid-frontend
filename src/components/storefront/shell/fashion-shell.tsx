@@ -9,6 +9,7 @@ import { useStorefront } from "@/lib/storefront/store-context";
 import { useStorefrontTheme } from "@/lib/storefront/theme-context";
 import { StorefrontFaqSection } from "@/components/storefront/pages/storefront-faq-section";
 import { STOREFRONT_FOOTER_LINKS, STOREFRONT_NAV_ITEMS } from "@/lib/storefront/template";
+import { StorefrontLink } from "@/components/storefront/theme/storefront-link";
 import { cn } from "@/lib/utils";
 
 export function FashionShell({ children }: { children: React.ReactNode }) {
@@ -18,8 +19,6 @@ export function FashionShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const showProductsFaq = /\/products\/?$/.test(pathname);
-
-  const NavLink = mode === "edit" ? "span" : Link;
 
   return (
     <div className={`${theme.pageBg} min-h-screen ${theme.pageText}`}>
@@ -46,9 +45,9 @@ export function FashionShell({ children }: { children: React.ReactNode }) {
             </button>
             <nav className="hidden items-center gap-5 lg:flex">
               {STOREFRONT_NAV_ITEMS.map((item) => (
-                <NavLink
+                <StorefrontLink
                   key={item.label}
-                  {...(mode === "edit" ? {} : { href: item.href })}
+                  href={item.href}
                   className={cn(
                     "text-[11px] font-bold uppercase tracking-[0.12em] transition-colors",
                     mode === "edit"
@@ -60,18 +59,18 @@ export function FashionShell({ children }: { children: React.ReactNode }) {
                   )}
                 >
                   {item.label}
-                </NavLink>
+                </StorefrontLink>
               ))}
             </nav>
           </div>
 
-          <NavLink
-            {...(mode === "edit" ? {} : { href: "/" })}
+          <StorefrontLink
+            href="/"
             className="text-xl font-bold uppercase tracking-[0.18em]"
             style={{ fontFamily: theme.displayFont }}
           >
             {store.business_name}
-          </NavLink>
+          </StorefrontLink>
 
           <div className="flex items-center justify-end gap-4">
             {mode === "edit" ? (
@@ -103,15 +102,14 @@ export function FashionShell({ children }: { children: React.ReactNode }) {
           >
             <nav className="flex flex-col gap-3">
               {STOREFRONT_NAV_ITEMS.map((item) => (
-                <NavLink
+                <StorefrontLink
                   key={item.label}
-                  {...(mode === "edit"
-                    ? {}
-                    : { href: item.href, onClick: () => setMobileOpen(false) })}
+                  href={item.href}
+                  onClick={() => setMobileOpen(false)}
                   className="text-sm font-bold uppercase tracking-[0.12em]"
                 >
                   {item.label}
-                </NavLink>
+                </StorefrontLink>
               ))}
             </nav>
           </div>

@@ -5,6 +5,7 @@ import { ArrowRight } from "lucide-react";
 import type { Store, StorefrontContent } from "@/lib/api/types";
 import { EditableImage } from "@/components/storefront/theme/editable-image";
 import { EditableText } from "@/components/storefront/theme/editable-text";
+import { StorefrontLink } from "@/components/storefront/theme/storefront-link";
 import { StorefrontFaqSection } from "@/components/storefront/pages/storefront-faq-section";
 import { ProductCardThemed } from "@/components/storefront/theme/product-card-themed";
 import { getHomepageProducts } from "@/lib/storefront/product-plugs";
@@ -23,8 +24,13 @@ export function ClassicHome({
   const products = storefront.products ?? [];
   const isEditorial = variant === "editorial";
   const isBoldGrid = variant === "bold_grid";
-  const CtaLink = mode === "edit" ? "span" : Link;
   const heroImageUrl = storefront.media?.hero_image_url;
+  const ctaLabel = (
+    <>
+      <EditableText path="hero.cta_label" value={storefront.hero.cta_label} as="span" />
+      {mode !== "edit" ? <ArrowRight className="h-4 w-4" /> : null}
+    </>
+  );
   const { products: homepageProducts, source: productSource } = getHomepageProducts(
     storefront,
     theme.id,
@@ -78,29 +84,20 @@ export function ClassicHome({
             style={{ color: theme.palette.muted }}
             multiline
           />
-          <CtaLink
-            {...(mode === "edit"
-              ? {}
-              : {
-                  href: "/products",
-                  className:
-                    "mt-8 inline-flex items-center gap-2 rounded-md px-6 py-3 text-sm font-semibold text-white shadow-elevated",
-                  style: { backgroundColor: theme.palette.primary },
-                })}
-            className={
-              mode === "edit"
-                ? "mt-8 inline-flex cursor-default items-center gap-2 rounded-md px-6 py-3 text-sm font-semibold text-white shadow-elevated"
-                : undefined
-            }
-            style={mode === "edit" ? { backgroundColor: theme.palette.primary } : undefined}
+          <StorefrontLink
+            href="/products"
+            className="mt-8 inline-flex items-center gap-2 rounded-md px-6 py-3 text-sm font-semibold text-white shadow-elevated"
+            style={{ backgroundColor: theme.palette.primary }}
           >
-            <EditableText path="hero.cta_label" value={storefront.hero.cta_label} as="span" />
-            {mode !== "edit" ? <ArrowRight className="h-4 w-4" /> : null}
-          </CtaLink>
+            {ctaLabel}
+          </StorefrontLink>
         </div>
       </section>
 
-      <section className="w-full px-4 py-16 sm:px-6" style={{ backgroundColor: theme.palette.background }}>
+      <section
+        className="w-full px-4 py-16 sm:px-6"
+        style={{ backgroundColor: theme.palette.background }}
+      >
         <div className="mb-8 flex items-end justify-between gap-4">
           <div>
             <h2 className="text-3xl font-bold" style={{ fontFamily: theme.displayFont }}>
