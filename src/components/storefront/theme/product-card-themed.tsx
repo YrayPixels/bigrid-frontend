@@ -34,7 +34,9 @@ export function ProductCardThemed({
         style={
           isFashion
             ? { backgroundColor: theme.palette.surface }
-            : { background: `linear-gradient(135deg, ${theme.palette.primary}, ${theme.palette.primary}88)` }
+            : {
+                background: `linear-gradient(135deg, ${theme.palette.primary}, ${theme.palette.primary}88)`,
+              }
         }
       >
         {product.image_url || (mode === "edit" && imagePath) ? (
@@ -57,7 +59,10 @@ export function ProductCardThemed({
             "font-semibold group-hover:underline",
             isFashion ? "text-xs font-bold" : "font-display text-lg",
           )}
-          style={{ color: theme.palette.text, ...(isFashion ? {} : { fontFamily: theme.displayFont }) }}
+          style={{
+            color: theme.palette.text,
+            ...(isFashion ? {} : { fontFamily: theme.displayFont }),
+          }}
         >
           {product.name}
         </h3>

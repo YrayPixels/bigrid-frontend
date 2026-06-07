@@ -74,7 +74,11 @@ function MetricCard({
         <div>
           <p className="text-sm font-medium text-ink-soft">{label}</p>
           <div className="mt-2 font-display text-2xl font-bold">
-            {loading ? <span className="inline-block h-8 w-20 animate-pulse rounded bg-secondary" /> : value}
+            {loading ? (
+              <span className="inline-block h-8 w-20 animate-pulse rounded bg-secondary" />
+            ) : (
+              value
+            )}
           </div>
         </div>
         <div className="grid h-10 w-10 place-items-center rounded-xl bg-primary/10 text-primary">
@@ -480,9 +484,7 @@ export function WebsiteEditorPage() {
     <div className="w-full px-6 py-10">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <span className="text-xs font-medium uppercase tracking-wide text-ink-soft">
-            Website
-          </span>
+          <span className="text-xs font-medium uppercase tracking-wide text-ink-soft">Website</span>
           <h1 className="mt-1 font-display text-3xl font-bold tracking-tight">
             {store.business_name}
           </h1>
@@ -604,7 +606,6 @@ export function WebsiteEditorPage() {
           </div>
         </div>
       ) : null}
-
     </div>
   );
 }
@@ -739,7 +740,9 @@ export default function AdminDashboardPage() {
           <div className="flex items-center justify-between gap-4">
             <div>
               <h2 className="font-display text-lg font-bold">Recent orders</h2>
-              <p className="text-sm text-ink-soft">Latest checkout activity from your storefront.</p>
+              <p className="text-sm text-ink-soft">
+                Latest checkout activity from your storefront.
+              </p>
             </div>
             <Package className="h-5 w-5 text-ink-soft" />
           </div>

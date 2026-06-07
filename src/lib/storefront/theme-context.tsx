@@ -41,12 +41,7 @@ export function StorefrontThemeProvider({
 
   return (
     <StorefrontThemeContext.Provider value={{ theme, mode, editable }}>
-      <div
-        data-template={theme.id}
-        data-mode={mode}
-        className={theme.pageBg}
-        style={paletteVars}
-      >
+      <div data-template={theme.id} data-mode={mode} className={theme.pageBg} style={paletteVars}>
         {children}
       </div>
     </StorefrontThemeContext.Provider>

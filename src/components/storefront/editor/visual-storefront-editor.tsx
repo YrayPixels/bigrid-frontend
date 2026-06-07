@@ -14,7 +14,11 @@ import {
   StorefrontEditorCanvas,
   type EditorPage,
 } from "@/components/storefront/editor/storefront-editor-canvas";
-import { applyTemplateToDraft, cloneStorefrontContent, setDraftField } from "@/lib/storefront/draft";
+import {
+  applyTemplateToDraft,
+  cloneStorefrontContent,
+  setDraftField,
+} from "@/lib/storefront/draft";
 import { getProductPlugSource } from "@/lib/storefront/product-plugs";
 import {
   getDefaultStorefrontPalette,
@@ -94,7 +98,10 @@ export function VisualStorefrontEditor({
       templateId !== resolveStorefrontTemplate(store, storefront) ||
       JSON.stringify(palette) !==
         JSON.stringify({
-          ...getDefaultStorefrontPalette(resolveStorefrontTemplate(store, storefront), store.brand_color),
+          ...getDefaultStorefrontPalette(
+            resolveStorefrontTemplate(store, storefront),
+            store.brand_color,
+          ),
           ...storefront.palette,
         })
     );

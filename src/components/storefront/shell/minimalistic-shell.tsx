@@ -36,7 +36,10 @@ export function MinimalisticShell({ children }: { children: React.ReactNode }) {
                 className="h-8 w-8 rounded-full object-cover"
               />
             ) : (
-              <span className="h-3 w-3 rounded-full" style={{ backgroundColor: theme.palette.primary }} />
+              <span
+                className="h-3 w-3 rounded-full"
+                style={{ backgroundColor: theme.palette.primary }}
+              />
             )}
             <span className="truncate text-lg font-bold tracking-tight">{store.business_name}</span>
           </NavLink>
@@ -52,19 +55,22 @@ export function MinimalisticShell({ children }: { children: React.ReactNode }) {
                 className={cn(
                   "rounded-full px-4 py-2 text-[11px] font-semibold transition",
                   mode !== "edit" &&
-                    (pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href)))
+                    (pathname === item.href ||
+                      (item.href !== "/" && pathname.startsWith(item.href)))
                     ? ""
                     : "hover:opacity-80",
                 )}
                 style={{
                   backgroundColor:
                     mode !== "edit" &&
-                    (pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href)))
+                    (pathname === item.href ||
+                      (item.href !== "/" && pathname.startsWith(item.href)))
                       ? theme.palette.primary
                       : undefined,
                   color:
                     mode !== "edit" &&
-                    (pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href)))
+                    (pathname === item.href ||
+                      (item.href !== "/" && pathname.startsWith(item.href)))
                       ? theme.palette.background
                       : theme.palette.text,
                 }}
@@ -101,7 +107,10 @@ export function MinimalisticShell({ children }: { children: React.ReactNode }) {
                 {itemCount > 0 ? (
                   <span
                     className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full px-1 text-[9px] font-bold"
-                    style={{ backgroundColor: theme.palette.primary, color: theme.palette.background }}
+                    style={{
+                      backgroundColor: theme.palette.primary,
+                      color: theme.palette.background,
+                    }}
                   >
                     {itemCount}
                   </span>
@@ -158,7 +167,10 @@ export function MinimalisticShell({ children }: { children: React.ReactNode }) {
       >
         <div className="mx-auto flex max-w-7xl flex-col gap-8 px-4 py-8 sm:px-6 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-2">
-            <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: theme.palette.primary }} />
+            <span
+              className="h-2.5 w-2.5 rounded-full"
+              style={{ backgroundColor: theme.palette.primary }}
+            />
             <span className="font-bold">{store.business_name}</span>
           </div>
           <div className="flex flex-wrap gap-5 text-xs font-medium text-[#073e3f]/70">
