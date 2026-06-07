@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ExternalLink, Eye, Loader2, Pencil, RefreshCcw, Sparkles, X } from "lucide-react";
-import { getStoreSubdomainHost, getStorefrontUrl } from "@/lib/store-host";
+import { getStorefrontUrl } from "@/lib/store-host";
 import { toast } from "sonner";
 import { GeneratingSkeleton } from "@/components/storefront/generating-skeleton";
 import { StorefrontPreview } from "@/components/storefront/storefront-preview";
@@ -418,8 +418,7 @@ export default function WebsiteEditorPage() {
             {store.business_name}
           </h1>
           <p className="mt-1 text-sm text-ink-soft">
-            Design, preview, and publish your storefront at{" "}
-            {store.subdomain_host ?? getStoreSubdomainHost(store.slug)}.
+            Design, preview, and publish your storefront at {liveStoreUrl}.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">

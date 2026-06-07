@@ -10,6 +10,7 @@ import { useStorefrontTheme } from "@/lib/storefront/theme-context";
 import { StorefrontFaqSection } from "@/components/storefront/pages/storefront-faq-section";
 import { STOREFRONT_FOOTER_LINKS, STOREFRONT_NAV_ITEMS } from "@/lib/storefront/template";
 import { StorefrontLink } from "@/components/storefront/theme/storefront-link";
+import { getStorefrontUrl } from "@/lib/store-host";
 import { cn } from "@/lib/utils";
 
 export function FashionShell({ children }: { children: React.ReactNode }) {
@@ -133,7 +134,7 @@ export function FashionShell({ children }: { children: React.ReactNode }) {
               {store.business_name}
             </div>
             <p className="mt-2 text-sm text-white/65">
-              {store.subdomain_host ?? store.primary_domain}
+              {getStorefrontUrl(store.slug)}
             </p>
           </div>
           <div className="flex flex-wrap gap-4 text-sm text-white/65">

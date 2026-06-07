@@ -9,6 +9,7 @@ import { useStorefront } from "@/lib/storefront/store-context";
 import { useStorefrontTheme } from "@/lib/storefront/theme-context";
 import { STOREFRONT_FOOTER_LINKS, STOREFRONT_NAV_ITEMS } from "@/lib/storefront/template";
 import { StorefrontLink } from "@/components/storefront/theme/storefront-link";
+import { getStorefrontUrl } from "@/lib/store-host";
 import { cn } from "@/lib/utils";
 
 export function DefaultShell({ children }: { children: React.ReactNode }) {
@@ -58,7 +59,7 @@ export function DefaultShell({ children }: { children: React.ReactNode }) {
                   mode === "edit"
                     ? "text-muted-foreground"
                     : pathname === item.href ||
-                        (item.href !== "/" && pathname.startsWith(item.href))
+                      (item.href !== "/" && pathname.startsWith(item.href))
                       ? "text-foreground"
                       : "text-muted-foreground",
                 )}
@@ -131,7 +132,7 @@ export function DefaultShell({ children }: { children: React.ReactNode }) {
               {store.business_name}
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
-              {store.subdomain_host ?? store.primary_domain}
+              {getStorefrontUrl(store.slug)}
             </p>
           </div>
           <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">

@@ -16,7 +16,11 @@ const RESERVED = new Set([
 ]);
 
 export const STORE_PLATFORM_DOMAIN =
-  process.env.NEXT_PUBLIC_STORE_PLATFORM_DOMAIN ?? "storehause.vercel.app";
+  process.env.NEXT_PUBLIC_STORE_PLATFORM_DOMAIN ?? "yrayhostings.com.ng";
+
+function supportsSubdomainStorefronts(): boolean {
+  return !STORE_PLATFORM_DOMAIN.endsWith(".vercel.app");
+}
 
 export function getStoreSubdomainHost(slug: string) {
   return `${slug}.${STORE_PLATFORM_DOMAIN}`;
@@ -32,12 +36,20 @@ export function getStorefrontUrl(slug: string): string {
     }
 
     if (hostname === STORE_PLATFORM_DOMAIN || hostname === `www.${STORE_PLATFORM_DOMAIN}`) {
+      if (!supportsSubdomainStorefronts()) {
+        return `${protocol}//${STORE_PLATFORM_DOMAIN}/s/${slug}`;
+      }
+
       return `${protocol}//${slug}.${STORE_PLATFORM_DOMAIN}`;
     }
   }
 
   if (process.env.NODE_ENV === "development") {
     return `http://${slug}.localhost:3000`;
+  }
+
+  if (!supportsSubdomainStorefronts()) {
+    return `https://${STORE_PLATFORM_DOMAIN}/s/${slug}`;
   }
 
   return `https://${slug}.${STORE_PLATFORM_DOMAIN}`;
