@@ -106,11 +106,20 @@ export function FashionLookbookHome({
                 : {
                     href: "/products",
                     className:
-                      "mt-7 inline-flex items-center gap-2 bg-white px-7 py-3 text-[11px] font-extrabold uppercase tracking-[0.12em] text-[#111111] transition hover:bg-[#111111] hover:text-white",
+                      "mt-7 inline-flex items-center gap-2 px-7 py-3 text-[11px] font-extrabold uppercase tracking-[0.12em] transition",
+                    style: {
+                      backgroundColor: theme.palette.surface,
+                      color: theme.palette.text,
+                    },
                   })}
               className={
                 mode === "edit"
-                  ? "mt-7 inline-flex cursor-default items-center gap-2 bg-white px-7 py-3 text-[11px] font-extrabold uppercase tracking-[0.12em] text-[#111111]"
+                  ? "mt-7 inline-flex cursor-default items-center gap-2 px-7 py-3 text-[11px] font-extrabold uppercase tracking-[0.12em]"
+                  : undefined
+              }
+              style={
+                mode === "edit"
+                  ? { backgroundColor: theme.palette.surface, color: theme.palette.text }
                   : undefined
               }
             >
@@ -179,7 +188,8 @@ export function FashionLookbookHome({
                   className="aspect-[4/5]"
                 />
                 <div
-                  className="mx-auto mt-3 flex w-fit items-center justify-center gap-2 border-b border-[#111111] pb-0.5 text-lg font-bold leading-none"
+                  className="mx-auto mt-3 flex w-fit items-center justify-center gap-2 border-b pb-0.5 text-lg font-bold leading-none"
+                  style={{ borderColor: theme.palette.text }}
                   style={{ fontFamily: "var(--font-editorial)" }}
                 >
                   {category.title}
@@ -232,7 +242,10 @@ export function FashionLookbookHome({
                   className="aspect-[4/5]"
                 />
                 <h3 className="mt-4 min-h-9 text-xs font-bold leading-[1.15]">{product.name}</h3>
-                <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-[#6e6e6e]">
+                <p
+                  className="mt-1 line-clamp-2 text-[11px] leading-4"
+                  style={{ color: theme.palette.muted }}
+                >
                   {product.description}
                 </p>
                 <div className="mt-2 text-xs font-semibold tracking-tight">
@@ -284,8 +297,8 @@ export function FashionLookbookHome({
               path="about.body"
               value={storefront.about.body}
               as="p"
-                className="mt-5 max-w-lg text-sm leading-7"
-                style={{ color: theme.palette.muted }}
+              className="mt-5 max-w-lg text-sm leading-7"
+              style={{ color: theme.palette.muted }}
               multiline
             />
             {mode === "edit" ? (

@@ -42,6 +42,7 @@ function MinimalProductCard({
   editable: boolean;
 }) {
   const { addItem } = useCart();
+  const { theme } = useStorefrontTheme();
   const imageUrl =
     product.image_url ??
     minimalisticTemplateImages.products[index % minimalisticTemplateImages.products.length];
@@ -70,23 +71,31 @@ function MinimalProductCard({
       </Link>
       <div className="mt-3 flex items-start justify-between gap-3">
         <div>
-          <h3 className="line-clamp-1 text-sm font-bold text-[#073e3f]">{product.name}</h3>
-          <p className="mt-1 line-clamp-1 text-[11px] text-[#073e3f]/60">{product.description}</p>
+          <h3 className="line-clamp-1 text-sm font-bold" style={{ color: theme.palette.text }}>
+            {product.name}
+          </h3>
+          <p className="mt-1 line-clamp-1 text-[11px]" style={{ color: theme.palette.muted }}>
+            {product.description}
+          </p>
         </div>
-        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#073e3f]">
+        <span
+          className="inline-flex items-center gap-1 text-[11px] font-semibold"
+          style={{ color: theme.palette.text }}
+        >
           <Star className="h-3 w-3 fill-[#efc64b] text-[#efc64b]" />
           {index % 3 === 0 ? "4.9" : "4.8"}
         </span>
       </div>
       <div className="mt-3 flex items-center justify-between gap-3">
-        <span className="text-sm font-bold text-[#073e3f]">
+        <span className="text-sm font-bold" style={{ color: theme.palette.text }}>
           {formatMoney(product.price, product.currency)}
         </span>
         <button
           type="button"
           onClick={addToCart}
           disabled={editable}
-          className="rounded-full bg-[#073e3f] px-3 py-1.5 text-[10px] font-semibold text-[#fbfbdc] transition hover:bg-[#0a5253] disabled:cursor-default disabled:opacity-70"
+          className="rounded-full px-3 py-1.5 text-[10px] font-semibold transition disabled:cursor-default disabled:opacity-70"
+          style={{ backgroundColor: theme.palette.primary, color: theme.palette.background }}
         >
           Add to Cart
         </button>
@@ -127,9 +136,15 @@ export function MinimalisticHome({
             className="mx-auto mb-7 inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-semibold shadow-sm"
             style={{ backgroundColor: `${theme.palette.surface}b3` }}
           >
-            <span className="h-2 w-5 rounded-full" style={{ backgroundColor: theme.palette.primary }} />
+            <span
+              className="h-2 w-5 rounded-full"
+              style={{ backgroundColor: theme.palette.primary }}
+            />
             Products List
-            <span className="h-2 w-5 rounded-full" style={{ backgroundColor: theme.palette.primary }} />
+            <span
+              className="h-2 w-5 rounded-full"
+              style={{ backgroundColor: theme.palette.primary }}
+            />
           </div>
           <EditableText
             path="hero.headline"
@@ -206,8 +221,14 @@ export function MinimalisticHome({
             <br className="hidden sm:block" /> Wellness
           </h2>
           <div className="relative mx-auto mt-10 grid min-h-[360px] max-w-xl place-items-center">
-            <div className="absolute h-72 w-72 rounded-full border border-[#073e3f]/10" />
-            <div className="absolute h-48 w-48 rounded-full border border-[#073e3f]/10" />
+            <div
+              className="absolute h-72 w-72 rounded-full border"
+              style={{ borderColor: theme.palette.border }}
+            />
+            <div
+              className="absolute h-48 w-48 rounded-full border"
+              style={{ borderColor: theme.palette.border }}
+            />
             {[
               "Science backed",
               "Clean ingredients",
@@ -290,9 +311,15 @@ export function MinimalisticHome({
       </section>
 
       <section className="px-4 py-8 sm:px-6" style={{ backgroundColor: theme.palette.background }}>
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-6 border-y border-[#073e3f]/10 py-6">
+        <div
+          className="mx-auto flex max-w-7xl items-center justify-between gap-6 border-y py-6"
+          style={{ borderColor: theme.palette.border }}
+        >
           <h2 className="text-4xl font-light tracking-[-0.06em] sm:text-5xl">Subscribe Now</h2>
-          <span className="grid h-12 w-12 place-items-center rounded-full bg-white text-[#073e3f] shadow-sm">
+          <span
+            className="grid h-12 w-12 place-items-center rounded-full shadow-sm"
+            style={{ backgroundColor: theme.palette.surface, color: theme.palette.text }}
+          >
             <ArrowUpRight className="h-5 w-5" />
           </span>
         </div>

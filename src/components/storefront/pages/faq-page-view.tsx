@@ -26,9 +26,15 @@ export function FaqPageView({
             className="mx-auto inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-semibold shadow-sm"
             style={{ backgroundColor: `${theme.palette.surface}cc` }}
           >
-            <span className="h-2 w-5 rounded-full" style={{ backgroundColor: theme.palette.primary }} />
+            <span
+              className="h-2 w-5 rounded-full"
+              style={{ backgroundColor: theme.palette.primary }}
+            />
             FAQs
-            <span className="h-2 w-5 rounded-full" style={{ backgroundColor: theme.palette.primary }} />
+            <span
+              className="h-2 w-5 rounded-full"
+              style={{ backgroundColor: theme.palette.primary }}
+            />
           </div>
           <EditableText
             path="pages.faq.title"
@@ -36,7 +42,10 @@ export function FaqPageView({
             as="h1"
             className="mt-5 text-4xl font-semibold leading-tight tracking-[-0.045em] sm:text-5xl"
           />
-          <p className="mx-auto mt-4 max-w-md text-sm leading-6" style={{ color: theme.palette.muted }}>
+          <p
+            className="mx-auto mt-4 max-w-md text-sm leading-6"
+            style={{ color: theme.palette.muted }}
+          >
             Find answers about orders, delivery, returns, and your daily wellness essentials.
           </p>
 
@@ -57,10 +66,12 @@ export function FaqPageView({
               <details
                 key={index}
                 className="group rounded-[1.5rem] p-5 shadow-sm ring-1"
-                style={{
-                  backgroundColor: `${theme.palette.surface}cc`,
-                  "--tw-ring-color": theme.palette.border,
-                } as CSSProperties}
+                style={
+                  {
+                    backgroundColor: `${theme.palette.surface}cc`,
+                    "--tw-ring-color": theme.palette.border,
+                  } as CSSProperties
+                }
                 open={mode === "edit" || index === 0}
               >
                 <summary className="flex cursor-pointer list-none items-start justify-between gap-6">
@@ -72,7 +83,10 @@ export function FaqPageView({
                   />
                   <span
                     className="grid h-6 w-6 shrink-0 place-items-center rounded-full"
-                    style={{ backgroundColor: theme.palette.background, color: theme.palette.primary }}
+                    style={{
+                      backgroundColor: theme.palette.background,
+                      color: theme.palette.primary,
+                    }}
                   >
                     <Plus className="h-3.5 w-3.5 group-open:hidden" strokeWidth={2.2} />
                     <Minus className="hidden h-3.5 w-3.5 group-open:block" strokeWidth={2.2} />

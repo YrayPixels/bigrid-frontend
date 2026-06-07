@@ -64,7 +64,11 @@ function FashionCheckbox({
           "grid h-4 w-4 place-items-center border border-black/10 bg-white text-[10px] text-white",
           checked && "",
         )}
-        style={checked ? { borderColor: theme.palette.primary, backgroundColor: theme.palette.primary } : {}}
+        style={
+          checked
+            ? { borderColor: theme.palette.primary, backgroundColor: theme.palette.primary }
+            : {}
+        }
       >
         {checked ? "✓" : ""}
       </span>
@@ -88,10 +92,15 @@ function FashionProductsCard({
   const discount = [15, 10, 15, 30, 25, 25, 25, 20][index % 8];
   const compareAt = Math.round(product.price / (1 - discount / 100));
   const category = product.category ?? "Fashion";
-  const imageUrl = product.image_url ?? fashionTemplateImages.products[index % fashionTemplateImages.products.length];
+  const imageUrl =
+    product.image_url ??
+    fashionTemplateImages.products[index % fashionTemplateImages.products.length];
   const card = (
     <article className="group block text-left">
-      <div className="relative aspect-[4/5] overflow-hidden" style={{ backgroundColor: theme.palette.surface }}>
+      <div
+        className="relative aspect-[4/5] overflow-hidden"
+        style={{ backgroundColor: theme.palette.surface }}
+      >
         <EditableImage
           path={imagePath}
           src={imageUrl}
@@ -108,7 +117,9 @@ function FashionProductsCard({
       </div>
       <div className="mt-3">
         <div className="flex items-center justify-between gap-3">
-          <p className="text-[11px]" style={{ color: theme.palette.muted }}>{category}</p>
+          <p className="text-[11px]" style={{ color: theme.palette.muted }}>
+            {category}
+          </p>
           <span className="inline-flex items-center gap-1 text-[11px] font-semibold">
             <Star className="h-3.5 w-3.5 fill-[#f3bd3d] text-[#f3bd3d]" />
             4.9
@@ -144,12 +155,17 @@ function FashionProductsPage({ products }: { products: StoreProduct[] }) {
     const productCategories = products
       .map((product) => product.category)
       .filter((category): category is string => Boolean(category));
-    return Array.from(new Set([...productCategories, ...fashionCategories.map((category) => category.title)]));
+    return Array.from(
+      new Set([...productCategories, ...fashionCategories.map((category) => category.title)]),
+    );
   }, [products]);
 
   const productPrices = useMemo(() => products.map((product) => product.price), [products]);
   const maxPrice = useMemo(() => Math.max(...productPrices, 0), [productPrices]);
-  const minPrice = useMemo(() => (productPrices.length ? Math.min(...productPrices) : 0), [productPrices]);
+  const minPrice = useMemo(
+    () => (productPrices.length ? Math.min(...productPrices) : 0),
+    [productPrices],
+  );
 
   useEffect(() => {
     setPriceLimit((currentLimit) => {
@@ -176,9 +192,13 @@ function FashionProductsPage({ products }: { products: StoreProduct[] }) {
 
   const activeFilters = [
     selectedCategory,
-    selectedColor ? fashionColorOptions.find((color) => color.value === selectedColor)?.label : null,
+    selectedColor
+      ? fashionColorOptions.find((color) => color.value === selectedColor)?.label
+      : null,
     selectedSize,
-    maxPrice > 0 && priceLimit < maxPrice ? `Price: ${formatMoney(minPrice, products[0]?.currency ?? "NGN")} - ${formatMoney(priceLimit, products[0]?.currency ?? "NGN")}` : null,
+    maxPrice > 0 && priceLimit < maxPrice
+      ? `Price: ${formatMoney(minPrice, products[0]?.currency ?? "NGN")} - ${formatMoney(priceLimit, products[0]?.currency ?? "NGN")}`
+      : null,
   ].filter((filter): filter is string => Boolean(filter));
 
   function clearFilters() {
@@ -224,7 +244,9 @@ function FashionProductsPage({ products }: { products: StoreProduct[] }) {
                     key={category}
                     label={category}
                     checked={selectedCategory === category}
-                    onClick={() => setSelectedCategory(selectedCategory === category ? null : category)}
+                    onClick={() =>
+                      setSelectedCategory(selectedCategory === category ? null : category)
+                    }
                   />
                 ))}
               </div>
@@ -253,7 +275,9 @@ function FashionProductsPage({ products }: { products: StoreProduct[] }) {
                   <button
                     key={color.value}
                     type="button"
-                    onClick={() => setSelectedColor(selectedColor === color.value ? null : color.value)}
+                    onClick={() =>
+                      setSelectedColor(selectedColor === color.value ? null : color.value)
+                    }
                     className="flex items-center gap-2 text-[13px]"
                   >
                     <span
@@ -262,7 +286,12 @@ function FashionProductsPage({ products }: { products: StoreProduct[] }) {
                         selectedColor === color.value && "ring-2 ring-[#b16b68] ring-offset-2",
                       )}
                     >
-                      <span className={cn("h-4 w-4 rounded-full border border-black/10", color.className)} />
+                      <span
+                        className={cn(
+                          "h-4 w-4 rounded-full border border-black/10",
+                          color.className,
+                        )}
+                      />
                     </span>
                     {color.label}
                   </button>
@@ -323,8 +352,11 @@ function FashionProductsPage({ products }: { products: StoreProduct[] }) {
                   activeFilters.map((filter) => (
                     <span
                       key={filter}
-                    className="inline-flex items-center gap-2 rounded-full px-5 py-3 text-[12px] font-semibold"
-                    style={{ backgroundColor: theme.palette.primary, color: theme.palette.background }}
+                      className="inline-flex items-center gap-2 rounded-full px-5 py-3 text-[12px] font-semibold"
+                      style={{
+                        backgroundColor: theme.palette.primary,
+                        color: theme.palette.background,
+                      }}
                     >
                       {filter}
                       <X className="h-3.5 w-3.5" />
@@ -389,7 +421,7 @@ function FashionProductsPage({ products }: { products: StoreProduct[] }) {
 }
 
 function MinimalisticProductsPage({ products }: { products: StoreProduct[] }) {
-  const { mode } = useStorefrontTheme();
+  const { theme, mode } = useStorefrontTheme();
   const { addItem } = useCart();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [priceLimit, setPriceLimit] = useState(0);
@@ -402,7 +434,10 @@ function MinimalisticProductsPage({ products }: { products: StoreProduct[] }) {
   }, [products]);
   const productPrices = useMemo(() => products.map((product) => product.price), [products]);
   const maxPrice = useMemo(() => Math.max(...productPrices, 0), [productPrices]);
-  const minPrice = useMemo(() => (productPrices.length ? Math.min(...productPrices) : 0), [productPrices]);
+  const minPrice = useMemo(
+    () => (productPrices.length ? Math.min(...productPrices) : 0),
+    [productPrices],
+  );
 
   useEffect(() => {
     setPriceLimit((currentLimit) => {
@@ -446,21 +481,33 @@ function MinimalisticProductsPage({ products }: { products: StoreProduct[] }) {
   }
 
   return (
-    <div className="bg-white text-[#073e3f]">
-      <section className="relative overflow-hidden bg-[#fbfbdc] px-4 py-14 text-center sm:px-6 lg:py-20">
+    <div style={{ backgroundColor: theme.palette.surface, color: theme.palette.text }}>
+      <section
+        className="relative overflow-hidden px-4 py-14 text-center sm:px-6 lg:py-20"
+        style={{ backgroundColor: theme.palette.background }}
+      >
         <span className="pointer-events-none absolute left-[9%] top-[55%] h-10 w-5 rotate-45 rounded-full bg-[#d99359]/70" />
         <span className="pointer-events-none absolute right-[12%] top-[45%] h-10 w-10 rounded-full bg-[#dedbc1]/80" />
         <span className="pointer-events-none absolute left-[23%] bottom-8 h-8 w-8 rounded-full bg-[#e4e1c8]/80" />
         <div className="mx-auto max-w-3xl">
           <div className="mx-auto mb-5 inline-flex items-center gap-2 rounded-full bg-white/80 px-3 py-1.5 text-[11px] font-semibold shadow-sm">
-            <span className="h-2 w-5 rounded-full bg-[#073e3f]" />
+            <span
+              className="h-2 w-5 rounded-full"
+              style={{ backgroundColor: theme.palette.primary }}
+            />
             Products List
-            <span className="h-2 w-5 rounded-full bg-[#073e3f]" />
+            <span
+              className="h-2 w-5 rounded-full"
+              style={{ backgroundColor: theme.palette.primary }}
+            />
           </div>
           <h1 className="text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">
             Explore Our Essentials
           </h1>
-          <p className="mx-auto mt-4 max-w-lg text-sm leading-6 text-[#073e3f]/65">
+          <p
+            className="mx-auto mt-4 max-w-lg text-sm leading-6"
+            style={{ color: theme.palette.muted }}
+          >
             Discover daily supplements designed to support beauty, digestion, focus, sleep, and
             energy.
           </p>
@@ -468,11 +515,14 @@ function MinimalisticProductsPage({ products }: { products: StoreProduct[] }) {
       </section>
 
       <section className="mx-auto grid max-w-7xl gap-8 px-4 py-10 sm:px-6 lg:grid-cols-[280px_minmax(0,1fr)] lg:py-14">
-        <aside className="lg:border-r lg:border-[#073e3f]/10 lg:pr-8">
-          <div className="sticky top-24 space-y-7 rounded-[1.75rem] bg-[#fbfbdc] p-5 shadow-[0_20px_60px_rgba(7,62,63,0.06)] lg:rounded-none lg:bg-transparent lg:p-0 lg:shadow-none">
+        <aside className="lg:border-r lg:pr-8" style={{ borderColor: theme.palette.border }}>
+          <div
+            className="sticky top-24 space-y-7 rounded-[1.75rem] p-5 shadow-[0_20px_60px_rgba(7,62,63,0.06)] lg:rounded-none lg:bg-transparent lg:p-0 lg:shadow-none"
+            style={{ backgroundColor: theme.palette.background }}
+          >
             <div>
               <h2 className="text-sm font-bold">Filter Options</h2>
-              <p className="mt-1 text-xs leading-5 text-[#073e3f]/55">
+              <p className="mt-1 text-xs leading-5" style={{ color: theme.palette.muted }}>
                 Refine essentials by wellness goal and price.
               </p>
             </div>
@@ -493,13 +543,22 @@ function MinimalisticProductsPage({ products }: { products: StoreProduct[] }) {
                       }
                       className={cn(
                         "flex items-center justify-between rounded-full px-4 py-2.5 text-left text-xs font-semibold transition",
-                        active
-                          ? "bg-[#073e3f] text-[#fbfbdc]"
-                          : "bg-white/80 text-[#073e3f]/70 hover:text-[#073e3f]",
+                        active ? "" : "hover:opacity-80",
                       )}
+                      style={{
+                        backgroundColor: active
+                          ? theme.palette.primary
+                          : `${theme.palette.surface}cc`,
+                        color: active ? theme.palette.background : theme.palette.muted,
+                      }}
                     >
                       {category}
-                      {active ? <span className="h-2 w-2 rounded-full bg-[#fbfbdc]" /> : null}
+                      {active ? (
+                        <span
+                          className="h-2 w-2 rounded-full"
+                          style={{ backgroundColor: theme.palette.background }}
+                        />
+                      ) : null}
                     </button>
                   );
                 })}
@@ -508,7 +567,7 @@ function MinimalisticProductsPage({ products }: { products: StoreProduct[] }) {
 
             <div>
               <h3 className="mb-3 text-sm font-bold">Price</h3>
-              <div className="text-xs font-semibold text-[#073e3f]/65">
+              <div className="text-xs font-semibold" style={{ color: theme.palette.muted }}>
                 {formatMoney(minPrice, products[0]?.currency ?? "NGN")} -{" "}
                 {formatMoney(priceLimit || maxPrice, products[0]?.currency ?? "NGN")}
               </div>
@@ -518,16 +577,23 @@ function MinimalisticProductsPage({ products }: { products: StoreProduct[] }) {
                 max={maxPrice}
                 value={priceLimit || maxPrice}
                 onChange={(event) => setPriceLimit(Number(event.target.value))}
-                className="mt-4 h-1 w-full accent-[#073e3f]"
+                className="mt-4 h-1 w-full"
+                style={{ accentColor: theme.palette.primary }}
               />
             </div>
 
-            <div className="rounded-[1.5rem] bg-white/80 p-4">
+            <div
+              className="rounded-[1.5rem] p-4"
+              style={{ backgroundColor: `${theme.palette.surface}cc` }}
+            >
               <h3 className="text-sm font-bold">Wellness promise</h3>
-              <div className="mt-4 grid gap-3 text-xs text-[#073e3f]/65">
+              <div className="mt-4 grid gap-3 text-xs" style={{ color: theme.palette.muted }}>
                 {["Clean ingredients", "Trusted quality", "Daily support"].map((item) => (
                   <span key={item} className="flex items-center gap-2">
-                    <span className="h-2 w-5 rounded-full bg-[#073e3f]" />
+                    <span
+                      className="h-2 w-5 rounded-full"
+                      style={{ backgroundColor: theme.palette.primary }}
+                    />
                     {item}
                   </span>
                 ))}
@@ -537,7 +603,10 @@ function MinimalisticProductsPage({ products }: { products: StoreProduct[] }) {
         </aside>
 
         <div>
-          <div className="flex flex-col gap-5 border-t border-[#073e3f]/10 pt-5 sm:flex-row sm:items-start sm:justify-between">
+          <div
+            className="flex flex-col gap-5 border-t pt-5 sm:flex-row sm:items-start sm:justify-between"
+            style={{ borderColor: theme.palette.border }}
+          >
             <div>
               <p className="text-sm font-bold">
                 {filteredProducts.length
@@ -545,19 +614,28 @@ function MinimalisticProductsPage({ products }: { products: StoreProduct[] }) {
                   : `Showing 0 of ${products.length} results`}
               </p>
               <div className="mt-5 flex flex-wrap items-center gap-3">
-                <span className="text-xs font-semibold text-[#073e3f]/60">Active Filter</span>
+                <span className="text-xs font-semibold" style={{ color: theme.palette.muted }}>
+                  Active Filter
+                </span>
                 {activeFilters.length ? (
                   activeFilters.map((filter) => (
                     <span
                       key={filter}
-                      className="inline-flex items-center gap-2 rounded-full bg-[#073e3f] px-4 py-2 text-xs font-semibold text-[#fbfbdc]"
+                      className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold"
+                      style={{
+                        backgroundColor: theme.palette.primary,
+                        color: theme.palette.background,
+                      }}
                     >
                       {filter}
                       <X className="h-3.5 w-3.5" />
                     </span>
                   ))
                 ) : (
-                  <span className="rounded-full bg-[#f7f7f3] px-4 py-2 text-xs font-semibold text-[#073e3f]/55">
+                  <span
+                    className="rounded-full px-4 py-2 text-xs font-semibold"
+                    style={{ backgroundColor: theme.palette.surface, color: theme.palette.muted }}
+                  >
                     None
                   </span>
                 )}
@@ -565,7 +643,8 @@ function MinimalisticProductsPage({ products }: { products: StoreProduct[] }) {
                   <button
                     type="button"
                     onClick={clearFilters}
-                    className="text-xs font-semibold text-[#073e3f] underline underline-offset-2"
+                    className="text-xs font-semibold underline underline-offset-2"
+                    style={{ color: theme.palette.primary }}
                   >
                     Clear all
                   </button>
@@ -579,7 +658,12 @@ function MinimalisticProductsPage({ products }: { products: StoreProduct[] }) {
                 <select
                   value={sortBy}
                   onChange={(event) => setSortBy(event.target.value as typeof sortBy)}
-                  className="h-11 appearance-none rounded-full border border-[#073e3f]/10 bg-[#fbfbdc] pl-5 pr-10 text-xs font-semibold text-[#073e3f] outline-none"
+                  className="h-11 appearance-none rounded-full border pl-5 pr-10 text-xs font-semibold outline-none"
+                  style={{
+                    backgroundColor: theme.palette.background,
+                    borderColor: theme.palette.border,
+                    color: theme.palette.text,
+                  }}
                 >
                   <option value="newest">Newest</option>
                   <option value="price-low">Price low</option>
@@ -619,7 +703,10 @@ function MinimalisticProductsPage({ products }: { products: StoreProduct[] }) {
                   <div className="mt-3 flex items-start justify-between gap-3">
                     <div>
                       <h3 className="line-clamp-1 text-sm font-bold">{product.name}</h3>
-                      <p className="mt-1 line-clamp-1 text-[11px] text-[#073e3f]/60">
+                      <p
+                        className="mt-1 line-clamp-1 text-[11px]"
+                        style={{ color: theme.palette.muted }}
+                      >
                         {product.description}
                       </p>
                     </div>
@@ -636,7 +723,11 @@ function MinimalisticProductsPage({ products }: { products: StoreProduct[] }) {
                       type="button"
                       onClick={() => addToCart(product)}
                       disabled={mode === "edit"}
-                      className="rounded-full bg-[#073e3f] px-3 py-1.5 text-[10px] font-semibold text-[#fbfbdc] transition hover:bg-[#0a5253] disabled:cursor-default disabled:opacity-70"
+                      className="rounded-full px-3 py-1.5 text-[10px] font-semibold transition disabled:cursor-default disabled:opacity-70"
+                      style={{
+                        backgroundColor: theme.palette.primary,
+                        color: theme.palette.background,
+                      }}
                     >
                       Add to Cart
                     </button>
@@ -649,9 +740,12 @@ function MinimalisticProductsPage({ products }: { products: StoreProduct[] }) {
           </div>
 
           {filteredProducts.length === 0 ? (
-            <div className="mt-8 rounded-[1.5rem] bg-[#fbfbdc] p-8 text-center">
+            <div
+              className="mt-8 rounded-[1.5rem] p-8 text-center"
+              style={{ backgroundColor: theme.palette.background }}
+            >
               <h2 className="text-lg font-bold">No essentials found</h2>
-              <p className="mt-2 text-sm text-[#073e3f]/60">
+              <p className="mt-2 text-sm" style={{ color: theme.palette.muted }}>
                 Try clearing the filters to view the full catalog.
               </p>
             </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type CSSProperties } from "react";
 import { ChevronDown, Minus, Plane, Plus, Star } from "lucide-react";
 import { toast } from "sonner";
 import type { StoreProduct } from "@/lib/api/types";
@@ -38,6 +38,7 @@ const fashionReviewImages = [
 function FashionProductDetail({ product }: { product: StoreProduct }) {
   const { addItem } = useCart();
   const { storefront } = useStorefront();
+  const { theme } = useStorefrontTheme();
   const [quantity, setQuantity] = useState(1);
   const sizeVariant = product.variants?.find((variant) => /size/i.test(variant.name));
   const displayVariant = sizeVariant ?? product.variants?.[0];
@@ -62,7 +63,7 @@ function FashionProductDetail({ product }: { product: StoreProduct }) {
   }
 
   return (
-    <div className="bg-white text-[#111111]">
+    <div style={{ backgroundColor: theme.palette.background, color: theme.palette.text }}>
       <div className="mx-auto grid max-w-7xl gap-10 px-4 py-8 sm:px-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)] lg:gap-12 lg:py-12">
         <div className="grid gap-2 sm:grid-cols-[112px_minmax(0,1fr)]">
           <div className="order-2 grid grid-cols-4 gap-2 sm:order-1 sm:grid-cols-1">
@@ -70,14 +71,18 @@ function FashionProductDetail({ product }: { product: StoreProduct }) {
               <button
                 key={`${image}-${index}`}
                 type="button"
-                className="aspect-square overflow-hidden bg-[#f0f0ef]"
+                className="aspect-square overflow-hidden"
+                style={{ backgroundColor: theme.palette.surface }}
                 aria-label={`View ${product.name} image ${index + 1}`}
               >
                 <img src={image} alt="" className="h-full w-full object-cover object-center" />
               </button>
             ))}
           </div>
-          <div className="order-1 flex min-h-[430px] items-center justify-center bg-[#f1f1f0] sm:order-2 lg:min-h-[610px]">
+          <div
+            className="order-1 flex min-h-[430px] items-center justify-center sm:order-2 lg:min-h-[610px]"
+            style={{ backgroundColor: theme.palette.surface }}
+          >
             <img
               src={galleryImages[0]}
               alt={product.name}
@@ -89,7 +94,10 @@ function FashionProductDetail({ product }: { product: StoreProduct }) {
         <section className="lg:pt-1">
           <h1 className="max-w-xl text-xl font-bold leading-tight sm:text-2xl">{product.name}</h1>
           {product.category ? (
-            <span className="mt-3 inline-flex bg-[#26f3e6] px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-[#111111]">
+            <span
+              className="mt-3 inline-flex px-2 py-1 text-[10px] font-bold uppercase tracking-wide"
+              style={{ backgroundColor: theme.palette.accent, color: theme.palette.text }}
+            >
               {product.category}
             </span>
           ) : null}
@@ -98,13 +106,19 @@ function FashionProductDetail({ product }: { product: StoreProduct }) {
             <span className="text-sm font-bold">
               {formatMoney(product.price, product.currency)}
             </span>
-            <span className="text-[11px] text-[#9a9a9a]">Vat included</span>
+            <span className="text-[11px]" style={{ color: theme.palette.muted }}>
+              Vat included
+            </span>
           </div>
 
           <div className="mt-7">
             <div className="flex items-center justify-between text-[11px] font-semibold">
               <span>Select {displayVariant?.name?.toLowerCase() ?? "size"} (USA)</span>
-              <button type="button" className="border-b border-[#111111] font-bold">
+              <button
+                type="button"
+                className="border-b font-bold"
+                style={{ borderColor: theme.palette.text }}
+              >
                 Size guide
               </button>
             </div>
@@ -116,10 +130,15 @@ function FashionProductDetail({ product }: { product: StoreProduct }) {
                   onClick={() => setSelectedSize(option)}
                   className={cn(
                     "border px-3 py-3 text-xs font-medium transition",
-                    selectedSize === option
-                      ? "border-[#111111] bg-[#111111] text-white"
-                      : "border-black/15 bg-white text-[#333333] hover:border-[#111111]",
+                    selectedSize === option ? "" : "hover:opacity-80",
                   )}
+                  style={{
+                    borderColor:
+                      selectedSize === option ? theme.palette.primary : theme.palette.border,
+                    backgroundColor:
+                      selectedSize === option ? theme.palette.primary : theme.palette.surface,
+                    color: selectedSize === option ? theme.palette.background : theme.palette.text,
+                  }}
                 >
                   {option}
                 </button>
@@ -127,11 +146,17 @@ function FashionProductDetail({ product }: { product: StoreProduct }) {
             </div>
           </div>
 
-          <div className="mt-6 bg-[#fff8f2] px-4 py-4 text-center text-[10px] font-extrabold uppercase tracking-[0.08em] text-[#111111]">
+          <div
+            className="mt-6 px-4 py-4 text-center text-[10px] font-extrabold uppercase tracking-[0.08em]"
+            style={{ backgroundColor: theme.palette.surface }}
+          >
             1 day delivery in USA · same day delivery in the UAE · free shipping and returns
           </div>
 
-          <div className="mt-6 flex w-fit items-center border border-[#111111]">
+          <div
+            className="mt-6 flex w-fit items-center border"
+            style={{ borderColor: theme.palette.text }}
+          >
             <button
               type="button"
               className="grid h-9 w-9 place-items-center"
@@ -157,14 +182,20 @@ function FashionProductDetail({ product }: { product: StoreProduct }) {
             <button
               type="button"
               onClick={() => addToCart("Ready for checkout")}
-              className="bg-[#050505] px-6 py-3 text-xs font-semibold uppercase tracking-[0.08em] text-white transition hover:bg-[#333333]"
+              className="px-6 py-3 text-xs font-semibold uppercase tracking-[0.08em] transition"
+              style={{ backgroundColor: theme.palette.primary, color: theme.palette.background }}
             >
               Buy now
             </button>
             <button
               type="button"
               onClick={() => addToCart()}
-              className="border border-[#111111] bg-white px-6 py-3 text-xs font-semibold uppercase tracking-[0.08em] text-[#111111] transition hover:bg-[#111111] hover:text-white"
+              className="border px-6 py-3 text-xs font-semibold uppercase tracking-[0.08em] transition"
+              style={{
+                backgroundColor: theme.palette.surface,
+                borderColor: theme.palette.primary,
+                color: theme.palette.primary,
+              }}
             >
               Add to cart
             </button>
@@ -174,22 +205,32 @@ function FashionProductDetail({ product }: { product: StoreProduct }) {
             {fashionPaymentMethods.map((method) => (
               <span
                 key={method}
-                className="rounded-[3px] border border-black/10 bg-white px-2 py-1 text-[9px] font-bold text-[#35527d] shadow-sm"
+                className="rounded-[3px] border px-2 py-1 text-[9px] font-bold shadow-sm"
+                style={{
+                  backgroundColor: theme.palette.surface,
+                  borderColor: theme.palette.border,
+                  color: theme.palette.primary,
+                }}
               >
                 {method}
               </span>
             ))}
           </div>
 
-          <div className="mt-6 flex gap-3 border-b border-black/10 pb-5">
+          <div
+            className="mt-6 flex gap-3 border-b pb-5"
+            style={{ borderColor: theme.palette.border }}
+          >
             <Plane className="mt-0.5 h-5 w-5" strokeWidth={1.5} />
             <div>
               <p className="text-sm font-bold">Free Shipping</p>
-              <p className="mt-1 text-[11px] text-[#555555]">Estimated Delivery: Thu, May 9</p>
+              <p className="mt-1 text-[11px]" style={{ color: theme.palette.muted }}>
+                Estimated Delivery: Thu, May 9
+              </p>
             </div>
           </div>
 
-          <div className="divide-y divide-black/10 border-b border-black/10">
+          <div className="divide-y border-b" style={{ borderColor: theme.palette.border }}>
             {[
               ["What's it do?", product.description],
               ["Shipping & returns", "Free standard shipping, easy returns, and secure checkout."],
@@ -204,7 +245,9 @@ function FashionProductDetail({ product }: { product: StoreProduct }) {
                   {title}
                   <ChevronDown className="h-4 w-4 transition group-open:rotate-180" />
                 </summary>
-                <p className="mt-3 text-sm leading-6 text-[#555555]">{body}</p>
+                <p className="mt-3 text-sm leading-6" style={{ color: theme.palette.muted }}>
+                  {body}
+                </p>
               </details>
             ))}
           </div>
@@ -213,7 +256,12 @@ function FashionProductDetail({ product }: { product: StoreProduct }) {
 
       <section className="mx-auto grid max-w-7xl gap-8 px-4 pb-14 pt-10 sm:px-6 lg:grid-cols-[320px_minmax(0,1fr)]">
         <div>
-          <h2 className="border-b border-[#111111] pb-3 text-sm font-bold">Reviews (3)</h2>
+          <h2
+            className="border-b pb-3 text-sm font-bold"
+            style={{ borderColor: theme.palette.text }}
+          >
+            Reviews (3)
+          </h2>
           <div className="mt-6 flex items-end gap-1">
             <span className="text-6xl font-light leading-none text-[#236c42]">4.9</span>
             <span className="pb-2 text-xl text-[#777777]">/5</span>
@@ -222,7 +270,9 @@ function FashionProductDetail({ product }: { product: StoreProduct }) {
             {Array.from({ length: 5 }).map((_, index) => (
               <Star key={index} className="h-4 w-4 fill-current" />
             ))}
-            <span className="ml-2 text-xs font-bold text-[#111111]">3 Review</span>
+            <span className="ml-2 text-xs font-bold" style={{ color: theme.palette.text }}>
+              3 Review
+            </span>
           </div>
         </div>
 
@@ -241,7 +291,8 @@ function FashionProductDetail({ product }: { product: StoreProduct }) {
           ].map((review, index) => (
             <article
               key={review.name}
-              className="grid gap-4 bg-[#fafafa] p-5 sm:grid-cols-[1fr_96px]"
+              className="grid gap-4 p-5 sm:grid-cols-[1fr_96px]"
+              style={{ backgroundColor: theme.palette.surface }}
             >
               <div>
                 <div className="flex items-start justify-between gap-4">
@@ -260,9 +311,16 @@ function FashionProductDetail({ product }: { product: StoreProduct }) {
                       </div>
                     </div>
                   </div>
-                  <span className="text-xs text-[#999999]">{review.date}</span>
+                  <span className="text-xs" style={{ color: theme.palette.muted }}>
+                    {review.date}
+                  </span>
                 </div>
-                <p className="mt-4 max-w-2xl text-sm leading-6 text-[#444444]">{review.text}</p>
+                <p
+                  className="mt-4 max-w-2xl text-sm leading-6"
+                  style={{ color: theme.palette.muted }}
+                >
+                  {review.text}
+                </p>
               </div>
               <img
                 src={galleryImages[index % galleryImages.length]}
@@ -282,6 +340,7 @@ function FashionProductDetail({ product }: { product: StoreProduct }) {
 function MinimalisticProductDetail({ product }: { product: StoreProduct }) {
   const { addItem } = useCart();
   const { storefront } = useStorefront();
+  const { theme } = useStorefrontTheme();
   const [quantity, setQuantity] = useState(1);
   const faqPage = storefront.pages?.faq;
   const galleryImages = useMemo(
@@ -300,7 +359,7 @@ function MinimalisticProductDetail({ product }: { product: StoreProduct }) {
   }
 
   return (
-    <div className="bg-[#fbfbdc] text-[#073e3f]">
+    <div style={{ backgroundColor: theme.palette.background, color: theme.palette.text }}>
       <div className="mx-auto grid max-w-7xl gap-8 px-4 py-10 sm:px-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(360px,0.95fr)] lg:py-14">
         <div className="grid gap-3 sm:grid-cols-[96px_minmax(0,1fr)]">
           <div className="order-2 grid grid-cols-4 gap-3 sm:order-1 sm:grid-cols-1">
@@ -308,14 +367,18 @@ function MinimalisticProductDetail({ product }: { product: StoreProduct }) {
               <button
                 key={`${image}-${index}`}
                 type="button"
-                className="flex aspect-square items-center justify-center overflow-hidden rounded-2xl bg-white/80 p-3 shadow-sm"
+                className="flex aspect-square items-center justify-center overflow-hidden rounded-2xl p-3 shadow-sm"
+                style={{ backgroundColor: `${theme.palette.surface}cc` }}
                 aria-label={`View ${product.name} image ${index + 1}`}
               >
                 <img src={image} alt="" className="h-full w-full object-contain object-center" />
               </button>
             ))}
           </div>
-          <div className="order-1 flex min-h-[430px] items-center justify-center overflow-hidden rounded-[2rem] bg-white/80 p-10 shadow-[0_24px_80px_rgba(7,62,63,0.08)] sm:order-2 lg:min-h-[610px]">
+          <div
+            className="order-1 flex min-h-[430px] items-center justify-center overflow-hidden rounded-[2rem] p-10 shadow-[0_24px_80px_rgba(7,62,63,0.08)] sm:order-2 lg:min-h-[610px]"
+            style={{ backgroundColor: `${theme.palette.surface}cc` }}
+          >
             <img
               src={galleryImages[0]}
               alt={product.name}
@@ -324,17 +387,37 @@ function MinimalisticProductDetail({ product }: { product: StoreProduct }) {
           </div>
         </div>
 
-        <section className="rounded-[2rem] bg-white/80 p-6 shadow-[0_24px_80px_rgba(7,62,63,0.08)] ring-1 ring-[#073e3f]/5 sm:p-8">
-          <div className="inline-flex items-center gap-2 rounded-full bg-[#fbfbdc] px-3 py-1.5 text-[11px] font-semibold">
-            <span className="h-2 w-5 rounded-full bg-[#073e3f]" />
+        <section
+          className="rounded-[2rem] p-6 shadow-[0_24px_80px_rgba(7,62,63,0.08)] ring-1 sm:p-8"
+          style={
+            {
+              backgroundColor: `${theme.palette.surface}cc`,
+              "--tw-ring-color": theme.palette.border,
+            } as CSSProperties
+          }
+        >
+          <div
+            className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-semibold"
+            style={{ backgroundColor: theme.palette.background }}
+          >
+            <span
+              className="h-2 w-5 rounded-full"
+              style={{ backgroundColor: theme.palette.primary }}
+            />
             Daily Essential
-            <span className="h-2 w-5 rounded-full bg-[#073e3f]" />
+            <span
+              className="h-2 w-5 rounded-full"
+              style={{ backgroundColor: theme.palette.primary }}
+            />
           </div>
           <h1 className="mt-5 max-w-xl text-4xl font-semibold leading-tight tracking-[-0.045em]">
             {product.name}
           </h1>
           {product.category ? (
-            <span className="mt-4 inline-flex rounded-full bg-[#eff5c4] px-3 py-1.5 text-[11px] font-semibold text-[#073e3f]">
+            <span
+              className="mt-4 inline-flex rounded-full px-3 py-1.5 text-[11px] font-semibold"
+              style={{ backgroundColor: theme.palette.accent, color: theme.palette.text }}
+            >
               {product.category}
             </span>
           ) : null}
@@ -345,10 +428,12 @@ function MinimalisticProductDetail({ product }: { product: StoreProduct }) {
                 <Star key={index} className="h-4 w-4 fill-current" />
               ))}
             </div>
-            <span className="text-xs font-semibold text-[#073e3f]/60">4.9 customer rating</span>
+            <span className="text-xs font-semibold" style={{ color: theme.palette.muted }}>
+              4.9 customer rating
+            </span>
           </div>
 
-          <p className="mt-5 max-w-xl text-sm leading-7 text-[#073e3f]/65">
+          <p className="mt-5 max-w-xl text-sm leading-7" style={{ color: theme.palette.muted }}>
             {product.description}
           </p>
 
@@ -365,7 +450,12 @@ function MinimalisticProductDetail({ product }: { product: StoreProduct }) {
                     {variant.options.map((option) => (
                       <span
                         key={option}
-                        className="rounded-full border border-[#073e3f]/10 bg-[#fbfbdc] px-4 py-2 text-xs font-semibold text-[#073e3f]/70"
+                        className="rounded-full border px-4 py-2 text-xs font-semibold"
+                        style={{
+                          backgroundColor: theme.palette.background,
+                          borderColor: theme.palette.border,
+                          color: theme.palette.muted,
+                        }}
                       >
                         {option}
                       </span>
@@ -376,10 +466,14 @@ function MinimalisticProductDetail({ product }: { product: StoreProduct }) {
             </div>
           ) : null}
 
-          <div className="mt-7 flex w-fit items-center gap-3 rounded-full bg-[#fbfbdc] p-1">
+          <div
+            className="mt-7 flex w-fit items-center gap-3 rounded-full p-1"
+            style={{ backgroundColor: theme.palette.background }}
+          >
             <button
               type="button"
-              className="grid h-9 w-9 place-items-center rounded-full bg-white text-[#073e3f]"
+              className="grid h-9 w-9 place-items-center rounded-full"
+              style={{ backgroundColor: theme.palette.surface, color: theme.palette.text }}
               onClick={() => setQuantity((current) => Math.max(1, current - 1))}
               aria-label="Decrease quantity"
             >
@@ -388,7 +482,8 @@ function MinimalisticProductDetail({ product }: { product: StoreProduct }) {
             <span className="w-5 text-center text-sm font-semibold">{quantity}</span>
             <button
               type="button"
-              className="grid h-9 w-9 place-items-center rounded-full bg-white text-[#073e3f]"
+              className="grid h-9 w-9 place-items-center rounded-full"
+              style={{ backgroundColor: theme.palette.surface, color: theme.palette.text }}
               onClick={() => setQuantity((current) => current + 1)}
               aria-label="Increase quantity"
             >
@@ -400,33 +495,45 @@ function MinimalisticProductDetail({ product }: { product: StoreProduct }) {
             <button
               type="button"
               onClick={() => addToCart("Ready for checkout")}
-              className="rounded-full bg-[#073e3f] px-6 py-3 text-sm font-semibold text-[#fbfbdc] transition hover:bg-[#0a5253]"
+              className="rounded-full px-6 py-3 text-sm font-semibold transition"
+              style={{ backgroundColor: theme.palette.primary, color: theme.palette.background }}
             >
               Buy now
             </button>
             <button
               type="button"
               onClick={() => addToCart()}
-              className="rounded-full border border-[#073e3f]/15 bg-white px-6 py-3 text-sm font-semibold text-[#073e3f] transition hover:bg-[#fbfbdc]"
+              className="rounded-full border px-6 py-3 text-sm font-semibold transition"
+              style={{
+                backgroundColor: theme.palette.surface,
+                borderColor: theme.palette.border,
+                color: theme.palette.primary,
+              }}
             >
               Add to cart
             </button>
           </div>
 
-          <div className="mt-6 flex gap-3 rounded-2xl bg-[#fbfbdc] p-4">
+          <div
+            className="mt-6 flex gap-3 rounded-2xl p-4"
+            style={{ backgroundColor: theme.palette.background }}
+          >
             <Plane className="mt-0.5 h-5 w-5" strokeWidth={1.5} />
             <div>
               <p className="text-sm font-bold">Free Shipping</p>
-              <p className="mt-1 text-xs text-[#073e3f]/60">
+              <p className="mt-1 text-xs" style={{ color: theme.palette.muted }}>
                 Estimated delivery in 2-4 business days.
               </p>
             </div>
           </div>
 
-          <div className="mt-6 divide-y divide-[#073e3f]/10 border-y border-[#073e3f]/10">
+          <div className="mt-6 divide-y border-y" style={{ borderColor: theme.palette.border }}>
             {[
               ["What's it do?", product.description],
-              ["Clean formula", "Made for a simple daily wellness routine with trusted ingredients."],
+              [
+                "Clean formula",
+                "Made for a simple daily wellness routine with trusted ingredients.",
+              ],
               [
                 "Product benefits",
                 product.perks?.join(" ") ||
@@ -438,7 +545,9 @@ function MinimalisticProductDetail({ product }: { product: StoreProduct }) {
                   {title}
                   <ChevronDown className="h-4 w-4 transition group-open:rotate-180" />
                 </summary>
-                <p className="mt-3 text-sm leading-6 text-[#073e3f]/65">{body}</p>
+                <p className="mt-3 text-sm leading-6" style={{ color: theme.palette.muted }}>
+                  {body}
+                </p>
               </details>
             ))}
           </div>
@@ -448,10 +557,17 @@ function MinimalisticProductDetail({ product }: { product: StoreProduct }) {
       <section className="px-4 pb-14 sm:px-6">
         <div className="mx-auto grid max-w-7xl gap-5 sm:grid-cols-3">
           {["Science backed", "Clean ingredients", "Trusted quality"].map((label) => (
-            <div key={label} className="rounded-[1.5rem] bg-white/80 p-6 text-center shadow-sm">
-              <div className="mx-auto mb-4 h-2 w-10 rounded-full bg-[#073e3f]" />
+            <div
+              key={label}
+              className="rounded-[1.5rem] p-6 text-center shadow-sm"
+              style={{ backgroundColor: `${theme.palette.surface}cc` }}
+            >
+              <div
+                className="mx-auto mb-4 h-2 w-10 rounded-full"
+                style={{ backgroundColor: theme.palette.primary }}
+              />
               <h2 className="font-bold">{label}</h2>
-              <p className="mt-2 text-sm leading-6 text-[#073e3f]/60">
+              <p className="mt-2 text-sm leading-6" style={{ color: theme.palette.muted }}>
                 Designed to make daily wellness feel simple, calm, and consistent.
               </p>
             </div>
@@ -478,7 +594,7 @@ export function ProductDetailPageView({ product }: { product: StoreProduct | nul
           <Link
             href="/products"
             className="mt-4 inline-block text-sm font-semibold"
-            style={{ color: theme.brandColor }}
+            style={{ color: theme.palette.primary }}
           >
             Back to products
           </Link>
@@ -505,7 +621,7 @@ export function ProductDetailPageView({ product }: { product: StoreProduct | nul
         <div
           className="flex aspect-square items-center justify-center rounded-3xl text-6xl font-bold text-white"
           style={{
-            background: `linear-gradient(135deg, ${theme.brandColor}, ${theme.brandColor}88)`,
+            background: `linear-gradient(135deg, ${theme.palette.primary}, ${theme.palette.primary}88)`,
           }}
         >
           {productImageUrl ? (
@@ -520,7 +636,11 @@ export function ProductDetailPageView({ product }: { product: StoreProduct | nul
         </div>
         <div>
           {mode !== "edit" ? (
-            <Link href="/products" className="text-sm text-muted-foreground hover:text-foreground">
+            <Link
+              href="/products"
+              className="text-sm hover:opacity-80"
+              style={{ color: theme.palette.muted }}
+            >
               Back to products
             </Link>
           ) : null}
@@ -530,8 +650,10 @@ export function ProductDetailPageView({ product }: { product: StoreProduct | nul
           >
             {product.name}
           </h1>
-          <p className="mt-4 text-sm leading-7 text-muted-foreground">{product.description}</p>
-          <div className="mt-6 text-2xl font-semibold" style={{ color: theme.brandColor }}>
+          <p className="mt-4 text-sm leading-7" style={{ color: theme.palette.muted }}>
+            {product.description}
+          </p>
+          <div className="mt-6 text-2xl font-semibold" style={{ color: theme.palette.primary }}>
             {formatMoney(product.price, product.currency)}
           </div>
           {product.variants?.length ? (
@@ -543,7 +665,8 @@ export function ProductDetailPageView({ product }: { product: StoreProduct | nul
                     {variant.options.map((option) => (
                       <span
                         key={option}
-                        className="rounded-full border px-3 py-1 text-sm text-muted-foreground"
+                        className="rounded-full border px-3 py-1 text-sm"
+                        style={{ borderColor: theme.palette.border, color: theme.palette.muted }}
                       >
                         {option}
                       </span>
@@ -554,9 +677,12 @@ export function ProductDetailPageView({ product }: { product: StoreProduct | nul
             </div>
           ) : null}
           {product.perks?.length ? (
-            <div className="mt-6 rounded-2xl border bg-card p-4">
+            <div className={`mt-6 rounded-2xl border ${theme.borderColor} ${theme.cardBg} p-4`}>
               <h2 className="text-sm font-semibold">Why customers like it</h2>
-              <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-muted-foreground">
+              <ul
+                className="mt-3 list-disc space-y-2 pl-5 text-sm"
+                style={{ color: theme.palette.muted }}
+              >
                 {product.perks.map((perk) => (
                   <li key={perk}>{perk}</li>
                 ))}

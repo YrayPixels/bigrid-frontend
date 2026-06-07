@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState } from "react";
+import { FormEvent, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { useCart } from "@/lib/storefront/cart-context";
 import { storefrontApi } from "@/lib/api/storefront";
@@ -23,18 +23,34 @@ export function CheckoutPageView() {
   if (lines.length === 0) {
     if (isMinimalistic) {
       return (
-        <div className="bg-[#fbfbdc] px-4 py-16 text-center text-[#073e3f] sm:px-6">
-          <div className="mx-auto max-w-4xl rounded-[2rem] bg-white/80 px-6 py-14 shadow-[0_24px_80px_rgba(7,62,63,0.08)]">
-            <div className="mx-auto mb-5 inline-flex items-center gap-2 rounded-full bg-[#fbfbdc] px-3 py-1.5 text-[11px] font-semibold">
-              <span className="h-2 w-5 rounded-full bg-[#073e3f]" />
+        <div
+          className="px-4 py-16 text-center sm:px-6"
+          style={{ backgroundColor: theme.palette.background, color: theme.palette.text }}
+        >
+          <div
+            className="mx-auto max-w-4xl rounded-[2rem] px-6 py-14 shadow-[0_24px_80px_rgba(7,62,63,0.08)]"
+            style={{ backgroundColor: `${theme.palette.surface}cc` }}
+          >
+            <div
+              className="mx-auto mb-5 inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-semibold"
+              style={{ backgroundColor: theme.palette.background }}
+            >
+              <span
+                className="h-2 w-5 rounded-full"
+                style={{ backgroundColor: theme.palette.primary }}
+              />
               Checkout
-              <span className="h-2 w-5 rounded-full bg-[#073e3f]" />
+              <span
+                className="h-2 w-5 rounded-full"
+                style={{ backgroundColor: theme.palette.primary }}
+              />
             </div>
             <h1 className="text-4xl font-semibold tracking-[-0.04em]">Nothing to checkout</h1>
             {mode !== "edit" ? (
               <Link
                 href="/products"
-                className="mt-8 inline-flex rounded-full bg-[#073e3f] px-8 py-3 text-sm font-semibold text-[#fbfbdc] transition hover:bg-[#0a5253]"
+                className="mt-8 inline-flex rounded-full px-8 py-3 text-sm font-semibold transition"
+                style={{ backgroundColor: theme.palette.primary, color: theme.palette.background }}
               >
                 Browse products
               </Link>
@@ -53,7 +69,7 @@ export function CheckoutPageView() {
           <Link
             href="/products"
             className="mt-4 inline-block text-sm font-semibold"
-            style={{ color: theme.brandColor }}
+            style={{ color: theme.palette.primary }}
           >
             Browse products
           </Link>
@@ -95,36 +111,74 @@ export function CheckoutPageView() {
 
   if (isMinimalistic) {
     const inputClass =
-      "w-full rounded-2xl border border-[#073e3f]/10 bg-white/80 px-4 py-3 text-sm text-[#073e3f] outline-none transition placeholder:text-[#073e3f]/35 focus:border-[#073e3f]/35 focus:ring-4 focus:ring-[#073e3f]/10 disabled:opacity-60";
+      "w-full rounded-2xl border px-4 py-3 text-sm outline-none transition focus:ring-4 disabled:opacity-60";
     const currency = lines[0]?.product.currency;
 
     return (
-      <div className="bg-[#fbfbdc] px-4 py-10 text-[#073e3f] sm:px-6 lg:py-14">
+      <div
+        className="px-4 py-10 sm:px-6 lg:py-14"
+        style={{ backgroundColor: theme.palette.background, color: theme.palette.text }}
+      >
         <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[minmax(0,1fr)_390px]">
           <form
             onSubmit={handleSubmit}
-            className="rounded-[2rem] bg-white/80 p-5 shadow-[0_24px_90px_rgba(7,62,63,0.08)] ring-1 ring-[#073e3f]/5 sm:p-8 lg:p-10"
+            className="rounded-[2rem] p-5 shadow-[0_24px_90px_rgba(7,62,63,0.08)] ring-1 sm:p-8 lg:p-10"
+            style={
+              {
+                backgroundColor: `${theme.palette.surface}cc`,
+                "--tw-ring-color": theme.palette.border,
+              } as CSSProperties
+            }
           >
-            <div className="inline-flex items-center gap-2 rounded-full bg-[#fbfbdc] px-3 py-1.5 text-[11px] font-semibold">
-              <span className="h-2 w-5 rounded-full bg-[#073e3f]" />
+            <div
+              className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-semibold"
+              style={{ backgroundColor: theme.palette.background }}
+            >
+              <span
+                className="h-2 w-5 rounded-full"
+                style={{ backgroundColor: theme.palette.primary }}
+              />
               Checkout
-              <span className="h-2 w-5 rounded-full bg-[#073e3f]" />
+              <span
+                className="h-2 w-5 rounded-full"
+                style={{ backgroundColor: theme.palette.primary }}
+              />
             </div>
             <h1 className="mt-4 text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">
               Complete your wellness order
             </h1>
-            <p className="mt-3 max-w-xl text-sm leading-6 text-[#073e3f]/65">
+            <p className="mt-3 max-w-xl text-sm leading-6" style={{ color: theme.palette.muted }}>
               Add your delivery details and we will prepare your daily essentials for dispatch.
             </p>
 
             <div className="mt-8 grid gap-4 sm:grid-cols-2">
               <label className="space-y-2 text-sm">
                 <span className="font-semibold">First name</span>
-                <input name="first_name" required disabled={mode === "edit"} className={inputClass} />
+                <input
+                  name="first_name"
+                  required
+                  disabled={mode === "edit"}
+                  className={inputClass}
+                  style={{
+                    backgroundColor: `${theme.palette.surface}cc`,
+                    borderColor: theme.palette.border,
+                    color: theme.palette.text,
+                  }}
+                />
               </label>
               <label className="space-y-2 text-sm">
                 <span className="font-semibold">Last name</span>
-                <input name="last_name" required disabled={mode === "edit"} className={inputClass} />
+                <input
+                  name="last_name"
+                  required
+                  disabled={mode === "edit"}
+                  className={inputClass}
+                  style={{
+                    backgroundColor: `${theme.palette.surface}cc`,
+                    borderColor: theme.palette.border,
+                    color: theme.palette.text,
+                  }}
+                />
               </label>
             </div>
 
@@ -137,11 +191,26 @@ export function CheckoutPageView() {
                   required
                   disabled={mode === "edit"}
                   className={inputClass}
+                  style={{
+                    backgroundColor: `${theme.palette.surface}cc`,
+                    borderColor: theme.palette.border,
+                    color: theme.palette.text,
+                  }}
                 />
               </label>
               <label className="space-y-2 text-sm">
                 <span className="font-semibold">Phone</span>
-                <input name="phone" required disabled={mode === "edit"} className={inputClass} />
+                <input
+                  name="phone"
+                  required
+                  disabled={mode === "edit"}
+                  className={inputClass}
+                  style={{
+                    backgroundColor: `${theme.palette.surface}cc`,
+                    borderColor: theme.palette.border,
+                    color: theme.palette.text,
+                  }}
+                />
               </label>
             </div>
 
@@ -153,6 +222,11 @@ export function CheckoutPageView() {
                 rows={4}
                 disabled={mode === "edit"}
                 className={inputClass}
+                style={{
+                  backgroundColor: `${theme.palette.surface}cc`,
+                  borderColor: theme.palette.border,
+                  color: theme.palette.text,
+                }}
               />
             </label>
             <label className="mt-4 block space-y-2 text-sm">
@@ -163,6 +237,11 @@ export function CheckoutPageView() {
                 disabled={mode === "edit"}
                 placeholder="Optional delivery instructions"
                 className={inputClass}
+                style={{
+                  backgroundColor: `${theme.palette.surface}cc`,
+                  borderColor: theme.palette.border,
+                  color: theme.palette.text,
+                }}
               />
             </label>
 
@@ -175,16 +254,30 @@ export function CheckoutPageView() {
             <button
               type="submit"
               disabled={submitting || mode === "edit"}
-              className="mt-6 rounded-full bg-[#073e3f] px-8 py-3 text-sm font-semibold text-[#fbfbdc] transition hover:bg-[#0a5253] disabled:opacity-60"
+              className="mt-6 rounded-full px-8 py-3 text-sm font-semibold transition disabled:opacity-60"
+              style={{ backgroundColor: theme.palette.primary, color: theme.palette.background }}
             >
               {submitting ? "Placing order..." : "Place order"}
             </button>
           </form>
 
-          <aside className="h-fit rounded-[2rem] bg-white/80 p-5 shadow-[0_24px_90px_rgba(7,62,63,0.08)] ring-1 ring-[#073e3f]/5 sm:p-6">
-            <div className="rounded-[1.5rem] bg-[#fbfbdc] p-5">
+          <aside
+            className="h-fit rounded-[2rem] p-5 shadow-[0_24px_90px_rgba(7,62,63,0.08)] ring-1 sm:p-6"
+            style={
+              {
+                backgroundColor: `${theme.palette.surface}cc`,
+                "--tw-ring-color": theme.palette.border,
+              } as CSSProperties
+            }
+          >
+            <div
+              className="rounded-[1.5rem] p-5"
+              style={{ backgroundColor: theme.palette.background }}
+            >
               <h2 className="text-xl font-bold">Order summary</h2>
-              <p className="mt-1 text-sm text-[#073e3f]/60">Your wellness essentials</p>
+              <p className="mt-1 text-sm" style={{ color: theme.palette.muted }}>
+                Your wellness essentials
+              </p>
             </div>
 
             <div className="mt-5 space-y-4">
@@ -198,7 +291,8 @@ export function CheckoutPageView() {
                 return (
                   <div
                     key={line.product.id}
-                    className="grid grid-cols-[72px_minmax(0,1fr)_auto] items-center gap-3 rounded-2xl bg-[#f7f7f3] p-3 text-sm"
+                    className="grid grid-cols-[72px_minmax(0,1fr)_auto] items-center gap-3 rounded-2xl p-3 text-sm"
+                    style={{ backgroundColor: theme.palette.background }}
                   >
                     <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-white p-2">
                       <img
@@ -209,7 +303,9 @@ export function CheckoutPageView() {
                     </div>
                     <div className="min-w-0">
                       <div className="line-clamp-1 font-bold">{line.product.name}</div>
-                      <div className="mt-1 text-xs text-[#073e3f]/55">Qty {line.quantity}</div>
+                      <div className="mt-1 text-xs" style={{ color: theme.palette.muted }}>
+                        Qty {line.quantity}
+                      </div>
                     </div>
                     <span className="font-semibold">
                       {formatMoney(line.product.price * line.quantity, line.product.currency)}
@@ -219,7 +315,10 @@ export function CheckoutPageView() {
               })}
             </div>
 
-            <div className="mt-6 space-y-3 border-t border-[#073e3f]/10 pt-5 text-sm">
+            <div
+              className="mt-6 space-y-3 border-t pt-5 text-sm"
+              style={{ borderColor: theme.palette.border }}
+            >
               <div className="flex items-center justify-between">
                 <span>Subtotal</span>
                 <strong>{formatMoney(subtotal, currency)}</strong>
@@ -256,7 +355,7 @@ export function CheckoutPageView() {
                 name="first_name"
                 required
                 disabled={mode === "edit"}
-                className="w-full rounded-md border border-border bg-background px-3 py-2"
+                className={`w-full rounded-md border ${theme.borderColor} ${theme.pageBg} px-3 py-2`}
               />
             </label>
             <label className="space-y-2 text-sm">
@@ -265,7 +364,7 @@ export function CheckoutPageView() {
                 name="last_name"
                 required
                 disabled={mode === "edit"}
-                className="w-full rounded-md border border-border bg-background px-3 py-2"
+                className={`w-full rounded-md border ${theme.borderColor} ${theme.pageBg} px-3 py-2`}
               />
             </label>
           </div>
@@ -276,7 +375,7 @@ export function CheckoutPageView() {
               type="email"
               required
               disabled={mode === "edit"}
-              className="w-full rounded-md border border-border bg-background px-3 py-2"
+              className={`w-full rounded-md border ${theme.borderColor} ${theme.pageBg} px-3 py-2`}
             />
           </label>
           <label className="block space-y-2 text-sm">
@@ -285,7 +384,7 @@ export function CheckoutPageView() {
               name="phone"
               required
               disabled={mode === "edit"}
-              className="w-full rounded-md border border-border bg-background px-3 py-2"
+              className={`w-full rounded-md border ${theme.borderColor} ${theme.pageBg} px-3 py-2`}
             />
           </label>
           <label className="block space-y-2 text-sm">
@@ -295,7 +394,7 @@ export function CheckoutPageView() {
               required
               rows={4}
               disabled={mode === "edit"}
-              className="w-full rounded-md border border-border bg-background px-3 py-2"
+              className={`w-full rounded-md border ${theme.borderColor} ${theme.pageBg} px-3 py-2`}
             />
           </label>
           <label className="block space-y-2 text-sm">
@@ -305,7 +404,7 @@ export function CheckoutPageView() {
               rows={3}
               disabled={mode === "edit"}
               placeholder="Optional delivery instructions"
-              className="w-full rounded-md border border-border bg-background px-3 py-2"
+              className={`w-full rounded-md border ${theme.borderColor} ${theme.pageBg} px-3 py-2`}
             />
           </label>
           {error ? (
@@ -317,13 +416,13 @@ export function CheckoutPageView() {
             type="submit"
             disabled={submitting || mode === "edit"}
             className="rounded-md px-6 py-3 text-sm font-semibold text-white disabled:opacity-60"
-            style={{ backgroundColor: theme.brandColor }}
+            style={{ backgroundColor: theme.palette.primary, color: theme.palette.background }}
           >
             {submitting ? "Placing order..." : "Place order"}
           </button>
         </form>
 
-        <aside className="h-fit rounded-2xl border border-border bg-card p-6">
+        <aside className={`h-fit rounded-2xl border ${theme.borderColor} ${theme.cardBg} p-6`}>
           <h2 className="text-xl font-semibold" style={{ fontFamily: theme.displayFont }}>
             Order summary
           </h2>
@@ -339,7 +438,9 @@ export function CheckoutPageView() {
               </div>
             ))}
           </div>
-          <div className="mt-6 flex items-center justify-between border-t border-border pt-4 font-semibold">
+          <div
+            className={`mt-6 flex items-center justify-between border-t ${theme.borderColor} pt-4 font-semibold`}
+          >
             <span>Total</span>
             <span>{formatMoney(subtotal)}</span>
           </div>

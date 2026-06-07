@@ -49,9 +49,15 @@ export function StorefrontFaqSection({ faqPage }: { faqPage?: StorefrontPages["f
             className="mx-auto inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-semibold shadow-sm"
             style={{ backgroundColor: `${theme.palette.surface}cc` }}
           >
-            <span className="h-2 w-5 rounded-full" style={{ backgroundColor: theme.palette.primary }} />
+            <span
+              className="h-2 w-5 rounded-full"
+              style={{ backgroundColor: theme.palette.primary }}
+            />
             FAQs
-            <span className="h-2 w-5 rounded-full" style={{ backgroundColor: theme.palette.primary }} />
+            <span
+              className="h-2 w-5 rounded-full"
+              style={{ backgroundColor: theme.palette.primary }}
+            />
           </div>
           <EditableText
             path="pages.faq.title"
@@ -59,7 +65,10 @@ export function StorefrontFaqSection({ faqPage }: { faqPage?: StorefrontPages["f
             as="h2"
             className="mt-5 text-4xl font-semibold leading-tight tracking-[-0.045em] sm:text-5xl"
           />
-          <p className="mx-auto mt-4 max-w-md text-sm leading-6" style={{ color: theme.palette.muted }}>
+          <p
+            className="mx-auto mt-4 max-w-md text-sm leading-6"
+            style={{ color: theme.palette.muted }}
+          >
             Have questions about your order, delivery, or daily wellness routine? We are here to
             help.
           </p>
@@ -81,10 +90,12 @@ export function StorefrontFaqSection({ faqPage }: { faqPage?: StorefrontPages["f
               <details
                 key={`${item.question}-${index}`}
                 className="group rounded-[1.5rem] p-5 shadow-sm ring-1"
-                style={{
-                  backgroundColor: `${theme.palette.surface}cc`,
-                  "--tw-ring-color": theme.palette.border,
-                } as CSSProperties}
+                style={
+                  {
+                    backgroundColor: `${theme.palette.surface}cc`,
+                    "--tw-ring-color": theme.palette.border,
+                  } as CSSProperties
+                }
                 open={index === 0}
               >
                 <summary className="flex cursor-pointer list-none items-start justify-between gap-6">
@@ -96,7 +107,10 @@ export function StorefrontFaqSection({ faqPage }: { faqPage?: StorefrontPages["f
                   />
                   <span
                     className="grid h-6 w-6 shrink-0 place-items-center rounded-full"
-                    style={{ backgroundColor: theme.palette.background, color: theme.palette.primary }}
+                    style={{
+                      backgroundColor: theme.palette.background,
+                      color: theme.palette.primary,
+                    }}
                   >
                     <Plus className="h-3.5 w-3.5 group-open:hidden" strokeWidth={2.2} />
                     <Minus className="hidden h-3.5 w-3.5 group-open:block" strokeWidth={2.2} />
@@ -120,7 +134,10 @@ export function StorefrontFaqSection({ faqPage }: { faqPage?: StorefrontPages["f
           style={{ backgroundColor: theme.palette.primary, color: theme.palette.background }}
         >
           <h3 className="text-lg font-semibold">Still have questions?</h3>
-          <p className="mx-auto mt-2 max-w-md text-sm leading-6" style={{ color: `${theme.palette.background}b3` }}>
+          <p
+            className="mx-auto mt-2 max-w-md text-sm leading-6"
+            style={{ color: `${theme.palette.background}b3` }}
+          >
             Send us a note and our team will help you choose the right essentials.
           </p>
         </div>
@@ -162,7 +179,10 @@ export function StorefrontFaqSection({ faqPage }: { faqPage?: StorefrontPages["f
           <span>Search</span>
         </div>
 
-        <div className="mx-auto mt-16 divide-y text-left" style={{ borderColor: theme.palette.border }}>
+        <div
+          className="mx-auto mt-16 divide-y text-left"
+          style={{ borderColor: theme.palette.border }}
+        >
           {faqItems.map((item, index) => (
             <details key={`${item.question}-${index}`} className="group py-5" open={index === 0}>
               <summary className="flex cursor-pointer list-none items-start justify-between gap-6">
@@ -193,7 +213,10 @@ export function StorefrontFaqSection({ faqPage }: { faqPage?: StorefrontPages["f
         </div>
       </div>
 
-      <div className="mt-16 px-4 py-10 text-center sm:px-6" style={{ backgroundColor: theme.palette.surface }}>
+      <div
+        className="mt-16 px-4 py-10 text-center sm:px-6"
+        style={{ backgroundColor: theme.palette.surface }}
+      >
         <div className="flex justify-center -space-x-2">
           {[
             "https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?auto=format&fit=crop&w=80&q=80",
