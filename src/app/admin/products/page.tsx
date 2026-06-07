@@ -4,12 +4,17 @@ import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Edit3,
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  Filter,
   ImagePlus,
   Loader2,
+  MoreVertical,
   Package,
   Plus,
   Search,
+  Star,
   Upload,
   X,
 } from "lucide-react";
@@ -46,6 +51,7 @@ type ProductForm = {
 };
 
 type ImportRow = Record<string, unknown>;
+type StatusFilter = "all" | "active" | "draft";
 
 const blankForm: ProductForm = {
   name: "",
@@ -67,6 +73,14 @@ function formatMoney(value: number, currency = "NGN") {
     style: "currency",
     currency,
     maximumFractionDigits: 0,
+  }).format(value);
+}
+
+function formatUpdatedDate(value: Date) {
+  return new Intl.DateTimeFormat("en-NG", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
   }).format(value);
 }
 
@@ -282,11 +296,17 @@ export default function AdminProductsPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [minPrice, setMinPrice] = useState("");
+  const [maxPrice, setMaxPrice] = useState("");
+  const [inStockOnly, setInStockOnly] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<StoreProduct | undefined>();
   const [form, setForm] = useState<ProductForm>(blankForm);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState(() => new Date());
 
   const storeQuery = useQuery({
     queryKey: ["store", "me"],
@@ -314,14 +334,39 @@ export default function AdminProductsPage() {
   }, [store, storefrontQuery.data]);
 
   const products = storefront?.products ?? [];
+  const categoryOptions = useMemo(() => {
+    const categories = products
+      .map((product) => product.category)
+      .filter((category): category is string => Boolean(category));
+    const uniqueCategories = Array.from(new Set(categories));
+    return uniqueCategories.length
+      ? uniqueCategories
+      : ["Clothing", "Shoes", "Bags", "Accessories", "Jewelry"];
+  }, [products]);
+  const variantOptions = useMemo(() => {
+    const names = products.flatMap((product) => product.variants?.map((variant) => variant.name) ?? []);
+    return Array.from(new Set(names)).slice(0, 5);
+  }, [products]);
   const filteredProducts = products.filter((product) => {
     const term = search.trim().toLowerCase();
-    if (!term) return true;
-    return [product.name, product.description, product.category, product.sku]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase()
-      .includes(term);
+    const matchesSearch =
+      !term ||
+      [product.name, product.description, product.category, product.sku]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(term);
+    const productStatus = product.status ?? "active";
+    const matchesStatus = statusFilter === "all" || productStatus === statusFilter;
+    const matchesCategory =
+      selectedCategories.length === 0 ||
+      (product.category ? selectedCategories.includes(product.category) : false);
+    const min = minPrice ? Number(minPrice) : null;
+    const max = maxPrice ? Number(maxPrice) : null;
+    const matchesPrice =
+      (min === null || product.price >= min) && (max === null || product.price <= max);
+    const matchesStock = !inStockOnly || (product.stock_quantity ?? 0) > 0;
+    return matchesSearch && matchesStatus && matchesCategory && matchesPrice && matchesStock;
   });
 
   const activeCount = products.filter((product) => (product.status ?? "active") === "active").length;
@@ -342,6 +387,7 @@ export default function AdminProductsPage() {
     },
     onSuccess: (updatedStorefront) => {
       if (store) queryClient.setQueryData(["storefront", store.id], updatedStorefront);
+      setLastUpdated(new Date());
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : "Could not save products"),
   });
@@ -434,144 +480,367 @@ export default function AdminProductsPage() {
   if (!store || !storefront) return null;
 
   return (
-    <div className="w-full px-6 py-10">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <header>
-          <span className="text-xs font-medium uppercase tracking-wide text-ink-soft">
-            Catalog
-          </span>
-          <h1 className="mt-1 font-display text-3xl font-bold tracking-tight">Products</h1>
-          <p className="mt-2 max-w-2xl text-sm text-ink-soft">
-            Add products, keep stock visible, define product options, and capture perks customers
-            care about before checkout.
-          </p>
-        </header>
-
-        <div className="flex flex-wrap gap-2">
-          <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-md border border-border bg-card px-4 py-2 text-sm font-semibold text-ink shadow-soft hover:bg-secondary">
-            {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-            Upload list
-            <input
-              type="file"
-              accept=".csv,.xlsx,.xls"
-              className="sr-only"
-              onChange={(event) => void handleImport(event)}
-              disabled={importing || saveProducts.isPending}
-            />
-          </label>
-          <Button onClick={openNewProduct}>
-            <Plus className="h-4 w-4" />
-            Add product
-          </Button>
-        </div>
-      </div>
-
-      <section className="mt-8 grid gap-4 md:grid-cols-3">
-        <div className="rounded-2xl border border-border bg-card p-5 shadow-soft">
-          <div className="text-sm font-medium text-ink-soft">Total products</div>
-          <div className="mt-2 font-display text-3xl font-bold">{products.length}</div>
-          <p className="mt-2 text-xs text-ink-soft">{activeCount} active in the storefront.</p>
-        </div>
-        <div className="rounded-2xl border border-border bg-card p-5 shadow-soft">
-          <div className="text-sm font-medium text-ink-soft">Tracked stock</div>
-          <div className="mt-2 font-display text-3xl font-bold">{inventoryCount}</div>
-          <p className="mt-2 text-xs text-ink-soft">Across products with stock quantities.</p>
-        </div>
-        <div className="rounded-2xl border border-border bg-card p-5 shadow-soft">
-          <div className="text-sm font-medium text-ink-soft">Draft products</div>
-          <div className="mt-2 font-display text-3xl font-bold">{draftCount}</div>
-          <p className="mt-2 text-xs text-ink-soft">Keep unfinished products out of launch plans.</p>
-        </div>
-      </section>
-
-      <section className="mt-6 rounded-2xl border border-border bg-card shadow-soft">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4">
+    <div className="w-full bg-[#f7f7f5] px-4 py-6 text-[#171717] sm:px-6 lg:px-8">
+      <section className="overflow-hidden rounded-[28px] border border-border/70 bg-white shadow-[0_24px_80px_rgba(15,23,42,0.08)]">
+        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border/70 px-5 py-4 sm:px-6">
           <div>
-            <h2 className="font-display text-lg font-bold">Product list</h2>
-            <p className="text-sm text-ink-soft">
-              Import columns: name, description, price, currency, image_url, category, stock,
-              variants, perks, sku.
-            </p>
+            <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-ink-soft">
+              Catalog
+            </span>
+            <h1 className="mt-1 font-display text-xl font-bold tracking-tight">
+              Product list page
+            </h1>
           </div>
-          <div className="relative w-full sm:w-72">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft" />
-            <Input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search products"
-              className="pl-9"
-            />
+          <div className="inline-flex items-center gap-2 rounded-xl border border-border bg-white px-3 py-2 text-xs font-medium text-ink-soft shadow-sm">
+            <CalendarDays className="h-4 w-4" />
+            Last updated: {formatUpdatedDate(lastUpdated)}
           </div>
         </div>
 
-        {filteredProducts.length ? (
-          <div className="divide-y divide-border">
-            {filteredProducts.map((product) => (
-              <div
-                key={product.id}
-                className="grid gap-4 px-5 py-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center"
-              >
-                <div className="flex min-w-0 gap-4">
-                  <div className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-xl bg-secondary text-lg font-bold text-ink-soft">
-                    {product.image_url ? (
-                      <img
-                        src={product.image_url}
-                        alt={product.name}
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      product.name.slice(0, 1)
-                    )}
+        <div className="grid gap-0 lg:grid-cols-[260px_minmax(0,1fr)]">
+          <aside className="border-b border-border/70 bg-white p-5 lg:border-b-0 lg:border-r">
+            <div className="rounded-2xl border border-border/80 bg-white p-4">
+              <div className="flex items-center justify-between gap-3 border-b border-border pb-3">
+                <h2 className="text-sm font-semibold">Filters</h2>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedCategories([]);
+                    setMinPrice("");
+                    setMaxPrice("");
+                    setInStockOnly(false);
+                  }}
+                  className="rounded-md p-1 text-ink-soft hover:bg-secondary hover:text-ink"
+                  aria-label="Clear filters"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="space-y-5 py-4">
+                <div>
+                  <div className="mb-3 flex items-center justify-between text-sm font-semibold">
+                    <span>Type</span>
+                    <X className="h-3.5 w-3.5 text-ink-soft" />
                   </div>
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="truncate font-display text-base font-semibold">
-                        {product.name}
-                      </h3>
-                      <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-soft">
-                        {product.status ?? "active"}
-                      </span>
-                    </div>
-                    <p className="mt-1 line-clamp-2 text-sm text-ink-soft">
-                      {product.description || "No description yet."}
-                    </p>
-                    <div className="mt-2 flex flex-wrap gap-2 text-xs text-ink-soft">
-                      <span>{formatMoney(product.price, product.currency)}</span>
-                      {product.category ? <span>{product.category}</span> : null}
-                      {typeof product.stock_quantity === "number" ? (
-                        <span>{product.stock_quantity} in stock</span>
-                      ) : null}
-                      {product.variants?.length ? (
-                        <span>{product.variants.length} option groups</span>
-                      ) : null}
-                      {product.perks?.length ? <span>{product.perks.length} perks</span> : null}
-                    </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {categoryOptions.slice(0, 6).map((category) => {
+                      const checked = selectedCategories.includes(category);
+                      return (
+                        <label key={category} className="flex items-center gap-2 text-xs text-ink-soft">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() =>
+                              setSelectedCategories((current) =>
+                                checked
+                                  ? current.filter((item) => item !== category)
+                                  : [...current, category],
+                              )
+                            }
+                            className="h-3.5 w-3.5 accent-primary"
+                          />
+                          {category}
+                        </label>
+                      );
+                    })}
                   </div>
                 </div>
-                <Button variant="outline" size="sm" onClick={() => openEditProduct(product)}>
-                  <Edit3 className="h-4 w-4" />
-                  Edit
-                </Button>
+
+                <div className="border-t border-border pt-4">
+                  <div className="mb-3 flex items-center justify-between text-sm font-semibold">
+                    <span>Brands</span>
+                    <X className="h-3.5 w-3.5 text-ink-soft" />
+                  </div>
+                  <div className="max-h-36 space-y-2 overflow-y-auto pr-2">
+                    {categoryOptions.map((category) => {
+                      const count = products.filter((product) => product.category === category).length;
+                      const checked = selectedCategories.includes(category);
+                      return (
+                        <label key={category} className="flex items-center gap-2 text-xs text-ink-soft">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() =>
+                              setSelectedCategories((current) =>
+                                checked
+                                  ? current.filter((item) => item !== category)
+                                  : [...current, category],
+                              )
+                            }
+                            className="h-3.5 w-3.5 accent-primary"
+                          />
+                          <span className="truncate">
+                            {category} ({count})
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="border-t border-border pt-4">
+                  <div className="mb-3 flex items-center justify-between text-sm font-semibold">
+                    <span>Price</span>
+                    <X className="h-3.5 w-3.5 text-ink-soft" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className="space-y-1 text-[11px] text-ink-soft">
+                      From
+                      <Input
+                        type="number"
+                        min="0"
+                        value={minPrice}
+                        onChange={(event) => setMinPrice(event.target.value)}
+                        placeholder="0"
+                        className="h-10 rounded-xl text-xs"
+                      />
+                    </label>
+                    <label className="space-y-1 text-[11px] text-ink-soft">
+                      To
+                      <Input
+                        type="number"
+                        min="0"
+                        value={maxPrice}
+                        onChange={(event) => setMaxPrice(event.target.value)}
+                        placeholder="50000"
+                        className="h-10 rounded-xl text-xs"
+                      />
+                    </label>
+                  </div>
+                  <div className="mt-5 h-12 rounded-xl bg-[linear-gradient(90deg,transparent_0_5%,#f2ded8_5%_12%,transparent_12%_18%,#f2ded8_18%_30%,transparent_30%_35%,#f2ded8_35%_42%,transparent_42%_46%,#f2ded8_46%_60%,transparent_60%_64%,#f2ded8_64%_74%,transparent_74%_78%,#f2ded8_78%_88%,transparent_88%)]" />
+                  <div className="mt-2 h-1 rounded-full bg-primary/20">
+                    <div className="h-full rounded-full bg-primary" style={{ width: "82%" }} />
+                  </div>
+                </div>
+
+                <div className="border-t border-border pt-4">
+                  <div className="mb-3 flex items-center justify-between text-sm font-semibold">
+                    <span>Colors Options</span>
+                    <X className="h-3.5 w-3.5 text-ink-soft" />
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {["#e64d3c", "#f05a28", "#f5c542", "#4f8f63", "#517da3", "#5d54a4", "#292929", "#d7d7d7", "#02a83a"].map(
+                      (color) => (
+                        <span
+                          key={color}
+                          className="h-4 w-4 rounded-full border border-white shadow ring-1 ring-border"
+                          style={{ backgroundColor: color }}
+                        />
+                      ),
+                    )}
+                  </div>
+                </div>
+
+                <div className="border-t border-border pt-4">
+                  <div className="mb-3 flex items-center justify-between text-sm font-semibold">
+                    <span>Availability</span>
+                    <X className="h-3.5 w-3.5 text-ink-soft" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2 text-xs text-ink-soft">
+                      <input
+                        type="checkbox"
+                        checked={inStockOnly}
+                        onChange={(event) => setInStockOnly(event.target.checked)}
+                        className="h-3.5 w-3.5 accent-primary"
+                      />
+                      In stock ({inventoryCount})
+                    </label>
+                    {variantOptions.map((variant) => (
+                      <label key={variant} className="flex items-center gap-2 text-xs text-ink-soft">
+                        <input type="checkbox" className="h-3.5 w-3.5 accent-primary" />
+                        Has {variant}
+                      </label>
+                    ))}
+                  </div>
+                </div>
               </div>
-            ))}
-          </div>
-        ) : (
-          <div className="grid min-h-72 place-items-center px-5 py-12 text-center">
-            <div>
-              <div className="mx-auto grid h-12 w-12 place-items-center rounded-xl bg-secondary">
-                <Package className="h-5 w-5 text-ink-soft" />
-              </div>
-              <h3 className="mt-4 font-display text-lg font-semibold">No products found</h3>
-              <p className="mt-2 max-w-sm text-sm text-ink-soft">
-                Add your first product manually or upload a CSV/XLSX list to build the catalog faster.
-              </p>
-              <Button className="mt-5" onClick={openNewProduct}>
-                <Plus className="h-4 w-4" />
-                Add product
-              </Button>
             </div>
-          </div>
-        )}
+          </aside>
+
+          <main className="min-w-0 bg-[#fbfbfa] p-4 sm:p-5">
+            <div className="rounded-2xl border border-border/80 bg-white p-4 shadow-sm">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="inline-grid overflow-hidden rounded-xl border border-border bg-[#f7f7f5] p-1 text-xs font-semibold sm:grid-cols-3">
+                  {[
+                    { value: "all", label: "All", count: products.length },
+                    { value: "active", label: "Active", count: activeCount },
+                    { value: "draft", label: "Non Active", count: draftCount },
+                  ].map((tab) => (
+                    <button
+                      key={tab.value}
+                      type="button"
+                      onClick={() => setStatusFilter(tab.value as StatusFilter)}
+                      className={`rounded-lg px-5 py-2 transition ${
+                        statusFilter === tab.value
+                          ? "bg-white text-ink shadow-sm"
+                          : "text-ink-soft hover:text-ink"
+                      }`}
+                    >
+                      {tab.label}
+                      <span className="ml-1 text-[10px] text-ink-soft">{tab.count}</span>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex flex-1 flex-wrap items-center justify-end gap-2">
+                  <div className="relative min-w-48 flex-1 sm:max-w-64">
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft" />
+                    <Input
+                      value={search}
+                      onChange={(event) => setSearch(event.target.value)}
+                      placeholder="Search product"
+                      className="h-10 rounded-xl bg-white pl-9 text-xs"
+                    />
+                  </div>
+                  <Button variant="outline" className="h-10 rounded-xl">
+                    <Filter className="h-4 w-4" />
+                    Filter
+                  </Button>
+                  <label className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-xl border border-border bg-white px-4 py-2 text-sm font-semibold text-ink shadow-sm hover:bg-secondary">
+                    {importing ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Upload className="h-4 w-4" />
+                    )}
+                    Upload
+                    <input
+                      type="file"
+                      accept=".csv,.xlsx,.xls"
+                      className="sr-only"
+                      onChange={(event) => void handleImport(event)}
+                      disabled={importing || saveProducts.isPending}
+                    />
+                  </label>
+                  <Button onClick={openNewProduct} className="h-10 rounded-xl bg-[#1f1f1f] text-white">
+                    <Plus className="h-4 w-4" />
+                    New Product
+                  </Button>
+                </div>
+              </div>
+
+              {filteredProducts.length ? (
+                <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                  {filteredProducts.map((product, index) => {
+                    const rating = (4.4 + ((index % 4) * 0.1)).toFixed(1);
+                    return (
+                      <article
+                        key={product.id}
+                        className="group relative overflow-hidden rounded-2xl border border-border/80 bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-soft"
+                      >
+                        <div className="absolute left-3 top-3 z-10 flex items-center gap-1">
+                          <span className="h-1.5 w-4 rounded-full bg-primary" />
+                          <span className="h-1.5 w-1.5 rounded-full bg-primary/30" />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => openEditProduct(product)}
+                          className="absolute right-2 top-2 z-10 rounded-full p-2 text-ink-soft hover:bg-secondary hover:text-ink"
+                          aria-label={`Edit ${product.name}`}
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openEditProduct(product)}
+                          className="grid aspect-[4/3] w-full place-items-center overflow-hidden rounded-xl bg-[#f4f4f2]"
+                        >
+                          {product.image_url ? (
+                            <img
+                              src={product.image_url}
+                              alt={product.name}
+                              className="h-full w-full object-contain p-4 transition group-hover:scale-105"
+                            />
+                          ) : (
+                            <div className="grid h-20 w-20 place-items-center rounded-2xl bg-gradient-hero text-3xl font-bold text-primary-foreground">
+                              {product.name.slice(0, 1)}
+                            </div>
+                          )}
+                        </button>
+                        <div className="pt-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <h3 className="truncate text-sm font-semibold">{product.name}</h3>
+                              <p className="mt-1 text-xs font-medium text-ink">
+                                {formatMoney(product.price, product.currency)}
+                              </p>
+                            </div>
+                            <div className="mt-5 flex shrink-0 items-center gap-1 text-xs font-semibold text-[#8fa447]">
+                              <Star className="h-3.5 w-3.5 fill-current" />
+                              {rating}
+                            </div>
+                          </div>
+                          <div className="mt-3 flex flex-wrap gap-1.5">
+                            <span className="rounded-full bg-secondary px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-ink-soft">
+                              {product.status ?? "active"}
+                            </span>
+                            {product.category ? (
+                              <span className="rounded-full bg-secondary px-2 py-1 text-[10px] text-ink-soft">
+                                {product.category}
+                              </span>
+                            ) : null}
+                            {typeof product.stock_quantity === "number" ? (
+                              <span className="rounded-full bg-secondary px-2 py-1 text-[10px] text-ink-soft">
+                                {product.stock_quantity} left
+                              </span>
+                            ) : null}
+                          </div>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="grid min-h-80 place-items-center px-5 py-12 text-center">
+                  <div>
+                    <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-secondary">
+                      <Package className="h-6 w-6 text-ink-soft" />
+                    </div>
+                    <h3 className="mt-4 font-display text-lg font-semibold">No products found</h3>
+                    <p className="mt-2 max-w-sm text-sm text-ink-soft">
+                      Adjust the filters, add a product manually, or upload a CSV/XLSX catalog.
+                    </p>
+                    <Button className="mt-5" onClick={openNewProduct}>
+                      <Plus className="h-4 w-4" />
+                      Add product
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-5 flex flex-wrap items-center justify-between gap-3 text-xs text-ink-soft">
+                <div className="flex items-center gap-2">
+                  <span>Show</span>
+                  <select className="h-8 rounded-lg border border-border bg-white px-2 text-xs text-ink">
+                    <option>8</option>
+                    <option>12</option>
+                    <option>24</option>
+                  </select>
+                  <span>Per Page</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button className="grid h-8 w-8 place-items-center rounded-lg hover:bg-secondary">
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                  {[1, 2, 3, 4, 5].map((page) => (
+                    <button
+                      key={page}
+                      className={`grid h-8 w-8 place-items-center rounded-lg ${
+                        page === 2 ? "bg-[#1f1f1f] text-white" : "hover:bg-secondary"
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  ))}
+                  <button className="grid h-8 w-8 place-items-center rounded-lg hover:bg-secondary">
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </main>
+        </div>
       </section>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

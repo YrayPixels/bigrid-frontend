@@ -5,6 +5,7 @@ import { ArrowRight } from "lucide-react";
 import type { Store, StorefrontContent } from "@/lib/api/types";
 import { EditableImage } from "@/components/storefront/theme/editable-image";
 import { EditableText } from "@/components/storefront/theme/editable-text";
+import { StorefrontFaqSection } from "@/components/storefront/pages/storefront-faq-section";
 import { ProductCardThemed } from "@/components/storefront/theme/product-card-themed";
 import { getHomepageProducts } from "@/lib/storefront/product-plugs";
 import { useStorefrontTheme } from "@/lib/storefront/theme-context";
@@ -165,6 +166,8 @@ export function ClassicHome({
           ))}
         </div>
       </section>
+
+      <StorefrontFaqSection faqPage={storefront.pages?.faq} />
     </div>
   );
 }

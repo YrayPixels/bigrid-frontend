@@ -5,7 +5,7 @@ export type StorefrontMode = "live" | "edit" | "preview";
 export type StorefrontTheme = {
   id: StorefrontTemplateId;
   brandColor: string;
-  shell: "default" | "fashion";
+  shell: "default" | "fashion" | "minimalistic";
   displayFont: string;
   pageBg: string;
   pageText: string;
@@ -40,6 +40,21 @@ export function getStorefrontTheme(
   };
 
   switch (templateId) {
+    case "minimalistic":
+      return {
+        ...base,
+        shell: "minimalistic",
+        displayFont: "var(--font-display)",
+        pageBg: "bg-[#fbfbdc]",
+        pageText: "text-[#073e3f]",
+        mutedText: "text-[#073e3f]/65",
+        borderColor: "border-[#073e3f]/10",
+        cardBg: "bg-white",
+        buttonRadius: "rounded-full",
+        buttonStyle: "rounded",
+        heroAlign: "center",
+        productGridCols: "sm:grid-cols-2 lg:grid-cols-3",
+      };
     case "fashion_lookbook":
       return {
         ...base,
@@ -124,5 +139,6 @@ export const STOREFRONT_THEME_PRESETS: Record<
   classic: { label: "Classic Commerce", brandColor: "#1F6F5B" },
   editorial: { label: "Editorial Brand", brandColor: "#7C3A2D" },
   bold_grid: { label: "Bold Product Grid", brandColor: "#0F4C81" },
-  fashion_lookbook: { label: "Fashion Lookbook", brandColor: "#123D33" },
+  fashion_lookbook: { label: "Fashion", brandColor: "#123D33" },
+  minimalistic: { label: "Minimalistic", brandColor: "#073E3F" },
 };

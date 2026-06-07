@@ -1,5 +1,6 @@
 import type { StoreProduct, StorefrontContent, StorefrontTemplateId } from "@/lib/api/types";
 import { fashionFallbackProducts } from "./fashion-defaults";
+import { minimalisticFallbackProducts } from "./minimalistic-defaults";
 
 export type ProductPlugSource = "merchant_products" | "theme_products";
 
@@ -47,7 +48,10 @@ export function getProductPlugSource(storefront: StorefrontContent): ProductPlug
 }
 
 export function getThemeProducts(templateId: StorefrontTemplateId): StoreProduct[] {
-  return templateId === "fashion_lookbook" ? fashionFallbackProducts : genericThemeProducts;
+  if (templateId === "fashion_lookbook") return fashionFallbackProducts;
+  if (templateId === "minimalistic") return minimalisticFallbackProducts;
+
+  return genericThemeProducts;
 }
 
 export function getHomepageProducts(

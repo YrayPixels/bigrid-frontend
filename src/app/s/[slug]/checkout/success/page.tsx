@@ -4,11 +4,41 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { useStorefront } from "@/lib/storefront/store-context";
+import { useStorefrontTheme } from "@/lib/storefront/theme-context";
 
 function CheckoutSuccessContent() {
   const { store } = useStorefront();
+  const { theme } = useStorefrontTheme();
   const searchParams = useSearchParams();
   const orderNumber = searchParams.get("order") ?? "your order";
+
+  if (theme.id === "minimalistic") {
+    return (
+      <div className="bg-[#fbfbdc] px-4 py-16 text-center text-[#073e3f] sm:px-6">
+        <div className="mx-auto max-w-4xl rounded-[2rem] bg-white/80 px-6 py-14 shadow-[0_24px_80px_rgba(7,62,63,0.08)]">
+          <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-[#073e3f] text-sm font-bold text-[#fbfbdc]">
+            OK
+          </div>
+          <div className="mx-auto mt-6 inline-flex items-center gap-2 rounded-full bg-[#fbfbdc] px-3 py-1.5 text-[11px] font-semibold">
+            <span className="h-2 w-5 rounded-full bg-[#073e3f]" />
+            Order placed
+            <span className="h-2 w-5 rounded-full bg-[#073e3f]" />
+          </div>
+          <h1 className="mt-5 text-4xl font-semibold tracking-[-0.04em]">Your order is confirmed</h1>
+          <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-[#073e3f]/65">
+            Thank you for shopping with {store.business_name}. Your order reference is{" "}
+            <span className="font-bold text-[#073e3f]">{orderNumber}</span>.
+          </p>
+          <Link
+            href="/products"
+            className="mt-8 inline-flex rounded-full bg-[#073e3f] px-8 py-3 text-sm font-semibold text-[#fbfbdc] transition hover:bg-[#0a5253]"
+          >
+            Continue shopping
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full px-4 py-16 text-center sm:px-6">

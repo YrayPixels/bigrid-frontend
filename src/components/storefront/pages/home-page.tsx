@@ -4,6 +4,7 @@ import { useStorefront } from "@/lib/storefront/store-context";
 import { useStorefrontTheme } from "@/lib/storefront/theme-context";
 import { ClassicHome } from "./home/classic-home";
 import { FashionLookbookHome } from "./home/fashion-lookbook-home";
+import { MinimalisticHome } from "./home/minimalistic-home";
 
 export function HomePageView() {
   const { store, storefront } = useStorefront();
@@ -11,6 +12,10 @@ export function HomePageView() {
 
   if (theme.id === "fashion_lookbook") {
     return <FashionLookbookHome store={store} storefront={storefront} />;
+  }
+
+  if (theme.id === "minimalistic") {
+    return <MinimalisticHome store={store} storefront={storefront} />;
   }
 
   if (theme.id === "editorial") {

@@ -100,7 +100,7 @@ function TemplateMiniPreview({
   variant,
   brandColor,
 }: {
-  variant: "balanced" | "editorial" | "grid" | "lookbook" | "spark";
+  variant: "balanced" | "editorial" | "grid" | "lookbook" | "minimal" | "spark";
   brandColor: string;
 }) {
   if (variant === "editorial") {
@@ -148,6 +148,31 @@ function TemplateMiniPreview({
           <div className="grid grid-cols-4 gap-1">
             {[0, 1, 2, 3].map((item) => (
               <div key={item} className="rounded-sm bg-secondary" />
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (variant === "minimal") {
+    return (
+      <div className="h-28 overflow-hidden rounded-lg border border-border bg-[#fbfbdc] p-2">
+        <div className="mb-2 flex items-center justify-between">
+          <div className="flex items-center gap-1">
+            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: brandColor }} />
+            <span className="h-2 w-10 rounded bg-[#073e3f]/20" />
+          </div>
+          <span className="h-3 w-10 rounded-full" style={{ backgroundColor: brandColor }} />
+        </div>
+        <div className="rounded-t-xl bg-white p-2">
+          <div className="mx-auto h-2 w-20 rounded bg-[#073e3f]/20" />
+          <div className="mt-2 grid grid-cols-3 gap-1.5">
+            {[0, 1, 2, 3, 4, 5].map((item) => (
+              <div key={item} className="space-y-1 rounded bg-[#f0f0f0] p-1">
+                <div className="h-8 rounded bg-[#dfe7cf]" />
+                <div className="h-1.5 rounded bg-[#073e3f]/20" />
+              </div>
             ))}
           </div>
         </div>

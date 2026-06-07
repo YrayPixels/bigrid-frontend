@@ -7,15 +7,17 @@ import { useState } from "react";
 import { useCart } from "@/lib/storefront/cart-context";
 import { useStorefront } from "@/lib/storefront/store-context";
 import { useStorefrontTheme } from "@/lib/storefront/theme-context";
+import { StorefrontFaqSection } from "@/components/storefront/pages/storefront-faq-section";
 import { STOREFRONT_FOOTER_LINKS, STOREFRONT_NAV_ITEMS } from "@/lib/storefront/template";
 import { cn } from "@/lib/utils";
 
 export function FashionShell({ children }: { children: React.ReactNode }) {
-  const { store } = useStorefront();
+  const { store, storefront } = useStorefront();
   const { theme, mode } = useStorefrontTheme();
   const { itemCount } = useCart();
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const showProductsFaq = /\/products\/?$/.test(pathname);
 
   const NavLink = mode === "edit" ? "span" : Link;
 
@@ -108,6 +110,8 @@ export function FashionShell({ children }: { children: React.ReactNode }) {
       </header>
 
       <main>{children}</main>
+
+      {showProductsFaq ? <StorefrontFaqSection faqPage={storefront.pages?.faq} /> : null}
 
       <footer className="bg-[#050505] px-4 py-10 text-white sm:px-6">
         <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">

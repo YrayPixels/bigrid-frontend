@@ -19,7 +19,12 @@ export type Industry =
   | "services"
   | "other";
 
-export type StorefrontTemplateId = "classic" | "editorial" | "bold_grid" | "fashion_lookbook";
+export type StorefrontTemplateId =
+  | "classic"
+  | "editorial"
+  | "bold_grid"
+  | "fashion_lookbook"
+  | "minimalistic";
 export type StorefrontTemplateChoice = StorefrontTemplateId | "ai_pick";
 
 export type Store = {
@@ -197,7 +202,7 @@ export const STOREFRONT_TEMPLATE_OPTIONS: {
   label: string;
   description: string;
   bestFor: string;
-  preview: "balanced" | "editorial" | "grid" | "lookbook" | "spark";
+  preview: "balanced" | "editorial" | "grid" | "lookbook" | "minimal" | "spark";
 }[] = [
   {
     value: "ai_pick",
@@ -222,11 +227,19 @@ export const STOREFRONT_TEMPLATE_OPTIONS: {
   },
   {
     value: "fashion_lookbook",
-    label: "Fashion Lookbook",
+    label: "Fashion",
     description:
       "A clothing-brand homepage with campaign imagery, curated edits, and product drops.",
     bestFor: "Clothing brands",
     preview: "lookbook",
+  },
+  {
+    value: "minimalistic",
+    label: "Minimalistic",
+    description:
+      "A clean supplement-inspired storefront with soft neutrals, rounded product cards, and wellness storytelling.",
+    bestFor: "Wellness brands",
+    preview: "minimal",
   },
   {
     value: "bold_grid",

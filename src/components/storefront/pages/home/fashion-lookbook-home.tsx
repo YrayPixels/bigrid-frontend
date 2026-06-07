@@ -6,6 +6,7 @@ import type { CSSProperties } from "react";
 import type { Store, StorefrontContent } from "@/lib/api/types";
 import { EditableImage } from "@/components/storefront/theme/editable-image";
 import { EditableText } from "@/components/storefront/theme/editable-text";
+import { StorefrontFaqSection } from "@/components/storefront/pages/storefront-faq-section";
 import { useStorefrontTheme } from "@/lib/storefront/theme-context";
 import { formatMoney } from "@/lib/storefront/format";
 import { fashionCategories, fashionTemplateImages } from "@/lib/storefront/fashion-defaults";
@@ -63,6 +64,7 @@ export function FashionLookbookHome({
   ].slice(0, 4);
   const heroImageUrl = storefront.media?.hero_image_url ?? fashionTemplateImages.hero;
   const aboutImageUrl = storefront.media?.about_image_url ?? fashionTemplateImages.about;
+  const faqPage = storefront.pages?.faq;
 
   const CtaLink = mode === "edit" ? "span" : Link;
 
@@ -289,6 +291,8 @@ export function FashionLookbookHome({
           </div>
         </div>
       </section>
+
+      <StorefrontFaqSection faqPage={faqPage} />
     </div>
   );
 }

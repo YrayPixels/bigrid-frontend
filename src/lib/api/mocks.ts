@@ -616,7 +616,11 @@ function resolveTemplateId(store: Store): StorefrontTemplateId {
     return "fashion_lookbook";
   }
 
-  if (store.industry === "beauty_and_skincare" || store.industry === "home_and_living") {
+  if (store.industry === "beauty_and_skincare") {
+    return "minimalistic";
+  }
+
+  if (store.industry === "home_and_living") {
     return "editorial";
   }
 
