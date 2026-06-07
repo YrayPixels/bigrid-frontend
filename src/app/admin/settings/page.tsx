@@ -212,7 +212,7 @@ export default function AdminSettingsPage() {
             <SettingsStat
               label="Store profile"
               value={formatIndustry(store.industry)}
-              hint={`Public URL: storehaus.app/${store.slug}`}
+              hint={`Public URL: ${getStorefrontUrl(store.slug)}`}
               icon={Store}
             />
           </section>

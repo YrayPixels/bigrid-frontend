@@ -16,7 +16,7 @@ const RESERVED = new Set([
 ]);
 
 export const STORE_PLATFORM_DOMAIN =
-  process.env.NEXT_PUBLIC_STORE_PLATFORM_DOMAIN ?? "storehaus.app";
+  process.env.NEXT_PUBLIC_STORE_PLATFORM_DOMAIN ?? "storehause.vercel.app";
 
 export function getStoreSubdomainHost(slug: string) {
   return `${slug}.${STORE_PLATFORM_DOMAIN}`;

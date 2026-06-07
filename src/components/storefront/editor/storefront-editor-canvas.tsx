@@ -18,6 +18,7 @@ import { StorefrontProvider } from "@/lib/storefront/store-context";
 import { StorefrontThemeProvider } from "@/lib/storefront/theme-context";
 import { applyTemplateToDraft, setDraftField } from "@/lib/storefront/draft";
 import { getStorefrontTheme } from "@/lib/storefront/template";
+import { getStoreSubdomainHost } from "@/lib/store-host";
 
 export type EditorPage = "home" | "products" | "about" | "contact" | "faq";
 
@@ -122,7 +123,7 @@ export function StorefrontEditorCanvas({
         <span className="h-2.5 w-2.5 rounded-full bg-accent/80" />
         <span className="h-2.5 w-2.5 rounded-full bg-primary/70" />
         <span className="ml-3 truncate rounded bg-card px-3 py-1 text-xs text-ink-soft">
-          {store.subdomain_host ?? `${store.slug}.storehaus.app`}
+          {store.subdomain_host ?? getStoreSubdomainHost(store.slug)}
         </span>
         {!readOnly ? (
           <span className="ml-auto text-[10px] font-semibold uppercase tracking-wide text-primary">
