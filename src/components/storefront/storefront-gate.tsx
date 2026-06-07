@@ -47,7 +47,11 @@ export function StorefrontGate({ slug, children }: { slug: string; children: Rea
   }
 
   const templateId = resolveStorefrontTemplate(query.data.store, query.data.storefront);
-  const theme = getStorefrontTheme(templateId, query.data.store.brand_color);
+  const theme = getStorefrontTheme(
+    templateId,
+    query.data.store.brand_color,
+    query.data.storefront.palette,
+  );
 
   return (
     <StorefrontProvider value={query.data}>

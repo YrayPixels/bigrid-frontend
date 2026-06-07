@@ -50,7 +50,7 @@ export function FashionLookbookHome({
   store: Store;
   storefront: StorefrontContent;
 }) {
-  const { mode } = useStorefrontTheme();
+  const { theme, mode } = useStorefrontTheme();
   const products = storefront.products ?? [];
   const featureIcons = [ShieldCheck, BadgeCheck, RotateCcw, Truck];
   const { products: featuredProducts, source: productSource } = getHomepageProducts(
@@ -69,7 +69,7 @@ export function FashionLookbookHome({
   const CtaLink = mode === "edit" ? "span" : Link;
 
   return (
-    <div className="bg-white text-[#111111]">
+    <div style={{ backgroundColor: theme.palette.background, color: theme.palette.text }}>
       <section className="relative">
         <div className="relative min-h-[430px] overflow-hidden bg-[#a7aaa5] sm:min-h-[560px] lg:min-h-[640px]">
           <EditableImage
@@ -120,13 +120,16 @@ export function FashionLookbookHome({
         </div>
       </section>
 
-      <section className="border-y border-black/10 bg-[#f7f7f5] px-4 py-4 sm:px-6">
+      <section
+        className="border-y px-4 py-4 sm:px-6"
+        style={{ backgroundColor: theme.palette.surface, borderColor: theme.palette.border }}
+      >
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {fashionValueProps.map((item, index) => {
             const Icon = featureIcons[index % featureIcons.length];
             return (
               <div key={item.title} className="flex items-center justify-center gap-3 text-left">
-                <Icon className="h-5 w-5 shrink-0 text-[#111111]" strokeWidth={1.4} />
+                <Icon className="h-5 w-5 shrink-0" strokeWidth={1.4} />
                 <div>
                   <EditableText
                     path={`value_props.${index}.title`}
@@ -138,7 +141,8 @@ export function FashionLookbookHome({
                     path={`value_props.${index}.body`}
                     value={item.body}
                     as="p"
-                    className="mt-0.5 text-[11px] leading-4 text-[#666666]"
+                    className="mt-0.5 text-[11px] leading-4"
+                    style={{ color: theme.palette.muted }}
                     multiline
                   />
                 </div>
@@ -148,8 +152,14 @@ export function FashionLookbookHome({
         </div>
       </section>
 
-      <section className="bg-white px-4 py-16 text-center sm:px-6 lg:py-20">
-        <p className="text-[11px] font-medium tracking-[0.18em] text-[#6e6e6e]">
+      <section
+        className="px-4 py-16 text-center sm:px-6 lg:py-20"
+        style={{ backgroundColor: theme.palette.background }}
+      >
+        <p
+          className="text-[11px] font-medium tracking-[0.18em]"
+          style={{ color: theme.palette.muted }}
+        >
           Minimal. Comfortable. Timeless.
         </p>
         <h2
@@ -190,14 +200,19 @@ export function FashionLookbookHome({
         </div>
       </section>
 
-      <section className="bg-white px-4 py-16 text-center sm:px-6 lg:py-20">
+      <section
+        className="px-4 py-16 text-center sm:px-6 lg:py-20"
+        style={{ backgroundColor: theme.palette.background }}
+      >
         <h2
           className="text-4xl font-bold tracking-[-0.04em]"
           style={{ fontFamily: "var(--font-editorial)" }}
         >
           Our Best Sellers
         </h2>
-        <p className="mt-2 text-[11px] text-[#6e6e6e]">Customer favourites, always in style.</p>
+        <p className="mt-2 text-[11px]" style={{ color: theme.palette.muted }}>
+          Customer favourites, always in style.
+        </p>
         <div className="mx-auto mt-10 grid max-w-7xl gap-7 sm:grid-cols-2 lg:grid-cols-4">
           {featuredProducts.map((product, index) => {
             const card = (
@@ -242,7 +257,7 @@ export function FashionLookbookHome({
         </div>
       </section>
 
-      <section className="grid bg-[#eef2ef] lg:grid-cols-2">
+      <section className="grid lg:grid-cols-2" style={{ backgroundColor: theme.palette.surface }}>
         <div className="relative min-h-[440px] overflow-hidden bg-[#a7aaa5] lg:min-h-[620px]">
           <EditableImage
             path="media.about_image_url"
@@ -269,23 +284,31 @@ export function FashionLookbookHome({
               path="about.body"
               value={storefront.about.body}
               as="p"
-              className="mt-5 max-w-lg text-sm leading-7 text-[#525252]"
+                className="mt-5 max-w-lg text-sm leading-7"
+                style={{ color: theme.palette.muted }}
               multiline
             />
             {mode === "edit" ? (
-              <span className="mt-8 inline-flex cursor-default bg-[#111111] px-7 py-3 text-[11px] font-extrabold uppercase tracking-[0.12em] text-white">
+              <span
+                className="mt-8 inline-flex cursor-default px-7 py-3 text-[11px] font-extrabold uppercase tracking-[0.12em]"
+                style={{ backgroundColor: theme.palette.primary, color: theme.palette.background }}
+              >
                 Learn more
               </span>
             ) : (
               <Link
                 href="/about"
-                className="mt-8 inline-flex bg-[#111111] px-7 py-3 text-[11px] font-extrabold uppercase tracking-[0.12em] text-white transition hover:bg-white hover:text-[#111111]"
+                className="mt-8 inline-flex px-7 py-3 text-[11px] font-extrabold uppercase tracking-[0.12em] transition"
+                style={{ backgroundColor: theme.palette.primary, color: theme.palette.background }}
               >
                 Learn more
               </Link>
             )}
           </div>
-          <div className="flex items-center justify-between text-[11px] text-[#525252]">
+          <div
+            className="flex items-center justify-between text-[11px]"
+            style={{ color: theme.palette.muted }}
+          >
             <span>Made with love</span>
             <span>For every body</span>
           </div>

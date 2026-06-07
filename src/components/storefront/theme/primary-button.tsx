@@ -23,7 +23,7 @@ export function PrimaryButton({
     theme.buttonRadius,
     className,
   );
-  const style = { backgroundColor: theme.brandColor };
+  const style = { backgroundColor: theme.palette.primary, color: theme.palette.background };
 
   if (mode === "edit") {
     return (

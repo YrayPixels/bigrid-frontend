@@ -1,7 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { Store, StorefrontContent, StorefrontTemplateId } from "@/lib/api/types";
+import type {
+  Store,
+  StorefrontColorPalette,
+  StorefrontContent,
+  StorefrontTemplateId,
+} from "@/lib/api/types";
 import { StoreShell } from "@/components/storefront/store-shell";
 import { HomePageView } from "@/components/storefront/pages/home-page";
 import { ProductsPageView } from "@/components/storefront/pages/products-page-view";
@@ -20,6 +25,7 @@ type StorefrontEditorCanvasProps = {
   store: Store;
   draft: StorefrontContent;
   brandColor: string;
+  palette?: StorefrontColorPalette;
   templateId: StorefrontTemplateId;
   activePage: EditorPage;
   onDraftChange: (draft: StorefrontContent) => void;
@@ -30,6 +36,7 @@ export function StorefrontEditorCanvas({
   store,
   draft,
   brandColor,
+  palette,
   templateId,
   activePage,
   onDraftChange,
@@ -49,13 +56,13 @@ export function StorefrontEditorCanvas({
   const previewData = useMemo(
     () => ({
       store: previewStore,
-      storefront: applyTemplateToDraft(draft, templateId),
+      storefront: applyTemplateToDraft(draft, templateId, palette),
       generation_id: null,
     }),
-    [previewStore, draft, templateId],
+    [previewStore, draft, templateId, palette],
   );
 
-  const theme = getStorefrontTheme(templateId, brandColor);
+  const theme = getStorefrontTheme(templateId, brandColor, palette);
 
   function handleFieldChange(path: string, value: string) {
     onDraftChange(setDraftField(draft, path, value));

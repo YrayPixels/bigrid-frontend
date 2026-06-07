@@ -102,7 +102,7 @@ export function MinimalisticHome({
   store: Store;
   storefront: StorefrontContent;
 }) {
-  const { mode } = useStorefrontTheme();
+  const { theme, mode } = useStorefrontTheme();
   const products = storefront.products ?? [];
   const { products: featuredProducts, source: productSource } = getHomepageProducts(
     storefront,
@@ -114,7 +114,7 @@ export function MinimalisticHome({
   const CtaLink = mode === "edit" ? "span" : Link;
 
   return (
-    <div className="bg-[#fbfbdc] text-[#073e3f]">
+    <div style={{ backgroundColor: theme.palette.background, color: theme.palette.text }}>
       <section className="relative overflow-hidden px-4 pb-14 pt-14 text-center sm:px-6 lg:pb-20 lg:pt-20">
         <FloatingPill className="left-[8%] top-[55%]" color="bg-[#d99359]" />
         <FloatingPill className="left-[29%] top-[61%]" color="bg-[#eadfbd]" />
@@ -123,10 +123,13 @@ export function MinimalisticHome({
         <span className="pointer-events-none absolute right-[6%] top-[58%] h-10 w-10 rounded-full bg-[#dedbc1]" />
 
         <div className="relative mx-auto max-w-4xl">
-          <div className="mx-auto mb-7 inline-flex items-center gap-2 rounded-full bg-white/70 px-3 py-1.5 text-[11px] font-semibold shadow-sm">
-            <span className="h-2 w-5 rounded-full bg-[#073e3f]" />
+          <div
+            className="mx-auto mb-7 inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-semibold shadow-sm"
+            style={{ backgroundColor: `${theme.palette.surface}b3` }}
+          >
+            <span className="h-2 w-5 rounded-full" style={{ backgroundColor: theme.palette.primary }} />
             Products List
-            <span className="h-2 w-5 rounded-full bg-[#073e3f]" />
+            <span className="h-2 w-5 rounded-full" style={{ backgroundColor: theme.palette.primary }} />
           </div>
           <EditableText
             path="hero.headline"
@@ -138,7 +141,8 @@ export function MinimalisticHome({
             path="hero.subheadline"
             value={storefront.hero.subheadline}
             as="p"
-            className="mx-auto mt-4 max-w-lg text-sm leading-6 text-[#073e3f]/65"
+            className="mx-auto mt-4 max-w-lg text-sm leading-6"
+            style={{ color: theme.palette.muted }}
             multiline
           />
         </div>
@@ -152,15 +156,22 @@ export function MinimalisticHome({
         />
       </section>
 
-      <section className="rounded-t-[2.5rem] bg-white px-4 py-10 sm:px-6 lg:py-14">
+      <section
+        className="rounded-t-[2.5rem] px-4 py-10 sm:px-6 lg:py-14"
+        style={{ backgroundColor: theme.palette.surface }}
+      >
         <div className="mx-auto max-w-7xl">
           <div className="mb-8 flex flex-wrap justify-center gap-3">
             {minimalisticCategories.map((category, index) => (
               <span
                 key={category}
                 className={`rounded-full px-4 py-2 text-[11px] font-semibold ${
-                  index === 0 ? "bg-[#073e3f] text-white" : "bg-[#f7f7f3] text-[#073e3f]/70"
+                  index === 0 ? "" : ""
                 }`}
+                style={{
+                  backgroundColor: index === 0 ? theme.palette.primary : theme.palette.background,
+                  color: index === 0 ? theme.palette.surface : theme.palette.muted,
+                }}
               >
                 {category}
               </span>
@@ -185,7 +196,10 @@ export function MinimalisticHome({
         </div>
       </section>
 
-      <section className="bg-white px-4 py-12 text-center sm:px-6 lg:py-16">
+      <section
+        className="px-4 py-12 text-center sm:px-6 lg:py-16"
+        style={{ backgroundColor: theme.palette.surface }}
+      >
         <div className="mx-auto max-w-5xl">
           <h2 className="text-2xl font-semibold leading-tight tracking-[-0.035em] sm:text-3xl">
             A Smarter Approach to Daily
@@ -214,7 +228,10 @@ export function MinimalisticHome({
                 </span>
               );
             })}
-            <div className="z-10 flex h-56 w-36 items-center justify-center rounded-[2rem] bg-[#083f3e] p-4 shadow-[0_24px_70px_rgba(7,62,63,0.18)]">
+            <div
+              className="z-10 flex h-56 w-36 items-center justify-center rounded-[2rem] p-4 shadow-[0_24px_70px_rgba(7,62,63,0.18)]"
+              style={{ backgroundColor: theme.palette.primary }}
+            >
               <EditableImage
                 path="media.about_image_url"
                 src={aboutImageUrl}
@@ -227,7 +244,10 @@ export function MinimalisticHome({
         </div>
       </section>
 
-      <section className="bg-white px-4 pb-12 sm:px-6 lg:pb-16">
+      <section
+        className="px-4 pb-12 sm:px-6 lg:pb-16"
+        style={{ backgroundColor: theme.palette.surface }}
+      >
         <div className="mx-auto grid max-w-5xl gap-5 sm:grid-cols-2">
           <EditableImage
             path="media.about_image_url"
@@ -236,7 +256,10 @@ export function MinimalisticHome({
             className="min-h-56 rounded-xl bg-[#eef0df]"
             imgClassName="object-cover object-center"
           />
-          <div className="flex min-h-56 flex-col justify-center rounded-xl bg-[#073e3f] p-8 text-[#fbfbdc]">
+          <div
+            className="flex min-h-56 flex-col justify-center rounded-xl p-8"
+            style={{ backgroundColor: theme.palette.primary, color: theme.palette.background }}
+          >
             <h2 className="text-2xl font-semibold tracking-[-0.035em]">
               Ready to Elevate Your Health
             </h2>
@@ -244,7 +267,8 @@ export function MinimalisticHome({
               path="about.body"
               value={storefront.about.body}
               as="p"
-              className="mt-4 max-w-sm text-sm leading-6 text-[#fbfbdc]/75"
+              className="mt-4 max-w-sm text-sm leading-6"
+              style={{ color: `${theme.palette.background}bf` }}
               multiline
             />
             <CtaLink
@@ -253,7 +277,10 @@ export function MinimalisticHome({
                 : { href: "/products", className: "mt-6 inline-flex w-fit items-center gap-2" })}
               className={mode === "edit" ? "mt-6 inline-flex w-fit items-center gap-2" : undefined}
             >
-              <span className="rounded-full bg-[#fbfbdc] px-4 py-2 text-xs font-semibold text-[#073e3f]">
+              <span
+                className="rounded-full px-4 py-2 text-xs font-semibold"
+                style={{ backgroundColor: theme.palette.background, color: theme.palette.primary }}
+              >
                 Explore now
               </span>
               <ArrowUpRight className="h-4 w-4" />
@@ -262,7 +289,7 @@ export function MinimalisticHome({
         </div>
       </section>
 
-      <section className="bg-[#fbfbdc] px-4 py-8 sm:px-6">
+      <section className="px-4 py-8 sm:px-6" style={{ backgroundColor: theme.palette.background }}>
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-6 border-y border-[#073e3f]/10 py-6">
           <h2 className="text-4xl font-light tracking-[-0.06em] sm:text-5xl">Subscribe Now</h2>
           <span className="grid h-12 w-12 place-items-center rounded-full bg-white text-[#073e3f] shadow-sm">

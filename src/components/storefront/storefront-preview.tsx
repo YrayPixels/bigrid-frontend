@@ -17,7 +17,8 @@ export function StorefrontPreview({ store, content }: StorefrontPreviewProps) {
     <StorefrontEditorCanvas
       store={store}
       draft={content}
-      brandColor={store.brand_color}
+      brandColor={content.palette?.primary ?? store.brand_color}
+      palette={content.palette}
       templateId={templateId}
       activePage="home"
       onDraftChange={() => {}}

@@ -23,18 +23,18 @@ export function ProductCardThemed({
         "group overflow-hidden transition",
         isFashion
           ? "text-left"
-          : "rounded-2xl border border-border bg-card shadow-soft hover:-translate-y-0.5 hover:shadow-elevated",
+          : `rounded-2xl border ${theme.borderColor} ${theme.cardBg} shadow-soft hover:-translate-y-0.5 hover:shadow-elevated`,
       )}
     >
       <div
         className={cn(
           "flex items-center justify-center text-white",
-          isFashion ? "aspect-[4/5] bg-[#eef0ef]" : "aspect-[4/3] text-4xl font-bold",
+          isFashion ? "aspect-[4/5]" : "aspect-[4/3] text-4xl font-bold",
         )}
         style={
           isFashion
-            ? undefined
-            : { background: `linear-gradient(135deg, ${theme.brandColor}, ${theme.brandColor}88)` }
+            ? { backgroundColor: theme.palette.surface }
+            : { background: `linear-gradient(135deg, ${theme.palette.primary}, ${theme.palette.primary}88)` }
         }
       >
         {product.image_url || (mode === "edit" && imagePath) ? (
@@ -57,14 +57,16 @@ export function ProductCardThemed({
             "font-semibold group-hover:underline",
             isFashion ? "text-xs font-bold" : "font-display text-lg",
           )}
-          style={isFashion ? undefined : { fontFamily: theme.displayFont }}
+          style={{ color: theme.palette.text, ...(isFashion ? {} : { fontFamily: theme.displayFont }) }}
         >
           {product.name}
         </h3>
-        <p className={cn("mt-2 line-clamp-2 text-sm", theme.mutedText)}>{product.description}</p>
+        <p className="mt-2 line-clamp-2 text-sm" style={{ color: theme.palette.muted }}>
+          {product.description}
+        </p>
         <div
           className={cn("mt-4 font-semibold", isFashion ? "text-xs" : "text-base")}
-          style={{ color: theme.brandColor }}
+          style={{ color: theme.palette.primary }}
         >
           {formatMoney(product.price, product.currency)}
         </div>

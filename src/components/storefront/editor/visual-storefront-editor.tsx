@@ -2,7 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { ExternalLink, Loader2, Monitor, Save, Smartphone, Tablet } from "lucide-react";
-import type { Store, StorefrontContent, StorefrontTemplateId } from "@/lib/api/types";
+import type {
+  Store,
+  StorefrontColorPalette,
+  StorefrontContent,
+  StorefrontTemplateId,
+} from "@/lib/api/types";
 import { STOREFRONT_TEMPLATE_OPTIONS } from "@/lib/api/types";
 import { getStorefrontUrl } from "@/lib/store-host";
 import {
@@ -11,7 +16,12 @@ import {
 } from "@/components/storefront/editor/storefront-editor-canvas";
 import { applyTemplateToDraft, cloneStorefrontContent, setDraftField } from "@/lib/storefront/draft";
 import { getProductPlugSource } from "@/lib/storefront/product-plugs";
-import { resolveStorefrontTemplate, STOREFRONT_THEME_PRESETS } from "@/lib/storefront/template";
+import {
+  getDefaultStorefrontPalette,
+  resolveStorefrontTemplate,
+  STOREFRONT_PALETTE_PRESETS,
+  STOREFRONT_THEME_PRESETS,
+} from "@/lib/storefront/template";
 
 const concreteTemplateOptions = STOREFRONT_TEMPLATE_OPTIONS.filter(
   (
@@ -21,7 +31,15 @@ const concreteTemplateOptions = STOREFRONT_TEMPLATE_OPTIONS.filter(
   } => option.value !== "ai_pick",
 );
 
-const BRAND_COLORS = ["#1F6F5B", "#0F4C81", "#7C3A2D", "#111111", "#6B4EFF", "#C2410C"];
+const PALETTE_FIELDS: { key: keyof StorefrontColorPalette; label: string }[] = [
+  { key: "primary", label: "Primary" },
+  { key: "accent", label: "Accent" },
+  { key: "background", label: "Background" },
+  { key: "surface", label: "Surface" },
+  { key: "text", label: "Text" },
+  { key: "muted", label: "Muted text" },
+  { key: "border", label: "Border" },
+];
 
 const EDITOR_PAGES: { id: EditorPage; label: string }[] = [
   { id: "home", label: "Home" },
@@ -52,29 +70,41 @@ export function VisualStorefrontEditor({
   const [templateId, setTemplateId] = useState<StorefrontTemplateId>(() =>
     resolveStorefrontTemplate(store, storefront),
   );
-  const [brandColor, setBrandColor] = useState(store.brand_color);
+  const [palette, setPalette] = useState<StorefrontColorPalette>(() => ({
+    ...getDefaultStorefrontPalette(resolveStorefrontTemplate(store, storefront), store.brand_color),
+    ...storefront.palette,
+  }));
   const [activePage, setActivePage] = useState<EditorPage>("home");
   const [viewport, setViewport] = useState<"desktop" | "tablet" | "mobile">("desktop");
+  const brandColor = palette.primary;
 
   useEffect(() => {
+    const nextTemplateId = resolveStorefrontTemplate(store, storefront);
     setDraft(cloneStorefrontContent(storefront));
-    setTemplateId(resolveStorefrontTemplate(store, storefront));
-    setBrandColor(store.brand_color);
+    setTemplateId(nextTemplateId);
+    setPalette({
+      ...getDefaultStorefrontPalette(nextTemplateId, store.brand_color),
+      ...storefront.palette,
+    });
   }, [store, storefront]);
 
   const isDirty = useMemo(() => {
     return (
       JSON.stringify(draft) !== JSON.stringify(storefront) ||
       templateId !== resolveStorefrontTemplate(store, storefront) ||
-      brandColor !== store.brand_color
+      JSON.stringify(palette) !==
+        JSON.stringify({
+          ...getDefaultStorefrontPalette(resolveStorefrontTemplate(store, storefront), store.brand_color),
+          ...storefront.palette,
+        })
     );
-  }, [draft, storefront, templateId, brandColor, store]);
+  }, [draft, storefront, templateId, palette, store]);
 
   const viewportClass =
     viewport === "mobile" ? "max-w-[390px]" : viewport === "tablet" ? "max-w-[768px]" : "w-full";
 
   function handleSave() {
-    onSave(applyTemplateToDraft(draft, templateId), templateId, brandColor);
+    onSave(applyTemplateToDraft(draft, templateId, palette), templateId, brandColor);
   }
 
   function updateDraftField(path: string, value: string) {
@@ -83,7 +113,11 @@ export function VisualStorefrontEditor({
 
   function selectTemplate(nextTemplateId: StorefrontTemplateId) {
     setTemplateId(nextTemplateId);
-    setBrandColor(STOREFRONT_THEME_PRESETS[nextTemplateId].brandColor);
+    setPalette(getDefaultStorefrontPalette(nextTemplateId));
+  }
+
+  function updatePaletteColor(key: keyof StorefrontColorPalette, value: string) {
+    setPalette((current) => ({ ...current, [key]: value }));
   }
 
   return (
@@ -173,6 +207,7 @@ export function VisualStorefrontEditor({
               store={store}
               draft={draft}
               brandColor={brandColor}
+              palette={palette}
               templateId={templateId}
               activePage={activePage}
               onDraftChange={setDraft}
@@ -205,25 +240,67 @@ export function VisualStorefrontEditor({
           </div>
 
           <div>
-            <h3 className="text-sm font-semibold">Brand color</h3>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {BRAND_COLORS.map((color) => (
+            <h3 className="text-sm font-semibold">Color palette</h3>
+            <p className="mt-1 text-xs leading-5 text-ink-soft">
+              Pick a suggested palette, then fine-tune any color.
+            </p>
+            <div className="mt-3 space-y-2">
+              <button
+                type="button"
+                onClick={() => setPalette(getDefaultStorefrontPalette(templateId))}
+                className="w-full rounded-lg border border-border px-3 py-2 text-left text-sm transition hover:border-ink/30"
+              >
+                <div className="font-semibold">Template default</div>
+                <div className="mt-2 flex gap-1">
+                  {Object.values(getDefaultStorefrontPalette(templateId)).map((color) => (
+                    <span
+                      key={color}
+                      className="h-5 flex-1 rounded"
+                      style={{ backgroundColor: color }}
+                    />
+                  ))}
+                </div>
+              </button>
+              {STOREFRONT_PALETTE_PRESETS.map((preset) => (
                 <button
-                  key={color}
+                  key={preset.id}
                   type="button"
-                  onClick={() => setBrandColor(color)}
-                  className={`h-8 w-8 rounded-full border-2 ${brandColor === color ? "border-primary" : "border-transparent"}`}
-                  style={{ backgroundColor: color }}
-                  aria-label={`Set brand color ${color}`}
-                />
+                  onClick={() => setPalette(preset.palette)}
+                  className="w-full rounded-lg border border-border px-3 py-2 text-left text-sm transition hover:border-ink/30"
+                >
+                  <div className="font-semibold">{preset.label}</div>
+                  <div className="mt-2 flex gap-1">
+                    {Object.values(preset.palette).map((color) => (
+                      <span
+                        key={color}
+                        className="h-5 flex-1 rounded"
+                        style={{ backgroundColor: color }}
+                      />
+                    ))}
+                  </div>
+                </button>
               ))}
             </div>
-            <input
-              type="color"
-              value={brandColor}
-              onChange={(event) => setBrandColor(event.target.value)}
-              className="mt-3 h-10 w-full cursor-pointer rounded-md border border-border bg-background"
-            />
+            <div className="mt-4 space-y-3">
+              {PALETTE_FIELDS.map((field) => (
+                <label key={field.key} className="block text-xs font-medium text-ink-soft">
+                  {field.label}
+                  <div className="mt-1 flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={palette[field.key]}
+                      onChange={(event) => updatePaletteColor(field.key, event.target.value)}
+                      className="h-9 w-12 cursor-pointer rounded-md border border-border bg-background p-1"
+                    />
+                    <input
+                      value={palette[field.key]}
+                      onChange={(event) => updatePaletteColor(field.key, event.target.value)}
+                      className="h-9 min-w-0 flex-1 rounded-md border border-border bg-background px-2 font-mono text-xs uppercase"
+                    />
+                  </div>
+                </label>
+              ))}
+            </div>
           </div>
 
           <div>

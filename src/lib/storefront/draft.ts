@@ -1,4 +1,9 @@
-import type { Store, StorefrontContent, StorefrontTemplateId } from "@/lib/api/types";
+import type {
+  Store,
+  StorefrontColorPalette,
+  StorefrontContent,
+  StorefrontTemplateId,
+} from "@/lib/api/types";
 import { resolveStorefrontTemplate } from "./template";
 
 export function cloneStorefrontContent(content: StorefrontContent): StorefrontContent {
@@ -192,10 +197,12 @@ export function setDraftField(
 export function applyTemplateToDraft(
   content: StorefrontContent,
   templateId: StorefrontTemplateId,
+  palette?: StorefrontColorPalette,
 ): StorefrontContent {
   return {
     ...content,
     template: { id: templateId, source: "merchant_selected" },
+    ...(palette ? { palette } : {}),
   };
 }
 

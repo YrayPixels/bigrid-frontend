@@ -22,9 +22,15 @@ export function FashionShell({ children }: { children: React.ReactNode }) {
   const NavLink = mode === "edit" ? "span" : Link;
 
   return (
-    <div className="min-h-screen bg-white text-[#111111]">
-      <header className="sticky top-0 z-40 border-b border-black/10 bg-white/95 backdrop-blur">
-        <div className="bg-[#050505] px-4 py-1.5 text-center text-[10px] font-semibold uppercase tracking-[0.12em] text-white">
+    <div className={`${theme.pageBg} min-h-screen ${theme.pageText}`}>
+      <header
+        className={`sticky top-0 z-40 border-b ${theme.borderColor} backdrop-blur`}
+        style={{ backgroundColor: `${theme.palette.background}f2` }}
+      >
+        <div
+          className="px-4 py-1.5 text-center text-[10px] font-semibold uppercase tracking-[0.12em]"
+          style={{ backgroundColor: theme.palette.primary, color: theme.palette.background }}
+        >
           Free shipping on orders over 100
         </div>
         <div className="grid min-h-14 grid-cols-[1fr_auto_1fr] items-center gap-4 px-4 sm:px-6">
@@ -82,7 +88,7 @@ export function FashionShell({ children }: { children: React.ReactNode }) {
                 {itemCount > 0 ? (
                   <span
                     className="absolute -right-3 -top-2 h-2 w-2 rounded-full"
-                    style={{ backgroundColor: theme.brandColor }}
+                    style={{ backgroundColor: theme.palette.accent }}
                   />
                 ) : null}
               </Link>
@@ -91,7 +97,10 @@ export function FashionShell({ children }: { children: React.ReactNode }) {
         </div>
 
         {mobileOpen ? (
-          <div className="border-t border-black/10 bg-white px-4 py-4 lg:hidden">
+          <div
+            className={`border-t ${theme.borderColor} px-4 py-4 lg:hidden`}
+            style={{ backgroundColor: theme.palette.background }}
+          >
             <nav className="flex flex-col gap-3">
               {STOREFRONT_NAV_ITEMS.map((item) => (
                 <NavLink
@@ -113,7 +122,10 @@ export function FashionShell({ children }: { children: React.ReactNode }) {
 
       {showProductsFaq ? <StorefrontFaqSection faqPage={storefront.pages?.faq} /> : null}
 
-      <footer className="bg-[#050505] px-4 py-10 text-white sm:px-6">
+      <footer
+        className="px-4 py-10 sm:px-6"
+        style={{ backgroundColor: theme.palette.primary, color: theme.palette.background }}
+      >
         <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
           <div>
             <div

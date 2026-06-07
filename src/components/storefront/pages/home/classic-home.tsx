@@ -32,7 +32,7 @@ export function ClassicHome({
   );
 
   return (
-    <div>
+    <div style={{ backgroundColor: theme.palette.background, color: theme.palette.text }}>
       <section
         className={`relative overflow-hidden px-4 py-16 sm:px-6 sm:py-24 ${
           isEditorial ? "text-center" : ""
@@ -41,8 +41,8 @@ export function ClassicHome({
           background: heroImageUrl
             ? undefined
             : isBoldGrid
-              ? `linear-gradient(135deg, ${theme.brandColor}24 0%, ${theme.brandColor}08 52%, transparent 52%)`
-              : `linear-gradient(135deg, ${theme.brandColor}18, ${theme.brandColor}05)`,
+              ? `linear-gradient(135deg, ${theme.palette.primary}24 0%, ${theme.palette.primary}08 52%, transparent 52%)`
+              : `linear-gradient(135deg, ${theme.palette.primary}18, ${theme.palette.primary}05)`,
         }}
       >
         {heroImageUrl || mode === "edit" ? (
@@ -59,7 +59,7 @@ export function ClassicHome({
         <div className={`relative w-full ${isEditorial ? "grid place-items-center" : ""}`}>
           <span
             className="inline-block rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide"
-            style={{ backgroundColor: `${theme.brandColor}22`, color: theme.brandColor }}
+            style={{ backgroundColor: `${theme.palette.primary}22`, color: theme.palette.primary }}
           >
             {store.business_name} · {variant.replace("_", " ")}
           </span>
@@ -74,7 +74,8 @@ export function ClassicHome({
             path="hero.subheadline"
             value={storefront.hero.subheadline}
             as="p"
-            className="mt-4 w-full text-lg text-muted-foreground"
+            className="mt-4 w-full text-lg"
+            style={{ color: theme.palette.muted }}
             multiline
           />
           <CtaLink
@@ -84,14 +85,14 @@ export function ClassicHome({
                   href: "/products",
                   className:
                     "mt-8 inline-flex items-center gap-2 rounded-md px-6 py-3 text-sm font-semibold text-white shadow-elevated",
-                  style: { backgroundColor: theme.brandColor },
+                  style: { backgroundColor: theme.palette.primary },
                 })}
             className={
               mode === "edit"
                 ? "mt-8 inline-flex cursor-default items-center gap-2 rounded-md px-6 py-3 text-sm font-semibold text-white shadow-elevated"
                 : undefined
             }
-            style={mode === "edit" ? { backgroundColor: theme.brandColor } : undefined}
+            style={mode === "edit" ? { backgroundColor: theme.palette.primary } : undefined}
           >
             <EditableText path="hero.cta_label" value={storefront.hero.cta_label} as="span" />
             {mode !== "edit" ? <ArrowRight className="h-4 w-4" /> : null}
@@ -99,13 +100,13 @@ export function ClassicHome({
         </div>
       </section>
 
-      <section className="w-full px-4 py-16 sm:px-6">
+      <section className="w-full px-4 py-16 sm:px-6" style={{ backgroundColor: theme.palette.background }}>
         <div className="mb-8 flex items-end justify-between gap-4">
           <div>
             <h2 className="text-3xl font-bold" style={{ fontFamily: theme.displayFont }}>
               {isEditorial ? "The collection" : "Featured products"}
             </h2>
-            <p className="mt-2 text-sm text-muted-foreground">
+            <p className="mt-2 text-sm" style={{ color: theme.palette.muted }}>
               {isBoldGrid
                 ? "A quick look at what customers are buying now."
                 : "Browse the catalog and add items to your cart."}
@@ -115,7 +116,7 @@ export function ClassicHome({
             <Link
               href="/products"
               className="text-sm font-semibold"
-              style={{ color: theme.brandColor }}
+              style={{ color: theme.palette.primary }}
             >
               View all
             </Link>
@@ -136,7 +137,10 @@ export function ClassicHome({
         </div>
       </section>
 
-      <section className="border-t border-border bg-card">
+      <section
+        className="border-t"
+        style={{ backgroundColor: theme.palette.surface, borderColor: theme.palette.border }}
+      >
         <div
           className={`grid w-full gap-8 px-4 py-16 sm:grid-cols-3 sm:px-6 ${isEditorial ? "text-center" : ""}`}
         >
@@ -144,7 +148,7 @@ export function ClassicHome({
             <div key={item.title}>
               <div
                 className={`grid h-9 w-9 place-items-center text-sm font-bold text-white ${isEditorial ? "mx-auto rounded-full" : "rounded-lg"}`}
-                style={{ backgroundColor: theme.brandColor }}
+                style={{ backgroundColor: theme.palette.primary }}
               >
                 {index + 1}
               </div>
@@ -159,7 +163,8 @@ export function ClassicHome({
                 path={`value_props.${index}.body`}
                 value={item.body}
                 as="p"
-                className="mt-2 text-sm text-muted-foreground"
+                className="mt-2 text-sm"
+                style={{ color: theme.palette.muted }}
                 multiline
               />
             </div>

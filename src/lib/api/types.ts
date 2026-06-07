@@ -27,6 +27,16 @@ export type StorefrontTemplateId =
   | "minimalistic";
 export type StorefrontTemplateChoice = StorefrontTemplateId | "ai_pick";
 
+export type StorefrontColorPalette = {
+  primary: string;
+  accent: string;
+  background: string;
+  surface: string;
+  text: string;
+  muted: string;
+  border: string;
+};
+
 export type Store = {
   id: string;
   slug: string;
@@ -95,6 +105,7 @@ export type StorefrontContent = {
     id: StorefrontTemplateId;
     source: "merchant_selected" | "ai_selected";
   };
+  palette?: StorefrontColorPalette;
   data_plugs?: {
     home_products_source?: "merchant_products" | "theme_products";
   };

@@ -51,17 +51,20 @@ function FashionCheckbox({
   label: string;
   onClick: () => void;
 }) {
+  const { theme } = useStorefrontTheme();
   return (
     <button
       type="button"
       onClick={onClick}
-      className="flex items-center gap-3 text-left text-[13px] text-[#6e6e6e] transition hover:text-[#111111]"
+      className="flex items-center gap-3 text-left text-[13px] transition hover:opacity-80"
+      style={{ color: theme.palette.muted }}
     >
       <span
         className={cn(
           "grid h-4 w-4 place-items-center border border-black/10 bg-white text-[10px] text-white",
-          checked && "border-[#55220b] bg-[#55220b]",
+          checked && "",
         )}
+        style={checked ? { borderColor: theme.palette.primary, backgroundColor: theme.palette.primary } : {}}
       >
         {checked ? "✓" : ""}
       </span>
@@ -81,13 +84,14 @@ function FashionProductsCard({
   imagePath?: string;
   editable: boolean;
 }) {
+  const { theme } = useStorefrontTheme();
   const discount = [15, 10, 15, 30, 25, 25, 25, 20][index % 8];
   const compareAt = Math.round(product.price / (1 - discount / 100));
   const category = product.category ?? "Fashion";
   const imageUrl = product.image_url ?? fashionTemplateImages.products[index % fashionTemplateImages.products.length];
   const card = (
     <article className="group block text-left">
-      <div className="relative aspect-[4/5] overflow-hidden bg-[#eef0ef]">
+      <div className="relative aspect-[4/5] overflow-hidden" style={{ backgroundColor: theme.palette.surface }}>
         <EditableImage
           path={imagePath}
           src={imageUrl}
@@ -95,22 +99,25 @@ function FashionProductsCard({
           className="h-full w-full"
           imgClassName="object-center transition duration-500 group-hover:scale-105"
         />
-        <span className="absolute left-3 top-3 bg-white/95 px-2.5 py-1.5 text-[11px] font-extrabold text-[#2a9b6a] shadow-sm">
+        <span
+          className="absolute left-3 top-3 px-2.5 py-1.5 text-[11px] font-extrabold shadow-sm"
+          style={{ backgroundColor: theme.palette.background, color: theme.palette.accent }}
+        >
           {discount}% OFF
         </span>
       </div>
       <div className="mt-3">
         <div className="flex items-center justify-between gap-3">
-          <p className="text-[11px] text-[#6e6e6e]">{category}</p>
-          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#111111]">
+          <p className="text-[11px]" style={{ color: theme.palette.muted }}>{category}</p>
+          <span className="inline-flex items-center gap-1 text-[11px] font-semibold">
             <Star className="h-3.5 w-3.5 fill-[#f3bd3d] text-[#f3bd3d]" />
             4.9
           </span>
         </div>
-        <h3 className="mt-2 line-clamp-1 text-[13px] font-extrabold leading-tight text-[#111111]">
+        <h3 className="mt-2 line-clamp-1 text-[13px] font-extrabold leading-tight">
           {product.name}
         </h3>
-        <div className="mt-2 flex items-center gap-2 text-[13px] font-bold text-[#111111]">
+        <div className="mt-2 flex items-center gap-2 text-[13px] font-bold">
           <span>{formatMoney(product.price, product.currency)}</span>
           <span className="text-[12px] font-medium text-[#b0aaa6] line-through">
             {formatMoney(compareAt, product.currency)}
@@ -126,7 +133,7 @@ function FashionProductsCard({
 }
 
 function FashionProductsPage({ products }: { products: StoreProduct[] }) {
-  const { mode } = useStorefrontTheme();
+  const { theme, mode } = useStorefrontTheme();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
@@ -182,15 +189,18 @@ function FashionProductsPage({ products }: { products: StoreProduct[] }) {
   }
 
   return (
-    <div className="bg-white text-[#111111]">
-      <section className="bg-[#f4f4f3] px-4 py-16 text-center sm:px-6 lg:py-20">
+    <div style={{ backgroundColor: theme.palette.background, color: theme.palette.text }}>
+      <section
+        className="px-4 py-16 text-center sm:px-6 lg:py-20"
+        style={{ backgroundColor: theme.palette.surface }}
+      >
         <h1
           className="text-4xl font-bold tracking-[-0.04em] sm:text-5xl"
           style={{ fontFamily: "var(--font-editorial)" }}
         >
           All Product
         </h1>
-        <div className="mt-5 flex items-center justify-center gap-3 text-[11px] font-semibold text-[#111111]">
+        <div className="mt-5 flex items-center justify-center gap-3 text-[11px] font-semibold">
           <Link href="/">Home</Link>
           <span>/</span>
           <Link href="/about">About</Link>
@@ -202,7 +212,7 @@ function FashionProductsPage({ products }: { products: StoreProduct[] }) {
       </section>
 
       <section className="mx-auto grid max-w-7xl gap-8 px-4 py-12 sm:px-6 lg:grid-cols-[270px_1fr] lg:py-16">
-        <aside className="border-black/10 lg:border-r lg:pr-8">
+        <aside className="lg:border-r lg:pr-8" style={{ borderColor: theme.palette.border }}>
           <div className="sticky top-24 space-y-10">
             <h2 className="text-sm font-extrabold">Filter Options</h2>
 
@@ -222,7 +232,7 @@ function FashionProductsPage({ products }: { products: StoreProduct[] }) {
 
             <div>
               <h3 className="mb-4 text-base font-extrabold">Price</h3>
-              <div className="text-[13px] text-[#6e6e6e]">
+              <div className="text-[13px]" style={{ color: theme.palette.muted }}>
                 {formatMoney(minPrice, products[0]?.currency ?? "NGN")} -{" "}
                 {formatMoney(priceLimit || maxPrice, products[0]?.currency ?? "NGN")}
               </div>
@@ -244,7 +254,7 @@ function FashionProductsPage({ products }: { products: StoreProduct[] }) {
                     key={color.value}
                     type="button"
                     onClick={() => setSelectedColor(selectedColor === color.value ? null : color.value)}
-                    className="flex items-center gap-2 text-[13px] text-[#111111]"
+                    className="flex items-center gap-2 text-[13px]"
                   >
                     <span
                       className={cn(
@@ -259,7 +269,7 @@ function FashionProductsPage({ products }: { products: StoreProduct[] }) {
                 ))}
                 <button
                   type="button"
-                  className="flex items-center gap-2 text-[13px] text-[#111111]"
+                  className="flex items-center gap-2 text-[13px]"
                   onClick={() => setSelectedColor(null)}
                 >
                   <span className="grid h-6 w-6 place-items-center rounded-full bg-[#123d33] text-base leading-none text-white">
@@ -278,7 +288,7 @@ function FashionProductsPage({ products }: { products: StoreProduct[] }) {
                     key={size}
                     type="button"
                     onClick={() => setSelectedSize(selectedSize === size ? null : size)}
-                    className="flex items-center gap-2 text-[12px] text-[#111111]"
+                    className="flex items-center gap-2 text-[12px]"
                   >
                     <span
                       className={cn(
@@ -297,7 +307,10 @@ function FashionProductsPage({ products }: { products: StoreProduct[] }) {
         </aside>
 
         <div>
-          <div className="flex flex-col gap-5 border-t border-black/10 pt-5 sm:flex-row sm:items-start sm:justify-between">
+          <div
+            className="flex flex-col gap-5 border-t pt-5 sm:flex-row sm:items-start sm:justify-between"
+            style={{ borderColor: theme.palette.border }}
+          >
             <div>
               <p className="text-sm font-extrabold">
                 {filteredProducts.length
@@ -305,12 +318,13 @@ function FashionProductsPage({ products }: { products: StoreProduct[] }) {
                   : `Showing 0 of ${products.length} results`}
               </p>
               <div className="mt-6 flex flex-wrap items-center gap-3">
-                <span className="text-[13px] text-[#111111]">Active Filter</span>
+                <span className="text-[13px]">Active Filter</span>
                 {activeFilters.length ? (
                   activeFilters.map((filter) => (
                     <span
                       key={filter}
-                      className="inline-flex items-center gap-2 rounded-full bg-[#55220b] px-5 py-3 text-[12px] font-semibold text-white"
+                    className="inline-flex items-center gap-2 rounded-full px-5 py-3 text-[12px] font-semibold"
+                    style={{ backgroundColor: theme.palette.primary, color: theme.palette.background }}
                     >
                       {filter}
                       <X className="h-3.5 w-3.5" />
@@ -323,7 +337,8 @@ function FashionProductsPage({ products }: { products: StoreProduct[] }) {
                   <button
                     type="button"
                     onClick={clearFilters}
-                    className="text-[12px] font-semibold text-[#4d4038] underline underline-offset-2"
+                    className="text-[12px] font-semibold underline underline-offset-2"
+                    style={{ color: theme.palette.primary }}
                   >
                     Clean All
                   </button>
@@ -337,7 +352,12 @@ function FashionProductsPage({ products }: { products: StoreProduct[] }) {
                 <select
                   value={sortBy}
                   onChange={(event) => setSortBy(event.target.value as typeof sortBy)}
-                  className="h-11 appearance-none border border-black/10 bg-white pl-5 pr-10 text-[13px] font-semibold outline-none"
+                  className="h-11 appearance-none border pl-5 pr-10 text-[13px] font-semibold outline-none"
+                  style={{
+                    backgroundColor: theme.palette.surface,
+                    borderColor: theme.palette.border,
+                    color: theme.palette.text,
+                  }}
                 >
                   <option value="newest">Newest</option>
                   <option value="price-low">Price low</option>

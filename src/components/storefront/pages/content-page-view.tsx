@@ -18,7 +18,7 @@ export function ContentPageView({
   const { theme } = useStorefrontTheme();
 
   return (
-    <PageContainer narrow>
+    <PageContainer narrow className={theme.pageText}>
       {titlePath ? (
         <EditableText
           path={titlePath}
@@ -37,11 +37,15 @@ export function ContentPageView({
           path={bodyPath}
           value={body}
           as="p"
-          className="mt-6 whitespace-pre-line text-sm leading-7 text-muted-foreground"
+          className="mt-6 whitespace-pre-line text-sm leading-7"
+          style={{ color: theme.palette.muted }}
           multiline
         />
       ) : (
-        <div className="mt-6 space-y-4 whitespace-pre-line text-sm leading-7 text-muted-foreground">
+        <div
+          className="mt-6 space-y-4 whitespace-pre-line text-sm leading-7"
+          style={{ color: theme.palette.muted }}
+        >
           {body}
         </div>
       )}

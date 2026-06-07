@@ -25,6 +25,7 @@ import { StorefrontPreview } from "@/components/storefront/storefront-preview";
 import { VisualStorefrontEditor } from "@/components/storefront/editor/visual-storefront-editor";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api/client";
+import { getDefaultStorefrontPalette } from "@/lib/storefront/template";
 import {
   STOREFRONT_TEMPLATE_OPTIONS,
   type Store,
@@ -254,6 +255,7 @@ function createStarterStorefront(
       id: templateId,
       source: "merchant_selected",
     },
+    palette: getDefaultStorefrontPalette(templateId, store.brand_color),
     data_plugs: {
       home_products_source: "merchant_products",
     },

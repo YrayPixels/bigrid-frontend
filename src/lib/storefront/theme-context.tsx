@@ -29,13 +29,23 @@ export function StorefrontThemeProvider({
   editable?: EditableHandlers;
   children: ReactNode;
 }) {
+  const paletteVars = {
+    "--store-brand": theme.palette.primary,
+    "--store-accent": theme.palette.accent,
+    "--store-bg": theme.palette.background,
+    "--store-surface": theme.palette.surface,
+    "--store-text": theme.palette.text,
+    "--store-muted": theme.palette.muted,
+    "--store-border": theme.palette.border,
+  } as CSSProperties;
+
   return (
     <StorefrontThemeContext.Provider value={{ theme, mode, editable }}>
       <div
         data-template={theme.id}
         data-mode={mode}
         className={theme.pageBg}
-        style={{ "--store-brand": theme.brandColor } as CSSProperties}
+        style={paletteVars}
       >
         {children}
       </div>

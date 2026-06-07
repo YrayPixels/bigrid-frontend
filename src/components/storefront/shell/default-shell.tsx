@@ -20,8 +20,11 @@ export function DefaultShell({ children }: { children: React.ReactNode }) {
   const NavLink = mode === "edit" ? "span" : Link;
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <header className="sticky top-0 z-40 border-b border-border bg-card/95 backdrop-blur">
+    <div className={`${theme.pageBg} min-h-screen ${theme.pageText}`}>
+      <header
+        className={`sticky top-0 z-40 border-b ${theme.borderColor} backdrop-blur`}
+        style={{ backgroundColor: `${theme.palette.surface}f2` }}
+      >
         <div className="flex w-full items-center justify-between gap-4 px-4 py-4 sm:px-6">
           <NavLink
             {...(mode === "edit" ? {} : { href: "/" })}
@@ -36,7 +39,7 @@ export function DefaultShell({ children }: { children: React.ReactNode }) {
             ) : (
               <div
                 className="grid h-9 w-9 place-items-center rounded-lg text-sm font-bold text-white"
-                style={{ backgroundColor: theme.brandColor }}
+                style={{ backgroundColor: theme.palette.primary }}
               >
                 {store.business_name.slice(0, 1).toUpperCase()}
               </div>
@@ -84,7 +87,7 @@ export function DefaultShell({ children }: { children: React.ReactNode }) {
                 {itemCount > 0 ? (
                   <span
                     className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full px-1 text-[10px] font-bold text-white"
-                    style={{ backgroundColor: theme.brandColor }}
+                    style={{ backgroundColor: theme.palette.primary }}
                   >
                     {itemCount}
                   </span>
@@ -123,7 +126,10 @@ export function DefaultShell({ children }: { children: React.ReactNode }) {
 
       <main>{children}</main>
 
-      <footer className="mt-16 border-t border-border bg-card">
+      <footer
+        className={`mt-16 border-t ${theme.borderColor}`}
+        style={{ backgroundColor: theme.palette.surface }}
+      >
         <div className="flex w-full flex-col gap-6 px-4 py-10 sm:px-6 md:flex-row md:items-center md:justify-between">
           <div>
             <div className="text-lg font-semibold" style={{ fontFamily: theme.displayFont }}>
