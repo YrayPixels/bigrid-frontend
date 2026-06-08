@@ -9,19 +9,16 @@ export const cosmeticsCategories = [
 ];
 
 export const cosmeticsTemplateImages = {
-  hero: "https://images.unsplash.com/photo-1596462502278-27bfdc403348?auto=format&fit=crop&w=1800&q=90",
-  cleanser:
-    "https://images.unsplash.com/photo-1556229010-6c3f2c9ca5f8?auto=format&fit=crop&w=1300&q=90",
-  serum:
-    "https://images.unsplash.com/photo-1620916566398-39f1143ab7be?auto=format&fit=crop&w=1300&q=90",
+  hero: "https://images.unsplash.com/photo-1749599018738-b8fb6c4a83e0?auto=format&fit=crop&w=1400&q=90",
+  cleanser: "https://images.unsplash.com/photo-1749599018738-b8fb6c4a83e0?auto=format&fit=crop&w=1000&q=90",
+  serum: "https://images.unsplash.com/photo-1761775247546-89950362a39b?auto=format&fit=crop&w=1000&q=90",
   about:
     "https://images.unsplash.com/photo-1612817288484-6f916006741a?auto=format&fit=crop&w=1400&q=90",
-  cactus:
-    "https://images.unsplash.com/photo-1459411621453-7b03977f4bfc?auto=format&fit=crop&w=900&q=88",
+  cactus: "https://images.unsplash.com/photo-1766712245912-d248d2cc2ff1?auto=format&fit=crop&w=1000&q=90",
   products: [
-    "https://images.unsplash.com/photo-1556228720-195a672e8a03?auto=format&fit=crop&w=900&q=88",
-    "https://images.unsplash.com/photo-1611930022073-b7a4ba5fcccd?auto=format&fit=crop&w=900&q=88",
-    "https://images.unsplash.com/photo-1598440947619-2c35fc9aa908?auto=format&fit=crop&w=900&q=88",
+    "https://images.unsplash.com/photo-1749599018738-b8fb6c4a83e0?auto=format&fit=crop&w=900&q=88",
+    "https://images.unsplash.com/photo-1761775247546-89950362a39b?auto=format&fit=crop&w=900&q=88",
+    "https://images.unsplash.com/photo-1766712245912-d248d2cc2ff1?auto=format&fit=crop&w=900&q=88",
     "https://images.unsplash.com/photo-1617897903246-719242758050?auto=format&fit=crop&w=900&q=88",
     "https://images.unsplash.com/photo-1620916566398-39f1143ab7be?auto=format&fit=crop&w=900&q=88",
     "https://images.unsplash.com/photo-1608248543803-ba4f8c70ae0b?auto=format&fit=crop&w=900&q=88",

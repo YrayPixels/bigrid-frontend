@@ -679,12 +679,12 @@ function resolveTemplateId(store: Store): StorefrontTemplateId {
   }
 
   if (store.industry === "home_and_living") {
-    return "editorial";
+    return "minimalistic";
   }
 
   if (store.industry === "electronics" || store.industry === "food_and_beverage") {
-    return "bold_grid";
+    return "minimalistic";
   }
 
-  return "classic";
+  return "minimalistic";
 }

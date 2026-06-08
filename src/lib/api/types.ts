@@ -239,20 +239,6 @@ export const STOREFRONT_TEMPLATE_OPTIONS: StorefrontTemplateOption[] = [
     preview: "spark",
   },
   {
-    value: "classic",
-    label: "Classic Commerce",
-    description: "A balanced storefront with a clear hero, featured products, and trust blocks.",
-    bestFor: "Most shops",
-    preview: "balanced",
-  },
-  {
-    value: "editorial",
-    label: "Editorial Brand",
-    description: "A more premium, story-led layout for lifestyle and beauty businesses.",
-    bestFor: "Fashion, beauty, home",
-    preview: "editorial",
-  },
-  {
     value: "fashion_lookbook",
     label: "Fashion",
     description:
@@ -283,12 +269,5 @@ export const STOREFRONT_TEMPLATE_OPTIONS: StorefrontTemplateOption[] = [
       "A clean supplement-inspired storefront with soft neutrals, rounded product cards, and wellness storytelling.",
     bestFor: "Wellness brands",
     preview: "minimal",
-  },
-  {
-    value: "bold_grid",
-    label: "Bold Product Grid",
-    description: "A product-forward template with stronger catalog emphasis.",
-    bestFor: "Electronics, food, high-volume catalog",
-    preview: "grid",
   },
 ];

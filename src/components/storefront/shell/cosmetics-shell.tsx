@@ -24,14 +24,21 @@ export function CosmeticsShell({ children }: { children: React.ReactNode }) {
   const { theme, mode } = useStorefrontTheme();
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const brandName = store.business_name;
 
   return (
     <div className={`${theme.pageBg} min-h-screen ${theme.pageText}`}>
-      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md">
+      <header
+        className="sticky top-0 z-40 backdrop-blur-md"
+        style={{ backgroundColor: `${theme.palette.background}f2` }}
+      >
         <div className="mx-auto grid min-h-20 max-w-7xl grid-cols-[1fr_auto_1fr] items-center gap-4 px-4 sm:px-6">
           <StorefrontLink href="/" className="min-w-0">
-            <span className="font-display text-lg font-bold uppercase tracking-[0.16em] text-[#748442]">
-              {store.business_name}
+            <span
+              className="font-display text-lg font-bold uppercase tracking-[0.16em]"
+              style={{ color: theme.palette.primary }}
+            >
+              {brandName}
               <sup className="ml-0.5 text-[8px] tracking-normal">TM</sup>
             </span>
           </StorefrontLink>
@@ -47,8 +54,9 @@ export function CosmeticsShell({ children }: { children: React.ReactNode }) {
                   href={item.href}
                   className={cn(
                     "text-[10px] font-bold tracking-[0.02em] text-[#172012] transition hover:text-[#748442]",
-                    active ? "text-[#748442]" : "text-[#172012]/75",
+                    active ? "" : "opacity-75",
                   )}
+                  style={{ color: active ? theme.palette.primary : theme.palette.text }}
                 >
                   {item.label}
                 </StorefrontLink>
@@ -56,7 +64,7 @@ export function CosmeticsShell({ children }: { children: React.ReactNode }) {
             })}
           </nav>
 
-          <div className="flex items-center justify-end gap-5 text-[#172012]">
+          <div className="flex items-center justify-end gap-5" style={{ color: theme.palette.text }}>
             <button type="button" className="hidden place-items-center sm:grid" aria-label="Search">
               <Search className="h-4 w-4" />
             </button>
@@ -68,7 +76,10 @@ export function CosmeticsShell({ children }: { children: React.ReactNode }) {
               <Link href="/cart" className="relative grid place-items-center" aria-label="Cart">
                 <ShoppingBag className="h-4 w-4" />
                 {itemCount > 0 ? (
-                  <span className="absolute -right-2 -top-2 grid h-4 min-w-4 place-items-center rounded-full bg-[#748442] px-1 text-[9px] font-bold text-white">
+                  <span
+                    className="absolute -right-2 -top-2 grid h-4 min-w-4 place-items-center rounded-full px-1 text-[9px] font-bold"
+                    style={{ backgroundColor: theme.palette.primary, color: theme.palette.background }}
+                  >
                     {itemCount}
                   </span>
                 ) : null}
@@ -86,7 +97,10 @@ export function CosmeticsShell({ children }: { children: React.ReactNode }) {
         </div>
 
         {mobileOpen ? (
-          <div className="border-t border-black/10 bg-white px-4 py-4 lg:hidden">
+          <div
+            className="border-t border-black/10 px-4 py-4 lg:hidden"
+            style={{ backgroundColor: theme.palette.background }}
+          >
             <nav className="flex flex-col gap-2">
               {STOREFRONT_NAV_ITEMS.map((item) => (
                 <StorefrontLink
@@ -105,17 +119,20 @@ export function CosmeticsShell({ children }: { children: React.ReactNode }) {
 
       <main>{children}</main>
 
-      <footer className="border-t border-[#e2e6d9] bg-[#172012]">
-        <div className="mx-auto flex max-w-7xl flex-col gap-8 px-4 py-10 text-white sm:px-6 md:flex-row md:items-center md:justify-between">
+      <footer className="border-t" style={{ borderColor: theme.palette.border, backgroundColor: theme.palette.text }}>
+        <div
+          className="mx-auto flex max-w-7xl flex-col gap-8 px-4 py-10 sm:px-6 md:flex-row md:items-center md:justify-between"
+          style={{ color: theme.palette.background }}
+        >
           <div>
             <div className="font-display text-xl font-semibold uppercase tracking-[0.12em]">
-              {store.business_name}
+              {brandName}
             </div>
-            <p className="mt-2 max-w-sm text-xs leading-5 text-white/65">
-              Botanical skincare, clean formulas, and everyday glow essentials.
+            <p className="mt-2 max-w-sm text-xs leading-5 opacity-65">
+              {store.description || "Botanical skincare, clean formulas, and everyday glow essentials."}
             </p>
           </div>
-          <div className="flex flex-wrap gap-5 text-xs font-medium text-white/65">
+          <div className="flex flex-wrap gap-5 text-xs font-medium opacity-65">
             {STOREFRONT_FOOTER_LINKS.map((item) =>
               mode === "edit" ? (
                 <span key={item.href}>{item.label}</span>
