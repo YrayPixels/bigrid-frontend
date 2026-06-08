@@ -1,4 +1,5 @@
 import { mockApi } from "./mocks";
+import { STOREFRONT_TEMPLATE_OPTIONS } from "./types";
 import type {
   AuthResponse,
   CreateStoreInput,
@@ -10,7 +11,6 @@ import type {
   StorefrontContent,
   StorefrontTemplateId,
   StorefrontTemplateOption,
-  STOREFRONT_TEMPLATE_OPTIONS,
   UpdateStorefrontInput,
   User,
 } from "./types";

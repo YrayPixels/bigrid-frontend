@@ -1,4 +1,5 @@
 import { getStoreSubdomainHost } from "@/lib/store-host";
+import { STOREFRONT_TEMPLATE_OPTIONS } from "./types";
 import type {
   AuthResponse,
   CreateStoreOrderInput,
@@ -12,7 +13,6 @@ import type {
   StorefrontContent,
   StorefrontTemplateId,
   StorefrontTemplateOption,
-  STOREFRONT_TEMPLATE_OPTIONS,
   UpdateStorefrontInput,
   User,
 } from "./types";
