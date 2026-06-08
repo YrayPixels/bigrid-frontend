@@ -11,7 +11,7 @@ export type StorefrontTheme = {
   id: StorefrontTemplateId;
   brandColor: string;
   palette: StorefrontColorPalette;
-  shell: "default" | "fashion" | "minimalistic";
+  shell: "default" | "fashion" | "minimalistic" | "beauty" | "cosmetics";
   displayFont: string;
   pageBg: string;
   pageText: string;
@@ -49,6 +49,36 @@ export function getStorefrontTheme(
   };
 
   switch (templateId) {
+    case "cosmetics":
+      return {
+        ...base,
+        shell: "cosmetics",
+        displayFont: "var(--font-display)",
+        pageBg: "bg-[var(--store-bg)]",
+        pageText: "text-[var(--store-text)]",
+        mutedText: "text-[var(--store-muted)]",
+        borderColor: "border-[var(--store-border)]",
+        cardBg: "bg-[var(--store-surface)]",
+        buttonRadius: "rounded-none",
+        buttonStyle: "square",
+        heroAlign: "left",
+        productGridCols: "sm:grid-cols-2 lg:grid-cols-4",
+      };
+    case "beauty":
+      return {
+        ...base,
+        shell: "beauty",
+        displayFont: "var(--font-editorial)",
+        pageBg: "bg-[var(--store-bg)]",
+        pageText: "text-[var(--store-text)]",
+        mutedText: "text-[var(--store-muted)]",
+        borderColor: "border-[var(--store-border)]",
+        cardBg: "bg-[var(--store-surface)]",
+        buttonRadius: "rounded-full",
+        buttonStyle: "rounded",
+        heroAlign: "center",
+        productGridCols: "sm:grid-cols-2 lg:grid-cols-4",
+      };
     case "minimalistic":
       return {
         ...base,
@@ -132,6 +162,26 @@ export function getDefaultStorefrontPalette(
   brandColor?: string,
 ): StorefrontColorPalette {
   switch (templateId) {
+    case "cosmetics":
+      return {
+        primary: brandColor ?? "#82934C",
+        accent: "#F7E7D3",
+        background: "#FFFFFF",
+        surface: "#F4F6F1",
+        text: "#172012",
+        muted: "#6E7564",
+        border: "#E2E6D9",
+      };
+    case "beauty":
+      return {
+        primary: brandColor ?? "#6F2F2B",
+        accent: "#E6A79F",
+        background: "#FFF7F3",
+        surface: "#FFFFFF",
+        text: "#211313",
+        muted: "#80615C",
+        border: "#F0D6D0",
+      };
     case "minimalistic":
       return {
         primary: brandColor ?? "#073E3F",
@@ -219,6 +269,8 @@ export const STOREFRONT_THEME_PRESETS: Record<
   editorial: { label: "Editorial Brand", brandColor: "#7C3A2D" },
   bold_grid: { label: "Bold Product Grid", brandColor: "#0F4C81" },
   fashion_lookbook: { label: "Fashion", brandColor: "#123D33" },
+  beauty: { label: "Beauty", brandColor: "#6F2F2B" },
+  cosmetics: { label: "Cosmetics", brandColor: "#82934C" },
   minimalistic: { label: "Minimalistic", brandColor: "#073E3F" },
 };
 

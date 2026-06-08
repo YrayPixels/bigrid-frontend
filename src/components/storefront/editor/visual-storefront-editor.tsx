@@ -1,14 +1,27 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { ExternalLink, Loader2, Monitor, Save, Smartphone, Tablet } from "lucide-react";
+import type { ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import {
+  ChevronDown,
+  ExternalLink,
+  Loader2,
+  Monitor,
+  Save,
+  Smartphone,
+  Tablet,
+} from "lucide-react";
 import type {
   Store,
   StorefrontColorPalette,
   StorefrontContent,
   StorefrontTemplateId,
+  StorefrontTemplateOption,
 } from "@/lib/api/types";
 import { STOREFRONT_TEMPLATE_OPTIONS } from "@/lib/api/types";
+import { api } from "@/lib/api/client";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { getStorefrontUrl } from "@/lib/store-host";
 import {
   StorefrontEditorCanvas,
@@ -27,13 +40,11 @@ import {
   STOREFRONT_THEME_PRESETS,
 } from "@/lib/storefront/template";
 
-const concreteTemplateOptions = STOREFRONT_TEMPLATE_OPTIONS.filter(
-  (
-    option,
-  ): option is (typeof STOREFRONT_TEMPLATE_OPTIONS)[number] & {
-    value: StorefrontTemplateId;
-  } => option.value !== "ai_pick",
-);
+type ConcreteTemplateOption = StorefrontTemplateOption & { value: StorefrontTemplateId };
+
+function getConcreteTemplateOptions(options: StorefrontTemplateOption[]): ConcreteTemplateOption[] {
+  return options.filter((option): option is ConcreteTemplateOption => option.value !== "ai_pick");
+}
 
 const PALETTE_FIELDS: { key: keyof StorefrontColorPalette; label: string }[] = [
   { key: "primary", label: "Primary" },
@@ -52,6 +63,44 @@ const EDITOR_PAGES: { id: EditorPage; label: string }[] = [
   { id: "contact", label: "Contact" },
   { id: "faq", label: "FAQ" },
 ];
+
+const AUTOSAVE_DELAY_MS = 900;
+
+function EditorControlSection({
+  title,
+  children,
+  open,
+  onOpenChange,
+}: {
+  title: string;
+  children: ReactNode;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  return (
+    <Collapsible
+      open={open}
+      onOpenChange={onOpenChange}
+      className="overflow-hidden rounded-xl border border-border bg-background/60"
+    >
+      <CollapsibleTrigger asChild>
+        <button
+          type="button"
+          className="flex w-full items-center justify-between gap-3 px-3 py-3 text-left text-sm font-semibold transition hover:bg-secondary"
+          aria-expanded={open}
+        >
+          <span>{title}</span>
+          <ChevronDown
+            className={`h-4 w-4 text-ink-soft transition-transform ${open ? "rotate-180" : ""}`}
+          />
+        </button>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="border-t border-border px-3 pb-3 pt-3">
+        {children}
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
 
 type VisualStorefrontEditorProps = {
   store: Store;
@@ -80,7 +129,17 @@ export function VisualStorefrontEditor({
   }));
   const [activePage, setActivePage] = useState<EditorPage>("home");
   const [viewport, setViewport] = useState<"desktop" | "tablet" | "mobile">("desktop");
+  const [openSection, setOpenSection] = useState("template-style");
+  const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const brandColor = palette.primary;
+  const { data: activeTemplateOptions = STOREFRONT_TEMPLATE_OPTIONS } = useQuery({
+    queryKey: ["storefront-templates"],
+    queryFn: api.getStorefrontTemplates,
+  });
+  const concreteTemplateOptions = useMemo(
+    () => getConcreteTemplateOptions(activeTemplateOptions),
+    [activeTemplateOptions],
+  );
 
   useEffect(() => {
     const nextTemplateId = resolveStorefrontTemplate(store, storefront);
@@ -111,8 +170,32 @@ export function VisualStorefrontEditor({
     viewport === "mobile" ? "max-w-[390px]" : viewport === "tablet" ? "max-w-[768px]" : "w-full";
 
   function handleSave() {
+    if (autosaveTimerRef.current) {
+      clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = null;
+    }
     onSave(applyTemplateToDraft(draft, templateId, palette), templateId, brandColor);
   }
+
+  useEffect(() => {
+    if (autosaveTimerRef.current) {
+      clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = null;
+    }
+
+    if (!isDirty || saving) return;
+
+    autosaveTimerRef.current = setTimeout(() => {
+      onSave(applyTemplateToDraft(draft, templateId, palette), templateId, brandColor);
+    }, AUTOSAVE_DELAY_MS);
+
+    return () => {
+      if (autosaveTimerRef.current) {
+        clearTimeout(autosaveTimerRef.current);
+        autosaveTimerRef.current = null;
+      }
+    };
+  }, [brandColor, draft, isDirty, onSave, palette, saving, templateId]);
 
   function updateDraftField(path: string, value: string) {
     setDraft((current) => setDraftField(current, path, value));
@@ -137,11 +220,17 @@ export function VisualStorefrontEditor({
           <h2 className="font-display text-xl font-bold">Edit your storefront</h2>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {isDirty ? (
-            <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-amber-800">
-              Unsaved changes
-            </span>
-          ) : null}
+          <span
+            className={`rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide ${
+              saving
+                ? "bg-blue-100 text-blue-800"
+                : isDirty
+                  ? "bg-amber-100 text-amber-800"
+                  : "bg-emerald-100 text-emerald-800"
+            }`}
+          >
+            {saving ? "Autosaving..." : isDirty ? "Autosave pending" : "Saved"}
+          </span>
           <a
             href={getStorefrontUrl(store.slug)}
             target="_blank"
@@ -222,10 +311,13 @@ export function VisualStorefrontEditor({
           </div>
         </div>
 
-        <aside className="space-y-6">
-          <div>
-            <h3 className="text-sm font-semibold">Template style</h3>
-            <div className="mt-3 space-y-2">
+        <aside className="space-y-3">
+          <EditorControlSection
+            title="Template style"
+            open={openSection === "template-style"}
+            onOpenChange={(open) => setOpenSection(open ? "template-style" : "")}
+          >
+            <div className="space-y-2">
               {concreteTemplateOptions.map((option) => (
                 <button
                   key={option.value}
@@ -244,11 +336,14 @@ export function VisualStorefrontEditor({
                 </button>
               ))}
             </div>
-          </div>
+          </EditorControlSection>
 
-          <div>
-            <h3 className="text-sm font-semibold">Color palette</h3>
-            <p className="mt-1 text-xs leading-5 text-ink-soft">
+          <EditorControlSection
+            title="Color palette"
+            open={openSection === "color-palette"}
+            onOpenChange={(open) => setOpenSection(open ? "color-palette" : "")}
+          >
+            <p className="text-xs leading-5 text-ink-soft">
               Pick a suggested palette, then fine-tune any color.
             </p>
             <div className="mt-3 space-y-2">
@@ -308,19 +403,25 @@ export function VisualStorefrontEditor({
                 </label>
               ))}
             </div>
-          </div>
+          </EditorControlSection>
 
-          <div>
-            <h3 className="text-sm font-semibold">Images</h3>
-            <p className="mt-1 text-xs leading-5 text-ink-soft">
+          <EditorControlSection
+            title="Images"
+            open={openSection === "images"}
+            onOpenChange={(open) => setOpenSection(open ? "images" : "")}
+          >
+            <p className="text-xs leading-5 text-ink-soft">
               Double-click any image in the preview to upload a replacement. Product, hero, about,
               and category images update instantly in the draft.
             </p>
-          </div>
+          </EditorControlSection>
 
-          <div>
-            <h3 className="text-sm font-semibold">Product data plug</h3>
-            <p className="mt-1 text-xs leading-5 text-ink-soft">
+          <EditorControlSection
+            title="Product data plug"
+            open={openSection === "product-data-plug"}
+            onOpenChange={(open) => setOpenSection(open ? "product-data-plug" : "")}
+          >
+            <p className="text-xs leading-5 text-ink-soft">
               Choose what the homepage product section should plug into.
             </p>
             <div className="mt-3 space-y-2">
@@ -354,11 +455,14 @@ export function VisualStorefrontEditor({
                 );
               })}
             </div>
-          </div>
+          </EditorControlSection>
 
-          <div>
-            <h3 className="text-sm font-semibold">SEO</h3>
-            <label className="mt-3 block text-xs font-medium text-ink-soft">
+          <EditorControlSection
+            title="SEO"
+            open={openSection === "seo"}
+            onOpenChange={(open) => setOpenSection(open ? "seo" : "")}
+          >
+            <label className="block text-xs font-medium text-ink-soft">
               Page title
               <input
                 value={draft.seo.title}
@@ -385,12 +489,15 @@ export function VisualStorefrontEditor({
                 className="mt-1 w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-sm"
               />
             </label>
-          </div>
+          </EditorControlSection>
 
           {draft.pages?.contact ? (
-            <div>
-              <h3 className="text-sm font-semibold">Contact details</h3>
-              <label className="mt-3 block text-xs font-medium text-ink-soft">
+            <EditorControlSection
+              title="Contact details"
+              open={openSection === "contact-details"}
+              onOpenChange={(open) => setOpenSection(open ? "contact-details" : "")}
+            >
+              <label className="block text-xs font-medium text-ink-soft">
                 Email
                 <input
                   value={draft.pages.contact.email ?? ""}
@@ -430,7 +537,7 @@ export function VisualStorefrontEditor({
                   className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
                 />
               </label>
-            </div>
+            </EditorControlSection>
           ) : null}
         </aside>
       </div>

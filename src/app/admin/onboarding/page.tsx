@@ -11,7 +11,15 @@ import {
   STOREFRONT_TEMPLATE_OPTIONS,
   type Industry,
   type StorefrontTemplateId,
+  type StorefrontTemplateOption,
+  type StorefrontTemplatePreview,
 } from "@/lib/api/types";
+
+type ConcreteTemplateOption = StorefrontTemplateOption & { value: StorefrontTemplateId };
+
+function getConcreteTemplateOptions(options: StorefrontTemplateOption[]): ConcreteTemplateOption[] {
+  return options.filter((option): option is ConcreteTemplateOption => option.value !== "ai_pick");
+}
 
 const BRAND_COLORS = ["#0E7C66", "#1F6FEB", "#D97706", "#DB2777", "#7C3AED", "#0F172A"];
 const FASHION_TEMPLATE_THUMBNAIL =
@@ -21,7 +29,7 @@ function TemplateMiniPreview({
   variant,
   brandColor,
 }: {
-  variant: "balanced" | "editorial" | "grid" | "lookbook" | "minimal" | "spark";
+  variant: StorefrontTemplatePreview;
   brandColor: string;
 }) {
   if (variant === "spark") {
@@ -111,6 +119,49 @@ function TemplateMiniPreview({
     );
   }
 
+  if (variant === "beauty") {
+    return (
+      <div className="h-28 overflow-hidden rounded-lg border border-[#f0d6d0] bg-[#fff7f3] p-2">
+        <div className="grid h-full grid-rows-[1fr_0.75fr] gap-2">
+          <div className="relative overflow-hidden rounded-xl bg-[#e6a79f]/30">
+            <div className="absolute left-3 top-3 h-4 w-20 rounded-full bg-white/80" />
+            <div className="absolute bottom-2 right-3 h-12 w-12 rounded-full bg-[#6f2f2b]/80" />
+          </div>
+          <div className="grid grid-cols-3 gap-1.5">
+            {[0, 1, 2].map((item) => (
+              <div key={item} className="rounded-lg bg-white p-1">
+                <div className="h-5 rounded-md bg-[#e6a79f]/30" />
+                <div className="mt-1 h-1.5 rounded bg-[#6f2f2b]/20" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (variant === "cosmetics") {
+    return (
+      <div className="h-28 overflow-hidden rounded-lg border border-[#e2e6d9] bg-white p-2">
+        <div className="grid h-full grid-cols-[1.2fr_0.8fr] gap-2">
+          <div className="relative overflow-hidden bg-[#fff2df] p-2">
+            <div className="h-2 w-12 rounded bg-[#82934c]/80" />
+            <div className="mt-2 h-4 w-16 rounded bg-[#82934c]/30" />
+            <div className="absolute bottom-2 right-2 h-12 w-8 rounded-t-full bg-white shadow-sm" />
+          </div>
+          <div className="grid gap-1.5">
+            {[0, 1, 2].map((item) => (
+              <div key={item} className="flex items-center gap-1 bg-[#f4f6f1] p-1">
+                <div className="h-6 w-4 rounded-t-full bg-white" />
+                <div className="h-1.5 flex-1 rounded bg-[#82934c]/30" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="h-24 overflow-hidden rounded-lg border border-border bg-background p-3">
       <div className="h-3 w-20 rounded" style={{ backgroundColor: brandColor }} />
@@ -136,19 +187,30 @@ export default function AdminOnboardingPage() {
   const [description, setDescription] = useState("");
   const [brandColor, setBrandColor] = useState(BRAND_COLORS[0]);
   const [submitting, setSubmitting] = useState(false);
+  const [templateOptions, setTemplateOptions] = useState<ConcreteTemplateOption[]>(
+    getConcreteTemplateOptions(STOREFRONT_TEMPLATE_OPTIONS),
+  );
 
   useEffect(() => {
     if (!loading && !user) router.replace("/login");
     else if (!loading && user?.has_store) router.replace("/admin");
   }, [loading, user, router]);
 
-  const templateOptions = STOREFRONT_TEMPLATE_OPTIONS.filter(
-    (
-      option,
-    ): option is (typeof STOREFRONT_TEMPLATE_OPTIONS)[number] & {
-      value: StorefrontTemplateId;
-    } => option.value !== "ai_pick",
-  );
+  useEffect(() => {
+    api
+      .getStorefrontTemplates()
+      .then((options) => {
+        const concreteOptions = getConcreteTemplateOptions(options);
+        setTemplateOptions(concreteOptions);
+        if (!concreteOptions.some((option) => option.value === storefrontTemplateId)) {
+          setStorefrontTemplateId(concreteOptions[0]?.value ?? "classic");
+        }
+      })
+      .catch(() => {
+        setTemplateOptions(getConcreteTemplateOptions(STOREFRONT_TEMPLATE_OPTIONS));
+      });
+  }, [storefrontTemplateId]);
+
   const steps = ["Template", "Business", "Industry", "Brand"];
   const canNext =
     (step === 0 && !!storefrontTemplateId) ||

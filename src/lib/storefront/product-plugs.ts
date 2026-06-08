@@ -1,4 +1,6 @@
 import type { StoreProduct, StorefrontContent, StorefrontTemplateId } from "@/lib/api/types";
+import { beautyFallbackProducts } from "./beauty-defaults";
+import { cosmeticsFallbackProducts } from "./cosmetics-defaults";
 import { fashionFallbackProducts } from "./fashion-defaults";
 import { minimalisticFallbackProducts } from "./minimalistic-defaults";
 
@@ -48,6 +50,8 @@ export function getProductPlugSource(storefront: StorefrontContent): ProductPlug
 }
 
 export function getThemeProducts(templateId: StorefrontTemplateId): StoreProduct[] {
+  if (templateId === "cosmetics") return cosmeticsFallbackProducts;
+  if (templateId === "beauty") return beautyFallbackProducts;
   if (templateId === "fashion_lookbook") return fashionFallbackProducts;
   if (templateId === "minimalistic") return minimalisticFallbackProducts;
 

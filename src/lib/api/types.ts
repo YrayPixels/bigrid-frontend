@@ -24,7 +24,9 @@ export type StorefrontTemplateId =
   | "editorial"
   | "bold_grid"
   | "fashion_lookbook"
-  | "minimalistic";
+  | "minimalistic"
+  | "beauty"
+  | "cosmetics";
 export type StorefrontTemplateChoice = StorefrontTemplateId | "ai_pick";
 
 export type StorefrontColorPalette = {
@@ -208,13 +210,27 @@ export const INDUSTRY_OPTIONS: { value: Industry; label: string }[] = [
   { value: "other", label: "Other" },
 ];
 
-export const STOREFRONT_TEMPLATE_OPTIONS: {
+export type StorefrontTemplatePreview =
+  | "balanced"
+  | "editorial"
+  | "grid"
+  | "lookbook"
+  | "minimal"
+  | "beauty"
+  | "cosmetics"
+  | "spark";
+
+export type StorefrontTemplateOption = {
   value: StorefrontTemplateChoice;
   label: string;
   description: string;
   bestFor: string;
-  preview: "balanced" | "editorial" | "grid" | "lookbook" | "minimal" | "spark";
-}[] = [
+  preview: StorefrontTemplatePreview;
+  is_active?: boolean;
+  sort_order?: number;
+};
+
+export const STOREFRONT_TEMPLATE_OPTIONS: StorefrontTemplateOption[] = [
   {
     value: "ai_pick",
     label: "Let AI choose",
@@ -243,6 +259,22 @@ export const STOREFRONT_TEMPLATE_OPTIONS: {
       "A clothing-brand homepage with campaign imagery, curated edits, and product drops.",
     bestFor: "Clothing brands",
     preview: "lookbook",
+  },
+  {
+    value: "beauty",
+    label: "Beauty",
+    description:
+      "A polished beauty storefront for hair, skincare, bundles, and best-seller storytelling.",
+    bestFor: "Beauty, hair, skincare",
+    preview: "beauty",
+  },
+  {
+    value: "cosmetics",
+    label: "Cosmetics",
+    description:
+      "A clean cosmetics storefront for skincare, serums, product storytelling, and ingredient-led trust.",
+    bestFor: "Cosmetics, skincare",
+    preview: "cosmetics",
   },
   {
     value: "minimalistic",

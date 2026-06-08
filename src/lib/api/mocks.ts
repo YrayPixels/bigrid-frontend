@@ -11,6 +11,8 @@ import type {
   StoreOrderStatus,
   StorefrontContent,
   StorefrontTemplateId,
+  StorefrontTemplateOption,
+  STOREFRONT_TEMPLATE_OPTIONS,
   UpdateStorefrontInput,
   User,
 } from "./types";
@@ -90,6 +92,11 @@ async function delay(ms = 600) {
 }
 
 export const mockApi = {
+  async getStorefrontTemplates(): Promise<StorefrontTemplateOption[]> {
+    await delay(100);
+    return STOREFRONT_TEMPLATE_OPTIONS.filter((option) => option.value !== "ai_pick");
+  },
+
   async register(body: { name: string; email: string; password: string }): Promise<AuthResponse> {
     await delay(500);
     const db = load();
@@ -446,8 +453,8 @@ function synthesizeStorefront(store: Store): StorefrontContent {
       cta: "Shop the collection",
     },
     beauty_and_skincare: {
-      headline: `Glow with ${name}.`,
-      sub: `${desc} Clean formulas, real results.`,
+      headline: `Discover the nature with ${name}.`,
+      sub: `${desc} Botanical skincare, clean formulas, and real glow rituals.`,
       cta: "Discover the line",
     },
     electronics: {
@@ -498,14 +505,20 @@ function synthesizeStorefront(store: Store): StorefrontContent {
             },
             { title: "Easy styling", body: "Wardrobe staples designed to mix, layer, and repeat." },
           ]
-        : [
-            { title: "Made with care", body: "Every item is checked by hand before it ships." },
-            { title: "Fast local delivery", body: "Most orders arrive within 2-4 business days." },
-            {
-              title: "Talk to a human",
-              body: "Real people, real answers - usually within an hour.",
-            },
-          ],
+        : store.industry === "beauty_and_skincare"
+          ? [
+              { title: "100% organic", body: "Botanical ingredients chosen for gentle daily care." },
+              { title: "Clinical feel", body: "Simple formulas that support comfort, glow, and consistency." },
+              { title: "Herbal products", body: "Clean textures made to layer easily in any routine." },
+            ]
+          : [
+              { title: "Made with care", body: "Every item is checked by hand before it ships." },
+              { title: "Fast local delivery", body: "Most orders arrive within 2-4 business days." },
+              {
+                title: "Talk to a human",
+                body: "Real people, real answers - usually within an hour.",
+              },
+            ],
     pages: {
       about: {
         title: `About ${name}`,
@@ -583,35 +596,68 @@ function synthesizeStorefront(store: Store): StorefrontContent {
               image_url: null,
             },
           ]
-        : [
-            {
-              id: "1",
-              slug: `${slugBase}-signature-item`,
-              name: `${name} Signature Item`,
-              description: `A customer favourite from ${name}.`,
-              price: 8500,
-              currency: "NGN",
-              image_url: null,
-            },
-            {
-              id: "2",
-              slug: `${slugBase}-starter-pack`,
-              name: `${name} Starter Pack`,
-              description: `A great way to try ${name} for the first time.`,
-              price: 12500,
-              currency: "NGN",
-              image_url: null,
-            },
-            {
-              id: "3",
-              slug: `${slugBase}-premium-bundle`,
-              name: `${name} Premium Bundle`,
-              description: "Our best-value bundle for repeat customers.",
-              price: 19900,
-              currency: "NGN",
-              image_url: null,
-            },
-          ],
+        : store.industry === "beauty_and_skincare"
+          ? [
+              {
+                id: "1",
+                slug: `${slugBase}-botanical-gel-cleanser`,
+                name: "Botanical Gel Cleanser",
+                description: `A gentle daily cleanser curated by ${name}.`,
+                price: 28500,
+                currency: "NGN",
+                image_url: null,
+                category: "Cleansers",
+              },
+              {
+                id: "2",
+                slug: `${slugBase}-glow-repair-serum`,
+                name: "Glow Repair Serum",
+                description: "Lightweight botanical actives for visible radiance and hydration.",
+                price: 18500,
+                currency: "NGN",
+                image_url: null,
+                category: "Serums",
+              },
+              {
+                id: "3",
+                slug: `${slugBase}-daily-radiance-kit`,
+                name: "Daily Radiance Kit",
+                description: "Customer favourites packed for a full skincare routine.",
+                price: 42000,
+                currency: "NGN",
+                image_url: null,
+                category: "Routine kits",
+              },
+            ]
+          : [
+              {
+                id: "1",
+                slug: `${slugBase}-signature-item`,
+                name: `${name} Signature Item`,
+                description: `A customer favourite from ${name}.`,
+                price: 8500,
+                currency: "NGN",
+                image_url: null,
+              },
+              {
+                id: "2",
+                slug: `${slugBase}-starter-pack`,
+                name: `${name} Starter Pack`,
+                description: `A great way to try ${name} for the first time.`,
+                price: 12500,
+                currency: "NGN",
+                image_url: null,
+              },
+              {
+                id: "3",
+                slug: `${slugBase}-premium-bundle`,
+                name: `${name} Premium Bundle`,
+                description: "Our best-value bundle for repeat customers.",
+                price: 19900,
+                currency: "NGN",
+                image_url: null,
+              },
+            ],
     seo: {
       title: `${name} - ${industry.replace(/\b\w/g, (c) => c.toUpperCase())}`,
       description: `${desc.slice(0, 150)}`.replace(/\s+\S*$/, "..."),
@@ -629,7 +675,7 @@ function resolveTemplateId(store: Store): StorefrontTemplateId {
   }
 
   if (store.industry === "beauty_and_skincare") {
-    return "minimalistic";
+    return "cosmetics";
   }
 
   if (store.industry === "home_and_living") {

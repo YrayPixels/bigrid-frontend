@@ -13,6 +13,8 @@ import { ProductCardThemed } from "@/components/storefront/theme/product-card-th
 import { useStorefrontTheme } from "@/lib/storefront/theme-context";
 import { EditableImage } from "@/components/storefront/theme/editable-image";
 import { formatMoney } from "@/lib/storefront/format";
+import { beautyCategories, beautyTemplateImages } from "@/lib/storefront/beauty-defaults";
+import { cosmeticsCategories, cosmeticsTemplateImages } from "@/lib/storefront/cosmetics-defaults";
 import { fashionCategories, fashionTemplateImages } from "@/lib/storefront/fashion-defaults";
 import {
   minimalisticCategories,
@@ -420,6 +422,118 @@ function FashionProductsPage({ products }: { products: StoreProduct[] }) {
   );
 }
 
+function BeautyProductsPage({ products }: { products: StoreProduct[] }) {
+  const { theme, mode } = useStorefrontTheme();
+  const isCosmetics = theme.id === "cosmetics";
+  const [selectedCategory, setSelectedCategory] = useState("Best sellers");
+  const templateCategories = isCosmetics ? cosmeticsCategories : beautyCategories;
+  const templateImages = isCosmetics ? cosmeticsTemplateImages : beautyTemplateImages;
+  const categories = useMemo(() => {
+    const productCategories = products
+      .map((product) => product.category)
+      .filter((category): category is string => Boolean(category));
+    return Array.from(new Set([...templateCategories, ...productCategories]));
+  }, [products, templateCategories]);
+  const filteredProducts =
+    selectedCategory === "Best sellers"
+      ? products
+      : products.filter((product) => product.category === selectedCategory);
+
+  return (
+    <div style={{ backgroundColor: theme.palette.background, color: theme.palette.text }}>
+      <section className="px-4 py-16 text-center sm:px-6 lg:py-20">
+        <p className="text-xs font-semibold uppercase tracking-[0.22em]" style={{ color: theme.palette.muted }}>
+          {isCosmetics ? "Cosmetics catalog" : "Beauty catalog"}
+        </p>
+        <h1 className="mx-auto mt-3 max-w-3xl font-display text-5xl font-semibold leading-none tracking-[-0.055em] sm:text-6xl">
+          {isCosmetics ? "Shop the skincare edit" : "Shop the beauty edit"}
+        </h1>
+        <p className="mx-auto mt-5 max-w-xl text-sm leading-6" style={{ color: theme.palette.muted }}>
+          {isCosmetics
+            ? "Cleansers, serums, moisturisers, and routine kits curated for simple daily glow."
+            : "Hair, skincare, and glow essentials curated for routines, bundles, and best sellers."}
+        </p>
+      </section>
+
+      <section className="px-4 pb-14 sm:px-6 lg:pb-20">
+        <div className="mx-auto max-w-7xl">
+          <div className="mb-8 flex flex-wrap justify-center gap-3">
+            {categories.map((category) => {
+              const active = selectedCategory === category;
+              return (
+                <button
+                  key={category}
+                  type="button"
+                  onClick={() => setSelectedCategory(category)}
+                  className="rounded-full border px-4 py-2 text-xs font-semibold transition"
+                  style={{
+                    borderColor: active ? theme.palette.primary : theme.palette.border,
+                    backgroundColor: active ? theme.palette.primary : theme.palette.surface,
+                    color: active ? theme.palette.background : theme.palette.text,
+                  }}
+                >
+                  {category}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="grid gap-x-5 gap-y-10 sm:grid-cols-2 lg:grid-cols-4">
+            {filteredProducts.map((product, index) => {
+              const originalIndex = products.findIndex((entry) => entry.id === product.id);
+              const image =
+                product.image_url ??
+                templateImages.products[Math.max(originalIndex, 0) % templateImages.products.length];
+              const card = (
+                <article className="group">
+                  <div
+                    className="aspect-[4/5] overflow-hidden rounded-[2rem] border p-3"
+                    style={{ borderColor: theme.palette.border, backgroundColor: theme.palette.surface }}
+                  >
+                    <EditableImage
+                      path={`products.${Math.max(originalIndex, 0)}.image_url`}
+                      src={image}
+                      alt={product.name}
+                      className="h-full w-full overflow-hidden rounded-[1.5rem]"
+                      imgClassName="object-cover transition duration-500 group-hover:scale-105"
+                    />
+                  </div>
+                  <div className="mt-4 flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.16em]" style={{ color: theme.palette.muted }}>
+                        {product.category ?? (isCosmetics ? "Skincare" : "Beauty")}
+                      </p>
+                      <h2 className="mt-1 line-clamp-1 font-display text-lg font-semibold">{product.name}</h2>
+                    </div>
+                    <span className="inline-flex items-center gap-1 text-xs font-semibold">
+                      <Star
+                        className="h-3.5 w-3.5 fill-current"
+                        style={{ color: theme.palette.accent }}
+                      />
+                      4.9
+                    </span>
+                  </div>
+                  <p className="mt-2 line-clamp-2 text-sm leading-6" style={{ color: theme.palette.muted }}>
+                    {product.description}
+                  </p>
+                  <div className="mt-4 font-semibold">{formatMoney(product.price, product.currency)}</div>
+                </article>
+              );
+              return mode === "edit" ? (
+                <div key={product.id}>{card}</div>
+              ) : (
+                <Link key={product.id} href={`/products/${product.slug}`}>
+                  {card}
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function MinimalisticProductsPage({ products }: { products: StoreProduct[] }) {
   const { theme, mode } = useStorefrontTheme();
   const { addItem } = useCart();
@@ -769,6 +883,14 @@ export function ProductsPageView() {
 
   if (theme.id === "minimalistic") {
     return <MinimalisticProductsPage products={products} />;
+  }
+
+  if (theme.id === "beauty") {
+    return <BeautyProductsPage products={products} />;
+  }
+
+  if (theme.id === "cosmetics") {
+    return <BeautyProductsPage products={products} />;
   }
 
   return (

@@ -12,28 +12,43 @@ function CheckoutSuccessContent() {
   const searchParams = useSearchParams();
   const orderNumber = searchParams.get("order") ?? "your order";
 
-  if (theme.id === "minimalistic") {
+  if (theme.id === "minimalistic" || theme.id === "beauty" || theme.id === "cosmetics") {
+    const isBeauty = theme.id === "beauty";
+    const isCosmetics = theme.id === "cosmetics";
     return (
-      <div className="bg-[#fbfbdc] px-4 py-16 text-center text-[#073e3f] sm:px-6">
-        <div className="mx-auto max-w-4xl rounded-[2rem] bg-white/80 px-6 py-14 shadow-[0_24px_80px_rgba(7,62,63,0.08)]">
-          <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-[#073e3f] text-sm font-bold text-[#fbfbdc]">
+      <div
+        className="px-4 py-16 text-center sm:px-6"
+        style={{ backgroundColor: theme.palette.background, color: theme.palette.text }}
+      >
+        <div
+          className="mx-auto max-w-4xl rounded-[2rem] px-6 py-14 shadow-[0_24px_80px_rgba(7,62,63,0.08)]"
+          style={{ backgroundColor: `${theme.palette.surface}cc` }}
+        >
+          <div
+            className="mx-auto grid h-16 w-16 place-items-center rounded-full text-sm font-bold"
+            style={{ backgroundColor: theme.palette.primary, color: theme.palette.background }}
+          >
             OK
           </div>
-          <div className="mx-auto mt-6 inline-flex items-center gap-2 rounded-full bg-[#fbfbdc] px-3 py-1.5 text-[11px] font-semibold">
-            <span className="h-2 w-5 rounded-full bg-[#073e3f]" />
-            Order placed
-            <span className="h-2 w-5 rounded-full bg-[#073e3f]" />
+          <div
+            className="mx-auto mt-6 inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-semibold"
+            style={{ backgroundColor: theme.palette.background }}
+          >
+            <span className="h-2 w-5 rounded-full" style={{ backgroundColor: theme.palette.primary }} />
+            {isCosmetics ? "Skincare order placed" : isBeauty ? "Beauty order placed" : "Order placed"}
+            <span className="h-2 w-5 rounded-full" style={{ backgroundColor: theme.palette.primary }} />
           </div>
           <h1 className="mt-5 text-4xl font-semibold tracking-[-0.04em]">
             Your order is confirmed
           </h1>
-          <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-[#073e3f]/65">
+          <p className="mx-auto mt-3 max-w-md text-sm leading-6" style={{ color: theme.palette.muted }}>
             Thank you for shopping with {store.business_name}. Your order reference is{" "}
-            <span className="font-bold text-[#073e3f]">{orderNumber}</span>.
+            <span className="font-bold" style={{ color: theme.palette.text }}>{orderNumber}</span>.
           </p>
           <Link
             href="/products"
-            className="mt-8 inline-flex rounded-full bg-[#073e3f] px-8 py-3 text-sm font-semibold text-[#fbfbdc] transition hover:bg-[#0a5253]"
+            className="mt-8 inline-flex rounded-full px-8 py-3 text-sm font-semibold transition"
+            style={{ backgroundColor: theme.palette.primary, color: theme.palette.background }}
           >
             Continue shopping
           </Link>

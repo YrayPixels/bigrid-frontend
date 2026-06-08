@@ -9,6 +9,8 @@ import type {
   StoreOrderStatus,
   StorefrontContent,
   StorefrontTemplateId,
+  StorefrontTemplateOption,
+  STOREFRONT_TEMPLATE_OPTIONS,
   UpdateStorefrontInput,
   User,
 } from "./types";
@@ -144,6 +146,19 @@ export const api = {
     const token = requireToken();
     if (USE_MOCKS) return mockApi.getDashboardOverview(token);
     return http<MerchantDashboardOverview>(`${STOREHAUSE_API_PREFIX}/dashboard`);
+  },
+
+  async getStorefrontTemplates(): Promise<StorefrontTemplateOption[]> {
+    if (USE_MOCKS) return mockApi.getStorefrontTemplates();
+
+    const res = await http<{ templates: StorefrontTemplateOption[] }>(
+      `${STOREHAUSE_API_PREFIX}/storefront-templates`,
+    ).catch((err) => {
+      console.warn("Falling back to static storefront templates", err);
+      return { templates: STOREFRONT_TEMPLATE_OPTIONS };
+    });
+
+    return res.templates.length ? res.templates : STOREFRONT_TEMPLATE_OPTIONS;
   },
 
   async getOrders(

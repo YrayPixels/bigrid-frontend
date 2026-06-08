@@ -15,7 +15,9 @@ export function FaqPageView({
 }) {
   const { theme, mode } = useStorefrontTheme();
 
-  if (theme.id === "minimalistic") {
+  if (theme.id === "minimalistic" || theme.id === "beauty" || theme.id === "cosmetics") {
+    const isBeauty = theme.id === "beauty";
+    const isCosmetics = theme.id === "cosmetics";
     return (
       <div
         className="px-4 py-16 sm:px-6 lg:py-20"
@@ -30,7 +32,7 @@ export function FaqPageView({
               className="h-2 w-5 rounded-full"
               style={{ backgroundColor: theme.palette.primary }}
             />
-            FAQs
+            {isCosmetics ? "Skincare help" : isBeauty ? "Beauty help" : "FAQs"}
             <span
               className="h-2 w-5 rounded-full"
               style={{ backgroundColor: theme.palette.primary }}
@@ -46,7 +48,11 @@ export function FaqPageView({
             className="mx-auto mt-4 max-w-md text-sm leading-6"
             style={{ color: theme.palette.muted }}
           >
-            Find answers about orders, delivery, returns, and your daily wellness essentials.
+            {isCosmetics
+              ? "Find answers about skincare orders, delivery, returns, and product routines."
+              : isBeauty
+              ? "Find answers about beauty orders, delivery, returns, and product routines."
+              : "Find answers about orders, delivery, returns, and your daily wellness essentials."}
           </p>
 
           <div

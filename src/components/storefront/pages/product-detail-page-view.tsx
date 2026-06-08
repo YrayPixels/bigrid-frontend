@@ -7,6 +7,8 @@ import { toast } from "sonner";
 import type { StoreProduct } from "@/lib/api/types";
 import { useCart } from "@/lib/storefront/cart-context";
 import { useStorefront } from "@/lib/storefront/store-context";
+import { beautyTemplateImages } from "@/lib/storefront/beauty-defaults";
+import { cosmeticsTemplateImages } from "@/lib/storefront/cosmetics-defaults";
 import { fashionTemplateImages } from "@/lib/storefront/fashion-defaults";
 import { minimalisticTemplateImages } from "@/lib/storefront/minimalistic-defaults";
 import { formatMoney } from "@/lib/storefront/format";
@@ -580,6 +582,131 @@ function MinimalisticProductDetail({ product }: { product: StoreProduct }) {
   );
 }
 
+function BeautyProductDetail({ product }: { product: StoreProduct }) {
+  const { addItem } = useCart();
+  const { storefront } = useStorefront();
+  const { theme } = useStorefrontTheme();
+  const [quantity, setQuantity] = useState(1);
+  const faqPage = storefront.pages?.faq;
+  const isCosmetics = theme.id === "cosmetics";
+  const templateImages = isCosmetics ? cosmeticsTemplateImages : beautyTemplateImages;
+  const galleryImages = useMemo(
+    () => [
+      product.image_url ?? templateImages.products[0],
+      ...(product.image_url
+        ? [product.image_url, product.image_url, product.image_url]
+        : templateImages.products.slice(1, 4)),
+    ],
+    [product.image_url, templateImages],
+  );
+
+  function addToCart(label = "Added to cart") {
+    addItem(product, quantity);
+    toast.success(label);
+  }
+
+  return (
+    <div style={{ backgroundColor: theme.palette.background, color: theme.palette.text }}>
+      <section className="mx-auto grid max-w-7xl gap-10 px-4 py-10 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:py-16">
+        <div className="grid gap-4 sm:grid-cols-[96px_minmax(0,1fr)]">
+          <div className="order-2 grid grid-cols-4 gap-3 sm:order-1 sm:grid-cols-1">
+            {galleryImages.map((image, index) => (
+              <button
+                key={`${image}-${index}`}
+                type="button"
+                className="aspect-square overflow-hidden rounded-2xl border p-1"
+                style={{ borderColor: theme.palette.border, backgroundColor: theme.palette.surface }}
+              >
+                <img src={image} alt="" className="h-full w-full rounded-xl object-cover" />
+              </button>
+            ))}
+          </div>
+          <div className="order-1 overflow-hidden rounded-[2.5rem] border p-3 sm:order-2" style={{ borderColor: theme.palette.border, backgroundColor: theme.palette.surface }}>
+            <img src={galleryImages[0]} alt={product.name} className="aspect-[4/5] w-full rounded-[2rem] object-cover" />
+          </div>
+        </div>
+
+        <section className="lg:py-8">
+          <Link href="/products" className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: theme.palette.muted }}>
+            {isCosmetics ? "Back to skincare edit" : "Back to beauty edit"}
+          </Link>
+          <p className="mt-8 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: theme.palette.accent }}>
+            {product.category ?? (isCosmetics ? "Skincare essential" : "Beauty essential")}
+          </p>
+          <h1 className="mt-3 font-display text-5xl font-semibold leading-none tracking-[-0.055em]">
+            {product.name}
+          </h1>
+          <p className="mt-5 max-w-xl text-sm leading-7" style={{ color: theme.palette.muted }}>
+            {product.description}
+          </p>
+          <div className="mt-6 flex items-center gap-3">
+            <span className="font-display text-3xl font-semibold">
+              {formatMoney(product.price, product.currency)}
+            </span>
+            <span className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold" style={{ backgroundColor: theme.palette.surface }}>
+              <Star className="h-3.5 w-3.5 fill-current" style={{ color: theme.palette.accent }} />
+              4.9 loved by customers
+            </span>
+          </div>
+
+          {product.variants?.length ? (
+            <div className="mt-8 space-y-5">
+              {product.variants.map((variant) => (
+                <div key={variant.name}>
+                  <div className="text-sm font-semibold">{variant.name}</div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {variant.options.map((option) => (
+                      <span key={option} className="rounded-full border px-4 py-2 text-sm" style={{ borderColor: theme.palette.border }}>
+                        {option}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          <div className="mt-8 flex flex-wrap items-center gap-3">
+            <div className="flex items-center rounded-full border" style={{ borderColor: theme.palette.border }}>
+              <button type="button" className="grid h-11 w-11 place-items-center" onClick={() => setQuantity((current) => Math.max(1, current - 1))}>
+                <Minus className="h-4 w-4" />
+              </button>
+              <span className="grid h-11 w-9 place-items-center text-sm font-semibold">{quantity}</span>
+              <button type="button" className="grid h-11 w-11 place-items-center" onClick={() => setQuantity((current) => current + 1)}>
+                <Plus className="h-4 w-4" />
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => addToCart()}
+              className="rounded-full px-8 py-3 text-sm font-semibold"
+              style={{ backgroundColor: theme.palette.primary, color: theme.palette.background }}
+            >
+              Add to cart
+            </button>
+            <button type="button" onClick={() => addToCart("Ready for checkout")} className="rounded-full border px-8 py-3 text-sm font-semibold" style={{ borderColor: theme.palette.primary, color: theme.palette.primary }}>
+              Buy now
+            </button>
+          </div>
+
+          <div className="mt-8 grid gap-3 sm:grid-cols-3">
+            {(isCosmetics
+              ? ["Botanical actives", "Routine ready", "Fast delivery"]
+              : ["Premium quality", "Routine ready", "Fast delivery"]
+            ).map((label) => (
+              <div key={label} className="rounded-2xl border p-4 text-sm font-semibold" style={{ borderColor: theme.palette.border, backgroundColor: theme.palette.surface }}>
+                {label}
+              </div>
+            ))}
+          </div>
+        </section>
+      </section>
+
+      <StorefrontFaqSection faqPage={faqPage} />
+    </div>
+  );
+}
+
 export function ProductDetailPageView({ product }: { product: StoreProduct | null }) {
   const { theme, mode } = useStorefrontTheme();
   const { addItem } = useCart();
@@ -609,6 +736,14 @@ export function ProductDetailPageView({ product }: { product: StoreProduct | nul
 
   if (theme.id === "minimalistic") {
     return <MinimalisticProductDetail product={product} />;
+  }
+
+  if (theme.id === "beauty") {
+    return <BeautyProductDetail product={product} />;
+  }
+
+  if (theme.id === "cosmetics") {
+    return <BeautyProductDetail product={product} />;
   }
 
   const productImageUrl = product.image_url;

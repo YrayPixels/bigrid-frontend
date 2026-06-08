@@ -4,6 +4,8 @@ import Link from "next/link";
 import type { CSSProperties } from "react";
 import { Minus, Pencil, Plus, Trash2 } from "lucide-react";
 import { useCart } from "@/lib/storefront/cart-context";
+import { beautyTemplateImages } from "@/lib/storefront/beauty-defaults";
+import { cosmeticsTemplateImages } from "@/lib/storefront/cosmetics-defaults";
 import { fashionTemplateImages } from "@/lib/storefront/fashion-defaults";
 import { minimalisticTemplateImages } from "@/lib/storefront/minimalistic-defaults";
 import { formatMoney } from "@/lib/storefront/format";
@@ -14,6 +16,8 @@ import { useStorefrontTheme } from "@/lib/storefront/theme-context";
 function FashionCartPageView() {
   const { lines, subtotal, setQuantity, removeItem } = useCart();
   const { theme, mode } = useStorefrontTheme();
+  const isBeauty = theme.id === "beauty";
+  const isCosmetics = theme.id === "cosmetics";
 
   if (lines.length === 0) {
     return (
@@ -41,7 +45,9 @@ function FashionCartPageView() {
             className="mx-auto mt-4 max-w-md text-sm leading-6"
             style={{ color: theme.palette.muted }}
           >
-            Add your favorite pieces before moving into checkout.
+            Add your favorite{" "}
+            {isCosmetics ? "skincare essentials" : isBeauty ? "beauty essentials" : "pieces"} before
+            moving into checkout.
           </p>
           {mode === "edit" ? (
             <span
@@ -83,8 +89,14 @@ function FashionCartPageView() {
           } as CSSProperties
         }
       >
-        <div className="pointer-events-none absolute -right-20 bottom-4 hidden h-40 w-40 rounded-full border border-[#e8cfc1] lg:block" />
-        <div className="pointer-events-none absolute -right-28 bottom-16 hidden h-52 w-52 rounded-full border border-[#e8cfc1] lg:block" />
+        <div
+          className="pointer-events-none absolute -right-20 bottom-4 hidden h-40 w-40 rounded-full border lg:block"
+          style={{ borderColor: theme.palette.border }}
+        />
+        <div
+          className="pointer-events-none absolute -right-28 bottom-16 hidden h-52 w-52 rounded-full border lg:block"
+          style={{ borderColor: theme.palette.border }}
+        />
 
         <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_350px] xl:grid-cols-[minmax(0,1fr)_380px]">
           <section>
@@ -92,7 +104,7 @@ function FashionCartPageView() {
               className="text-4xl font-bold tracking-[-0.04em] sm:text-5xl"
               style={{ fontFamily: theme.displayFont }}
             >
-              Cart
+              {isCosmetics ? "Skincare bag" : isBeauty ? "Beauty bag" : "Cart"}
             </h1>
 
             <div
@@ -121,7 +133,13 @@ function FashionCartPageView() {
               {lines.map((line, index) => {
                 const image =
                   line.product.image_url ??
-                  fashionTemplateImages.products[index % fashionTemplateImages.products.length];
+                  (isCosmetics
+                    ? cosmeticsTemplateImages.products[
+                        index % cosmeticsTemplateImages.products.length
+                      ]
+                    : isBeauty
+                    ? beautyTemplateImages.products[index % beautyTemplateImages.products.length]
+                    : fashionTemplateImages.products[index % fashionTemplateImages.products.length]);
                 const variantSummary = line.product.variants?.slice(0, 2) ?? [];
 
                 return (
@@ -267,7 +285,13 @@ function FashionCartPageView() {
               className="rounded-[1.75rem] p-5 shadow-[0_20px_60px_rgba(118,57,31,0.08)] sm:p-6"
               style={{ backgroundColor: theme.palette.background }}
             >
-              <h2 className="text-xl font-bold">Order Summary</h2>
+              <h2 className="text-xl font-bold">
+                {isCosmetics
+                  ? "Skincare bag summary"
+                  : isBeauty
+                    ? "Beauty bag summary"
+                    : "Order Summary"}
+              </h2>
               <div className="mt-6 space-y-4 text-sm">
                 <div className="flex items-center justify-between">
                   <span>Sub Total</span>
@@ -740,6 +764,14 @@ export function CartPageView() {
   const { theme, mode } = useStorefrontTheme();
 
   if (theme.id === "fashion_lookbook") {
+    return <FashionCartPageView />;
+  }
+
+  if (theme.id === "beauty") {
+    return <FashionCartPageView />;
+  }
+
+  if (theme.id === "cosmetics") {
     return <FashionCartPageView />;
   }
 

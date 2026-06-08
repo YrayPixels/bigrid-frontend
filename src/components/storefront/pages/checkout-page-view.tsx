@@ -9,6 +9,8 @@ import { formatMoney } from "@/lib/storefront/format";
 import { useStorefront } from "@/lib/storefront/store-context";
 import { PageContainer } from "@/components/storefront/theme/page-container";
 import { useStorefrontTheme } from "@/lib/storefront/theme-context";
+import { beautyTemplateImages } from "@/lib/storefront/beauty-defaults";
+import { cosmeticsTemplateImages } from "@/lib/storefront/cosmetics-defaults";
 import { minimalisticTemplateImages } from "@/lib/storefront/minimalistic-defaults";
 
 export function CheckoutPageView() {
@@ -19,9 +21,11 @@ export function CheckoutPageView() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const isMinimalistic = theme.id === "minimalistic";
+  const isBeauty = theme.id === "beauty";
+  const isCosmetics = theme.id === "cosmetics";
 
   if (lines.length === 0) {
-    if (isMinimalistic) {
+    if (isMinimalistic || isBeauty || isCosmetics) {
       return (
         <div
           className="px-4 py-16 text-center sm:px-6"
@@ -39,7 +43,7 @@ export function CheckoutPageView() {
                 className="h-2 w-5 rounded-full"
                 style={{ backgroundColor: theme.palette.primary }}
               />
-              Checkout
+              {isCosmetics ? "Skincare checkout" : isBeauty ? "Beauty checkout" : "Checkout"}
               <span
                 className="h-2 w-5 rounded-full"
                 style={{ backgroundColor: theme.palette.primary }}
@@ -109,7 +113,7 @@ export function CheckoutPageView() {
     }
   }
 
-  if (isMinimalistic) {
+  if (isMinimalistic || isBeauty || isCosmetics) {
     const inputClass =
       "w-full rounded-2xl border px-4 py-3 text-sm outline-none transition focus:ring-4 disabled:opacity-60";
     const currency = lines[0]?.product.currency;
@@ -138,17 +142,25 @@ export function CheckoutPageView() {
                 className="h-2 w-5 rounded-full"
                 style={{ backgroundColor: theme.palette.primary }}
               />
-              Checkout
+              {isCosmetics ? "Skincare checkout" : isBeauty ? "Beauty checkout" : "Checkout"}
               <span
                 className="h-2 w-5 rounded-full"
                 style={{ backgroundColor: theme.palette.primary }}
               />
             </div>
             <h1 className="mt-4 text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">
-              Complete your wellness order
+              {isCosmetics
+                ? "Complete your skincare order"
+                : isBeauty
+                  ? "Complete your beauty order"
+                  : "Complete your wellness order"}
             </h1>
             <p className="mt-3 max-w-xl text-sm leading-6" style={{ color: theme.palette.muted }}>
-              Add your delivery details and we will prepare your daily essentials for dispatch.
+              {isCosmetics
+                ? "Add your delivery details and we will prepare your skincare essentials for dispatch."
+                : isBeauty
+                ? "Add your delivery details and we will prepare your beauty essentials for dispatch."
+                : "Add your delivery details and we will prepare your daily essentials for dispatch."}
             </p>
 
             <div className="mt-8 grid gap-4 sm:grid-cols-2">
@@ -276,7 +288,11 @@ export function CheckoutPageView() {
             >
               <h2 className="text-xl font-bold">Order summary</h2>
               <p className="mt-1 text-sm" style={{ color: theme.palette.muted }}>
-                Your wellness essentials
+                {isCosmetics
+                  ? "Your skincare essentials"
+                  : isBeauty
+                    ? "Your beauty essentials"
+                    : "Your wellness essentials"}
               </p>
             </div>
 
@@ -284,9 +300,15 @@ export function CheckoutPageView() {
               {lines.map((line, index) => {
                 const image =
                   line.product.image_url ??
-                  minimalisticTemplateImages.products[
-                    index % minimalisticTemplateImages.products.length
-                  ];
+                  (isCosmetics
+                    ? cosmeticsTemplateImages.products[
+                        index % cosmeticsTemplateImages.products.length
+                      ]
+                    : isBeauty
+                    ? beautyTemplateImages.products[index % beautyTemplateImages.products.length]
+                    : minimalisticTemplateImages.products[
+                        index % minimalisticTemplateImages.products.length
+                      ]);
 
                 return (
                   <div

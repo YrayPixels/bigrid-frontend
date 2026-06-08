@@ -2,7 +2,9 @@
 
 import { useStorefront } from "@/lib/storefront/store-context";
 import { useStorefrontTheme } from "@/lib/storefront/theme-context";
+import { BeautyHome } from "./home/beauty-home";
 import { ClassicHome } from "./home/classic-home";
+import { CosmeticsHome } from "./home/cosmetics-home";
 import { FashionLookbookHome } from "./home/fashion-lookbook-home";
 import { MinimalisticHome } from "./home/minimalistic-home";
 
@@ -16,6 +18,14 @@ export function HomePageView() {
 
   if (theme.id === "minimalistic") {
     return <MinimalisticHome store={store} storefront={storefront} />;
+  }
+
+  if (theme.id === "beauty") {
+    return <BeautyHome store={store} storefront={storefront} />;
+  }
+
+  if (theme.id === "cosmetics") {
+    return <CosmeticsHome store={store} storefront={storefront} />;
   }
 
   if (theme.id === "editorial") {

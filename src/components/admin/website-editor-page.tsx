@@ -17,15 +17,15 @@ import {
   type Store,
   type StorefrontContent,
   type StorefrontTemplateId,
+  type StorefrontTemplateOption,
+  type StorefrontTemplatePreview,
 } from "@/lib/api/types";
 
-const concreteTemplateOptions = STOREFRONT_TEMPLATE_OPTIONS.filter(
-  (
-    option,
-  ): option is (typeof STOREFRONT_TEMPLATE_OPTIONS)[number] & {
-    value: StorefrontTemplateId;
-  } => option.value !== "ai_pick",
-);
+type ConcreteTemplateOption = StorefrontTemplateOption & { value: StorefrontTemplateId };
+
+function getConcreteTemplateOptions(options: StorefrontTemplateOption[]): ConcreteTemplateOption[] {
+  return options.filter((option): option is ConcreteTemplateOption => option.value !== "ai_pick");
+}
 
 const FASHION_TEMPLATE_THUMBNAIL =
   "https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=600&q=80";
@@ -34,9 +34,52 @@ function TemplateMiniPreview({
   variant,
   brandColor,
 }: {
-  variant: "balanced" | "editorial" | "grid" | "lookbook" | "minimal" | "spark";
+  variant: StorefrontTemplatePreview;
   brandColor: string;
 }) {
+  if (variant === "beauty") {
+    return (
+      <div className="h-28 overflow-hidden rounded-lg border border-[#f0d6d0] bg-[#fff7f3] p-2">
+        <div className="grid h-full grid-rows-[1fr_0.75fr] gap-2">
+          <div className="relative overflow-hidden rounded-xl bg-[#e6a79f]/30">
+            <div className="absolute left-3 top-3 h-4 w-20 rounded-full bg-white/80" />
+            <div className="absolute bottom-2 right-3 h-12 w-12 rounded-full bg-[#6f2f2b]/80" />
+          </div>
+          <div className="grid grid-cols-3 gap-1.5">
+            {[0, 1, 2].map((item) => (
+              <div key={item} className="rounded-lg bg-white p-1">
+                <div className="h-5 rounded-md bg-[#e6a79f]/30" />
+                <div className="mt-1 h-1.5 rounded bg-[#6f2f2b]/20" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (variant === "cosmetics") {
+    return (
+      <div className="h-28 overflow-hidden rounded-lg border border-[#e2e6d9] bg-white p-2">
+        <div className="grid h-full grid-cols-[1.2fr_0.8fr] gap-2">
+          <div className="relative overflow-hidden bg-[#fff2df] p-2">
+            <div className="h-2 w-12 rounded bg-[#82934c]/80" />
+            <div className="mt-2 h-4 w-16 rounded bg-[#82934c]/30" />
+            <div className="absolute bottom-2 right-2 h-12 w-8 rounded-t-full bg-white shadow-sm" />
+          </div>
+          <div className="grid gap-1.5">
+            {[0, 1, 2].map((item) => (
+              <div key={item} className="flex items-center gap-1 bg-[#f4f6f1] p-1">
+                <div className="h-6 w-4 rounded-t-full bg-white" />
+                <div className="h-1.5 flex-1 rounded bg-[#82934c]/30" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (variant === "editorial") {
     return (
       <div className="h-28 overflow-hidden rounded-lg border border-border bg-background p-3 text-center">
@@ -132,14 +175,16 @@ function TemplateGrid({
   brandColor,
   selectedTemplateId,
   onSelect,
+  templateOptions,
 }: {
   brandColor: string;
   selectedTemplateId: StorefrontTemplateId;
   onSelect: (templateId: StorefrontTemplateId) => void;
+  templateOptions: ConcreteTemplateOption[];
 }) {
   return (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      {concreteTemplateOptions.map((option) => {
+      {templateOptions.map((option) => {
         const active = selectedTemplateId === option.value;
         return (
           <button
@@ -260,17 +305,19 @@ function StorefrontCreationChoice({
   saving,
   onGenerate,
   onStartEditing,
+  templateOptions,
 }: {
   store: Store;
   generating: boolean;
   saving: boolean;
   onGenerate: (templateId: StorefrontTemplateId) => void;
   onStartEditing: (templateId: StorefrontTemplateId) => void;
+  templateOptions: ConcreteTemplateOption[];
 }) {
   const [selectedTemplateId, setSelectedTemplateId] = useState<StorefrontTemplateId>(
     getConcreteTemplateId(store),
   );
-  const selectedTemplate = concreteTemplateOptions.find(
+  const selectedTemplate = templateOptions.find(
     (option) => option.value === selectedTemplateId,
   );
 
@@ -294,6 +341,7 @@ function StorefrontCreationChoice({
           brandColor={store.brand_color}
           selectedTemplateId={selectedTemplateId}
           onSelect={setSelectedTemplateId}
+          templateOptions={templateOptions}
         />
       </div>
 
@@ -341,6 +389,11 @@ export default function WebsiteEditorPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [previewOpen, setPreviewOpen] = useState(false);
+  const { data: activeTemplateOptions = STOREFRONT_TEMPLATE_OPTIONS } = useQuery({
+    queryKey: ["storefront-templates"],
+    queryFn: api.getStorefrontTemplates,
+  });
+  const concreteTemplateOptions = getConcreteTemplateOptions(activeTemplateOptions);
 
   const storeQuery = useQuery({
     queryKey: ["store", "me"],
@@ -494,6 +547,7 @@ export default function WebsiteEditorPage() {
           store={store}
           generating={generationPending}
           saving={saveStorefront.isPending}
+          templateOptions={concreteTemplateOptions}
           onGenerate={(templateId) => generate.mutate({ storeId: store.id, templateId })}
           onStartEditing={(templateId) =>
             saveStorefront.mutate({

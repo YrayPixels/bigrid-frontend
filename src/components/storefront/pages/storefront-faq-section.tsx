@@ -38,7 +38,9 @@ export function StorefrontFaqSection({ faqPage }: { faqPage?: StorefrontPages["f
   const { theme } = useStorefrontTheme();
   const faqItems = faqPage?.items?.length ? faqPage.items : storefrontFaqFallbacks;
 
-  if (theme.id === "minimalistic") {
+  if (theme.id === "minimalistic" || theme.id === "beauty" || theme.id === "cosmetics") {
+    const isBeauty = theme.id === "beauty";
+    const isCosmetics = theme.id === "cosmetics";
     return (
       <section
         className="px-4 py-16 sm:px-6 lg:py-20"
@@ -53,7 +55,7 @@ export function StorefrontFaqSection({ faqPage }: { faqPage?: StorefrontPages["f
               className="h-2 w-5 rounded-full"
               style={{ backgroundColor: theme.palette.primary }}
             />
-            FAQs
+            {isCosmetics ? "Skincare help" : isBeauty ? "Beauty help" : "FAQs"}
             <span
               className="h-2 w-5 rounded-full"
               style={{ backgroundColor: theme.palette.primary }}
@@ -69,8 +71,11 @@ export function StorefrontFaqSection({ faqPage }: { faqPage?: StorefrontPages["f
             className="mx-auto mt-4 max-w-md text-sm leading-6"
             style={{ color: theme.palette.muted }}
           >
-            Have questions about your order, delivery, or daily wellness routine? We are here to
-            help.
+            {isCosmetics
+              ? "Have questions about your order, delivery, or skincare routine? We are here to help."
+              : isBeauty
+              ? "Have questions about your order, delivery, or beauty routine? We are here to help."
+              : "Have questions about your order, delivery, or daily wellness routine? We are here to help."}
           </p>
 
           <div
@@ -138,7 +143,11 @@ export function StorefrontFaqSection({ faqPage }: { faqPage?: StorefrontPages["f
             className="mx-auto mt-2 max-w-md text-sm leading-6"
             style={{ color: `${theme.palette.background}b3` }}
           >
-            Send us a note and our team will help you choose the right essentials.
+            {isCosmetics
+              ? "Send us a note and our team will help you choose the right skincare essentials."
+              : isBeauty
+              ? "Send us a note and our team will help you choose the right beauty essentials."
+              : "Send us a note and our team will help you choose the right essentials."}
           </p>
         </div>
       </section>
