@@ -2,9 +2,10 @@
 
 import { Leaf, Plus, ShieldCheck, Sparkles } from "lucide-react";
 import type { Store, StorefrontContent } from "@/lib/api/types";
+import { EditableImage } from "@/components/storefront/theme/editable-image";
 import { EditableText } from "@/components/storefront/theme/editable-text";
 import { StorefrontLink } from "@/components/storefront/theme/storefront-link";
-import { useStorefrontTheme } from "@/lib/storefront/theme-context";
+import { cosmeticsTemplateImages } from "@/lib/storefront/cosmetics-defaults";
 
 const cosmeticsStats = [
   ["Trusted by over 350,000+ Clients", "worldwide since 2008"],
@@ -30,54 +31,51 @@ const cosmeticsReasons = [
   },
 ];
 
-function Bottle({
-  className = "",
-  label = "COSME",
-  size = "md",
-}: {
-  className?: string;
-  label?: string;
-  size?: "sm" | "md" | "lg";
-}) {
-  const sizeClass =
-    size === "lg" ? "h-64 w-24" : size === "sm" ? "h-36 w-14" : "h-52 w-20";
+const cosmeticsTestimonials = [
+  "A perfect daily routine.",
+  "Soft, clean, and easy.",
+  "The cleanser feels fresh.",
+];
 
+function ProductPack({ compact = false, editablePath }: { compact?: boolean; editablePath?: string }) {
   return (
-    <div className={`relative ${sizeClass} ${className}`}>
-      <div className="absolute left-1/2 top-0 h-8 w-8 -translate-x-1/2 rounded-t-md bg-[#c89150]" />
-      <div className="absolute left-1/2 top-7 h-3 w-10 -translate-x-1/2 bg-[#f2dfc9]" />
-      <div className="absolute inset-x-0 bottom-0 top-9 rounded-b-[2rem] rounded-t-lg border border-[#e6ddcf] bg-gradient-to-b from-white to-[#f7f1e8] shadow-[0_18px_50px_rgba(91,70,49,0.12)]">
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rotate-90 text-[11px] font-semibold tracking-[0.28em] text-[#333]">
-          {label}
-        </div>
-        <div className="absolute bottom-5 left-1/2 h-px w-8 -translate-x-1/2 bg-[#d8cdbc]" />
-      </div>
-    </div>
-  );
-}
-
-function ProductPack({ compact = false }: { compact?: boolean }) {
-  return (
-    <div className={`relative ${compact ? "h-52" : "h-[420px]"} w-full`}>
-      <div className="absolute bottom-6 left-[10%] h-28 w-28 rounded-full bg-[#e5eadf]" />
-      <div className="absolute bottom-12 left-[18%] h-36 w-28 rounded-t-[3rem] bg-[#f0dfca] shadow-[0_20px_40px_rgba(91,70,49,0.1)]" />
-      <Bottle className="absolute bottom-8 left-[8%]" size={compact ? "sm" : "md"} />
-      <Bottle className="absolute bottom-8 left-[27%]" size={compact ? "sm" : "lg"} />
-      <Bottle className="absolute bottom-8 left-[49%]" size={compact ? "sm" : "md"} />
+    <div className={`relative ${compact ? "h-60" : "h-[430px]"} w-full`}>
+      <div className="absolute inset-x-6 bottom-3 h-20 rounded-[50%] bg-[#dfe5d2] blur-2xl" />
+      <EditableImage
+        path={editablePath}
+        src={compact ? cosmeticsTemplateImages.products[0] : cosmeticsTemplateImages.hero}
+        alt="Cosmetic skincare product arrangement"
+        className={`absolute ${
+          compact
+            ? "bottom-6 left-[8%] h-44 w-[44%]"
+            : "bottom-8 left-[4%] h-[340px] w-[48%]"
+        } overflow-hidden bg-transparent`}
+        imgClassName="object-contain object-bottom drop-shadow-[0_22px_38px_rgba(91,70,49,0.18)]"
+      />
+      <EditableImage
+        src={compact ? cosmeticsTemplateImages.products[1] : cosmeticsTemplateImages.cleanser}
+        alt="Cosmetic cleanser bottle"
+        className={`absolute ${
+          compact
+            ? "bottom-7 left-[42%] h-44 w-[36%]"
+            : "bottom-0 left-[33%] h-[390px] w-[38%]"
+        } overflow-hidden bg-transparent`}
+        imgClassName="object-contain object-bottom drop-shadow-[0_24px_42px_rgba(91,70,49,0.16)]"
+      />
       {!compact ? (
         <>
-          <div className="absolute right-[12%] top-8 h-40 w-28 bg-[#e9e1d5] shadow-[0_20px_40px_rgba(91,70,49,0.08)]">
-            <div className="absolute inset-x-0 top-0 h-12 bg-[#d8d8d1]" />
-            <div className="absolute left-1/2 top-20 h-px w-12 -translate-x-1/2 bg-[#b4aa99]" />
-          </div>
-          <div className="absolute bottom-10 left-[34%] h-24 w-20 rounded-t-[3rem] bg-[#f4e2ca] p-3 shadow-lg">
-            <div className="h-16 rounded-t-[2rem] bg-[#8a9860]" />
-          </div>
-          <div className="absolute bottom-20 left-[39%] h-28 w-20">
-            <span className="absolute bottom-0 left-8 h-24 w-5 rounded-full bg-[#9aa66b]" />
-            <span className="absolute bottom-8 left-2 h-12 w-5 rotate-[-32deg] rounded-full bg-[#a8b47a]" />
-            <span className="absolute bottom-10 right-2 h-14 w-5 rotate-[30deg] rounded-full bg-[#8d9c5d]" />
-          </div>
+          <EditableImage
+            src={cosmeticsTemplateImages.serum}
+            alt="Cosmetic serum packaging"
+            className="absolute bottom-16 right-[5%] h-52 w-[28%] overflow-hidden bg-transparent"
+            imgClassName="object-contain object-bottom drop-shadow-[0_20px_36px_rgba(91,70,49,0.14)]"
+          />
+          <EditableImage
+            src={cosmeticsTemplateImages.cactus}
+            alt="Botanical skincare ingredient"
+            className="absolute bottom-20 left-[38%] h-36 w-36 overflow-hidden rounded-full"
+            imgClassName="object-cover object-center"
+          />
         </>
       ) : null}
     </div>
@@ -123,7 +121,6 @@ export function CosmeticsHome({
   store: Store;
   storefront: StorefrontContent;
 }) {
-  const { theme } = useStorefrontTheme();
   const headline =
     storefront.hero.headline.toLowerCase().includes("discover") ||
     storefront.hero.headline.toLowerCase().includes("shop")
@@ -160,7 +157,7 @@ export function CosmeticsHome({
                 </StorefrontLink>
               </div>
               <div className="relative z-10">
-                <ProductPack />
+                <ProductPack editablePath="media.hero_image_url" />
               </div>
             </div>
           </div>
@@ -188,7 +185,7 @@ export function CosmeticsHome({
 
       <section className="px-4 py-8 sm:px-6">
         <div className="mx-auto grid max-w-7xl items-center gap-10 lg:grid-cols-[0.95fr_1.05fr]">
-          <ProductPack compact />
+          <ProductPack compact editablePath="media.about_image_url" />
           <div>
             <h2 className="text-5xl font-bold tracking-[-0.06em] text-[#82934c]">Best Skin Cleanser</h2>
             <EditableText
@@ -237,7 +234,12 @@ export function CosmeticsHome({
 
           <div className="grid items-center gap-6 p-8 lg:grid-cols-[0.82fr_1fr]">
             <div className="relative h-80">
-              <Bottle className="absolute bottom-3 left-1/2 -translate-x-1/2 rotate-[-24deg]" size="lg" />
+              <EditableImage
+                src={cosmeticsTemplateImages.serum}
+                alt="Cosmetic serum bottle"
+                className="absolute inset-0 overflow-hidden bg-transparent"
+                imgClassName="object-contain object-center drop-shadow-[0_24px_42px_rgba(91,70,49,0.16)]"
+              />
             </div>
             <div>
               <h2 className="text-3xl font-bold tracking-[-0.05em] text-[#82934c]">Why Choose Us</h2>
@@ -272,16 +274,12 @@ export function CosmeticsHome({
             Clean routines, soft finishes, and customer confidence across every product page.
           </p>
           <div className="mt-10 grid gap-6 sm:grid-cols-3">
-            {["A perfect daily routine.", "Soft, clean, and easy.", "The cleanser feels fresh."].map(
-              (quote, index) => (
-                <article key={quote} className="border-t border-[#e2e6d9] pt-5">
-                  <div className="text-[#c9a23e]">★★★★★</div>
-                  <p className="mt-3 text-xs leading-5 text-[#4f5648]">{quote}</p>
-                  <div>
-                    <div className="mt-4 text-[11px] font-bold">Customer {index + 1}</div>
-                  </div>
-                </article>
-              ),
+            {cosmeticsTestimonials.map((quote, index) => (
+              <article key={quote} className="border-t border-[#e2e6d9] pt-5">
+                <div className="text-[#c9a23e]">★★★★★</div>
+                <p className="mt-3 text-xs leading-5 text-[#4f5648]">{quote}</p>
+                <div className="mt-4 text-[11px] font-bold">Customer {index + 1}</div>
+              </article>
             ))}
           </div>
         </div>
