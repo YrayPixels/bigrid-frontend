@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
+import { Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api/client";
@@ -14,6 +15,9 @@ export default function SignupPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -24,6 +28,10 @@ export default function SignupPage() {
     e.preventDefault();
     if (password.length < 8) {
       toast.error("Password must be at least 8 characters");
+      return;
+    }
+    if (password !== confirmPassword) {
+      toast.error("Passwords do not match");
       return;
     }
     setSubmitting(true);
@@ -53,12 +61,41 @@ export default function SignupPage() {
         />
         <Field
           label="Password"
-          type="password"
+          type={showPassword ? "text" : "password"}
           value={password}
           onChange={setPassword}
           required
           autoComplete="new-password"
           placeholder="At least 8 characters"
+          endAdornment={
+            <button
+              type="button"
+              onClick={() => setShowPassword((value) => !value)}
+              className="text-ink-soft transition hover:text-ink"
+              aria-label={showPassword ? "Hide password" : "Show password"}
+            >
+              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          }
+        />
+        <Field
+          label="Confirm password"
+          type={showConfirmPassword ? "text" : "password"}
+          value={confirmPassword}
+          onChange={setConfirmPassword}
+          required
+          autoComplete="new-password"
+          placeholder="Re-enter your password"
+          endAdornment={
+            <button
+              type="button"
+              onClick={() => setShowConfirmPassword((value) => !value)}
+              className="text-ink-soft transition hover:text-ink"
+              aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+            >
+              {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          }
         />
         <button
           type="submit"

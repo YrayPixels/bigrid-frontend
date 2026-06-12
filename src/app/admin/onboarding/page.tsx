@@ -273,6 +273,7 @@ export default function AdminOnboardingPage() {
   }, [recommendationByTemplate, templateOptions, templateRecommendations]);
 
   const steps = ["Business", "Industry", "Template", "Brand"];
+  const onboardingShellWidth = step === 2 ? "max-w-5xl" : "max-w-2xl";
   const canNext =
     (step === 0 && businessName.trim().length > 1 && description.trim().length > 9) ||
     (step === 1 && !!industry) ||
@@ -291,7 +292,7 @@ export default function AdminOnboardingPage() {
         storefront_template_id: storefrontTemplateId,
       });
       await refresh();
-      toast.success("Store created. Opening the AI builder...");
+      toast.success("Store created. Opening your builder...");
       router.replace("/admin/builder");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not create store");
@@ -311,8 +312,10 @@ export default function AdminOnboardingPage() {
   return (
     <div className="min-h-screen bg-canvas">
       <div className="absolute inset-x-0 top-0 h-72 bg-gradient-mesh opacity-60" />
-      <div className="relative w-full px-6 py-12">
-        <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
+      <div className="relative w-full px-6 py-12 lg:py-16">
+        <div
+          className={`mx-auto mb-8 flex w-full flex-wrap items-center justify-between gap-3 ${onboardingShellWidth}`}
+        >
           <div className="flex items-center gap-2">
             <div className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-hero text-primary-foreground">
               <StoreIcon className="h-4 w-4" />
@@ -328,7 +331,9 @@ export default function AdminOnboardingPage() {
           </button>
         </div>
 
-        <ol className="mb-8 flex items-center gap-3 text-sm">
+        <ol
+          className={`mx-auto mb-8 flex w-full items-center gap-3 overflow-x-auto pb-1 text-sm ${onboardingShellWidth}`}
+        >
           {steps.map((label, index) => (
             <li key={label} className="flex items-center gap-3">
               <span
@@ -350,7 +355,9 @@ export default function AdminOnboardingPage() {
           ))}
         </ol>
 
-        <div className="rounded-2xl border border-border bg-card p-8 shadow-elevated">
+        <div
+          className={`mx-auto w-full rounded-2xl border border-border bg-card p-8 shadow-elevated ${onboardingShellWidth}`}
+        >
           {step === 2 && (
             <div className="space-y-5">
               <header>
@@ -432,7 +439,7 @@ export default function AdminOnboardingPage() {
                   className="w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-sm shadow-soft outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
                 />
                 <span className="mt-1 block text-xs text-ink-soft">
-                  The AI uses this to write your hero, about page, and SEO. 1-3 sentences is plenty.
+                  This helps us suggest a layout and starter storefront details. 1-3 sentences is plenty.
                 </span>
               </label>
             </div>
@@ -537,7 +544,7 @@ export default function AdminOnboardingPage() {
                 ) : (
                   <Sparkles className="h-4 w-4" />
                 )}
-                {submitting ? "Creating store..." : "Generate my storefront"}
+                {submitting ? "Creating store..." : "Create my storefront"}
               </button>
             )}
           </div>

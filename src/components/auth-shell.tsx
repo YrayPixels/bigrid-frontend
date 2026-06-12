@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Store } from "lucide-react";
+import type { ReactNode } from "react";
 
 export function AuthShell({
   title,
@@ -51,6 +52,7 @@ export function Field({
   required,
   autoComplete,
   placeholder,
+  endAdornment,
 }: {
   label: string;
   type?: string;
@@ -59,19 +61,27 @@ export function Field({
   required?: boolean;
   autoComplete?: string;
   placeholder?: string;
+  endAdornment?: ReactNode;
 }) {
   return (
     <label className="block">
       <span className="mb-1.5 block text-sm font-medium text-ink">{label}</span>
-      <input
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        required={required}
-        autoComplete={autoComplete}
-        placeholder={placeholder}
-        className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-ink shadow-soft outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
-      />
+      <span className="relative block">
+        <input
+          type={type}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          required={required}
+          autoComplete={autoComplete}
+          placeholder={placeholder}
+          className={`w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-ink shadow-soft outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 ${
+            endAdornment ? "pr-10" : ""
+          }`}
+        />
+        {endAdornment ? (
+          <span className="absolute inset-y-0 right-0 flex items-center pr-3">{endAdornment}</span>
+        ) : null}
+      </span>
     </label>
   );
 }
