@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Banknote,
@@ -16,6 +16,7 @@ import {
 import { getStorefrontUrl } from "@/lib/store-host";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api/client";
+import { DashboardAiBuilderFab } from "@/components/admin/dashboard-ai-builder-fab";
 
 function formatMoney(value: number, currency = "NGN") {
   return new Intl.NumberFormat("en-NG", {
@@ -77,6 +78,7 @@ function MetricCard({
 export default function AdminDashboardPage() {
   const router = useRouter();
   const { user } = useAuth();
+  const [builderOpen, setBuilderOpen] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -253,6 +255,7 @@ export default function AdminDashboardPage() {
           </div>
         </div>
       </section>
+      <DashboardAiBuilderFab open={builderOpen} onOpenChange={setBuilderOpen} />
     </div>
   );
 }

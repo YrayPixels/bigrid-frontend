@@ -69,7 +69,7 @@ export type CreateStoreInput = {
   description: string;
   brand_color: string;
   logo_url: string | null;
-  storefront_template_id: StorefrontTemplateChoice;
+  storefront_template_id?: StorefrontTemplateChoice;
 };
 
 export type UpdateStorefrontInput = {

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Loader2, Send, Sparkles } from "lucide-react";
 import type { BuilderMessage, BuilderSession, StorefrontTemplateId } from "@/lib/api/types";
+import { BuilderMessageWidgets } from "@/components/admin/builder/builder-message-widgets";
 import { BuilderTemplateRecommendations } from "@/components/admin/builder/builder-template-recommendations";
 import type { StorefrontTemplateOption } from "@/lib/api/types";
 
@@ -64,7 +65,16 @@ export function BuilderChatPanel({
 
       <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
         {session.messages.map((message) => (
-          <ChatBubble key={message.id} message={message} />
+          <ChatBubble
+            key={message.id}
+            message={message}
+            brandColor={brandColor}
+            recommendations={session.recommendations}
+            templateOptions={templateOptions}
+            selectedTemplateId={session.selected_template_id}
+            disabled={sending || generating}
+            onSelectTemplate={onSelectTemplate}
+          />
         ))}
         {sending ? (
           <div className="inline-flex items-center gap-2 rounded-full bg-secondary px-3 py-1 text-xs text-ink-soft">
@@ -160,7 +170,23 @@ export function BuilderChatPanel({
   );
 }
 
-function ChatBubble({ message }: { message: BuilderMessage }) {
+function ChatBubble({
+  message,
+  brandColor,
+  recommendations,
+  templateOptions,
+  selectedTemplateId,
+  disabled,
+  onSelectTemplate,
+}: {
+  message: BuilderMessage;
+  brandColor: string;
+  recommendations: BuilderSession["recommendations"];
+  templateOptions: ConcreteTemplateOption[];
+  selectedTemplateId: StorefrontTemplateId | null;
+  disabled?: boolean;
+  onSelectTemplate: (templateId: StorefrontTemplateId) => void;
+}) {
   const isUser = message.role === "user";
 
   return (
@@ -171,6 +197,17 @@ function ChatBubble({ message }: { message: BuilderMessage }) {
         }`}
       >
         {message.content}
+        {!isUser ? (
+          <BuilderMessageWidgets
+            message={message}
+            brandColor={brandColor}
+            recommendations={recommendations}
+            templateOptions={templateOptions}
+            selectedTemplateId={selectedTemplateId}
+            disabled={disabled}
+            onSelectTemplate={onSelectTemplate}
+          />
+        ) : null}
       </div>
     </div>
   );
