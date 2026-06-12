@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, ArrowRight, Check, Loader2, Sparkles, Store as StoreIcon } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth-context";
@@ -10,6 +10,7 @@ import {
   INDUSTRY_OPTIONS,
   STOREFRONT_TEMPLATE_OPTIONS,
   type Industry,
+  type StorefrontTemplateRecommendation,
   type StorefrontTemplateId,
   type StorefrontTemplateOption,
   type StorefrontTemplatePreview,
@@ -190,6 +191,10 @@ export default function AdminOnboardingPage() {
   const [templateOptions, setTemplateOptions] = useState<ConcreteTemplateOption[]>(
     getConcreteTemplateOptions(STOREFRONT_TEMPLATE_OPTIONS),
   );
+  const [templateRecommendations, setTemplateRecommendations] = useState<
+    StorefrontTemplateRecommendation[]
+  >([]);
+  const [recommendationsLoading, setRecommendationsLoading] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) router.replace("/login");
@@ -202,20 +207,76 @@ export default function AdminOnboardingPage() {
       .then((options) => {
         const concreteOptions = getConcreteTemplateOptions(options);
         setTemplateOptions(concreteOptions);
-        if (!concreteOptions.some((option) => option.value === storefrontTemplateId)) {
-          setStorefrontTemplateId(concreteOptions[0]?.value ?? "classic");
-        }
+        setStorefrontTemplateId((currentTemplateId) =>
+          concreteOptions.some((option) => option.value === currentTemplateId)
+            ? currentTemplateId
+            : (concreteOptions[0]?.value ?? "classic"),
+        );
       })
       .catch(() => {
         setTemplateOptions(getConcreteTemplateOptions(STOREFRONT_TEMPLATE_OPTIONS));
       });
-  }, [storefrontTemplateId]);
+  }, []);
 
-  const steps = ["Template", "Business", "Industry", "Brand"];
+  useEffect(() => {
+    if (step !== 2) return;
+
+    let cancelled = false;
+    setRecommendationsLoading(true);
+    api
+      .recommendStorefrontTemplates({
+        prompt: `${businessName} ${description}`.trim(),
+        industry,
+        limit: 4,
+      })
+      .then((recommendations) => {
+        if (cancelled) return;
+        setTemplateRecommendations(recommendations);
+        const firstRecommended = recommendations[0]?.template_id;
+        if (firstRecommended) {
+          setStorefrontTemplateId(firstRecommended);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setTemplateRecommendations([]);
+      })
+      .finally(() => {
+        if (!cancelled) setRecommendationsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [businessName, description, industry, step]);
+
+  const recommendationByTemplate = useMemo(
+    () =>
+      new Map(
+        templateRecommendations.map((recommendation) => [
+          recommendation.template_id,
+          recommendation,
+        ]),
+      ),
+    [templateRecommendations],
+  );
+  const recommendedTemplateOptions = useMemo(() => {
+    if (!templateRecommendations.length) return templateOptions;
+    const optionById = new Map(templateOptions.map((option) => [option.value, option]));
+    const recommendedOptions = templateRecommendations
+      .map((recommendation) => optionById.get(recommendation.template_id))
+      .filter((option): option is ConcreteTemplateOption => Boolean(option));
+    const remainingOptions = templateOptions.filter(
+      (option) => !recommendationByTemplate.has(option.value),
+    );
+
+    return [...recommendedOptions, ...remainingOptions];
+  }, [recommendationByTemplate, templateOptions, templateRecommendations]);
+
+  const steps = ["Business", "Industry", "Template", "Brand"];
   const canNext =
-    (step === 0 && !!storefrontTemplateId) ||
-    (step === 1 && businessName.trim().length > 1 && description.trim().length > 9) ||
-    (step === 2 && !!industry) ||
+    (step === 0 && businessName.trim().length > 1 && description.trim().length > 9) ||
+    (step === 1 && !!industry) ||
+    (step === 2 && !!storefrontTemplateId) ||
     step === 3;
 
   async function submit() {
@@ -230,8 +291,8 @@ export default function AdminOnboardingPage() {
         storefront_template_id: storefrontTemplateId,
       });
       await refresh();
-      toast.success("Store created. Choose how to add your content.");
-      router.replace(`/admin?setup=content&fresh=${store.id}`);
+      toast.success("Store created. Opening the AI builder...");
+      router.replace("/admin/builder");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not create store");
     } finally {
@@ -251,11 +312,20 @@ export default function AdminOnboardingPage() {
     <div className="min-h-screen bg-canvas">
       <div className="absolute inset-x-0 top-0 h-72 bg-gradient-mesh opacity-60" />
       <div className="relative w-full px-6 py-12">
-        <div className="mb-8 flex items-center gap-2">
-          <div className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-hero text-primary-foreground">
-            <StoreIcon className="h-4 w-4" />
+        <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <div className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-hero text-primary-foreground">
+              <StoreIcon className="h-4 w-4" />
+            </div>
+            <span className="font-display text-lg font-bold tracking-tight">Storehaus</span>
           </div>
-          <span className="font-display text-lg font-bold tracking-tight">Storehaus</span>
+          <button
+            type="button"
+            onClick={() => router.push("/admin/builder")}
+            className="text-sm font-medium text-primary hover:underline"
+          >
+            Prefer chat? Try the AI builder
+          </button>
         </div>
 
         <ol className="mb-8 flex items-center gap-3 text-sm">
@@ -281,17 +351,25 @@ export default function AdminOnboardingPage() {
         </ol>
 
         <div className="rounded-2xl border border-border bg-card p-8 shadow-elevated">
-          {step === 0 && (
+          {step === 2 && (
             <div className="space-y-5">
               <header>
-                <h1 className="font-display text-2xl font-bold">Choose a storefront template</h1>
+                <h1 className="font-display text-2xl font-bold">Choose a recommended template</h1>
                 <p className="mt-1 text-sm text-ink-soft">
-                  Start with a layout. Next, you can ask AI to fill it or edit it yourself.
+                  We ranked these options using your business description and industry. You can
+                  still choose any active template.
                 </p>
               </header>
+              {recommendationsLoading ? (
+                <div className="inline-flex items-center gap-2 rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-ink-soft">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Ranking templates...
+                </div>
+              ) : null}
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                {templateOptions.map((option) => {
+                {recommendedTemplateOptions.map((option) => {
                   const active = storefrontTemplateId === option.value;
+                  const recommendation = recommendationByTemplate.get(option.value);
                   return (
                     <button
                       key={option.value}
@@ -308,10 +386,17 @@ export default function AdminOnboardingPage() {
                         <div className="flex items-start justify-between gap-3">
                           <div className="font-display text-base font-semibold">{option.label}</div>
                           <span className="shrink-0 rounded-full bg-secondary px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-soft">
-                            {option.bestFor}
+                            {recommendation
+                              ? `${Math.round(recommendation.score * 100)}% fit`
+                              : option.bestFor}
                           </span>
                         </div>
                         <p className="mt-2 text-sm">{option.description}</p>
+                        {recommendation ? (
+                          <p className="mt-2 rounded-lg bg-primary/5 p-2 text-xs leading-5 text-ink-soft">
+                            {recommendation.reason}
+                          </p>
+                        ) : null}
                       </div>
                     </button>
                   );
@@ -320,7 +405,7 @@ export default function AdminOnboardingPage() {
             </div>
           )}
 
-          {step === 1 && (
+          {step === 0 && (
             <div className="space-y-5">
               <header>
                 <h1 className="font-display text-2xl font-bold">Tell us about your business</h1>
@@ -353,7 +438,7 @@ export default function AdminOnboardingPage() {
             </div>
           )}
 
-          {step === 2 && (
+          {step === 1 && (
             <div className="space-y-5">
               <header>
                 <h1 className="font-display text-2xl font-bold">What industry are you in?</h1>

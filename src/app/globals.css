@@ -181,7 +181,7 @@
 
 @layer utilities {
   .bg-gradient-hero {
-    background: var(--gradient-hero);
+    background-image: var(--gradient-hero);
   }
   .bg-gradient-mesh {
     background-image: var(--gradient-mesh);

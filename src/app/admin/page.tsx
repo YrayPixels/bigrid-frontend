@@ -78,10 +78,19 @@ export default function AdminDashboardPage() {
   const router = useRouter();
   const { user } = useAuth();
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("setup") === "content") {
+      router.replace("/admin/builder");
+    }
+  }, [router]);
+
   const storeQuery = useQuery({
     queryKey: ["store", "me"],
     queryFn: () => api.getMyStore(),
     enabled: !!user,
+    staleTime: 5 * 60 * 1000,
   });
 
   const store = storeQuery.data;
@@ -95,7 +104,8 @@ export default function AdminDashboardPage() {
   const dashboardQuery = useQuery({
     queryKey: ["merchant-dashboard-overview"],
     queryFn: () => api.getDashboardOverview(),
-    enabled: !!store,
+    enabled: !!user && (user.has_store || !!store),
+    staleTime: 60 * 1000,
   });
 
   if (storeQuery.isLoading) {

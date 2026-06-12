@@ -29,6 +29,16 @@ export type StorefrontTemplateId =
   | "cosmetics";
 export type StorefrontTemplateChoice = StorefrontTemplateId | "ai_pick";
 
+export type StorefrontTemplateOrigin = "platform" | "ai_generated" | "admin_created";
+
+export type StorefrontTemplateGenerationStatus =
+  | "requested"
+  | "draft_generated"
+  | "preview_ready"
+  | "review_required"
+  | "active"
+  | "inactive";
+
 export type StorefrontColorPalette = {
   primary: string;
   accent: string;
@@ -102,6 +112,14 @@ export type StorefrontPages = {
   privacy_policy: { title: string; body: string; source: StorePageSource };
 };
 
+export type StorefrontEditMetadata = {
+  locked_paths?: string[];
+  user_edited_paths?: string[];
+  ai_generated_paths?: string[];
+  last_generation_prompt?: string | null;
+  last_generated_at?: string | null;
+};
+
 export type StorefrontContent = {
   template?: {
     id: StorefrontTemplateId;
@@ -122,6 +140,52 @@ export type StorefrontContent = {
   pages?: StorefrontPages;
   products?: StoreProduct[];
   seo: { title: string; description: string };
+  edit_metadata?: StorefrontEditMetadata;
+};
+
+export type BuilderSessionStatus =
+  | "collecting_requirements"
+  | "template_recommendation"
+  | "content_generated"
+  | "products_pending"
+  | "review_ready"
+  | "published";
+
+export type BuilderBusinessProfile = {
+  business_name?: string | null;
+  description?: string | null;
+  industry?: Industry | null;
+  brand_color?: string | null;
+  tone?: string[];
+};
+
+export type BuilderMessageRole = "user" | "assistant";
+
+export type BuilderMessage = {
+  id: string;
+  role: BuilderMessageRole;
+  content: string;
+  payload?: Record<string, unknown> | null;
+  created_at?: string | null;
+};
+
+export type BuilderSession = {
+  id: string;
+  status: BuilderSessionStatus;
+  business_profile: BuilderBusinessProfile;
+  selected_template_id: StorefrontTemplateId | null;
+  storefront_snapshot: StorefrontContent | null;
+  store: Store | null;
+  messages: BuilderMessage[];
+  recommendations: StorefrontTemplateRecommendation[];
+  updated_at?: string | null;
+};
+
+export type BuilderSessionResponse = {
+  session: BuilderSession | null;
+  generation_id?: string;
+  storefront?: StorefrontContent;
+  changed_paths?: string[];
 };
 
 export type PublicStorefront = {
@@ -221,13 +285,38 @@ export type StorefrontTemplatePreview =
   | "spark";
 
 export type StorefrontTemplateOption = {
+  id?: StorefrontTemplateId;
   value: StorefrontTemplateChoice;
   label: string;
   description: string;
   bestFor: string;
+  best_for?: string[];
+  industries?: Industry[];
+  tone_tags?: string[];
+  visual_tags?: string[];
+  product_types?: string[];
   preview: StorefrontTemplatePreview;
+  default_palette?: StorefrontColorPalette;
+  required_content_slots?: string[];
+  optional_content_slots?: string[];
+  origin?: StorefrontTemplateOrigin;
+  base_template_id?: StorefrontTemplateId;
+  generation_status?: StorefrontTemplateGenerationStatus;
   is_active?: boolean;
   sort_order?: number;
+};
+
+export type StorefrontTemplateRecommendation = {
+  template_id: StorefrontTemplateId;
+  score: number;
+  reason: string;
+};
+
+export type RecommendStorefrontTemplatesInput = {
+  prompt?: string;
+  industry?: Industry;
+  tone?: string[];
+  limit?: number;
 };
 
 export const STOREFRONT_TEMPLATE_OPTIONS: StorefrontTemplateOption[] = [
@@ -244,7 +333,16 @@ export const STOREFRONT_TEMPLATE_OPTIONS: StorefrontTemplateOption[] = [
     description:
       "A clothing-brand homepage with campaign imagery, curated edits, and product drops.",
     bestFor: "Clothing brands",
+    best_for: ["clothing brands", "streetwear labels", "seasonal collections"],
+    industries: ["fashion_and_apparel"],
+    tone_tags: ["bold", "editorial", "modern"],
+    visual_tags: ["lookbook", "campaign-led", "image-forward"],
+    product_types: ["physical"],
     preview: "lookbook",
+    required_content_slots: ["hero", "about", "value_props", "products", "faq"],
+    optional_content_slots: ["featuredDrops", "lookbookStory"],
+    origin: "platform",
+    generation_status: "active",
   },
   {
     value: "beauty",
@@ -252,7 +350,16 @@ export const STOREFRONT_TEMPLATE_OPTIONS: StorefrontTemplateOption[] = [
     description:
       "A polished beauty storefront for hair, skincare, bundles, and best-seller storytelling.",
     bestFor: "Beauty, hair, skincare",
+    best_for: ["beauty brands", "hair products", "skincare bundles"],
+    industries: ["beauty_and_skincare"],
+    tone_tags: ["premium", "soft", "polished"],
+    visual_tags: ["editorial", "warm", "product-focused"],
+    product_types: ["physical"],
     preview: "beauty",
+    required_content_slots: ["hero", "about", "value_props", "products", "faq"],
+    optional_content_slots: ["bestSellers", "routineFeature"],
+    origin: "platform",
+    generation_status: "active",
   },
   {
     value: "cosmetics",
@@ -260,7 +367,16 @@ export const STOREFRONT_TEMPLATE_OPTIONS: StorefrontTemplateOption[] = [
     description:
       "A clean cosmetics storefront for skincare, serums, product storytelling, and ingredient-led trust.",
     bestFor: "Cosmetics, skincare",
+    best_for: ["skincare brands", "cosmetics catalogs", "routine-based products"],
+    industries: ["beauty_and_skincare"],
+    tone_tags: ["natural", "premium", "clean", "soft"],
+    visual_tags: ["minimal", "ingredient-led", "product-focused"],
+    product_types: ["physical"],
     preview: "cosmetics",
+    required_content_slots: ["hero", "about", "value_props", "products", "faq"],
+    optional_content_slots: ["routineFeature", "ingredientFeature"],
+    origin: "platform",
+    generation_status: "active",
   },
   {
     value: "minimalistic",
@@ -268,6 +384,15 @@ export const STOREFRONT_TEMPLATE_OPTIONS: StorefrontTemplateOption[] = [
     description:
       "A clean supplement-inspired storefront with soft neutrals, rounded product cards, and wellness storytelling.",
     bestFor: "Wellness brands",
+    best_for: ["wellness brands", "home goods", "simple product catalogs"],
+    industries: ["home_and_living", "food_and_beverage", "electronics", "services", "other"],
+    tone_tags: ["minimal", "calm", "clean", "warm"],
+    visual_tags: ["soft", "neutral", "catalog-friendly"],
+    product_types: ["physical", "service"],
     preview: "minimal",
+    required_content_slots: ["hero", "about", "value_props", "products", "faq"],
+    optional_content_slots: ["categoryHighlights", "wellnessStory"],
+    origin: "platform",
+    generation_status: "active",
   },
 ];

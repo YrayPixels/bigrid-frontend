@@ -2,10 +2,17 @@ import { getStoreSubdomainHost } from "@/lib/store-host";
 import { STOREFRONT_TEMPLATE_OPTIONS } from "./types";
 import type {
   AuthResponse,
+  BuilderBusinessProfile,
+  BuilderMessage,
+  BuilderSession,
+  BuilderSessionResponse,
+  BuilderSessionStatus,
   CreateStoreOrderInput,
   CreateStoreInput,
+  Industry,
   MerchantDashboardOverview,
   PublicStorefront,
+  RecommendStorefrontTemplatesInput,
   Store,
   StoreOrder,
   StoreOrdersResponse,
@@ -29,10 +36,19 @@ type MockDB = {
     { session_id?: string; path?: string; referrer?: string; visited_at: string }[]
   >;
   sessions: Record<string, string>;
+  builderSessions: Record<string, BuilderSession>;
 };
 
 function emptyDb(): MockDB {
-  return { users: {}, stores: {}, storefronts: {}, orders: {}, visits: {}, sessions: {} };
+  return {
+    users: {},
+    stores: {},
+    storefronts: {},
+    orders: {},
+    visits: {},
+    sessions: {},
+    builderSessions: {},
+  };
 }
 
 function load(): MockDB {
@@ -48,6 +64,7 @@ function load(): MockDB {
       orders: db.orders ?? {},
       visits: db.visits ?? {},
       sessions: db.sessions ?? {},
+      builderSessions: db.builderSessions ?? {},
     };
   } catch {
     return emptyDb();
@@ -95,6 +112,17 @@ export const mockApi = {
   async getStorefrontTemplates(): Promise<StorefrontTemplateOption[]> {
     await delay(100);
     return STOREFRONT_TEMPLATE_OPTIONS.filter((option) => option.value !== "ai_pick");
+  },
+
+  async recommendStorefrontTemplates(
+    body: RecommendStorefrontTemplatesInput,
+  ): Promise<{
+    recommendations: { template_id: StorefrontTemplateId; score: number; reason: string }[];
+  }> {
+    await delay(180);
+    return {
+      recommendations: recommendTemplates(body).slice(0, body.limit ?? 4),
+    };
   },
 
   async register(body: { name: string; email: string; password: string }): Promise<AuthResponse> {
@@ -433,7 +461,419 @@ export const mockApi = {
     save(db);
     return { message: "Visit recorded." };
   },
+
+  async getCurrentBuilderSession(token: string): Promise<BuilderSessionResponse> {
+    await delay(150);
+    const db = load();
+    const userId = db.sessions[token];
+    if (!userId) throw { status: 401, message: "Unauthenticated" };
+    const session = db.builderSessions[userId];
+    return { session: session ? hydrateBuilderSession(db, session) : null };
+  },
+
+  async startBuilderSession(token: string, prompt?: string): Promise<BuilderSessionResponse> {
+    await delay(250);
+    const db = load();
+    const userId = db.sessions[token];
+    if (!userId) throw { status: 401, message: "Unauthenticated" };
+
+    let session = db.builderSessions[userId];
+    if (!session) {
+      const store = db.stores[userId] ?? null;
+      session = createEmptyBuilderSession(store);
+      db.builderSessions[userId] = session;
+    }
+
+    if (prompt) {
+      session = processBuilderMessage(db, userId, session, prompt);
+      db.builderSessions[userId] = session;
+    } else if (!session.messages.length) {
+      session.messages.push({
+        id: uid(),
+        role: "assistant",
+        content:
+          "Hi! I'm your storefront builder. Tell me about your business — what you sell, who it's for, and the vibe you want — and I'll recommend templates and draft your site.",
+        payload: { type: "welcome" },
+        created_at: new Date().toISOString(),
+      });
+      db.builderSessions[userId] = session;
+    }
+
+    save(db);
+    return { session: hydrateBuilderSession(db, session) };
+  },
+
+  async sendBuilderMessage(
+    token: string,
+    sessionId: string,
+    message: string,
+  ): Promise<BuilderSessionResponse> {
+    await delay(300);
+    const db = load();
+    const userId = db.sessions[token];
+    if (!userId) throw { status: 401, message: "Unauthenticated" };
+    const session = db.builderSessions[userId];
+    if (!session || session.id !== sessionId) throw { status: 404, message: "Builder session not found" };
+
+    const next = processBuilderMessage(db, userId, session, message);
+    db.builderSessions[userId] = next;
+    save(db);
+    return { session: hydrateBuilderSession(db, next) };
+  },
+
+  async selectBuilderTemplate(
+    token: string,
+    sessionId: string,
+    templateId: StorefrontTemplateId,
+    source: "merchant_selected" | "ai_selected" = "merchant_selected",
+  ): Promise<BuilderSessionResponse> {
+    await delay(200);
+    const db = load();
+    const userId = db.sessions[token];
+    if (!userId) throw { status: 401, message: "Unauthenticated" };
+    const session = db.builderSessions[userId];
+    if (!session || session.id !== sessionId) throw { status: 404, message: "Builder session not found" };
+
+    session.selected_template_id = templateId;
+    session.status = "template_recommendation";
+    if (session.store) {
+      const store = db.stores[userId];
+      if (store) store.storefront_template_id = templateId;
+    }
+    session.messages.push({
+      id: uid(),
+      role: "assistant",
+      content:
+        "Great choice. I can generate a first draft with hero copy, about section, FAQs, SEO, and sample products for this template.",
+      payload: { type: "template_selected", template_id: templateId, source },
+      created_at: new Date().toISOString(),
+    });
+    db.builderSessions[userId] = session;
+    save(db);
+    return { session: hydrateBuilderSession(db, session) };
+  },
+
+  async generateBuilderDraft(token: string, sessionId: string): Promise<BuilderSessionResponse> {
+    await delay(1800);
+    const db = load();
+    const userId = db.sessions[token];
+    if (!userId) throw { status: 401, message: "Unauthenticated" };
+    const session = db.builderSessions[userId];
+    if (!session || session.id !== sessionId) throw { status: 404, message: "Builder session not found" };
+
+    const store = ensureBuilderStore(db, userId, session);
+    if (session.selected_template_id) {
+      store.storefront_template_id = session.selected_template_id;
+    }
+
+    const storefront = synthesizeStorefront(store);
+    storefront.edit_metadata = {
+      ai_generated_paths: [
+        "hero.headline",
+        "hero.subheadline",
+        "hero.cta_label",
+        "about.title",
+        "about.body",
+        "value_props",
+        "pages",
+        "seo.title",
+        "seo.description",
+        "products",
+      ],
+      user_edited_paths: [],
+      last_generation_prompt: null,
+      last_generated_at: new Date().toISOString(),
+    };
+
+    db.storefronts[store.id] = storefront;
+    session.store = store;
+    session.storefront_snapshot = storefront;
+    session.status = "content_generated";
+    session.messages.push({
+      id: uid(),
+      role: "assistant",
+      content:
+        "Your storefront draft is ready. Preview it on the right, or ask me to refine the hero, about section, FAQ, or SEO.",
+      payload: { type: "draft_generated" },
+      created_at: new Date().toISOString(),
+    });
+    db.builderSessions[userId] = session;
+    save(db);
+
+    return {
+      session: hydrateBuilderSession(db, session),
+      generation_id: uid(),
+      storefront,
+    };
+  },
+
+  async applyBuilderChatEdit(
+    token: string,
+    sessionId: string,
+    instruction: string,
+  ): Promise<BuilderSessionResponse> {
+    await delay(500);
+    const db = load();
+    const userId = db.sessions[token];
+    if (!userId) throw { status: 401, message: "Unauthenticated" };
+    const session = db.builderSessions[userId];
+    if (!session || session.id !== sessionId) throw { status: 404, message: "Builder session not found" };
+    if (!session.storefront_snapshot) throw { status: 422, message: "Generate a draft before applying chat edits." };
+
+    const result = applyMockChatEdit(session.storefront_snapshot, instruction);
+    session.storefront_snapshot = result.storefront;
+    session.status = "review_ready";
+    if (session.store) {
+      db.storefronts[session.store.id] = result.storefront;
+    }
+    session.messages.push({
+      id: uid(),
+      role: "assistant",
+      content: result.changed_paths.length
+        ? `Updated: ${result.changed_paths.join(", ")}.`
+        : "I reviewed your request but did not change any protected fields.",
+      payload: { type: "edit_applied", changed_paths: result.changed_paths },
+      created_at: new Date().toISOString(),
+    });
+    db.builderSessions[userId] = session;
+    save(db);
+
+    return {
+      session: hydrateBuilderSession(db, session),
+      storefront: result.storefront,
+      changed_paths: result.changed_paths,
+    };
+  },
 };
+
+function createEmptyBuilderSession(store: Store | null): BuilderSession {
+  const profile: BuilderBusinessProfile = store
+    ? {
+        business_name: store.business_name,
+        description: store.description,
+        industry: store.industry,
+        brand_color: store.brand_color,
+        tone: [],
+      }
+    : { business_name: null, description: null, industry: null, brand_color: null, tone: [] };
+
+  return {
+    id: uid(),
+    status: store ? "template_recommendation" : "collecting_requirements",
+    business_profile: profile,
+    selected_template_id:
+      store?.storefront_template_id && store.storefront_template_id !== "ai_pick"
+        ? store.storefront_template_id
+        : null,
+    storefront_snapshot: null,
+    store,
+    messages: [],
+    recommendations: [],
+    updated_at: new Date().toISOString(),
+  };
+}
+
+function hydrateBuilderSession(db: MockDB, session: BuilderSession): BuilderSession {
+  const userId = Object.entries(db.sessions).find(([, id]) => db.stores[id]?.id === session.store?.id)?.[1];
+  const storeFromDb = userId ? db.stores[userId] : session.store;
+  const profile = session.business_profile ?? {};
+  const recommendations =
+    session.status !== "collecting_requirements"
+      ? recommendTemplates({
+          prompt: `${profile.business_name ?? ""} ${profile.description ?? ""}`.trim(),
+          industry: profile.industry ?? undefined,
+          tone: profile.tone,
+          limit: 4,
+        })
+      : [];
+
+  return {
+    ...session,
+    store: storeFromDb ?? session.store,
+    recommendations,
+    storefront_snapshot:
+      session.storefront_snapshot ??
+      (storeFromDb ? db.storefronts[storeFromDb.id] ?? null : null),
+    updated_at: new Date().toISOString(),
+  };
+}
+
+function extractBusinessProfile(message: string, profile: BuilderBusinessProfile): BuilderBusinessProfile {
+  const next = { ...profile, tone: [...(profile.tone ?? [])] };
+  const lower = message.toLowerCase();
+
+  const namedMatch = message.match(/(?:called|named|name is|business is)\s+["']?([^"'.!?\n]+)["']?/i);
+  const isMatch = message.match(/^([A-Z][\w\s&'-]{2,60}?)\s+is\s+(?:an?|the)\s+/i);
+  if (namedMatch) next.business_name = namedMatch[1].trim();
+  else if (isMatch) next.business_name = isMatch[1].trim();
+  if (message.length > 20 && !next.description) next.description = message.trim();
+
+  const industryMap: Record<string, Industry> = {
+    skincare: "beauty_and_skincare",
+    beauty: "beauty_and_skincare",
+    cosmetic: "beauty_and_skincare",
+    fashion: "fashion_and_apparel",
+    clothing: "fashion_and_apparel",
+    streetwear: "fashion_and_apparel",
+    food: "food_and_beverage",
+    coffee: "food_and_beverage",
+    restaurant: "food_and_beverage",
+    electronics: "electronics",
+    furniture: "home_and_living",
+    home: "home_and_living",
+    service: "services",
+  };
+  for (const [keyword, industry] of Object.entries(industryMap)) {
+    if (lower.includes(keyword)) {
+      next.industry = industry;
+      break;
+    }
+  }
+
+  for (const tone of ["premium", "luxury", "minimal", "natural", "clean", "bold", "editorial"]) {
+    if (lower.includes(tone) && !next.tone?.includes(tone)) next.tone?.push(tone);
+  }
+
+  const colorMatch = message.match(/#([0-9A-Fa-f]{6})/);
+  if (colorMatch) next.brand_color = `#${colorMatch[1]}`;
+
+  return next;
+}
+
+function processBuilderMessage(
+  db: MockDB,
+  userId: string,
+  session: BuilderSession,
+  message: string,
+): BuilderSession {
+  session.messages.push({
+    id: uid(),
+    role: "user",
+    content: message,
+    created_at: new Date().toISOString(),
+  });
+
+  session.business_profile = extractBusinessProfile(message, session.business_profile ?? {});
+  const profile = session.business_profile;
+  const hasMinimum =
+    !!profile.business_name &&
+    !!profile.description &&
+    profile.description.length >= 10;
+
+  if (hasMinimum) {
+    const store = ensureBuilderStore(db, userId, session);
+    session.store = store;
+    store.business_name = profile.business_name ?? store.business_name;
+    store.description = profile.description ?? store.description;
+    store.industry = profile.industry ?? store.industry;
+    store.brand_color = profile.brand_color ?? store.brand_color;
+    db.stores[userId] = store;
+    const user = db.users[userId];
+    if (user) {
+      user.user.has_store = true;
+    }
+    session.status = "template_recommendation";
+    const recommendations = recommendTemplates({
+      prompt: `${profile.business_name} ${profile.description}`.trim(),
+      industry: profile.industry ?? undefined,
+      tone: profile.tone,
+      limit: 4,
+    });
+    session.recommendations = recommendations;
+    const top = recommendations[0];
+    session.messages.push({
+      id: uid(),
+      role: "assistant",
+      content: top
+        ? `I found a strong fit with the ${top.template_id} template (${Math.round(top.score * 100)}% match). ${top.reason} Pick a template below, or ask for a different style.`
+        : "I have enough to recommend templates. Pick one below, or tell me if you want a different style.",
+      payload: { type: "template_recommendations", recommendations, profile },
+      created_at: new Date().toISOString(),
+    });
+  } else {
+    session.status = "collecting_requirements";
+    const missing = [];
+    if (!profile.business_name) missing.push("business name");
+    if (!profile.description || profile.description.length < 10) missing.push("short description of what you sell");
+    session.messages.push({
+      id: uid(),
+      role: "assistant",
+      content: `Thanks — I still need your ${missing.join(" and ")}. For example: "Glow Rituals is an organic skincare brand for busy professionals."`,
+      payload: { type: "requirements_request", profile },
+      created_at: new Date().toISOString(),
+    });
+  }
+
+  session.updated_at = new Date().toISOString();
+  return session;
+}
+
+function ensureBuilderStore(db: MockDB, userId: string, session: BuilderSession): Store {
+  const existing = db.stores[userId];
+  if (existing) return existing;
+
+  const profile = session.business_profile ?? {};
+  const businessName = profile.business_name ?? "My Store";
+  const slug = slugify(businessName) || "my-store";
+  const store: Store = {
+    id: uid(),
+    slug,
+    business_name: businessName,
+    industry: profile.industry ?? "other",
+    description: profile.description ?? "",
+    brand_color: profile.brand_color ?? "#0E7C66",
+    logo_url: null,
+    storefront_template_id: "ai_pick",
+    subdomain: slug,
+    subdomain_host: getStoreSubdomainHost(slug),
+    primary_domain: getStoreSubdomainHost(slug),
+  };
+  db.stores[userId] = store;
+  const user = db.users[userId];
+  if (user) user.user.has_store = true;
+  return store;
+}
+
+function applyMockChatEdit(
+  storefront: StorefrontContent,
+  instruction: string,
+): { storefront: StorefrontContent; changed_paths: string[] } {
+  const lower = instruction.toLowerCase();
+  const next = structuredClone(storefront);
+  const changed: string[] = [];
+
+  const setPath = (path: string, value: string) => {
+    if (path === "hero.headline") next.hero.headline = value;
+    if (path === "hero.subheadline") next.hero.subheadline = value;
+    if (path === "hero.cta_label") next.hero.cta_label = value;
+    if (path === "about.body") next.about.body = value;
+    if (path === "seo.description") next.seo.description = value.slice(0, 300);
+    changed.push(path);
+  };
+
+  if (lower.includes("premium") || lower.includes("luxury")) {
+    setPath("hero.headline", next.hero.headline.replace(/\b(shop|buy|online)\b/gi, "").trim() || next.hero.headline);
+    setPath("hero.subheadline", `${next.hero.subheadline} Crafted with premium quality and a refined customer experience.`);
+    setPath("hero.cta_label", "Shop the collection");
+  } else if (lower.includes("cta") || lower.includes("button")) {
+    setPath("hero.cta_label", lower.includes("collection") ? "Shop the collection" : "Discover more");
+  } else if (lower.includes("hero") || lower.includes("headline")) {
+    setPath("hero.subheadline", `${next.hero.subheadline} Updated to match your request.`);
+  } else if (lower.includes("about")) {
+    setPath("about.body", `${next.about.body} Updated to match your request.`);
+  } else {
+    setPath("hero.subheadline", `${next.hero.subheadline} Updated to match your request.`);
+  }
+
+  next.edit_metadata = {
+    ...next.edit_metadata,
+    user_edited_paths: [...new Set([...(next.edit_metadata?.user_edited_paths ?? []), ...changed])],
+    last_generation_prompt: instruction,
+    last_generated_at: new Date().toISOString(),
+  };
+
+  return { storefront: next, changed_paths: changed };
+}
 
 function synthesizeStorefront(store: Store): StorefrontContent {
   const name = store.business_name;
@@ -663,6 +1103,59 @@ function synthesizeStorefront(store: Store): StorefrontContent {
       description: `${desc.slice(0, 150)}`.replace(/\s+\S*$/, "..."),
     },
   };
+}
+
+function recommendTemplates(body: RecommendStorefrontTemplatesInput) {
+  const prompt = `${body.prompt ?? ""} ${(body.tone ?? []).join(" ")}`.toLowerCase();
+  const concreteTemplates = STOREFRONT_TEMPLATE_OPTIONS.filter(
+    (option): option is StorefrontTemplateOption & { value: StorefrontTemplateId } =>
+      option.value !== "ai_pick",
+  );
+
+  return concreteTemplates
+    .map((template) => {
+      let score = 0.35;
+      const reasons: string[] = [];
+
+      if (body.industry && template.industries?.includes(body.industry)) {
+        score += 0.35;
+        reasons.push(`strong ${body.industry.replace(/_/g, " ")} fit`);
+      }
+
+      const matchedToneTags = (template.tone_tags ?? []).filter((tag) =>
+        prompt.includes(tag.toLowerCase()),
+      );
+      if (matchedToneTags.length) {
+        score += Math.min(0.18, matchedToneTags.length * 0.06);
+        reasons.push(`matches ${matchedToneTags.slice(0, 2).join(" and ")} tone`);
+      }
+
+      const searchText = [
+        template.label,
+        template.description,
+        template.bestFor,
+        ...(template.best_for ?? []),
+        ...(template.visual_tags ?? []),
+      ]
+        .join(" ")
+        .toLowerCase();
+      const keywordMatches = prompt
+        .split(/\W+/)
+        .filter((word) => word.length > 3 && searchText.includes(word));
+
+      if (keywordMatches.length) {
+        score += Math.min(0.12, keywordMatches.length * 0.03);
+      }
+
+      return {
+        template_id: template.value,
+        score: Number(Math.min(score, 0.98).toFixed(2)),
+        reason: reasons.length
+          ? `Recommended because it has ${reasons.join(" and ")}.`
+          : `Recommended as a flexible starting point for ${template.bestFor.toLowerCase()}.`,
+      };
+    })
+    .sort((a, b) => b.score - a.score);
 }
 
 function resolveTemplateId(store: Store): StorefrontTemplateId {

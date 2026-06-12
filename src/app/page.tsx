@@ -48,8 +48,8 @@ export default function HomePage() {
               <Sparkles className="h-3.5 w-3.5 text-primary" />
               Phase 1 MVP - AI Storefront Generator
             </span>
-            <h1 className="mt-6 font-display text-5xl font-bold tracking-tight sm:text-6xl">
-              Launch your online store.{" "}
+            <h1 className="mt-6 flex flex-col items-center gap-1 font-display text-5xl font-bold leading-[1.1] tracking-tight sm:gap-2 sm:text-6xl">
+              <span>Launch your online store.</span>
               <span className="bg-gradient-hero bg-clip-text text-transparent">
                 The AI does the rest.
               </span>

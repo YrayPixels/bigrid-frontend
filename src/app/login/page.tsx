@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api/client";
@@ -10,7 +11,8 @@ import { AuthShell, Field } from "@/components/auth-shell";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { user, refresh } = useAuth();
+  const queryClient = useQueryClient();
+  const { user, setUser } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -24,7 +26,21 @@ export default function LoginPage() {
     setSubmitting(true);
     try {
       const { user: nextUser } = await api.login({ email, password });
-      await refresh();
+      setUser(nextUser);
+      if (nextUser.has_store) {
+        await Promise.all([
+          queryClient.prefetchQuery({
+            queryKey: ["store", "me"],
+            queryFn: () => api.getMyStore(),
+            staleTime: 5 * 60 * 1000,
+          }),
+          queryClient.prefetchQuery({
+            queryKey: ["merchant-dashboard-overview"],
+            queryFn: () => api.getDashboardOverview(),
+            staleTime: 60 * 1000,
+          }),
+        ]);
+      }
       toast.success(`Welcome back, ${nextUser.name.split(" ")[0]}!`);
       router.replace(nextUser.has_store ? "/admin" : "/admin/onboarding");
     } catch (err) {

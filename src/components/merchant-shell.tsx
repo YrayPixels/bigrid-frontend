@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   LogOut,
+  MessageSquare,
   Package,
   Settings,
   ShoppingBag,
@@ -29,6 +30,7 @@ import {
 
 const navItems = [
   { href: "/admin", label: "Overview", icon: LayoutDashboard, exact: true },
+  { href: "/admin/builder", label: "AI Builder", icon: MessageSquare, exact: false },
   { href: "/admin/website", label: "Website", icon: Sparkles, exact: false },
   { href: "/admin/products", label: "Products", icon: Package, exact: false },
   { href: "/admin/orders", label: "Orders", icon: ShoppingBag, exact: false },

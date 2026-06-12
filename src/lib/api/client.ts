@@ -2,8 +2,10 @@ import { mockApi } from "./mocks";
 import { STOREFRONT_TEMPLATE_OPTIONS } from "./types";
 import type {
   AuthResponse,
+  BuilderSessionResponse,
   CreateStoreInput,
   MerchantDashboardOverview,
+  RecommendStorefrontTemplatesInput,
   Store,
   StoreOrder,
   StoreOrdersResponse,
@@ -161,6 +163,27 @@ export const api = {
     return res.templates.length ? res.templates : STOREFRONT_TEMPLATE_OPTIONS;
   },
 
+  async recommendStorefrontTemplates(
+    body: RecommendStorefrontTemplatesInput,
+  ): Promise<{ template_id: StorefrontTemplateId; score: number; reason: string }[]> {
+    if (USE_MOCKS) {
+      const res = await mockApi.recommendStorefrontTemplates(body);
+      return res.recommendations;
+    }
+
+    const res = await http<{
+      recommendations: { template_id: StorefrontTemplateId; score: number; reason: string }[];
+    }>(`${STOREHAUSE_API_PREFIX}/storefront-builder/recommend-templates`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }).catch((err) => {
+      console.warn("Falling back to local template recommendations", err);
+      return { recommendations: [] };
+    });
+
+    return res.recommendations;
+  },
+
   async getOrders(
     filters: {
       status?: string;
@@ -254,6 +277,64 @@ export const api = {
     const body = new FormData();
     body.append("image", file);
     return httpForm<{ url: string }>(`${STOREHAUSE_API_PREFIX}/stores/${storeId}/images`, body);
+  },
+
+  async getCurrentBuilderSession(): Promise<BuilderSessionResponse> {
+    const token = requireToken();
+    if (USE_MOCKS) return mockApi.getCurrentBuilderSession(token);
+    return http<BuilderSessionResponse>(`${STOREHAUSE_API_PREFIX}/storefront-builder/sessions/current`);
+  },
+
+  async startBuilderSession(prompt?: string): Promise<BuilderSessionResponse> {
+    const token = requireToken();
+    if (USE_MOCKS) return mockApi.startBuilderSession(token, prompt);
+    return http<BuilderSessionResponse>(`${STOREHAUSE_API_PREFIX}/storefront-builder/sessions`, {
+      method: "POST",
+      body: JSON.stringify(prompt ? { prompt } : {}),
+    });
+  },
+
+  async sendBuilderMessage(sessionId: string, message: string): Promise<BuilderSessionResponse> {
+    const token = requireToken();
+    if (USE_MOCKS) return mockApi.sendBuilderMessage(token, sessionId, message);
+    return http<BuilderSessionResponse>(
+      `${STOREHAUSE_API_PREFIX}/storefront-builder/sessions/${sessionId}/messages`,
+      { method: "POST", body: JSON.stringify({ message }) },
+    );
+  },
+
+  async selectBuilderTemplate(
+    sessionId: string,
+    templateId: StorefrontTemplateId,
+    source: "merchant_selected" | "ai_selected" = "merchant_selected",
+  ): Promise<BuilderSessionResponse> {
+    const token = requireToken();
+    if (USE_MOCKS) return mockApi.selectBuilderTemplate(token, sessionId, templateId, source);
+    return http<BuilderSessionResponse>(
+      `${STOREHAUSE_API_PREFIX}/storefront-builder/sessions/${sessionId}/select-template`,
+      { method: "POST", body: JSON.stringify({ template_id: templateId, source }) },
+    );
+  },
+
+  async generateBuilderDraft(sessionId: string): Promise<BuilderSessionResponse> {
+    const token = requireToken();
+    if (USE_MOCKS) return mockApi.generateBuilderDraft(token, sessionId);
+    return http<BuilderSessionResponse>(
+      `${STOREHAUSE_API_PREFIX}/storefront-builder/sessions/${sessionId}/generate`,
+      { method: "POST", body: JSON.stringify({}) },
+    );
+  },
+
+  async applyBuilderChatEdit(
+    sessionId: string,
+    instruction: string,
+  ): Promise<BuilderSessionResponse> {
+    const token = requireToken();
+    if (USE_MOCKS) return mockApi.applyBuilderChatEdit(token, sessionId, instruction);
+    return http<BuilderSessionResponse>(
+      `${STOREHAUSE_API_PREFIX}/storefront-builder/sessions/${sessionId}/edit`,
+      { method: "POST", body: JSON.stringify({ instruction }) },
+    );
   },
 };
 
