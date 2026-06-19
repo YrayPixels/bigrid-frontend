@@ -2,7 +2,9 @@ import { mockApi } from "./mocks";
 import { STOREFRONT_TEMPLATE_OPTIONS } from "./types";
 import type {
   AuthResponse,
+  BuilderBusinessProfile,
   BuilderSessionResponse,
+  BuilderSessionStatus,
   CreateStoreInput,
   MerchantDashboardOverview,
   RecommendStorefrontTemplatesInput,
@@ -21,6 +23,26 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ?? "";
 const STOREHAUSE_API_PREFIX = "/storehause";
 const USE_MOCKS = process.env.NEXT_PUBLIC_USE_MOCKS === "true" || !API_BASE;
 const TOKEN_KEY = "storehaus_auth_token";
+
+export type PersistBuilderMessageInput = {
+  business_profile?: BuilderBusinessProfile;
+  status?: BuilderSessionStatus;
+  assistant_message?: string;
+  assistant_payload?: Record<string, unknown>;
+  selected_template_id?: StorefrontTemplateId | null;
+  storefront_snapshot?: StorefrontContent | null;
+};
+
+export type PersistBuilderDraftInput = {
+  storefront: StorefrontContent;
+  selected_template_id?: StorefrontTemplateId | null;
+};
+
+export type PersistBuilderEditInput = {
+  storefront: StorefrontContent;
+  changed_paths?: string[];
+  assistant_message?: string;
+};
 
 export function getToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -221,6 +243,7 @@ export const api = {
   async generateStorefront(
     storeId: string,
     storefrontTemplateId?: StorefrontTemplateId,
+    storefront?: StorefrontContent,
   ): Promise<StorefrontContent> {
     const token = requireToken();
     const body = {
@@ -231,7 +254,7 @@ export const api = {
       ? await mockApi.generateStorefront(token, body)
       : await http<{ generation_id: string; storefront: StorefrontContent }>(
           `${STOREHAUSE_API_PREFIX}/ai/storefront/generate`,
-          { method: "POST", body: JSON.stringify(body) },
+          { method: "POST", body: JSON.stringify({ ...body, ...(storefront ? { storefront } : {}) }) },
         );
     return res.storefront;
   },
@@ -294,12 +317,16 @@ export const api = {
     });
   },
 
-  async sendBuilderMessage(sessionId: string, message: string): Promise<BuilderSessionResponse> {
+  async sendBuilderMessage(
+    sessionId: string,
+    message: string,
+    state?: PersistBuilderMessageInput,
+  ): Promise<BuilderSessionResponse> {
     const token = requireToken();
     if (USE_MOCKS) return mockApi.sendBuilderMessage(token, sessionId, message);
     return http<BuilderSessionResponse>(
       `${STOREHAUSE_API_PREFIX}/storefront-builder/sessions/${sessionId}/messages`,
-      { method: "POST", body: JSON.stringify({ message }) },
+      { method: "POST", body: JSON.stringify({ message, ...(state ?? {}) }) },
     );
   },
 
@@ -316,24 +343,28 @@ export const api = {
     );
   },
 
-  async generateBuilderDraft(sessionId: string): Promise<BuilderSessionResponse> {
+  async generateBuilderDraft(
+    sessionId: string,
+    draft?: PersistBuilderDraftInput,
+  ): Promise<BuilderSessionResponse> {
     const token = requireToken();
     if (USE_MOCKS) return mockApi.generateBuilderDraft(token, sessionId);
     return http<BuilderSessionResponse>(
       `${STOREHAUSE_API_PREFIX}/storefront-builder/sessions/${sessionId}/generate`,
-      { method: "POST", body: JSON.stringify({}) },
+      { method: "POST", body: JSON.stringify(draft ?? {}) },
     );
   },
 
   async applyBuilderChatEdit(
     sessionId: string,
     instruction: string,
+    edit?: PersistBuilderEditInput,
   ): Promise<BuilderSessionResponse> {
     const token = requireToken();
     if (USE_MOCKS) return mockApi.applyBuilderChatEdit(token, sessionId, instruction);
     return http<BuilderSessionResponse>(
       `${STOREHAUSE_API_PREFIX}/storefront-builder/sessions/${sessionId}/edit`,
-      { method: "POST", body: JSON.stringify({ instruction }) },
+      { method: "POST", body: JSON.stringify({ instruction, ...(edit ?? {}) }) },
     );
   },
 };

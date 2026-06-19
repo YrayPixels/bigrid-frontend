@@ -15,17 +15,13 @@ import {
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api/client";
 import {
+  applyBuilderChatEditForSession,
+  processBuilderMessage,
+} from "@/lib/storefront-builder/client";
+import {
   STOREFRONT_TEMPLATE_OPTIONS,
   type BuilderSession,
-  type StorefrontTemplateId,
-  type StorefrontTemplateOption,
 } from "@/lib/api/types";
-
-type ConcreteTemplateOption = StorefrontTemplateOption & { value: StorefrontTemplateId };
-
-function getConcreteTemplateOptions(options: StorefrontTemplateOption[]): ConcreteTemplateOption[] {
-  return options.filter((option): option is ConcreteTemplateOption => option.value !== "ai_pick");
-}
 
 export function DashboardAiBuilderFab({
   open,
@@ -54,18 +50,27 @@ export function DashboardAiBuilderFab({
   });
 
   const session = sessionQuery.data?.session ?? null;
+  const templateOptions = useMemo(
+    () => templatesQuery.data ?? STOREFRONT_TEMPLATE_OPTIONS,
+    [templatesQuery.data],
+  );
 
   const sendMessage = useMutation({
     mutationFn: async (message: string) => {
       if (!session) {
-        return api.startBuilderSession(message);
+        const started = await api.startBuilderSession();
+        return processBuilderMessage({
+          session: started.session as BuilderSession,
+          message,
+          templateOptions,
+        });
       }
 
       if (session.storefront_snapshot) {
-        return api.applyBuilderChatEdit(session.id, message);
+        return applyBuilderChatEditForSession({ session, instruction: message });
       }
 
-      return api.sendBuilderMessage(session.id, message);
+      return processBuilderMessage({ session, message, templateOptions });
     },
     onSuccess: async (data) => {
       queryClient.setQueryData(["builder-session"], data);
@@ -77,45 +82,13 @@ export function DashboardAiBuilderFab({
     onError: (error) => toast.error(error instanceof Error ? error.message : "Could not send message"),
   });
 
-  const selectTemplate = useMutation({
-    mutationFn: (templateId: StorefrontTemplateId) => {
-      if (!session) throw new Error("No active builder session");
-      return api.selectBuilderTemplate(session.id, templateId);
-    },
-    onSuccess: (data) => {
-      queryClient.setQueryData(["builder-session"], data);
-      toast.success("Template selected");
-    },
-    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not select template"),
-  });
-
-  const generateDraft = useMutation({
-    mutationFn: () => {
-      if (!session) throw new Error("No active builder session");
-      return api.generateBuilderDraft(session.id);
-    },
-    onSuccess: async (data) => {
-      queryClient.setQueryData(["builder-session"], data);
-      await refresh();
-      queryClient.invalidateQueries({ queryKey: ["store", "me"] });
-      queryClient.invalidateQueries({ queryKey: ["merchant-dashboard-overview"] });
-      toast.success("Storefront draft generated");
-    },
-    onError: (error) => toast.error(error instanceof Error ? error.message : "Generation failed"),
-  });
-
-  const templateOptions = useMemo(
-    () => getConcreteTemplateOptions(templatesQuery.data ?? STOREFRONT_TEMPLATE_OPTIONS),
-    [templatesQuery.data],
-  );
-
   return (
     <>
       <button
         type="button"
         onClick={() => onOpenChange(true)}
         className="fixed bottom-6 right-6 z-40 inline-flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-elevated transition hover:scale-105 hover:opacity-95"
-        aria-label="Open AI builder chat"
+        aria-label="Open AI website builder"
       >
         <Sparkles className="h-6 w-6" />
       </button>
@@ -123,7 +96,7 @@ export function DashboardAiBuilderFab({
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-h-[calc(100vh-3rem)] max-w-2xl overflow-hidden p-0">
           <DialogHeader className="sr-only">
-            <DialogTitle>AI storefront builder</DialogTitle>
+            <DialogTitle>AI website builder</DialogTitle>
             <DialogDescription>Chat with the AI builder without leaving the dashboard.</DialogDescription>
           </DialogHeader>
 
@@ -135,12 +108,9 @@ export function DashboardAiBuilderFab({
             <div className="h-[min(720px,calc(100vh-3rem))]">
               <BuilderChatPanel
                 session={session as BuilderSession}
-                templateOptions={templateOptions}
                 sending={sendMessage.isPending}
-                generating={generateDraft.isPending}
+                generating={sendMessage.isPending && !!session.storefront_snapshot}
                 onSendMessage={(message) => sendMessage.mutate(message)}
-                onSelectTemplate={(templateId) => selectTemplate.mutate(templateId)}
-                onGenerateDraft={() => generateDraft.mutate()}
               />
             </div>
           )}

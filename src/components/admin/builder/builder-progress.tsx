@@ -4,10 +4,10 @@ import { Check } from "lucide-react";
 import type { BuilderSessionStatus } from "@/lib/api/types";
 
 const STEPS: { id: BuilderSessionStatus | "start"; label: string }[] = [
-  { id: "collecting_requirements", label: "Requirements" },
-  { id: "template_recommendation", label: "Template" },
-  { id: "content_generated", label: "Draft" },
-  { id: "review_ready", label: "Review" },
+  { id: "collecting_requirements", label: "Your business" },
+  { id: "template_recommendation", label: "Designing" },
+  { id: "content_generated", label: "Building" },
+  { id: "review_ready", label: "Preview" },
 ];
 
 function stepIndex(status: BuilderSessionStatus): number {

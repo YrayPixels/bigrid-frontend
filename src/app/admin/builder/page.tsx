@@ -11,18 +11,14 @@ import { BuilderProgress } from "@/components/admin/builder/builder-progress";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api/client";
 import {
+  applyBuilderChatEditForSession,
+  processBuilderMessage,
+} from "@/lib/storefront-builder/client";
+import {
   STOREFRONT_TEMPLATE_OPTIONS,
   type BuilderSession,
   type StorefrontContent,
-  type StorefrontTemplateId,
-  type StorefrontTemplateOption,
 } from "@/lib/api/types";
-
-type ConcreteTemplateOption = StorefrontTemplateOption & { value: StorefrontTemplateId };
-
-function getConcreteTemplateOptions(options: StorefrontTemplateOption[]): ConcreteTemplateOption[] {
-  return options.filter((option): option is ConcreteTemplateOption => option.value !== "ai_pick");
-}
 
 export default function AdminBuilderPage() {
   const router = useRouter();
@@ -46,6 +42,10 @@ export default function AdminBuilderPage() {
   });
 
   const session = sessionQuery.data?.session ?? null;
+  const templateOptions = useMemo(
+    () => templatesQuery.data ?? STOREFRONT_TEMPLATE_OPTIONS,
+    [templatesQuery.data],
+  );
 
   useEffect(() => {
     if (!loading && !user) router.replace("/login");
@@ -60,16 +60,19 @@ export default function AdminBuilderPage() {
   const sendMessage = useMutation({
     mutationFn: async (message: string) => {
       if (!session) {
-        const started = await api.startBuilderSession(message);
-        return started;
+        const started = await api.startBuilderSession();
+        return processBuilderMessage({
+          session: started.session as BuilderSession,
+          message,
+          templateOptions,
+        });
       }
 
-      const hasDraft = !!session.storefront_snapshot;
-      if (hasDraft) {
-        return api.applyBuilderChatEdit(session.id, message);
+      if (session.storefront_snapshot) {
+        return applyBuilderChatEditForSession({ session, instruction: message });
       }
 
-      return api.sendBuilderMessage(session.id, message);
+      return processBuilderMessage({ session, message, templateOptions });
     },
     onSuccess: async (data) => {
       queryClient.setQueryData(["builder-session"], data);
@@ -81,41 +84,6 @@ export default function AdminBuilderPage() {
     },
     onError: (error) => toast.error(error instanceof Error ? error.message : "Could not send message"),
   });
-
-  const selectTemplate = useMutation({
-    mutationFn: (templateId: StorefrontTemplateId) => {
-      if (!session) throw new Error("No active builder session");
-      return api.selectBuilderTemplate(session.id, templateId);
-    },
-    onSuccess: (data) => {
-      queryClient.setQueryData(["builder-session"], data);
-      toast.success("Template selected");
-    },
-    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not select template"),
-  });
-
-  const generateDraft = useMutation({
-    mutationFn: () => {
-      if (!session) throw new Error("No active builder session");
-      return api.generateBuilderDraft(session.id);
-    },
-    onSuccess: async (data) => {
-      queryClient.setQueryData(["builder-session"], data);
-      if (data.storefront) setLocalStorefront(data.storefront);
-      await refresh();
-      queryClient.invalidateQueries({ queryKey: ["store", "me"] });
-      if (data.session?.store?.id) {
-        queryClient.setQueryData(["storefront", data.session.store.id], data.storefront ?? null);
-      }
-      toast.success("Storefront draft generated");
-    },
-    onError: (error) => toast.error(error instanceof Error ? error.message : "Generation failed"),
-  });
-
-  const templateOptions = useMemo(
-    () => getConcreteTemplateOptions(templatesQuery.data ?? STOREFRONT_TEMPLATE_OPTIONS),
-    [templatesQuery.data],
-  );
 
   if (loading || !user || sessionQuery.isLoading) {
     return (
@@ -137,13 +105,13 @@ export default function AdminBuilderPage() {
     <div className="w-full px-6 py-8">
       <div className="mb-6 space-y-4">
         <div>
-          <span className="text-xs font-medium uppercase tracking-wide text-ink-soft">AI Builder</span>
+          <span className="text-xs font-medium uppercase tracking-wide text-ink-soft">AI Website Builder</span>
           <h1 className="mt-1 font-display text-3xl font-bold tracking-tight">
-            Build your storefront by chat
+            Build your website by chat
           </h1>
           <p className="mt-1 text-sm text-ink-soft">
-            Describe your business, choose a template, generate structured content, and refine it with
-            chat edits.
+            Describe your business and the AI will design, write, and generate your website. Refine it
+            with follow-up messages.
           </p>
         </div>
         <BuilderProgress status={session.status} />
@@ -152,17 +120,14 @@ export default function AdminBuilderPage() {
       <div className="grid gap-6 xl:grid-cols-[minmax(0,420px)_1fr]">
         <BuilderChatPanel
           session={session as BuilderSession}
-          templateOptions={templateOptions}
           sending={sendMessage.isPending}
-          generating={generateDraft.isPending}
+          generating={sendMessage.isPending && !!session.storefront_snapshot}
           onSendMessage={(message) => sendMessage.mutate(message)}
-          onSelectTemplate={(templateId) => selectTemplate.mutate(templateId)}
-          onGenerateDraft={() => generateDraft.mutate()}
         />
         <BuilderPreviewPanel
           store={session.store}
           storefront={localStorefront}
-          generating={generateDraft.isPending}
+          generating={sendMessage.isPending}
         />
       </div>
     </div>

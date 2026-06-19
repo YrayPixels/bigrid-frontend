@@ -2,42 +2,29 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Loader2, Send, Sparkles } from "lucide-react";
-import type { BuilderMessage, BuilderSession, StorefrontTemplateId } from "@/lib/api/types";
+import type { BuilderMessage, BuilderSession } from "@/lib/api/types";
 import { BuilderMessageWidgets } from "@/components/admin/builder/builder-message-widgets";
-import { BuilderTemplateRecommendations } from "@/components/admin/builder/builder-template-recommendations";
-import type { StorefrontTemplateOption } from "@/lib/api/types";
-
-type ConcreteTemplateOption = StorefrontTemplateOption & { value: StorefrontTemplateId };
 
 const SUGGESTED_PROMPTS = [
-  "I want a premium organic skincare store for busy professionals.",
-  "Create a streetwear clothing storefront with bold editorial vibes.",
-  "I sell handmade candles and need a simple, warm online shop.",
+  "I want a premium organic skincare website for busy professionals.",
+  "Build a bold streetwear clothing website with editorial vibes.",
+  "I sell handmade candles and need a warm, simple online shop.",
 ];
 
 export function BuilderChatPanel({
   session,
-  templateOptions,
   sending,
   generating,
   onSendMessage,
-  onSelectTemplate,
-  onGenerateDraft,
 }: {
   session: BuilderSession;
-  templateOptions: ConcreteTemplateOption[];
   sending: boolean;
   generating: boolean;
   onSendMessage: (message: string) => void;
-  onSelectTemplate: (templateId: StorefrontTemplateId) => void;
-  onGenerateDraft: () => void;
 }) {
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const brandColor = session.store?.brand_color ?? session.business_profile.brand_color ?? "#0E7C66";
-  const showRecommendations =
-    session.status !== "collecting_requirements" && session.recommendations.length > 0;
-  const canGenerate = !!session.selected_template_id && session.status !== "content_generated";
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -56,77 +43,27 @@ export function BuilderChatPanel({
       <div className="border-b border-border px-5 py-4">
         <div className="flex items-center gap-2 text-sm font-medium text-ink-soft">
           <Sparkles className="h-4 w-4 text-primary" />
-          AI Storefront Builder
+          AI Website Builder
         </div>
         <p className="mt-1 text-sm text-ink-soft">
-          Describe your business, pick a template, then generate and refine your storefront.
+          Describe your business and the AI will design and build your website for you.
         </p>
       </div>
 
       <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
         {session.messages.map((message) => (
-          <ChatBubble
-            key={message.id}
-            message={message}
-            brandColor={brandColor}
-            recommendations={session.recommendations}
-            templateOptions={templateOptions}
-            selectedTemplateId={session.selected_template_id}
-            disabled={sending || generating}
-            onSelectTemplate={onSelectTemplate}
-          />
+          <ChatBubble key={message.id} message={message} brandColor={brandColor} />
         ))}
-        {sending ? (
+        {sending || generating ? (
           <div className="inline-flex items-center gap-2 rounded-full bg-secondary px-3 py-1 text-xs text-ink-soft">
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            Thinking...
-          </div>
-        ) : null}
-
-        {showRecommendations ? (
-          <div className="rounded-xl border border-border bg-background p-4">
-            <h3 className="text-sm font-semibold text-ink">Recommended templates</h3>
-            <p className="mt-1 text-xs text-ink-soft">
-              Select a template to continue, or keep chatting for a different style.
-            </p>
-            <div className="mt-4">
-              <BuilderTemplateRecommendations
-                brandColor={brandColor}
-                recommendations={session.recommendations}
-                templateOptions={templateOptions}
-                selectedTemplateId={session.selected_template_id}
-                disabled={sending || generating}
-                onSelect={onSelectTemplate}
-              />
-            </div>
-            {session.selected_template_id ? (
-              <button
-                type="button"
-                onClick={onGenerateDraft}
-                disabled={!canGenerate || generating}
-                className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60"
-              >
-                {generating ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Generating draft...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="h-4 w-4" />
-                    Generate storefront draft
-                  </>
-                )}
-              </button>
-            ) : null}
+            {generating ? "Building your website..." : "Thinking..."}
           </div>
         ) : null}
 
         {!session.messages.length ? (
           <div className="space-y-2">
-            <p className="text-xs font-medium uppercase tracking-wide text-ink-soft">
-              Try one of these
-            </p>
+            <p className="text-xs font-medium uppercase tracking-wide text-ink-soft">Try one of these</p>
             <div className="flex flex-wrap gap-2">
               {SUGGESTED_PROMPTS.map((prompt) => (
                 <button
@@ -152,13 +89,13 @@ export function BuilderChatPanel({
             placeholder={
               session.storefront_snapshot
                 ? 'Try "Make the homepage more premium" or "Change the CTA to Shop the Collection"'
-                : "Tell me about your business..."
+                : "Tell me about your business and say “build my website” when you're ready..."
             }
             className="min-h-[72px] flex-1 resize-none rounded-md border border-border bg-background px-3 py-2 text-sm shadow-soft outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
           />
           <button
             type="submit"
-            disabled={!input.trim() || sending}
+            disabled={!input.trim() || sending || generating}
             className="inline-flex h-10 w-10 items-center justify-center rounded-md bg-ink text-background disabled:opacity-50"
             aria-label="Send message"
           >
@@ -173,19 +110,9 @@ export function BuilderChatPanel({
 function ChatBubble({
   message,
   brandColor,
-  recommendations,
-  templateOptions,
-  selectedTemplateId,
-  disabled,
-  onSelectTemplate,
 }: {
   message: BuilderMessage;
   brandColor: string;
-  recommendations: BuilderSession["recommendations"];
-  templateOptions: ConcreteTemplateOption[];
-  selectedTemplateId: StorefrontTemplateId | null;
-  disabled?: boolean;
-  onSelectTemplate: (templateId: StorefrontTemplateId) => void;
 }) {
   const isUser = message.role === "user";
 
@@ -197,17 +124,7 @@ function ChatBubble({
         }`}
       >
         {message.content}
-        {!isUser ? (
-          <BuilderMessageWidgets
-            message={message}
-            brandColor={brandColor}
-            recommendations={recommendations}
-            templateOptions={templateOptions}
-            selectedTemplateId={selectedTemplateId}
-            disabled={disabled}
-            onSelectTemplate={onSelectTemplate}
-          />
-        ) : null}
+        {!isUser ? <BuilderMessageWidgets message={message} brandColor={brandColor} /> : null}
       </div>
     </div>
   );
