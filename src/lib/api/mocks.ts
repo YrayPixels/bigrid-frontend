@@ -182,6 +182,7 @@ export const mockApi = {
       subdomain: slug,
       subdomain_host: getStoreSubdomainHost(slug),
       primary_domain: getStoreSubdomainHost(slug),
+      storefront_template_id: body.storefront_template_id ?? "classic",
       ...body,
     };
     db.stores[userId] = store;
