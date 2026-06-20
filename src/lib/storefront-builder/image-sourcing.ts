@@ -1,6 +1,7 @@
 import type { BuilderMediaTarget, Industry, StorefrontContent } from "@/lib/api/types";
 import { ensureHomeBlocksOnStorefront } from "@/lib/storefront/blocks/sync-legacy";
-import { migrateAboutBlocks, migrateHomeBlocks } from "@/lib/storefront/blocks/migrate-page-blocks";
+import { migrateHomeBlocks } from "@/lib/storefront/blocks/migrate-home";
+import { migrateAboutBlocks } from "@/lib/storefront/blocks/migrate-page-blocks";
 import type { StorefrontBlock } from "@/lib/storefront/blocks/types";
 import { parseJsonObject } from "@/lib/storefront-builder/agents/agentThinking";
 import { getAssistantMessageContent, getThinkingModel, postChat } from "@/lib/storefront-builder/agents/openaiChat";
@@ -75,7 +76,7 @@ function idsToUrls(ids: unknown, fallback: string[]): string[] {
 
 function buildSearchTerms(context: ImageSourceContext, intent?: string): string[] {
   const industry = context.industry?.toString().replace(/_/g, " ") ?? "shop";
-  const parts = [context.business_name, industry, context.description, intent]
+  const parts = [context.description, intent, industry]
     .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
     .map((value) => value.trim());
   return parts.length ? parts.slice(0, 4) : ["small business", industry];
@@ -87,16 +88,27 @@ async function resolveTemplateImagePlan(
 ): Promise<{ plan: TemplateImagePlan; summary: string; search_terms: string[]; source: "unsplash" | "catalog" }> {
   const fallback = fallbackPlan(context.industry);
 
-  const unsplashPlan = await fetchTemplatePlanFromUnsplash(context, intent);
+  const unsplashPlan = await fetchTemplatePlanFromUnsplash(
+    {
+      industry: context.industry,
+      description: context.description,
+      tone: context.tone,
+    },
+    intent,
+  );
   if (unsplashPlan) {
-    const terms = buildSearchTerms(context, intent);
+    console.info("[image-sourcing] using live Unsplash photos");
     return {
       plan: unsplashPlan,
-      search_terms: terms,
-      summary: "I found fresh Unsplash photos that match your brand.",
+      search_terms: unsplashPlan.search_terms.length
+        ? unsplashPlan.search_terms
+        : buildSearchTerms(context, intent),
+      summary: unsplashPlan.summary ?? "I found fresh Unsplash photos that match your brand.",
       source: "unsplash",
     };
   }
+
+  console.info("[image-sourcing] falling back to curated catalog");
 
   const catalog = catalogForAiPrompt();
 

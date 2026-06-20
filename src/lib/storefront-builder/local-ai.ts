@@ -23,9 +23,9 @@ import { ensureHomeBlocksOnStorefront, maybeSyncHomeBlocksFromLegacyPaths } from
 import { tryApplyContactFormInstruction, tryApplyHomeBlockInstruction } from "@/lib/storefront/blocks/operations";
 import {
   applyAiBlockOperations,
-  resolvePageBlocks,
   tryApplyPageBlockInstruction,
 } from "@/lib/storefront/blocks/page-block-operations";
+import { resolvePageBlocks } from "@/lib/storefront/blocks/migrate-page-blocks";
 import { isFaqItemAppendInstruction } from "@/lib/storefront/blocks/catalog";
 import { applyStockImagesToStorefront } from "@/lib/storefront-builder/stock-images";
 import { resolveBrandColorWithAi, isOpenEndedColorRequest } from "@/lib/storefront-builder/color-resolver";
