@@ -549,7 +549,7 @@ export function VisualStorefrontEditor({
                       pages: {
                         ...current.pages!,
                         contact: {
-                          ...current.pages!.contact,
+                          ...current.pages!.contact!,
                           email: event.target.value || null,
                           source: "merchant",
                         },
@@ -569,7 +569,7 @@ export function VisualStorefrontEditor({
                       pages: {
                         ...current.pages!,
                         contact: {
-                          ...current.pages!.contact,
+                          ...current.pages!.contact!,
                           phone: event.target.value || null,
                           source: "merchant",
                         },

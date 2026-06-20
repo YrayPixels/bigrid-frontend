@@ -99,8 +99,8 @@ export type StorePageSource = "merchant" | "ai_generated" | "platform_default";
 
 export type StorefrontPages = {
   home?: { blocks: StorefrontBlock[] };
-  about: { title: string; body: string; source: StorePageSource; blocks?: StorefrontBlock[] };
-  contact: {
+  about?: { title: string; body: string; source: StorePageSource; blocks?: StorefrontBlock[] };
+  contact?: {
     title: string;
     body: string;
     email?: string | null;
@@ -108,13 +108,13 @@ export type StorefrontPages = {
     source: StorePageSource;
     blocks?: StorefrontBlock[];
   };
-  faq: {
+  faq?: {
     title: string;
     source: StorePageSource;
     items: { question: string; answer: string }[];
     blocks?: StorefrontBlock[];
   };
-  privacy_policy: { title: string; body: string; source: StorePageSource };
+  privacy_policy?: { title: string; body: string; source: StorePageSource };
 };
 
 export type StoreContactInquiryInput = {

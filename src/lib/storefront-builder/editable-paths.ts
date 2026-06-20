@@ -157,18 +157,43 @@ export function storefrontPathLabel(path: string): string {
   return path.replaceAll(".", " ");
 }
 
+function defaultStorefrontPages(
+  pages: StorefrontContent["pages"],
+  storefront: StorefrontContent,
+): NonNullable<StorefrontContent["pages"]> {
+  return {
+    ...pages,
+    about: pages?.about ?? {
+      title: storefront.about.title,
+      body: storefront.about.body,
+      source: "merchant",
+    },
+    contact: pages?.contact ?? {
+      title: "Contact us",
+      body: "",
+      email: null,
+      phone: null,
+      source: "merchant",
+    },
+    faq: pages?.faq ?? {
+      title: "Frequently asked questions",
+      source: "merchant",
+      items: [],
+    },
+    privacy_policy: pages?.privacy_policy ?? {
+      title: "Privacy policy",
+      body: "",
+      source: "platform_default",
+    },
+    home: pages?.home,
+  };
+}
+
 function setAboutField(storefront: StorefrontContent, field: "title" | "body", value: string): void {
   storefront.about[field] = value;
 
   if (!storefront.pages?.about) {
-    storefront.pages = {
-      ...storefront.pages,
-      about: {
-        title: storefront.about.title,
-        body: storefront.about.body,
-        source: "merchant",
-      },
-    };
+    storefront.pages = defaultStorefrontPages(storefront.pages, storefront);
     return;
   }
 
@@ -396,14 +421,7 @@ function applyIndexedField(
 
 function ensureContactPage(storefront: StorefrontContent) {
   if (!storefront.pages?.contact) {
-    storefront.pages = {
-      ...storefront.pages,
-      contact: {
-        title: "Contact us",
-        body: "",
-        source: "merchant",
-      },
-    };
+    storefront.pages = defaultStorefrontPages(storefront.pages, storefront);
   }
 
   return storefront.pages.contact!;
@@ -411,14 +429,7 @@ function ensureContactPage(storefront: StorefrontContent) {
 
 function ensureFaqPage(storefront: StorefrontContent) {
   if (!storefront.pages?.faq) {
-    storefront.pages = {
-      ...storefront.pages,
-      faq: {
-        title: "Frequently asked questions",
-        source: "merchant",
-        items: [],
-      },
-    };
+    storefront.pages = defaultStorefrontPages(storefront.pages, storefront);
   }
 
   return storefront.pages.faq!;

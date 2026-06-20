@@ -22,7 +22,7 @@ import {
 import { streamBuilderThinkingTurn } from "@/lib/storefront-builder/thinking-stream";
 import { alignStorefrontTemplateToSelection } from "@/lib/storefront/template";
 
-function asConcreteTemplateId(value: string | null | undefined): StorefrontTemplateId | undefined {
+export function asConcreteTemplateId(value: string | null | undefined): StorefrontTemplateId | undefined {
   if (!value || value === "ai_pick") return undefined;
   return value as StorefrontTemplateId;
 }

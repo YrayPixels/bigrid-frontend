@@ -161,7 +161,10 @@ export function getLatestSuggestedActions(session: BuilderSession): BuilderSugge
   return fallbackSuggestedActions(session);
 }
 
-export function colorPresetActions(industry?: Industry | null, limit = 3): BuilderSuggestedAction[] {
+export function colorPresetActions(
+  industry?: Industry | null,
+  limit = 3,
+): Extract<BuilderSuggestedAction, { type: "color" }>[] {
   return COLOR_PRESETS[industryKey(industry)].slice(0, limit).map((preset) => ({
     type: "color" as const,
     label: preset.label,

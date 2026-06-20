@@ -171,15 +171,17 @@ function ensureForegroundContrast(foreground: string, background: string, minRat
 export function ensureReadablePalette(palette: StorefrontColorPalette): StorefrontColorPalette {
   const result = { ...palette };
 
-  let { h: bgH, s: bgS, l: bgL } = hexToHsl(result.background);
-  let { h: surfaceH, s: surfaceS, l: surfaceL } = hexToHsl(result.surface);
+  const bgHsl = hexToHsl(result.background);
+  let bgL = bgHsl.l;
+  const surfaceHsl = hexToHsl(result.surface);
+  let surfaceL = surfaceHsl.l;
 
   if (bgL < 85) {
-    result.background = hslToHex(bgH, clamp(bgS, 0, 22), clamp(bgL + 30, 94, 98));
+    result.background = hslToHex(bgHsl.h, clamp(bgHsl.s, 0, 22), clamp(bgL + 30, 94, 98));
     bgL = hexToHsl(result.background).l;
   }
   if (surfaceL < 85) {
-    result.surface = hslToHex(surfaceH, clamp(surfaceS, 0, 12), clamp(surfaceL + 30, 96, 99));
+    result.surface = hslToHex(surfaceHsl.h, clamp(surfaceHsl.s, 0, 12), clamp(surfaceL + 30, 96, 99));
     surfaceL = hexToHsl(result.surface).l;
   }
 

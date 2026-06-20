@@ -67,7 +67,6 @@ function ImageSourceWidget({ payload }: { payload: Record<string, unknown> }) {
           {recommendations.map((entry) =>
             entry.url ? (
               <div key={`${entry.target}-${entry.url}`} className="overflow-hidden rounded-lg border border-border">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={entry.url} alt={entry.label ?? "Suggested photo"} className="h-24 w-full object-cover" />
                 <div className="px-2 py-1.5 text-[11px] text-ink-soft">
                   <p className="font-medium text-ink">{entry.label ?? "Suggested photo"}</p>

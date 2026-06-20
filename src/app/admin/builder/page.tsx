@@ -15,6 +15,7 @@ import { api } from "@/lib/api/client";
 import {
   applyBuilderBrandColor,
   applyBuilderMedia,
+  asConcreteTemplateId,
   streamAndPersistBuilderMessage,
 } from "@/lib/storefront-builder/client";
 import {
@@ -99,14 +100,10 @@ export default function AdminBuilderPage() {
     const nextStorefront = data.storefront ?? data.session?.storefront_snapshot ?? null;
     if (nextStorefront) {
       const templateId =
-        nextStorefront.template?.id && nextStorefront.template.id !== "ai_pick"
-          ? nextStorefront.template.id
-          : data.session?.selected_template_id && data.session.selected_template_id !== "ai_pick"
-            ? data.session.selected_template_id
-            : data.session?.store?.storefront_template_id &&
-                data.session.store.storefront_template_id !== "ai_pick"
-              ? data.session.store.storefront_template_id
-              : null;
+        asConcreteTemplateId(nextStorefront.template?.id) ??
+        asConcreteTemplateId(data.session?.selected_template_id) ??
+        asConcreteTemplateId(data.session?.store?.storefront_template_id) ??
+        null;
       setLocalStorefront(
         templateId
           ? (alignStorefrontTemplateToSelection(nextStorefront, templateId) ?? nextStorefront)

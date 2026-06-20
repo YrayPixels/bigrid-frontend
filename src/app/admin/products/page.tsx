@@ -264,7 +264,7 @@ export default function AdminProductsPage() {
     enabled: !!store,
   });
 
-  const products = productsQuery.data ?? [];
+  const products = useMemo(() => productsQuery.data ?? [], [productsQuery.data]);
   const categoryOptions = useMemo(() => {
     const categories = products
       .map((product) => product.category)

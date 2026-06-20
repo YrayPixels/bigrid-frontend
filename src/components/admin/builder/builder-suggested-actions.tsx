@@ -84,7 +84,6 @@ export function BuilderSuggestedActions({
                 className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-2.5 py-1.5 text-left text-xs text-ink hover:border-primary/40 disabled:opacity-50"
               >
                 <span className="relative h-6 w-6 shrink-0 overflow-hidden rounded-full border border-black/10">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={action.url} alt="" className="h-full w-full object-cover" />
                 </span>
                 <ImageIcon className="h-3 w-3 text-ink-soft" />
