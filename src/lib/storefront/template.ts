@@ -30,7 +30,7 @@ export function resolveStorefrontTemplate(
   store: Store,
   storefront: StorefrontContent,
 ): StorefrontTemplateId {
-  if (storefront.template?.id && storefront.template.id !== "ai_pick") {
+  if (storefront.template?.id) {
     return storefront.template.id;
   }
 
@@ -46,12 +46,12 @@ export function alignStorefrontTemplateToSelection(
   storefront: StorefrontContent | null | undefined,
   templateId: StorefrontTemplateId | null | undefined,
 ): StorefrontContent | null | undefined {
-  if (!storefront || !templateId || templateId === "ai_pick") {
+  if (!storefront || !templateId) {
     return storefront;
   }
 
   const existing = storefront.template?.id;
-  if (existing && existing !== "ai_pick") {
+  if (existing) {
     return storefront;
   }
 

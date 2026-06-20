@@ -141,7 +141,7 @@ export function syncLegacyFieldsFromAboutBlocks(
     if (props.badges?.length) {
       storefront.value_props = props.badges.map((badge) => ({
         title: badge.value,
-        label: badge.body,
+        body: badge.label,
       }));
     }
   }

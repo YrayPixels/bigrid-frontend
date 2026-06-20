@@ -260,7 +260,7 @@ export async function aiSuggestedActions({
   const base = fallbackSuggestedActions(session);
   if (!hasProducts && hasStorefront) {
     return [
-      { type: "link", label: "Add products", href: "/admin/products" },
+      { type: "link" as const, label: "Add products", href: "/admin/products" },
       ...base.filter((action) => action.type !== "link"),
     ].slice(0, 8);
   }

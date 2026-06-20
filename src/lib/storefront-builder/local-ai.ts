@@ -556,6 +556,9 @@ export function fallbackBuilderTurn({
     availableTemplateIds,
   );
   const shouldGenerate = wantsWebsite && !!selectedTemplateId;
+  const recommendedTemplateLabel = recommendations[0]
+    ? STOREFRONT_TEMPLATE_OPTIONS.find((option) => option.value === recommendations[0].template_id)?.label
+    : undefined;
 
   return {
     business_profile: profile,
@@ -567,7 +570,7 @@ export function fallbackBuilderTurn({
     assistant_message: shouldGenerate
       ? "Your website draft is ready — check the preview on the right. Tell me anything you'd like to change."
       : recommendations.length
-        ? `Got it — a ${recommendations[0]?.label ?? "website"} style site for ${profile.business_name}. Say "build my website" when you're ready.`
+        ? `Got it — a ${recommendedTemplateLabel ?? "website"} style site for ${profile.business_name}. Say "build my website" when you're ready.`
         : 'Tell me a bit more about your business, then say "build my website" and I\'ll create your first draft.',
     assistant_payload: {
       type: shouldGenerate ? "website_generated" : "agent_turn",
@@ -914,7 +917,7 @@ async function tryAiStorefrontEdit(
           content: JSON.stringify({
             instruction,
             business: {
-              name: store?.business_name ?? store?.name ?? null,
+              name: store?.business_name ?? null,
               industry: store?.industry ?? null,
               description: store?.description ?? null,
             },
@@ -1246,7 +1249,6 @@ function isPlaceholderHeadline(headline: string): boolean {
 
 function inferBusinessName(storefront: StorefrontContent, store?: Store | null): string {
   if (store?.business_name?.trim()) return store.business_name.trim();
-  if (store?.name?.trim()) return store.name.trim();
   const seoMatch = storefront.seo?.title?.match(/^(.+?)\s*[|–-]/);
   if (seoMatch?.[1]?.trim()) return seoMatch[1].trim();
   return "Our brand";
