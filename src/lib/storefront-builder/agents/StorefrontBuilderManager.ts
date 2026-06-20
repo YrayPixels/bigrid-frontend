@@ -9,8 +9,6 @@ import type {
 import type { BuilderAiTurn } from "@/lib/storefront-builder/local-ai";
 import {
   fallbackBuilderTurn,
-  hasMinimumBusinessProfile,
-  isBuildIntent,
   isSubstantiveBuilderMessage,
   sanitizeBusinessProfile,
 } from "@/lib/storefront-builder/local-ai";
@@ -25,7 +23,7 @@ import {
   type PlannerResult,
 } from "./agentThinking";
 import { getAssistantMessageContent, postChat } from "./openaiChat";
-import { websiteBuilderTools } from "./tools";
+import { websiteBuilderToolsForSession } from "./tools";
 import { BUILDER_EXECUTOR_SYSTEM_PROMPT } from "@/lib/storefront-builder/prompts";
 import type { AgentActivityPayload, AgentThinkingLogEntry, WebsiteBuilderContext, WebsiteBuilderToolDef } from "./types";
 import { createThinkingLogEntry } from "./thinking-log";
@@ -94,10 +92,6 @@ export class StorefrontBuilderManager {
       availableTemplateIds,
     });
 
-    if (session.storefront_snapshot && !isBuildIntent(message)) {
-      return this.runRefineTurn(message, session, history);
-    }
-
     if (!isSubstantiveBuilderMessage(message)) {
       this.log({
         agent: "System",
@@ -113,7 +107,7 @@ export class StorefrontBuilderManager {
       };
     }
 
-    const toolDefs = websiteBuilderTools();
+    const toolDefs = websiteBuilderToolsForSession(session);
     const historySnippet = (history ?? [])
       .slice(-8)
       .map((entry) => `${entry.role === "assistant" ? "Assistant" : "Merchant"}: ${entry.content}`)
@@ -199,7 +193,14 @@ export class StorefrontBuilderManager {
     const messages: ChatMessage[] = [
       {
         role: "system",
-        content: BUILDER_EXECUTOR_SYSTEM_PROMPT + "\n\n" + formatThinkingContext(interpretation, plan),
+        content:
+          BUILDER_EXECUTOR_SYSTEM_PROMPT +
+          "\n\n" +
+          formatThinkingContext(interpretation, plan) +
+          (session.storefront_snapshot
+            ? "\n\n### Session state\nA website draft already exists in the preview. Choose the single best tool for this message — do not guess or reply without calling a tool when an action is requested.\n" +
+              `Enabled tools: ${toolDefs.map((tool) => tool.name).join(", ")}`
+            : "\n\n### Session state\nNo website draft yet. Gather business details if needed, then design and generate when the merchant is ready."),
       },
       ...(history ?? []).map((entry) => ({
         role: entry.role === "assistant" ? ("assistant" as const) : ("user" as const),
@@ -367,26 +368,41 @@ export class StorefrontBuilderManager {
       });
     }
 
-    ctx.payload = {
-      type: "agent_turn",
+    const toolMetadata = {
       plan: plan.plan_steps,
       tool_calls: toolCallsLog,
       tool_results: toolResultsLog,
       profile: ctx.profile,
     };
 
-    if (ctx.storefront) {
-      ctx.payload = { type: "website_generated" };
+    if (ctx.payload.type && ctx.payload.type !== "agent_turn") {
+      ctx.payload = { ...ctx.payload, ...toolMetadata };
+    } else {
+      ctx.payload = { type: "agent_turn", ...toolMetadata };
+    }
+
+    if (
+      ctx.storefront &&
+      ctx.payload.type === "agent_turn" &&
+      toolCallsLog.some((call) => call.name === "generate_website")
+    ) {
+      ctx.payload = { ...ctx.payload, type: "website_generated" };
       if (!ctx.assistantMessage || ctx.assistantMessage === fallback.assistant_message) {
         ctx.assistantMessage =
           "Your website is ready. Preview it on the right, then tell me what to refine — headline, about section, CTA, or SEO.";
       }
     }
 
+    const payloadColorOptions = Array.isArray(ctx.payload.color_options)
+      ? ctx.payload.color_options.filter((value): value is string => typeof value === "string")
+      : [];
     const industry = ctx.profile.industry ?? session.store?.industry ?? null;
-    const colorOptions = colorPresetActions(industry, 3)
-      .map((action) => (action.type === "color" ? action.color : null))
-      .filter((value): value is string => typeof value === "string");
+    const colorOptions = [
+      ...payloadColorOptions,
+      ...colorPresetActions(industry, 3)
+        .map((action) => (action.type === "color" ? action.color : null))
+        .filter((value): value is string => typeof value === "string"),
+    ];
     const suggestedActions = await aiSuggestedActions({
       message,
       session: { ...session, business_profile: ctx.profile, storefront_snapshot: ctx.storefront ?? session.storefront_snapshot },
@@ -405,260 +421,6 @@ export class StorefrontBuilderManager {
       storefront: ctx.storefront ?? undefined,
       assistant_message: ctx.assistantMessage,
       assistant_payload: ctx.payload,
-    };
-  }
-
-  private async runRefineTurn(
-    message: string,
-    session: BuilderSession,
-    history?: Array<{ role: "user" | "assistant"; content: string }>,
-  ): Promise<BuilderAiTurn> {
-    const fallback = fallbackBuilderTurn({
-      message,
-      session,
-      recommendations: session.recommendations ?? [],
-      availableTemplateIds: [],
-    });
-
-    this.log({
-      agent: "System",
-      phase: "start",
-      title: "Refine turn",
-      detail: message.trim().slice(0, 280),
-    });
-
-    const refineToolDefs = websiteBuilderTools().filter(
-      (tool) => tool.name === "refine_website_copy" || tool.name === "ask_clarifying_question",
-    );
-    const historySnippet = (history ?? [])
-      .slice(-8)
-      .map((entry) => `${entry.role === "assistant" ? "Assistant" : "Merchant"}: ${entry.content}`)
-      .join("\n");
-
-    this.log({
-      agent: "Interpreter",
-      phase: "start",
-      title: "Understanding refinement request",
-      detail: message.trim().slice(0, 280),
-    });
-
-    let interpretation: InterpreterResult;
-    try {
-      interpretation = await runInterpreter({ userText: message, historySnippet });
-    } catch (error) {
-      this.log({
-        agent: "Interpreter",
-        phase: "error",
-        title: "Interpreter failed",
-        detail: error instanceof Error ? error.message : "Unknown error",
-      });
-      interpretation = {
-        task_summary: message.trim().slice(0, 500),
-        steps: ["Apply the merchant's requested copy changes to the existing website draft."],
-      };
-    }
-
-    this.log({
-      agent: "Interpreter",
-      phase: "complete",
-      title: "Refinement interpreted",
-      detail: interpretation.task_summary,
-      data: {
-        task_summary: interpretation.task_summary,
-        steps: interpretation.steps,
-        constraints: interpretation.constraints ?? [],
-      },
-    });
-
-    this.log({
-      agent: "Planner",
-      phase: "start",
-      title: "Planning copy changes",
-    });
-
-    let plan: PlannerResult;
-    try {
-      plan = await runPlanner({ userText: message, interpretation, toolDefs: refineToolDefs });
-    } catch (error) {
-      this.log({
-        agent: "Planner",
-        phase: "error",
-        title: "Planner failed",
-        detail: error instanceof Error ? error.message : "Unknown error",
-      });
-      plan = {
-        intent: message.trim().slice(0, 400),
-        plan_steps: [
-          {
-            step: 1,
-            description: "Update the existing website copy to match the merchant request.",
-            tools: ["refine_website_copy"],
-          },
-        ],
-      };
-    }
-
-    this.log({
-      agent: "Planner",
-      phase: "complete",
-      title: "Refine plan ready",
-      detail: plan.intent,
-      data: {
-        intent: plan.intent,
-        plan_steps: plan.plan_steps,
-        notes: plan.notes ?? null,
-      },
-    });
-
-    const refineTool = refineToolDefs.find((tool) => tool.name === "refine_website_copy");
-    const ctx: WebsiteBuilderContext = {
-      message,
-      session,
-      profile: sanitizeBusinessProfile(session.business_profile ?? {}),
-      recommendations: session.recommendations,
-      templateOptions: [],
-      selectedTemplateId:
-        session.selected_template_id && session.selected_template_id !== "ai_pick"
-          ? session.selected_template_id
-          : null,
-      storefront: session.storefront_snapshot,
-      assistantMessage: "",
-      status: session.status,
-      payload: { type: "agent_turn", plan: plan.plan_steps, tool_calls: [], tool_results: [] },
-    };
-
-    this.log({
-      agent: "Executor",
-      phase: "start",
-      title: "Applying copy changes",
-      data: { tool: "refine_website_copy", instruction: message.trim().slice(0, 280) },
-    });
-
-    let toolResult: Record<string, unknown> = { ok: false, error: "refine_tool_unavailable" };
-    if (refineTool) {
-      toolResult = await refineTool.handler({ instruction: message }, ctx);
-      this.log({
-        agent: "Executor",
-        phase: toolResult.ok ? "complete" : "error",
-        title: toolResult.ok ? "Copy refined" : "Refine failed",
-        detail: ctx.assistantMessage || undefined,
-        data: { name: "refine_website_copy", arguments: { instruction: message }, result: toolResult },
-      });
-    } else {
-      this.log({
-        agent: "Executor",
-        phase: "error",
-        title: "Refine tool unavailable",
-      });
-    }
-
-    const toolSummary = summarizeToolResult("refine_website_copy", toolResult);
-
-    this.log({
-      agent: "Critic",
-      phase: "start",
-      title: "Reviewing refinement",
-    });
-
-    let criticStatus: "CONTINUE" | "DONE" | "NEED_USER" = toolResult.ok ? "DONE" : "NEED_USER";
-    let criticReason = toolResult.ok
-      ? "Copy refinement applied and merchant reply is ready."
-      : "Refinement could not be applied automatically.";
-
-    try {
-      const critic = await runCritic({
-        userText: message,
-        interpretation,
-        plan,
-        memoryLines: [toolSummary],
-        lastToolSummaries: [toolSummary],
-      });
-      criticStatus = critic.status;
-      criticReason = critic.reason;
-    } catch (error) {
-      this.log({
-        agent: "Critic",
-        phase: "error",
-        title: "Critic failed",
-        detail: error instanceof Error ? error.message : "Unknown error",
-      });
-    }
-
-    this.log({
-      agent: "Critic",
-      phase: "complete",
-      title: `Critic decision: ${criticStatus}`,
-      detail: criticReason,
-      data: { status: criticStatus, reason: criticReason },
-    });
-
-    this.log({
-      agent: "System",
-      phase: "complete",
-      title: "Refine turn finished",
-      detail: ctx.assistantMessage || criticReason,
-    });
-
-    if (toolResult.ok) {
-      const industry = ctx.profile.industry ?? session.store?.industry ?? null;
-      const colorOptions = colorPresetActions(industry, 3)
-        .map((action) => (action.type === "color" ? action.color : null))
-        .filter((value): value is string => typeof value === "string");
-      const suggestedActions = await aiSuggestedActions({
-        message,
-        session: { ...session, business_profile: ctx.profile, storefront_snapshot: ctx.storefront ?? session.storefront_snapshot },
-        assistantMessage: ctx.assistantMessage,
-      });
-      ctx.payload = {
-        ...(ctx.payload ?? {}),
-        suggested_actions: suggestedActions,
-        color_options: colorOptions,
-      };
-
-      return {
-        business_profile: ctx.profile,
-        status: ctx.status,
-        selected_template_id: ctx.selectedTemplateId,
-        storefront: ctx.storefront ?? undefined,
-        assistant_message: ctx.assistantMessage,
-        assistant_payload: ctx.payload,
-      };
-    }
-
-    if (criticStatus === "NEED_USER" && ctx.assistantMessage) {
-      const industry = ctx.profile.industry ?? session.store?.industry ?? null;
-      const colorOptions = colorPresetActions(industry, 3)
-        .map((action) => (action.type === "color" ? action.color : null))
-        .filter((value): value is string => typeof value === "string");
-      const suggestedActions = await aiSuggestedActions({
-        message,
-        session: { ...session, business_profile: ctx.profile, storefront_snapshot: ctx.storefront ?? session.storefront_snapshot },
-        assistantMessage: ctx.assistantMessage,
-      });
-      ctx.payload = {
-        ...(ctx.payload ?? {}),
-        suggested_actions: suggestedActions,
-        color_options: colorOptions,
-      };
-
-      return {
-        business_profile: ctx.profile,
-        status: ctx.status,
-        selected_template_id: ctx.selectedTemplateId,
-        storefront: ctx.storefront ?? undefined,
-        assistant_message: ctx.assistantMessage,
-        assistant_payload: ctx.payload,
-      };
-    }
-
-    return {
-      business_profile: ctx.profile,
-      status: "review_ready",
-      selected_template_id: ctx.selectedTemplateId,
-      assistant_message:
-        ctx.assistantMessage ||
-        "Tell me what you'd like to change — for example \"Change the button to Shop Gifts\" or \"Make the homepage more premium\".",
-      assistant_payload: { type: "conversation" },
     };
   }
 }

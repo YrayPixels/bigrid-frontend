@@ -4,6 +4,7 @@ import {
   type BuilderSession,
   type Industry,
   type Store,
+  type StorefrontColorPalette,
   type StorefrontContent,
   type StorefrontTemplateChoice,
   type StorefrontTemplateId,
@@ -27,6 +28,7 @@ import {
 } from "@/lib/storefront/blocks/page-block-operations";
 import { isFaqItemAppendInstruction } from "@/lib/storefront/blocks/catalog";
 import { applyStockImagesToStorefront } from "@/lib/storefront-builder/stock-images";
+import { resolveBrandColorWithAi, isOpenEndedColorRequest } from "@/lib/storefront-builder/color-resolver";
 import { colorPresetActions } from "@/lib/storefront-builder/suggested-actions";
 import { STOREFRONT_NAV_ITEMS } from "@/lib/storefront/template";
 import { parseJsonObject } from "@/lib/storefront-builder/agents/agentThinking";
@@ -78,15 +80,66 @@ const INDUSTRY_KEYWORDS: Record<string, Industry> = {
   salon: "services",
 };
 
+export function isDesignChangeIntent(message: string): boolean {
+  const trimmed = message.trim().toLowerCase();
+  return (
+    /\b(another|different|new|other|change|pick|try|switch|choose|select)\b.*\bdesign\b/.test(trimmed) ||
+    /\bdesign\b.*\b(for|for a|for my|that fits)\b/.test(trimmed) ||
+    /\b(redesign|re-design|new look|fresh look|different look|another look|new layout|different layout|switch layout|change layout)\b/.test(
+      trimmed,
+    ) ||
+    /\b(pick|choose|try|switch to|use)\b.*\b(cosmetics|cosmetic|beauty|skincare|fashion|lookbook|minimalistic|minimal)\b.*\b(design|look|layout|style)\b/.test(
+      trimmed,
+    ) ||
+    /\b(cosmetics|cosmetic|beauty|skincare|fashion|lookbook|minimalistic|minimal)\b.*\b(design|look|layout|style)\b/.test(
+      trimmed,
+    ) ||
+    /\b(switch|change|try|use|pick|go with)\b.*\b(cosmetics|cosmetic|beauty|skincare|fashion|lookbook|minimalistic|minimal)\b/.test(
+      trimmed,
+    ) ||
+    /\b(something else|different vibe|different aesthetic|different feel|not this look|change it up)\b/.test(
+      trimmed,
+    ) ||
+    /\b(i need|i want|looking for|need)\b.*\b(something else|different|new look|new style|a change|fresh look)\b/.test(
+      trimmed,
+    )
+  );
+}
+
 export function isRebuildIntent(message: string): boolean {
   const trimmed = message.trim().toLowerCase();
   return (
+    isDesignChangeIntent(message) ||
     (/\b(build|create|generate|make|switch|rebuild|redo)\b.*\bfor\b/.test(trimmed) &&
-      /\b(cosmetics|beauty|skincare|fashion|lookbook|minimalistic|minimal|candle|food|electronics)\b/.test(
+      /\b(cosmetics|cosmetic|beauty|skincare|fashion|lookbook|minimalistic|minimal|candle|food|electronics)\b/.test(
         trimmed,
       )) ||
     /\blets?\s+build\s+for\b/.test(trimmed)
   );
+}
+
+const TEMPLATE_KEYWORD_MAP: Record<string, StorefrontTemplateId> = {
+  cosmetics: "cosmetics",
+  cosmetic: "cosmetics",
+  skincare: "cosmetics",
+  beauty: "beauty",
+  fashion: "fashion_lookbook",
+  lookbook: "fashion_lookbook",
+  minimalistic: "minimalistic",
+  minimal: "minimalistic",
+};
+
+export function resolveTemplateFromMessage(
+  message: string,
+  available: StorefrontTemplateId[] = concreteTemplateIds(),
+): StorefrontTemplateId | null {
+  const lower = message.toLowerCase();
+  for (const [keyword, templateId] of Object.entries(TEMPLATE_KEYWORD_MAP)) {
+    if (lower.includes(keyword) && (!available.length || available.includes(templateId))) {
+      return templateId;
+    }
+  }
+  return null;
 }
 
 export function isBuildIntent(message: string): boolean {
@@ -117,14 +170,187 @@ export function isProductIntent(message: string): boolean {
   );
 }
 
+const NAMED_COLOR_PHRASES: Array<{ pattern: RegExp; color: string }> = [
+  { pattern: /\bcoral\s+blue\b/i, color: "#3D8DAE" },
+  { pattern: /\bocean(?:ic)?(?:\s+(?:blue|palette|pallete|scheme))?\b/i, color: "#0077B6" },
+  { pattern: /\belectric\s+blue\b/i, color: "#0F4C81" },
+  { pattern: /\bsky\s+blue\b/i, color: "#4A90A4" },
+  { pattern: /\bsea\s+foam\b/i, color: "#5CB8A8" },
+];
+
+const NAMED_COLOR_WORDS: Record<string, string> = {
+  terracotta: "#C47A2C",
+  teal: "#0E7C66",
+  navy: "#1E3A5F",
+  blush: "#E6A79F",
+  burgundy: "#80131B",
+  sage: "#6B7F5E",
+  amber: "#D99359",
+  coral: "#E07A5F",
+  cream: "#F5E6D3",
+  black: "#111111",
+  green: "#2D6A4F",
+  blue: "#0F4C81",
+  ocean: "#0077B6",
+  oceanic: "#0077B6",
+  pink: "#D4577A",
+  rose: "#C76B7F",
+  red: "#B42318",
+  purple: "#6B4EFF",
+  violet: "#7C5CBF",
+  lavender: "#9B8EC4",
+  gold: "#B8860B",
+  yellow: "#D4A017",
+  orange: "#E07A2F",
+  mint: "#5CB8A8",
+  lime: "#6B8E23",
+  brown: "#7A4E32",
+  grey: "#6E6E6E",
+  gray: "#6E6E6E",
+  white: "#F5F5F5",
+  peach: "#E8A87C",
+  mauve: "#9D7E9E",
+  turquoise: "#2AA198",
+  cyan: "#0891B2",
+  magenta: "#C026D3",
+  indigo: "#4338CA",
+  maroon: "#7B2D3B",
+  bronze: "#A0714F",
+  copper: "#B87333",
+  wine: "#722F37",
+  ruby: "#9B1B30",
+  emerald: "#047857",
+  crimson: "#991B1B",
+  scarlet: "#DC2626",
+  charcoal: "#36454F",
+  ivory: "#FFFFF0",
+  beige: "#C8B89A",
+  tan: "#D2B48C",
+};
+
+const COLOR_REQUEST_PATTERN =
+  /\b(ley|let\s*(?:'s|s)?|lets|i\s+want|want|wanna|get|go|try|use|make\s+it|switch\s+to|change\s+to|can\s+we|could\s+we|how\s+about|give me)\b/i;
+
+function formatColorLabel(hint: string): string {
+  return hint
+    .trim()
+    .split(/\s+/)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
+}
+
+export function shouldResolveColorWithAi(message: string): boolean {
+  if (/#([0-9A-Fa-f]{6})\b/.test(message)) return false;
+  return true;
+}
+
+export function extractColorHintFromMessage(message: string): string | null {
+  const lower = message.toLowerCase().trim();
+
+  for (const { pattern } of NAMED_COLOR_PHRASES) {
+    const match = message.match(pattern);
+    if (match) return match[0].trim();
+  }
+
+  const makeItMatch = message.match(
+    /\bmake\s+it\s+(?:a|an|the|some\s+)?([a-z][a-z\s-]{1,30}?)(?:\s+please|\?|!|$|\.)/i,
+  );
+  if (makeItMatch?.[1]) {
+    const hint = makeItMatch[1].trim();
+    if (
+      hint &&
+      !/^(color|colour|palette|scheme|brand|more|less)$/i.test(hint) &&
+      !/\b(premium|luxury|minimal|professional|playful|bold|warmer|friendlier)\b/i.test(hint)
+    ) {
+      return hint;
+    }
+  }
+
+  const tryMatch = message.match(
+    /\b(?:ley|let\s*(?:'s|s)?|lets)\s+try\s+(?:a|an|the|some\s+)?([a-z][a-z\s-]{1,30}?)(?:\s+please|\?|!|$|\.)/i,
+  );
+  if (tryMatch?.[1]) {
+    const hint = tryMatch[1].trim();
+    if (hint) return hint;
+  }
+
+  for (const name of Object.keys(NAMED_COLOR_WORDS)) {
+    if (new RegExp(`\\b${name}\\b`, "i").test(lower)) return name;
+  }
+
+  const phraseMatch = message.match(
+    /\b(?:ley|let\s*(?:'s|s)?|lets|want|get|go|try|use|make\s+it|switch\s+to|change\s+to|can\s+we|could\s+we)\s+(?:an?\s+|the\s+|some\s+|a\s+)?([a-z][a-z\s-]{1,30}?)(?:\s+please|\?|!|$|\.)/i,
+  );
+  if (phraseMatch?.[1]) {
+    const hint = phraseMatch[1].trim();
+    if (hint && !/^(color|colour|palette|scheme|brand)$/i.test(hint)) return hint;
+  }
+
+  if (/^[a-z][a-z\s-]{1,24}$/i.test(lower)) return lower;
+
+  return null;
+}
+
 export function isColorIntent(message: string): boolean {
+  if (isDesignChangeIntent(message)) return false;
+
   const trimmed = message.trim().toLowerCase();
-  return (
-    /\b(brand color|colour|color palette|use .+#([0-9a-f]{3}|[0-9a-f]{6}))\b/i.test(message) ||
-    /\b(make it|try|use|switch to|go with)\b.*\b(green|teal|terracotta|navy|blush|black|burgundy|sage|amber|coral|cream)\b/i.test(
+  if (/^#[0-9a-f]{6}$/i.test(trimmed)) return true;
+
+  if (
+    /\b(more premium|more luxury|more minimal|warmer|friendlier|professional|playful|bold|shorter|longer)\b/i.test(
       trimmed,
-    ) ||
-    /^#[0-9a-f]{6}$/i.test(trimmed)
+    )
+  ) {
+    return false;
+  }
+
+  if (
+    /\b(brand color|brand colour|colour scheme|color scheme|color palette|colour palette|pallete|palette)\b/i.test(
+      message,
+    )
+  ) {
+    return true;
+  }
+
+  if (/\buse .+#([0-9a-f]{3}|[0-9a-f]{6})\b/i.test(message)) return true;
+
+  if (
+    /\b(make it|try|use|switch to|go with|want|lets|let's)\b.*\b(color|colour|palette|pallete|scheme)\b/i.test(
+      trimmed,
+    )
+  ) {
+    return true;
+  }
+
+  if (NAMED_COLOR_PHRASES.some(({ pattern }) => pattern.test(message))) return true;
+
+  if (isOpenEndedColorRequest(message)) return true;
+
+  if (/\b(give me|pick|choose|select|suggest)\b.*\b(color|colour|shade|hue)\b/i.test(message)) return true;
+
+  const colorHint = extractColorHintFromMessage(message);
+  if (colorHint && COLOR_REQUEST_PATTERN.test(message)) return true;
+
+  if (
+    colorHint &&
+    /\b(color|colour|brand|palette|tone|shade|hue)\b/i.test(message)
+  ) {
+    return true;
+  }
+
+  if (colorHint && trimmed.length <= 40) {
+    const looksLikeCopyEdit =
+      /\b(headline|subheadline|tagline|cta|button|about|contact|faq|seo|hero|copy|premium|minimal|luxury|warmer|friendlier|professional|playful|bold|shorter|longer)\b/i.test(
+        trimmed,
+      );
+    if (!looksLikeCopyEdit) return true;
+  }
+
+  return (
+    /\b(make it|try|use|switch to|go with)\b.*\b(green|teal|terracotta|navy|blush|black|burgundy|sage|amber|coral|cream|blue|ocean(?:ic)?|pink|red|purple|rose|gold|mint)\b/i.test(
+      trimmed,
+    ) || Object.keys(NAMED_COLOR_WORDS).some((name) => new RegExp(`\\b${name}\\b`, "i").test(trimmed))
   );
 }
 
@@ -223,7 +449,12 @@ export function extractBusinessProfile(
   if (namedMatch) next.business_name = namedMatch[1].trim();
   else if (isMatch) next.business_name = isMatch[1].trim();
 
-  if (message.trim().length > 20 && !isBuildIntent(message)) {
+  if (
+    message.trim().length > 20 &&
+    !isBuildIntent(message) &&
+    !isColorIntent(message) &&
+    !isDesignChangeIntent(message)
+  ) {
     next.description = message.trim();
   }
 
@@ -772,23 +1003,13 @@ export function extractColorFromMessage(message: string): string | null {
   const hex = message.match(/#([0-9A-Fa-f]{6})\b/);
   if (hex) return `#${hex[1]}`;
 
-  const lower = message.toLowerCase();
-  const named: Record<string, string> = {
-    terracotta: "#C47A2C",
-    teal: "#0E7C66",
-    navy: "#1E3A5F",
-    blush: "#E6A79F",
-    burgundy: "#80131B",
-    sage: "#6B7F5E",
-    amber: "#D99359",
-    coral: "#E07A5F",
-    cream: "#F5E6D3",
-    black: "#111111",
-    green: "#2D6A4F",
-  };
+  for (const { pattern, color } of NAMED_COLOR_PHRASES) {
+    if (pattern.test(message)) return color;
+  }
 
-  for (const [name, color] of Object.entries(named)) {
-    if (lower.includes(name)) return color;
+  const lower = message.toLowerCase();
+  for (const [name, color] of Object.entries(NAMED_COLOR_WORDS)) {
+    if (new RegExp(`\\b${name}\\b`, "i").test(lower)) return color;
   }
 
   return null;
@@ -798,16 +1019,77 @@ export function applyBrandColorToStorefront(
   storefront: StorefrontContent,
   store: Store,
   brandColor: string,
+  paletteOverride?: Partial<StorefrontColorPalette>,
 ): { storefront: StorefrontContent; store: Store; changed_paths: string[] } {
   const templateId = resolveStorefrontTemplate(store, storefront);
   const nextStorefront = structuredClone(storefront);
-  nextStorefront.palette = getDefaultStorefrontPalette(templateId, brandColor);
+  nextStorefront.template = {
+    id: templateId,
+    source: nextStorefront.template?.source ?? "merchant_selected",
+  };
+  nextStorefront.palette = {
+    ...getDefaultStorefrontPalette(templateId, brandColor),
+    ...(paletteOverride ?? {}),
+    primary: paletteOverride?.primary ?? brandColor,
+  };
 
   return {
     storefront: nextStorefront,
     store: { ...store, brand_color: brandColor },
     changed_paths: ["palette.primary"],
   };
+}
+
+export function applyColorChangeFromMessage(
+  storefront: StorefrontContent,
+  store: Store,
+  message: string,
+  brandColor?: string,
+): { storefront: StorefrontContent; store: Store; changed_paths: string[]; color_label?: string } | null {
+  if (!isColorIntent(message)) return null;
+
+  const resolvedColor = brandColor ?? extractColorFromMessage(message);
+  if (!resolvedColor) return null;
+
+  const result = applyBrandColorToStorefront(storefront, store, resolvedColor);
+  return result;
+}
+
+export async function resolveBrandColorForMessage(
+  message: string,
+  store?: Store | null,
+): Promise<{ brand_color: string; label: string } | null> {
+  const aiResolved = await resolveBrandColorWithAi(message, {
+    business_name: store?.business_name ?? null,
+    industry: store?.industry ?? null,
+    description: store?.description ?? null,
+    current_color: store?.brand_color ?? null,
+  });
+
+  if (aiResolved) return aiResolved;
+
+  const fallback = extractColorFromMessage(message);
+  if (!fallback) return null;
+
+  const hint = extractColorHintFromMessage(message);
+  return {
+    brand_color: fallback,
+    label: hint ? formatColorLabel(hint) : "Brand color",
+  };
+}
+
+export async function applyColorChangeFromMessageAsync(
+  storefront: StorefrontContent,
+  store: Store,
+  message: string,
+): Promise<{ storefront: StorefrontContent; store: Store; changed_paths: string[]; color_label?: string } | null> {
+  if (!isColorIntent(message)) return null;
+
+  const resolved = await resolveBrandColorForMessage(message, store);
+  if (!resolved) return null;
+
+  const result = applyBrandColorToStorefront(storefront, store, resolved.brand_color);
+  return { ...result, color_label: resolved.label };
 }
 
 export function applyMediaToStorefront(

@@ -11,7 +11,11 @@ export type WebsiteBuilderToolName =
   | "capture_business_details"
   | "design_website"
   | "generate_website"
+  | "switch_design"
+  | "apply_brand_color"
   | "refine_website_copy"
+  | "apply_stock_images"
+  | "guide_add_products"
   | "ask_clarifying_question";
 
 export type WebsiteBuilderToolDef = {

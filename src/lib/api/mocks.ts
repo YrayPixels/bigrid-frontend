@@ -9,9 +9,11 @@ import {
   extractColorFromMessage,
   isBuildIntent,
   isColorIntent,
+  isDesignChangeIntent,
   isEditIntent,
   isProductIntent,
   isStockImageIntent,
+  resolveTemplateFromMessage,
 } from "@/lib/storefront-builder/local-ai";
 import { colorPresetActions } from "@/lib/storefront-builder/suggested-actions";
 import { describeStorefrontEdit } from "@/lib/storefront-builder/edit-summary";
@@ -638,6 +640,7 @@ export const mockApi = {
       selected_template_id?: StorefrontTemplateId | null;
       storefront_snapshot?: StorefrontContent | null;
       brand_color?: string;
+      color_label?: string;
       media_updates?: Partial<Record<"media.hero_image_url" | "media.about_image_url", string>>;
       apply_stock_images?: boolean;
     },
@@ -677,7 +680,10 @@ export const mockApi = {
           ...session.business_profile,
           brand_color: state.brand_color,
         };
-        summary = "Done — I updated your brand color. Check the preview on the right.";
+        summary =
+          typeof state.color_label === "string" && state.color_label.trim()
+            ? `Done — I updated your brand color to ${state.color_label.trim()}. Check the preview on the right.`
+            : "Done — I updated your brand color. Check the preview on the right.";
         payloadType = "brand_color_applied";
       }
 
@@ -789,11 +795,36 @@ export const mockApi = {
     if (!session || session.id !== sessionId) throw { status: 404, message: "Builder session not found" };
 
     session.selected_template_id = templateId;
-    session.status = "template_recommendation";
     if (session.store) {
       const store = db.stores[userId];
       if (store) store.storefront_template_id = templateId;
     }
+
+    const hasDraft = !!session.storefront_snapshot && !!session.store;
+    if (hasDraft && session.store) {
+      const store = db.stores[userId];
+      if (store) {
+        store.storefront_template_id = templateId;
+        const storefront = synthesizeStorefront(store);
+        session.storefront_snapshot = storefront;
+        db.storefronts[store.id] = storefront;
+        session.status = "content_generated";
+        const templateLabel =
+          STOREFRONT_TEMPLATE_OPTIONS.find((option) => option.value === templateId)?.label ?? templateId;
+        session.messages.push({
+          id: uid(),
+          role: "assistant",
+          content: `Done — I refreshed your website with a ${templateLabel.toLowerCase()} look. Check the preview on the right, then tell me what to refine.`,
+          payload: { type: "website_generated", template_id: templateId, source },
+          created_at: new Date().toISOString(),
+        });
+        db.builderSessions[userId] = session;
+        save(db);
+        return { session: hydrateBuilderSession(db, session), storefront };
+      }
+    }
+
+    session.status = "template_recommendation";
     session.messages.push({
       id: uid(),
       role: "assistant",
@@ -1065,18 +1096,25 @@ function processBuilderMessage(
       session.updated_at = new Date().toISOString();
       return session;
     } else if (isBuildIntent(message)) {
-      if (/\bcosmetics\b/i.test(message)) {
-        session.selected_template_id = "cosmetics";
-        store.storefront_template_id = "cosmetics";
+      const templateId = resolveTemplateFromMessage(message);
+      if (templateId) {
+        session.selected_template_id = templateId;
+        store.storefront_template_id = templateId;
+      }
+      if (/\b(cosmetic|cosmetics|skincare|beauty)\b/i.test(message)) {
         profile.industry = "beauty_and_skincare";
       }
       storefront = synthesizeStorefront(store);
       session.storefront_snapshot = storefront;
       db.storefronts[store.id] = storefront;
       session.status = "content_generated";
-      summary = /\bfor\b/i.test(message)
-        ? "Great — I rebuilt your site with the cosmetics layout. Check the preview on the right, then tell me what to refine."
-        : "Your website is ready. Preview it on the right, then tell me what to refine — headline, about section, CTA, or SEO.";
+      const templateLabel =
+        STOREFRONT_TEMPLATE_OPTIONS.find((option) => option.value === (templateId ?? store.storefront_template_id))
+          ?.label ?? "new";
+      summary =
+        isDesignChangeIntent(message) || /\bfor\b/i.test(message)
+          ? `Done — I refreshed your website with a ${templateLabel.toLowerCase()} look. Check the preview on the right, then tell me what to refine.`
+          : "Your website is ready. Preview it on the right, then tell me what to refine — headline, about section, CTA, or SEO.";
       payloadType = "website_generated";
     } else if (isColorIntent(message)) {
       const color = extractColorFromMessage(message);

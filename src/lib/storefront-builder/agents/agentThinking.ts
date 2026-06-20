@@ -223,6 +223,10 @@ export async function runCritic(args: {
 export function summarizeToolResult(name: string, result: Record<string, unknown>): string {
   if (typeof result.error === "string") return `[tool:${name}] error: ${result.error}`;
   if (name === "generate_website" && result.ok) return "[tool:generate_website] website generated";
+  if (name === "switch_design" && result.ok) return "[tool:switch_design] design and palette applied";
+  if (name === "apply_brand_color" && result.ok) return "[tool:apply_brand_color] brand color updated";
+  if (name === "apply_stock_images" && result.ok) return "[tool:apply_stock_images] stock photos applied";
+  if (name === "guide_add_products" && result.ok) return "[tool:guide_add_products] product guidance sent";
   if (name === "design_website" && result.ok) return "[tool:design_website] website design selected";
   if (name === "capture_business_details" && result.ok) return "[tool:capture_business_details] profile updated";
   if (name === "refine_website_copy" && result.ok) return "[tool:refine_website_copy] copy refined";

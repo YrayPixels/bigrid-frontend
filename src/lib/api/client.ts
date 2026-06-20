@@ -33,6 +33,7 @@ export type PersistBuilderMessageInput = {
   selected_template_id?: StorefrontTemplateId | null;
   storefront_snapshot?: StorefrontContent | null;
   brand_color?: string;
+  color_label?: string;
   media_updates?: Partial<Record<"media.hero_image_url" | "media.about_image_url", string>>;
   apply_stock_images?: boolean;
 };

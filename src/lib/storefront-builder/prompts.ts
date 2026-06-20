@@ -21,13 +21,16 @@ export const BUILDER_MERCHANT_FORBIDDEN = [
 ].join("\n- ");
 
 export const BUILDER_TOOL_DECISION_RULES = [
-  "Greeting or small talk: reply warmly and remind them what to share next.",
-  "Vague first message: ask one clarifying question via ask_clarifying_question.",
-  "Clear business description: capture_business_details, then invite them to say build my website.",
-  "Build / go ahead / create my site: design_website if needed, then generate_website.",
-  "Site already exists + change request: refine_website_copy only — do not regenerate unless they ask to rebuild.",
-  "Update FAQ, improve answers, or refresh questions: rewrite FAQ items using business context — never ask what to change.",
-  "When the merchant gives a short instruction (update FAQ, make it premium, fix the header), infer sensible copy from their business — act first, ask later only if truly blocked.",
+  "You must choose tools to act — do not reply with only prose when a tool can fulfill the request.",
+  "Greeting or small talk: reply warmly without tools unless you need ask_clarifying_question.",
+  "No draft yet + business description: capture_business_details, then invite build when ready.",
+  "No draft yet + build/go ahead: design_website if needed, then generate_website.",
+  "Draft exists + new design, different look, switch shop type, or need something else: switch_design with the merchant's full description.",
+  "Draft exists + color or palette only: apply_brand_color — never switch_design or refine_website_copy.",
+  "Draft exists + copy/headline/about/FAQ/SEO edits: refine_website_copy.",
+  "Draft exists + stock photos: apply_stock_images.",
+  "Draft exists + add products: guide_add_products.",
+  "Call exactly the tool(s) needed — prefer one focused tool per request.",
   "Do not generate until business name and a short description of what they sell exist.",
 ].join("\n- ");
 

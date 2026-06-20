@@ -9,20 +9,23 @@ import type {
 } from "@/lib/api/types";
 import { STOREFRONT_TEMPLATE_OPTIONS } from "@/lib/api/types";
 import type { AgentThinkingLogEntry } from "@/lib/storefront-builder/agents/types";
+import { StorefrontBuilderManager } from "@/lib/storefront-builder/agents/StorefrontBuilderManager";
+import type { BuilderAiTurn } from "@/lib/storefront-builder/local-ai";
 import {
-  extractColorFromMessage,
   fallbackBuilderTurn,
   hasMinimumBusinessProfile,
-  isBuildIntent,
-  isColorIntent,
-  isEditIntent,
-  isImageIntent,
-  isProductIntent,
-  isStockImageIntent,
   mergeSessionProfile,
+  profileToStore,
   resolveSelectedTemplateId,
+  synthesizeStorefront,
 } from "@/lib/storefront-builder/local-ai";
 import { streamBuilderThinkingTurn } from "@/lib/storefront-builder/thinking-stream";
+import { alignStorefrontTemplateToSelection } from "@/lib/storefront/template";
+
+function asConcreteTemplateId(value: string | null | undefined): StorefrontTemplateId | undefined {
+  if (!value || value === "ai_pick") return undefined;
+  return value as StorefrontTemplateId;
+}
 
 async function loadRecommendations(session: BuilderSession) {
   const profile = mergeSessionProfile(session);
@@ -39,17 +42,69 @@ async function loadRecommendations(session: BuilderSession) {
 }
 
 export function shouldStreamBuilderThinking(
-  message: string,
   extras?: {
     brandColor?: string;
     mediaUpdates?: Partial<Record<BuilderMediaTarget, string>>;
   },
 ): boolean {
-  if (extras?.brandColor || extras?.mediaUpdates) return false;
-  if (isColorIntent(message) && extractColorFromMessage(message)) return false;
-  if (isStockImageIntent(message)) return false;
-  if (isProductIntent(message)) return false;
-  return true;
+  return !extras?.brandColor && !extras?.mediaUpdates;
+}
+
+async function persistAgentTurn({
+  session,
+  message,
+  turn,
+  thinkingLog = [],
+}: {
+  session: BuilderSession;
+  message: string;
+  turn: BuilderAiTurn;
+  thinkingLog?: AgentThinkingLogEntry[];
+}): Promise<BuilderSessionResponse> {
+  const rawTemplateId = turn.selected_template_id ?? session.selected_template_id;
+  const selectedTemplateId = asConcreteTemplateId(rawTemplateId ?? undefined);
+  const snapshot = turn.storefront ?? session.storefront_snapshot ?? undefined;
+  const templateId =
+    asConcreteTemplateId(snapshot?.template?.id) ?? selectedTemplateId ?? null;
+
+  return api.sendBuilderMessage(session.id, message, {
+    business_profile: turn.business_profile,
+    status: turn.status,
+    assistant_message: turn.assistant_message,
+    assistant_payload: {
+      ...turn.assistant_payload,
+      thinking_log: thinkingLog,
+      user_message: message,
+    },
+    ...(selectedTemplateId ? { selected_template_id: selectedTemplateId } : {}),
+    storefront_snapshot: templateId
+      ? alignStorefrontTemplateToSelection(snapshot ?? null, templateId) ?? snapshot
+      : snapshot,
+  });
+}
+
+export async function runBuilderAgentTurn({
+  session,
+  message,
+  templateOptions,
+  history,
+  onLog,
+}: {
+  session: BuilderSession;
+  message: string;
+  templateOptions: StorefrontTemplateOption[];
+  history?: Array<{ role: "user" | "assistant"; content: string }>;
+  onLog?: (entry: AgentThinkingLogEntry) => void;
+}): Promise<BuilderAiTurn> {
+  const recommendations = await loadRecommendations(session);
+  const manager = new StorefrontBuilderManager(undefined, onLog);
+  return manager.runTurn({
+    message,
+    session,
+    recommendations,
+    templateOptions,
+    history,
+  });
 }
 
 export async function streamAndPersistBuilderMessage({
@@ -69,6 +124,7 @@ export async function streamAndPersistBuilderMessage({
     ...session,
     business_profile: mergeSessionProfile(session),
   };
+
   const recommendations = await loadRecommendations(enrichedSession);
   const history = session.messages
     .slice(-8)
@@ -95,17 +151,11 @@ export async function streamAndPersistBuilderMessage({
     },
   });
 
-  return api.sendBuilderMessage(session.id, message, {
-    business_profile: turn.business_profile,
-    status: turn.status,
-    assistant_message: turn.assistant_message,
-    assistant_payload: {
-      ...turn.assistant_payload,
-      thinking_log: thinkingLog,
-      user_message: message,
-    },
-    selected_template_id: turn.selected_template_id ?? session.selected_template_id,
-    storefront_snapshot: turn.storefront ?? session.storefront_snapshot,
+  return persistAgentTurn({
+    session,
+    message,
+    turn,
+    thinkingLog,
   });
 }
 
@@ -135,77 +185,11 @@ export async function processBuilderMessage({
     ...(mediaUpdates ? { media_updates: mediaUpdates } : {}),
   };
 
-  if (session.storefront_snapshot && session.store) {
-    if (isBuildIntent(message)) {
-      return api.sendBuilderMessage(session.id, message);
-    }
-
-    if (brandColor || mediaUpdates) {
-      return api.sendBuilderMessage(session.id, message, extras);
-    }
-
-    if (isStockImageIntent(message)) {
-      return api.sendBuilderMessage(session.id, message, { apply_stock_images: true });
-    }
-
-    if (isProductIntent(message)) {
-      return api.sendBuilderMessage(session.id, message);
-    }
-
-    if (isColorIntent(message)) {
-      const color = extractColorFromMessage(message) ?? brandColor;
-      if (color) {
-        return api.sendBuilderMessage(session.id, message, { brand_color: color });
-      }
-    }
-
-    if (isEditIntent(message)) {
-      return applyBuilderChatEditForSession({ session: enrichedSession, instruction: message });
-    }
-
-    return api.sendBuilderMessage(session.id, message, extras);
-  }
-
   if (brandColor || mediaUpdates) {
     return api.sendBuilderMessage(session.id, message, extras);
   }
 
-  if (isColorIntent(message)) {
-    const color = extractColorFromMessage(message);
-    if (color) {
-      return api.sendBuilderMessage(session.id, message, { brand_color: color });
-    }
-  }
-
-  if (isBuildIntent(message) && !session.storefront_snapshot) {
-    if (!hasMinimumBusinessProfile(enrichedSession.business_profile)) {
-      const fallback = fallbackBuilderTurn({
-        message,
-        session: enrichedSession,
-        recommendations,
-        availableTemplateIds,
-      });
-
-      return api.sendBuilderMessage(session.id, message, {
-        business_profile: fallback.business_profile,
-        status: fallback.status,
-        assistant_message: fallback.assistant_message,
-        assistant_payload: fallback.assistant_payload,
-        selected_template_id: fallback.selected_template_id ?? session.selected_template_id,
-      });
-    }
-
-    return generateBuilderDraftForSession({
-      session: enrichedSession,
-      store: enrichedSession.store,
-      templateOptions,
-      recommendations,
-    });
-  }
-
-  try {
-    return await api.sendBuilderMessage(session.id, message);
-  } catch (error) {
+  if (!session.storefront_snapshot && !hasMinimumBusinessProfile(enrichedSession.business_profile)) {
     const fallback = fallbackBuilderTurn({
       message,
       session: enrichedSession,
@@ -213,30 +197,54 @@ export async function processBuilderMessage({
       availableTemplateIds,
     });
 
-    const response = await api.sendBuilderMessage(session.id, message, {
+    const fallbackTemplateId = asConcreteTemplateId(fallback.selected_template_id ?? undefined);
+    const sessionTemplateId = asConcreteTemplateId(session.selected_template_id ?? undefined);
+
+    return api.sendBuilderMessage(session.id, message, {
       business_profile: fallback.business_profile,
       status: fallback.status,
       assistant_message: fallback.assistant_message,
       assistant_payload: fallback.assistant_payload,
-      selected_template_id: fallback.selected_template_id ?? session.selected_template_id,
-      storefront_snapshot: fallback.storefront ?? session.storefront_snapshot,
+      ...(fallbackTemplateId ?? sessionTemplateId
+        ? { selected_template_id: fallbackTemplateId ?? sessionTemplateId }
+        : {}),
     });
+  }
 
-    if (!fallback.storefront) return response;
+  const history = session.messages
+    .slice(-8)
+    .map((entry) => ({
+      role: entry.role,
+      content: entry.content,
+    }))
+    .filter((entry): entry is { role: "user" | "assistant"; content: string } =>
+      entry.role === "user" || entry.role === "assistant",
+    );
 
-    return {
-      ...response,
-      storefront: fallback.storefront,
-      session: response.session
-        ? {
-            ...response.session,
-            status: fallback.status,
-            storefront_snapshot: fallback.storefront,
-            business_profile: fallback.business_profile,
-            selected_template_id: fallback.selected_template_id ?? response.session.selected_template_id,
-          }
-        : response.session,
-    };
+  try {
+    const turn = await runBuilderAgentTurn({
+      session: enrichedSession,
+      message,
+      templateOptions,
+      history,
+    });
+    return persistAgentTurn({ session, message, turn });
+  } catch {
+    if (!session.storefront_snapshot) {
+      return generateBuilderDraftForSession({
+        session: enrichedSession,
+        store: enrichedSession.store,
+        templateOptions,
+        recommendations,
+      });
+    }
+
+    return api.sendBuilderMessage(session.id, message, {
+      assistant_message:
+        "I hit a snag running that update — try again, or tell me more specifically what you'd like to change.",
+      assistant_payload: { type: "conversation" },
+      status: session.status,
+    });
   }
 }
 
@@ -265,9 +273,15 @@ export async function generateBuilderDraftForSession({
     recommendations,
     availableTemplateIds,
   );
+  const draftStore =
+    enrichedSession.store ??
+    profileToStore(enrichedSession.business_profile, selectedTemplateId ?? undefined);
+  const storefront = synthesizeStorefront(draftStore, recommendations);
+  const concreteTemplateId = asConcreteTemplateId(selectedTemplateId ?? undefined);
 
   return api.generateBuilderDraft(session.id, {
-    selected_template_id: selectedTemplateId ?? undefined,
+    storefront,
+    selected_template_id: concreteTemplateId,
   });
 }
 
@@ -323,7 +337,6 @@ export async function applyBuilderMedia({
   });
 }
 
-// re-export for page usage without circular imports from types-only paths
 export { fallbackSuggestedActions, getLatestSuggestedActions } from "@/lib/storefront-builder/suggested-actions";
 
 export async function generateStorefrontForStore({

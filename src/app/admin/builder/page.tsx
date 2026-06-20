@@ -22,8 +22,10 @@ import {
   type BuilderMediaTarget,
   type BuilderSession,
   type StorefrontContent,
+  type StorefrontTemplateId,
 } from "@/lib/api/types";
 import { BUILDER_PAGE } from "@/lib/storefront-builder/copy";
+import { alignStorefrontTemplateToSelection } from "@/lib/storefront/template";
 import type { AgentThinkingLogEntry } from "@/lib/storefront-builder/agents/types";
 import {
   extractThinkingLogTurns,
@@ -90,10 +92,27 @@ export default function AdminBuilderPage() {
     }
   }, [session?.storefront_snapshot]);
 
-  const handleSessionResponse = async (data: Awaited<ReturnType<typeof streamAndPersistBuilderMessage>>) => {
+  const handleSessionResponse = async (
+    data: Awaited<ReturnType<typeof streamAndPersistBuilderMessage>>,
+  ) => {
     queryClient.setQueryData(["builder-session"], data);
     const nextStorefront = data.storefront ?? data.session?.storefront_snapshot ?? null;
-    if (nextStorefront) setLocalStorefront(nextStorefront);
+    if (nextStorefront) {
+      const templateId =
+        nextStorefront.template?.id && nextStorefront.template.id !== "ai_pick"
+          ? nextStorefront.template.id
+          : data.session?.selected_template_id && data.session.selected_template_id !== "ai_pick"
+            ? data.session.selected_template_id
+            : data.session?.store?.storefront_template_id &&
+                data.session.store.storefront_template_id !== "ai_pick"
+              ? data.session.store.storefront_template_id
+              : null;
+      setLocalStorefront(
+        templateId
+          ? (alignStorefrontTemplateToSelection(nextStorefront, templateId) ?? nextStorefront)
+          : nextStorefront,
+      );
+    }
     if (data.session?.store) {
       await refresh();
       queryClient.invalidateQueries({ queryKey: ["store", "me"] });
@@ -162,6 +181,20 @@ export default function AdminBuilderPage() {
     onError: (error) => toast.error(error instanceof Error ? error.message : "Could not clear chat"),
   });
 
+  const selectTemplate = useMutation({
+    mutationFn: async (templateId: StorefrontTemplateId) => {
+      if (!session) throw new Error("No active builder session");
+      return api.selectBuilderTemplate(session.id, templateId, "merchant_selected");
+    },
+    onSuccess: (data) => {
+      handleSessionResponse(data);
+      if (session?.storefront_snapshot) {
+        toast.success("Design updated — check the preview");
+      }
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not select template"),
+  });
+
   if (loading || !user || sessionQuery.isLoading) {
     return (
       <div className="grid min-h-[50vh] place-items-center">
@@ -178,7 +211,7 @@ export default function AdminBuilderPage() {
     );
   }
 
-  const chatBusy = sendMessage.isPending || applyColor.isPending || uploadMedia.isPending;
+  const chatBusy = sendMessage.isPending || applyColor.isPending || uploadMedia.isPending || selectTemplate.isPending;
   const hasThinkingHistory = allThinkingTurns.length > 0;
   const previewThinkingEntries = thinkingStreaming ? thinkingEntries : latestLiveEntries;
 
@@ -211,16 +244,19 @@ export default function AdminBuilderPage() {
           thinkingEntries={thinkingEntries}
           thinkingStreaming={thinkingStreaming}
           hasThinkingHistory={hasThinkingHistory}
+          templateOptions={templateOptions}
+          selectingTemplate={selectTemplate.isPending}
           onOpenThinkingLog={() => setThinkingLogOpen(true)}
           onSendMessage={(message) => sendMessage.mutate(message)}
           onApplyColor={(color, label) => applyColor.mutate({ color, label })}
           onUploadMedia={(target, file) => uploadMedia.mutate({ target, file })}
+          onSelectTemplate={(templateId) => selectTemplate.mutate(templateId)}
           onClearChat={() => clearChat.mutate()}
         />
         <BuilderPreviewPanel
           store={session.store}
           storefront={localStorefront}
-          generating={sendMessage.isPending}
+          generating={sendMessage.isPending || selectTemplate.isPending}
           thinkingEntries={previewThinkingEntries}
           thinkingStreaming={thinkingStreaming}
           hasThinkingHistory={hasThinkingHistory}

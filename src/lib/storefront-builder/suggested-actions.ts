@@ -78,11 +78,16 @@ export function fallbackSuggestedActions(session: BuilderSession): BuilderSugges
 
   if (session.storefront_snapshot) {
     return [
+      {
+        type: "prompt",
+        label: "Redesign my shop",
+        message: "I want a fresh design that fits my brand — pick the best look and colors for me",
+      },
+      { type: "prompt", label: "Try cosmetics look", message: "Switch to a clean cosmetics shop design with soft natural colors" },
+      { type: "prompt", label: "Try fashion look", message: "Switch to a bold fashion lookbook design with editorial colors" },
+      { type: "prompt", label: "Try minimal look", message: "Switch to a calm minimal design with warm neutral colors" },
       { type: "prompt", label: "Make it more premium", message: "Make the homepage more premium" },
-      { type: "prompt", label: "Update shop button", message: "Change the button to Shop now" },
       { type: "upload", label: "Upload header photo", target: "media.hero_image_url" },
-      { type: "upload", label: "Upload about photo", target: "media.about_image_url" },
-      { type: "prompt", label: "Suggest stock photos", message: "Add suitable stock photos to my website" },
       ...COLOR_PRESETS[industryKey(industry)].slice(0, 2).map(
         (preset): BuilderSuggestedAction => ({
           type: "color",

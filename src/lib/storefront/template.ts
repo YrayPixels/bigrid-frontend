@@ -30,8 +30,38 @@ export function resolveStorefrontTemplate(
   store: Store,
   storefront: StorefrontContent,
 ): StorefrontTemplateId {
-  const chosen = store.storefront_template_id;
-  return storefront.template?.id ?? (chosen && chosen !== "ai_pick" ? chosen : "classic");
+  if (storefront.template?.id && storefront.template.id !== "ai_pick") {
+    return storefront.template.id;
+  }
+
+  const merchantChoice = store.storefront_template_id;
+  if (merchantChoice && merchantChoice !== "ai_pick") {
+    return merchantChoice;
+  }
+
+  return "classic";
+}
+
+export function alignStorefrontTemplateToSelection(
+  storefront: StorefrontContent | null | undefined,
+  templateId: StorefrontTemplateId | null | undefined,
+): StorefrontContent | null | undefined {
+  if (!storefront || !templateId || templateId === "ai_pick") {
+    return storefront;
+  }
+
+  const existing = storefront.template?.id;
+  if (existing && existing !== "ai_pick") {
+    return storefront;
+  }
+
+  return {
+    ...storefront,
+    template: {
+      id: templateId,
+      source: "merchant_selected",
+    },
+  };
 }
 
 export function getStorefrontTheme(

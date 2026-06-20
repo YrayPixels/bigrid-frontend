@@ -15,6 +15,8 @@ export function BuilderTemplateRecommendations({
   recommendations,
   templateOptions,
   selectedTemplateId,
+  title = "Pick a website design",
+  subtitle,
   loading,
   disabled,
   onSelect,
@@ -23,6 +25,8 @@ export function BuilderTemplateRecommendations({
   recommendations: StorefrontTemplateRecommendation[];
   templateOptions: ConcreteTemplateOption[];
   selectedTemplateId: StorefrontTemplateId | null;
+  title?: string;
+  subtitle?: string;
   loading?: boolean;
   disabled?: boolean;
   onSelect: (templateId: StorefrontTemplateId) => void;
@@ -49,6 +53,10 @@ export function BuilderTemplateRecommendations({
 
   return (
     <div className="space-y-3">
+      <div>
+        <p className="text-xs font-medium uppercase tracking-wide text-ink-soft">{title}</p>
+        {subtitle ? <p className="mt-1 text-xs leading-5 text-ink-soft">{subtitle}</p> : null}
+      </div>
       {loading ? (
         <div className="inline-flex items-center gap-2 rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-ink-soft">
           <Loader2 className="h-3.5 w-3.5 animate-spin" />

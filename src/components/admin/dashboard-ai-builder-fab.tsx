@@ -23,6 +23,7 @@ import {
   STOREFRONT_TEMPLATE_OPTIONS,
   type BuilderMediaTarget,
   type BuilderSession,
+  type StorefrontTemplateId,
 } from "@/lib/api/types";
 
 export function DashboardAiBuilderFab({
@@ -101,7 +102,16 @@ export function DashboardAiBuilderFab({
     onError: (error) => toast.error(error instanceof Error ? error.message : "Could not upload image"),
   });
 
-  const chatBusy = sendMessage.isPending || applyColor.isPending || uploadMedia.isPending;
+  const selectTemplate = useMutation({
+    mutationFn: async (templateId: StorefrontTemplateId) => {
+      if (!session) throw new Error("No active builder session");
+      return api.selectBuilderTemplate(session.id, templateId, "merchant_selected");
+    },
+    onSuccess: handleSessionResponse,
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not select template"),
+  });
+
+  const chatBusy = sendMessage.isPending || applyColor.isPending || uploadMedia.isPending || selectTemplate.isPending;
 
   return (
     <>
@@ -131,9 +141,12 @@ export function DashboardAiBuilderFab({
                 session={session as BuilderSession}
                 sending={chatBusy}
                 generating={sendMessage.isPending && !!session.storefront_snapshot}
+                templateOptions={templateOptions}
+                selectingTemplate={selectTemplate.isPending}
                 onSendMessage={(message) => sendMessage.mutate(message)}
                 onApplyColor={(color, label) => applyColor.mutate({ color, label })}
                 onUploadMedia={(target, file) => uploadMedia.mutate({ target, file })}
+                onSelectTemplate={(templateId) => selectTemplate.mutate(templateId)}
               />
             </div>
           )}
