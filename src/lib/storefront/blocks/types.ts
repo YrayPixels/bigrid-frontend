@@ -25,16 +25,23 @@ export type StorefrontHomePage = {
 };
 
 export type StorefrontBlockOperation =
-  | { op: "update_block"; block_id: string; props: Record<string, unknown> }
-  | { op: "reorder_blocks"; order: string[] }
+  | { op: "update_block"; page?: StorefrontContentPageSlug; block_id: string; props: Record<string, unknown> }
+  | { op: "reorder_blocks"; page?: StorefrontContentPageSlug; order: string[] }
   | {
       op: "add_block";
+      page?: StorefrontContentPageSlug;
       type: StorefrontBlockType;
       after?: string;
       before?: string;
       props?: Record<string, unknown>;
     }
-  | { op: "remove_block"; block_id: string };
+  | { op: "remove_block"; page?: StorefrontContentPageSlug; block_id: string }
+  | {
+      op: "regenerate_section";
+      page: StorefrontContentPageSlug;
+      block_id: string;
+      props?: Record<string, unknown>;
+    };
 
 export type HeroBlockProps = {
   eyebrow?: string;

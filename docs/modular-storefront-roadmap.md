@@ -158,19 +158,22 @@ Apply ops server-side with validation against a **block catalog** (allowed types
 
 ---
 
-## Phase 4 — Design intelligence (in progress)
+## Phase 4 — Design intelligence (site-wide)
 
-**Outcome:** AI picks layout variants and can regenerate individual sections (starting with the homepage hero).
+**Outcome:** AI can fix, regenerate, and update any section on any page (home, about, contact, FAQ) via block patch operations — not just the homepage hero.
 
 | # | Task | Repos |
 |---|------|-------|
 | M4.1 | Block layout variants (`hero.split`, `hero.centered`, `hero.image_right`) | storehause |
 | M4.2 | Template = theme tokens + default block recipes, not separate React trees per industry | storehause, backend |
-| M4.3 | Tool call: `regenerate_section` (single block, preserves rest of page) | backend |
+| M4.3 | `regenerate_section` + `update_block` / `reorder_blocks` / `remove_block` on **all pages** | backend, storehause |
 | M4.4 | `edit_metadata` at block level (`ai_generated` vs `merchant_locked`) | backend, storehause |
 | M4.5 | Product grid always reads merchant catalog API, not embedded placeholders | backend, storehause |
 
-**Acceptance:** Merchant can say *“Redesign just the hero”* without losing products or contact settings.
+**Acceptance:**
+- *“Redesign just the hero”* — homepage hero regenerates without losing products or contact settings.
+- *“Fix the about page”* / *“Regenerate the FAQ section”* / *“Make the contact intro more premium”* — target page section updates via block ops; other pages unchanged.
+- AI editor receives full `pages.*.blocks` context and may return `operations[]` or flat `updates`.
 
 ---
 

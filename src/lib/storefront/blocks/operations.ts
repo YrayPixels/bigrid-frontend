@@ -1,4 +1,4 @@
-import type { StorefrontContent } from "@/lib/api/types";
+import type { Store, StorefrontContent } from "@/lib/api/types";
 import {
   blockTypeLabel,
   canRemoveHomeBlock,
@@ -21,6 +21,7 @@ import {
   migrateContactBlocks,
 } from "@/lib/storefront/blocks/migrate-page-blocks";
 import { syncLegacyFieldsFromContactBlocks } from "@/lib/storefront/blocks/sync-page-legacy";
+import { tryApplyPageBlockInstruction } from "@/lib/storefront/blocks/page-block-operations";
 import type { ContactFormField, StorefrontBlockOperation } from "@/lib/storefront/blocks/types";
 
 const BLOCK_LABELS: Record<string, string> = {
@@ -341,16 +342,7 @@ function resolveContactFormFieldsFromInstruction(instruction: string): ContactFo
 export function tryApplyHomeBlockInstruction(
   storefront: StorefrontContent,
   instruction: string,
+  store?: Store | null,
 ): { storefront: StorefrontContent; changed_paths: string[]; assistant_message: string } | null {
-  const operations = parseHomeBlockInstruction(instruction, storefront);
-  if (!operations?.length) return null;
-
-  const result = applyHomeBlockOperations(storefront, operations);
-  const changedPaths = result.changed_block_ids.map((id) => `pages.home.blocks.${id}`);
-
-  return {
-    storefront: result.storefront,
-    changed_paths: changedPaths,
-    assistant_message: describeBlockChanges(result.changed_block_ids, operations),
-  };
+  return tryApplyPageBlockInstruction(storefront, instruction, store);
 }

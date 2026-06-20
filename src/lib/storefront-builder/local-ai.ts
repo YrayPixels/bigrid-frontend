@@ -20,6 +20,11 @@ import {
 } from "@/lib/storefront-builder/editable-paths";
 import { ensureHomeBlocksOnStorefront, maybeSyncHomeBlocksFromLegacyPaths } from "@/lib/storefront/blocks/sync-legacy";
 import { tryApplyContactFormInstruction, tryApplyHomeBlockInstruction } from "@/lib/storefront/blocks/operations";
+import {
+  applyAiBlockOperations,
+  resolvePageBlocks,
+  tryApplyPageBlockInstruction,
+} from "@/lib/storefront/blocks/page-block-operations";
 import { isFaqItemAppendInstruction } from "@/lib/storefront/blocks/catalog";
 import { applyStockImagesToStorefront } from "@/lib/storefront-builder/stock-images";
 import { colorPresetActions } from "@/lib/storefront-builder/suggested-actions";
@@ -481,7 +486,18 @@ export async function applyStorefrontEditAsync(
   },
 ): Promise<BuilderEditTurn> {
   if (!isFaqItemAppendInstruction(instruction)) {
-    const blockResult = tryApplyHomeBlockInstruction(storefront, instruction);
+    const pageBlockResult = tryApplyPageBlockInstruction(storefront, instruction, options?.store);
+    if (pageBlockResult) {
+      return finalizeStorefrontEdit(
+        storefront,
+        instruction,
+        pageBlockResult.storefront,
+        pageBlockResult.changed_paths,
+        pageBlockResult.assistant_message,
+      );
+    }
+
+    const blockResult = tryApplyHomeBlockInstruction(storefront, instruction, options?.store);
     if (blockResult) {
       return finalizeStorefrontEdit(storefront, instruction, blockResult.storefront, blockResult.changed_paths, blockResult.assistant_message);
     }
@@ -569,7 +585,18 @@ function applyStorefrontEditWithUpdates(
   store?: Store | null,
 ): BuilderEditTurn {
   if (!isFaqItemAppendInstruction(instruction)) {
-    const blockResult = tryApplyHomeBlockInstruction(storefront, instruction);
+    const pageBlockResult = tryApplyPageBlockInstruction(storefront, instruction, store);
+    if (pageBlockResult) {
+      return finalizeStorefrontEdit(
+        storefront,
+        instruction,
+        pageBlockResult.storefront,
+        pageBlockResult.changed_paths,
+        pageBlockResult.assistant_message,
+      );
+    }
+
+    const blockResult = tryApplyHomeBlockInstruction(storefront, instruction, store);
     if (blockResult) {
       return finalizeStorefrontEdit(storefront, instruction, blockResult.storefront, blockResult.changed_paths, blockResult.assistant_message);
     }
@@ -655,18 +682,7 @@ async function tryAiStorefrontEdit(
               industry: store?.industry ?? null,
               description: store?.description ?? null,
             },
-            current_storefront: {
-              hero: storefront.hero,
-              about: storefront.about,
-              seo: storefront.seo,
-              value_props: storefront.value_props,
-              pages: {
-                about: storefront.pages?.about ?? null,
-                contact: storefront.pages?.contact ?? null,
-                faq: storefront.pages?.faq ?? null,
-              },
-              edit_metadata: storefront.edit_metadata ?? null,
-            },
+            current_storefront: buildStorefrontEditorContext(storefront),
             allowed_paths: BASE_EDITABLE_STOREFRONT_PATHS,
           }),
         },
@@ -676,32 +692,75 @@ async function tryAiStorefrontEdit(
     const content = getAssistantMessageContent(data);
     const parsed = parseJsonObject<{
       updates?: Record<string, unknown>;
+      operations?: unknown[];
       changed_paths?: string[];
       assistant_message?: string;
     }>(content, {});
 
+    const operations = Array.isArray(parsed.operations)
+      ? (parsed.operations as Parameters<typeof applyAiBlockOperations>[1])
+      : [];
     const rawUpdates = parsed.updates && typeof parsed.updates === "object" ? parsed.updates : {};
     const flatUpdates = flattenAiEditUpdates(rawUpdates);
+    const assistantMessage =
+      typeof parsed.assistant_message === "string" ? parsed.assistant_message : undefined;
 
-    if (!Object.keys(flatUpdates).length) return null;
+    if (!operations.length && !Object.keys(flatUpdates).length) return null;
 
-    const mergedUpdates = mergeMandatoryEditUpdates(
-      instruction,
+    let next = structuredClone(storefront);
+    const changedPaths: string[] = [];
+
+    if (operations.length) {
+      const opResult = applyAiBlockOperations(next, operations);
+      next = opResult.storefront;
+      changedPaths.push(...opResult.changed_paths);
+    }
+
+    if (Object.keys(flatUpdates).length) {
+      const mergedUpdates = mergeMandatoryEditUpdates(instruction, next, flatUpdates, store);
+      const lockedPaths = next.edit_metadata?.locked_paths ?? [];
+
+      for (const [path, value] of Object.entries(mergedUpdates)) {
+        if (lockedPaths.includes(path) || typeof value !== "string" || !value.trim()) {
+          continue;
+        }
+
+        if (setEditableStorefrontPath(next, path, value.trim())) {
+          changedPaths.push(path);
+        }
+      }
+    }
+
+    const uniqueChangedPaths = [...new Set(changedPaths)];
+    if (!uniqueChangedPaths.length) return null;
+
+    const finalStorefront = maybeSyncHomeBlocksFromLegacyPaths(next, uniqueChangedPaths);
+    return finalizeStorefrontEdit(
       storefront,
-      flatUpdates,
-      store,
-    );
-
-    return applyStorefrontEditWithUpdates(
-      storefront,
       instruction,
-      mergedUpdates,
-      typeof parsed.assistant_message === "string" ? parsed.assistant_message : undefined,
-      store,
+      finalStorefront,
+      uniqueChangedPaths,
+      assistantMessage ?? describeStorefrontEdit(uniqueChangedPaths),
     );
   } catch {
     return null;
   }
+}
+
+function buildStorefrontEditorContext(storefront: StorefrontContent) {
+  return {
+    hero: storefront.hero,
+    about: storefront.about,
+    seo: storefront.seo,
+    value_props: storefront.value_props,
+    pages: {
+      home: { blocks: resolvePageBlocks(storefront, "home") },
+      about: { ...(storefront.pages?.about ?? null), blocks: resolvePageBlocks(storefront, "about") },
+      contact: { ...(storefront.pages?.contact ?? null), blocks: resolvePageBlocks(storefront, "contact") },
+      faq: { ...(storefront.pages?.faq ?? null), blocks: resolvePageBlocks(storefront, "faq") },
+    },
+    edit_metadata: storefront.edit_metadata ?? null,
+  };
 }
 
 export function extractColorFromMessage(message: string): string | null {
