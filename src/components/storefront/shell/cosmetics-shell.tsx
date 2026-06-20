@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 
 const cosmeticsNavItems = [
   { href: "/products", label: "Product" },
-  { href: "/about", label: "Features" },
+  { href: "/", label: "Features" },
   { href: "/faq", label: "Reviews" },
   { href: "/about", label: "About us" },
 ];
@@ -50,7 +50,7 @@ export function CosmeticsShell({ children }: { children: React.ReactNode }) {
                 (pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href)));
               return (
                 <StorefrontLink
-                  key={item.href}
+                  key={item.label}
                   href={item.href}
                   className={cn(
                     "text-[10px] font-bold tracking-[0.02em] text-[#172012] transition hover:text-[#748442]",

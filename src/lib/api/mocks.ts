@@ -17,6 +17,7 @@ import type {
   StoreOrder,
   StoreOrdersResponse,
   StoreOrderStatus,
+  StoreProduct,
   StorefrontContent,
   StorefrontTemplateId,
   StorefrontTemplateOption,
@@ -30,6 +31,7 @@ type MockDB = {
   users: Record<string, { user: User; password: string }>;
   stores: Record<string, Store>;
   storefronts: Record<string, StorefrontContent>;
+  products: Record<string, StoreProduct[]>;
   orders: Record<string, StoreOrder[]>;
   visits: Record<
     string,
@@ -44,6 +46,7 @@ function emptyDb(): MockDB {
     users: {},
     stores: {},
     storefronts: {},
+    products: {},
     orders: {},
     visits: {},
     sessions: {},
@@ -61,6 +64,7 @@ function load(): MockDB {
       users: db.users ?? {},
       stores: db.stores ?? {},
       storefronts: db.storefronts ?? {},
+      products: db.products ?? {},
       orders: db.orders ?? {},
       visits: db.visits ?? {},
       sessions: db.sessions ?? {},
@@ -90,6 +94,27 @@ function byLatestOrder(a: StoreOrder, b: StoreOrder) {
     new Date(b.placed_at ?? b.created_at ?? 0).getTime() -
     new Date(a.placed_at ?? a.created_at ?? 0).getTime()
   );
+}
+
+function mergeProductsIntoStorefront(
+  storefront: StorefrontContent | null,
+  products: StoreProduct[],
+): StorefrontContent | null {
+  if (!storefront) return null;
+  const next: StorefrontContent = { ...storefront, products };
+  if (products.length > 0) {
+    next.data_plugs = {
+      ...(next.data_plugs ?? {}),
+      home_products_source: "merchant_products",
+    };
+  }
+  return next;
+}
+
+function storefrontForStore(db: MockDB, storeId: string): StorefrontContent | null {
+  const storefront = db.storefronts[storeId] ?? null;
+  const products = db.products[storeId] ?? [];
+  return mergeProductsIntoStorefront(storefront, products);
 }
 
 function uid() {
@@ -233,8 +258,7 @@ export const mockApi = {
         conversion_rate: visits.length
           ? Number(((orders.length / visits.length) * 100).toFixed(2))
           : 0,
-        products_count:
-          (db.storefronts[store.id] ?? synthesizeStorefront(store)).products?.length ?? 0,
+        products_count: (db.products[store.id] ?? []).length,
       },
       sales_by_day: salesByDay,
       recent_orders: [...orders].sort(byLatestOrder).slice(0, 5),
@@ -320,7 +344,7 @@ export const mockApi = {
     const db = load();
     const userId = db.sessions[token];
     if (!userId) throw { status: 401, message: "Unauthenticated" };
-    return { storefront: db.storefronts[storeId] ?? null };
+    return { storefront: storefrontForStore(db, storeId) };
   },
 
   async updateStorefront(
@@ -339,9 +363,67 @@ export const mockApi = {
       store.storefront_template_id = body.storefront_template_id;
     }
 
-    db.storefronts[storeId] = body.storefront;
+    const { products: _ignored, ...storefrontWithoutProducts } = body.storefront;
+    db.storefronts[storeId] = storefrontWithoutProducts;
     save(db);
-    return { storefront: body.storefront };
+    return { storefront: storefrontForStore(db, storeId)! };
+  },
+
+  async getProducts(token: string): Promise<StoreProduct[]> {
+    await delay(150);
+    const { db, store } = findStoreForToken(token);
+    return db.products[store.id] ?? [];
+  },
+
+  async createProduct(
+    token: string,
+    body: Omit<StoreProduct, "id"> & { id?: string },
+  ): Promise<StoreProduct> {
+    await delay(250);
+    const { db, store } = findStoreForToken(token);
+    const product: StoreProduct = {
+      ...body,
+      id: body.id ?? uid(),
+      slug: body.slug || slugify(body.name),
+      currency: body.currency || "NGN",
+      image_url: body.image_url ?? null,
+      status: body.status ?? "active",
+    };
+    db.products[store.id] = [product, ...(db.products[store.id] ?? [])];
+    save(db);
+    return product;
+  },
+
+  async updateProduct(
+    token: string,
+    productId: string,
+    body: Partial<StoreProduct>,
+  ): Promise<StoreProduct> {
+    await delay(250);
+    const { db, store } = findStoreForToken(token);
+    const products = db.products[store.id] ?? [];
+    const index = products.findIndex((item) => item.id === productId);
+    if (index === -1) throw { status: 404, message: "Product not found" };
+    const updated = { ...products[index], ...body, id: productId };
+    products[index] = updated;
+    db.products[store.id] = products;
+    save(db);
+    return updated;
+  },
+
+  async deleteProduct(token: string, productId: string): Promise<void> {
+    await delay(200);
+    const { db, store } = findStoreForToken(token);
+    db.products[store.id] = (db.products[store.id] ?? []).filter((item) => item.id !== productId);
+    save(db);
+  },
+
+  async importProducts(token: string, products: StoreProduct[]): Promise<StoreProduct[]> {
+    await delay(350);
+    const { db, store } = findStoreForToken(token);
+    db.products[store.id] = [...products, ...(db.products[store.id] ?? [])];
+    save(db);
+    return db.products[store.id] ?? [];
   },
 
   async updateMyStore(token: string, body: { brand_color?: string }): Promise<{ store: Store }> {
@@ -383,7 +465,7 @@ export const mockApi = {
     const db = load();
     const store = Object.values(db.stores).find((entry) => entry.slug === slug);
     if (!store) throw { status: 404, message: "Storefront not found" };
-    const storefront = db.storefronts[store.id] ?? synthesizeStorefront(store);
+    const storefront = storefrontForStore(db, store.id) ?? synthesizeStorefront(store);
     return { store, storefront, generation_id: null };
   },
 
@@ -399,7 +481,7 @@ export const mockApi = {
           entry.slug === hostname.split(".")[0],
       ) ?? null;
     if (!store) throw { status: 404, message: "Storefront not found" };
-    const storefront = db.storefronts[store.id] ?? synthesizeStorefront(store);
+    const storefront = storefrontForStore(db, store.id) ?? synthesizeStorefront(store);
     return { store, storefront, generation_id: null };
   },
 
@@ -408,8 +490,7 @@ export const mockApi = {
     const db = load();
     const store = Object.values(db.stores).find((entry) => entry.slug === slug);
     if (!store) throw { status: 404, message: "Storefront not found" };
-    const storefront = db.storefronts[store.id] ?? synthesizeStorefront(store);
-    const products = new Map((storefront.products ?? []).map((product) => [product.id, product]));
+    const products = new Map((db.products[store.id] ?? []).map((product) => [product.id, product]));
     const items = body.items.map((line) => {
       const product = products.get(line.product_id);
       if (!product)
@@ -508,6 +589,14 @@ export const mockApi = {
     token: string,
     sessionId: string,
     message: string,
+    state?: {
+      business_profile?: BuilderBusinessProfile;
+      status?: BuilderSessionStatus;
+      assistant_message?: string;
+      assistant_payload?: Record<string, unknown>;
+      selected_template_id?: StorefrontTemplateId | null;
+      storefront_snapshot?: StorefrontContent | null;
+    },
   ): Promise<BuilderSessionResponse> {
     await delay(300);
     const db = load();
@@ -515,6 +604,37 @@ export const mockApi = {
     if (!userId) throw { status: 401, message: "Unauthenticated" };
     const session = db.builderSessions[userId];
     if (!session || session.id !== sessionId) throw { status: 404, message: "Builder session not found" };
+
+    session.messages.push({
+      id: uid(),
+      role: "user",
+      content: message,
+      created_at: new Date().toISOString(),
+    });
+
+    if (state?.assistant_message) {
+      if (state.business_profile) session.business_profile = state.business_profile;
+      if (state.status) session.status = state.status;
+      if (state.selected_template_id) session.selected_template_id = state.selected_template_id;
+      if (state.storefront_snapshot) {
+        session.storefront_snapshot = state.storefront_snapshot;
+        if (session.store) db.storefronts[session.store.id] = state.storefront_snapshot;
+      }
+      session.messages.push({
+        id: uid(),
+        role: "assistant",
+        content: state.assistant_message,
+        payload: state.assistant_payload,
+        created_at: new Date().toISOString(),
+      });
+      session.updated_at = new Date().toISOString();
+      db.builderSessions[userId] = session;
+      save(db);
+      return {
+        session: hydrateBuilderSession(db, session),
+        storefront: state.storefront_snapshot ?? undefined,
+      };
+    }
 
     const next = processBuilderMessage(db, userId, session, message);
     db.builderSessions[userId] = next;
@@ -554,7 +674,11 @@ export const mockApi = {
     return { session: hydrateBuilderSession(db, session) };
   },
 
-  async generateBuilderDraft(token: string, sessionId: string): Promise<BuilderSessionResponse> {
+  async generateBuilderDraft(
+    token: string,
+    sessionId: string,
+    draft?: { storefront?: StorefrontContent; selected_template_id?: StorefrontTemplateId | null },
+  ): Promise<BuilderSessionResponse> {
     await delay(1800);
     const db = load();
     const userId = db.sessions[token];
@@ -563,11 +687,14 @@ export const mockApi = {
     if (!session || session.id !== sessionId) throw { status: 404, message: "Builder session not found" };
 
     const store = ensureBuilderStore(db, userId, session);
-    if (session.selected_template_id) {
+    if (session.selected_template_id && session.selected_template_id !== "ai_pick") {
       store.storefront_template_id = session.selected_template_id;
+    } else if (draft?.selected_template_id) {
+      session.selected_template_id = draft.selected_template_id;
+      store.storefront_template_id = draft.selected_template_id;
     }
 
-    const storefront = synthesizeStorefront(store);
+    const storefront = draft?.storefront ?? synthesizeStorefront(store);
     storefront.edit_metadata = {
       ai_generated_paths: [
         "hero.headline",
@@ -747,19 +874,51 @@ function processBuilderMessage(
   session: BuilderSession,
   message: string,
 ): BuilderSession {
-  session.messages.push({
-    id: uid(),
-    role: "user",
-    content: message,
-    created_at: new Date().toISOString(),
-  });
-
   session.business_profile = extractBusinessProfile(message, session.business_profile ?? {});
   const profile = session.business_profile;
   const hasMinimum =
     !!profile.business_name &&
     !!profile.description &&
     profile.description.length >= 10;
+
+  const wantsWebsite =
+    /\b(build|create|generate|make)\b.*\b(website|site|storefront|store|draft)\b/i.test(message) ||
+    /\b(build my website|generate my website|create my website|yes proceed|yes,? build|go ahead)\b/i.test(
+      message,
+    );
+
+  if (wantsWebsite && hasMinimum && !session.storefront_snapshot) {
+    const store = ensureBuilderStore(db, userId, session);
+    session.store = store;
+    const recommendations =
+      session.recommendations.length > 0
+        ? session.recommendations
+        : recommendTemplates({
+            prompt: `${profile.business_name} ${profile.description}`.trim(),
+            industry: profile.industry ?? undefined,
+            tone: profile.tone,
+            limit: 4,
+          });
+    session.recommendations = recommendations;
+    if (!session.selected_template_id || session.selected_template_id === "ai_pick") {
+      session.selected_template_id = recommendations[0]?.template_id ?? "minimalistic";
+    }
+    store.storefront_template_id = session.selected_template_id ?? "minimalistic";
+    const storefront = synthesizeStorefront(store);
+    session.storefront_snapshot = storefront;
+    db.storefronts[store.id] = storefront;
+    session.status = "content_generated";
+    session.messages.push({
+      id: uid(),
+      role: "assistant",
+      content:
+        "Your website is ready. Preview it on the right, then tell me what to refine — headline, about section, CTA, or SEO.",
+      payload: { type: "website_generated" },
+      created_at: new Date().toISOString(),
+    });
+    session.updated_at = new Date().toISOString();
+    return session;
+  }
 
   if (hasMinimum) {
     const store = ensureBuilderStore(db, userId, session);

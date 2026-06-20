@@ -18,7 +18,7 @@ export function BuilderPreviewPanel({
 }) {
   if (generating) {
     return (
-      <div className="flex h-full min-h-[560px] flex-col rounded-2xl border border-border bg-card shadow-soft">
+      <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-soft">
         <PreviewHeader store={store} storefront={null} />
         <div className="flex-1 p-4">
           <GeneratingSkeleton />
@@ -29,7 +29,7 @@ export function BuilderPreviewPanel({
 
   if (!store || !storefront) {
     return (
-      <div className="flex h-full min-h-[560px] flex-col rounded-2xl border border-dashed border-border bg-card/60 shadow-soft">
+      <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-dashed border-border bg-card/60 shadow-soft">
         <PreviewHeader store={store} storefront={null} />
         <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
           <div className="grid h-12 w-12 place-items-center rounded-xl bg-primary/10 text-primary">
@@ -46,7 +46,7 @@ export function BuilderPreviewPanel({
   }
 
   return (
-    <div className="flex h-full min-h-[560px] flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-soft">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-soft">
       <PreviewHeader store={store} storefront={storefront} />
       <div className="flex-1 overflow-auto bg-secondary/40 p-4">
         <div className="mx-auto max-w-5xl overflow-hidden rounded-xl border border-border bg-background shadow-soft">

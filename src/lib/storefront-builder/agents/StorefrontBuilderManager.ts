@@ -263,11 +263,6 @@ export class StorefrontBuilderManager {
         ctx.assistantMessage =
           "Your website is ready. Preview it on the right, then tell me what to refine — headline, about section, CTA, or SEO.";
       }
-    } else if (hasMinimumBusinessProfile(ctx.profile) && ctx.status === "template_recommendation") {
-      if (!ctx.assistantMessage) {
-        ctx.assistantMessage =
-          "I have a clear picture of your business. Say “build my website” and I’ll design and generate your first draft.";
-      }
     }
 
     return {

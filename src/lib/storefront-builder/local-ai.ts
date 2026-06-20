@@ -63,6 +63,69 @@ const INDUSTRY_KEYWORDS: Record<string, Industry> = {
   salon: "services",
 };
 
+export function isBuildIntent(message: string): boolean {
+  const trimmed = message.trim().toLowerCase();
+  return (
+    /\b(build|create|generate|make)\b.*\b(website|site|storefront|store|draft)\b/.test(trimmed) ||
+    /\b(build my website|generate my website|create my website|yes proceed|yes,? build|go ahead and build|go ahead)\b/.test(
+      trimmed,
+    )
+  );
+}
+
+export function isEditIntent(message: string): boolean {
+  const trimmed = message.trim().toLowerCase();
+  if (!trimmed || isBuildIntent(message)) return false;
+
+  return (
+    /\b(change|update|edit|rewrite|revise|shorten|lengthen|improve|fix|replace|make (?:the|it)|set (?:the|my))\b/.test(
+      trimmed,
+    ) ||
+    /\b(headline|subheadline|tagline|cta|button|about(?:\s+section|\s+copy|\s+page)?|seo|title|description|copy|hero)\b/.test(
+      trimmed,
+    ) ||
+    /\b(more premium|more luxury|more minimal|warmer|friendlier|professional|playful|bold|shorter|longer)\b/.test(
+      trimmed,
+    )
+  );
+}
+
+export function mergeSessionProfile(session: BuilderSession): BuilderBusinessProfile {
+  const profile = sanitizeBusinessProfile(session.business_profile ?? {});
+  const store = session.store;
+  if (!store) return profile;
+
+  return sanitizeBusinessProfile({
+    ...profile,
+    business_name: profile.business_name ?? store.business_name ?? null,
+    description: profile.description ?? store.description ?? null,
+    industry: profile.industry ?? store.industry ?? null,
+    brand_color: profile.brand_color ?? store.brand_color ?? null,
+  });
+}
+
+export function resolveSelectedTemplateId(
+  session: BuilderSession,
+  recommendations: StorefrontTemplateRecommendation[],
+  availableTemplateIds: StorefrontTemplateId[],
+): StorefrontTemplateId | null {
+  const fromSession =
+    session.selected_template_id && session.selected_template_id !== "ai_pick"
+      ? session.selected_template_id
+      : null;
+
+  if (fromSession && availableTemplateIds.includes(fromSession)) {
+    return fromSession;
+  }
+
+  const recommended = recommendations[0]?.template_id;
+  if (recommended && availableTemplateIds.includes(recommended)) {
+    return recommended;
+  }
+
+  return availableTemplateIds[0] ?? null;
+}
+
 export function isSubstantiveBuilderMessage(message: string): boolean {
   const trimmed = message.trim();
   if (!trimmed) return false;
@@ -93,7 +156,20 @@ export function extractBusinessProfile(
   if (namedMatch) next.business_name = namedMatch[1].trim();
   else if (isMatch) next.business_name = isMatch[1].trim();
 
-  if (message.trim().length > 20) next.description = message.trim();
+  if (message.trim().length > 20 && !isBuildIntent(message)) {
+    next.description = message.trim();
+  }
+
+  const sellMatch = message.match(/\b(?:i\s+)?sell\s+([^,.!?\n]+)/i);
+  if (sellMatch && !next.business_name) {
+    const productLabel = sellMatch[1].trim();
+    if (productLabel.length >= 3 && productLabel.length <= 60) {
+      next.business_name = productLabel
+        .split(/\s+/)
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+        .join(" ");
+    }
+  }
 
   for (const [keyword, industry] of Object.entries(INDUSTRY_KEYWORDS)) {
     if (lower.includes(keyword)) {
@@ -140,16 +216,21 @@ export function fallbackBuilderTurn({
   recommendations: StorefrontTemplateRecommendation[];
   availableTemplateIds: StorefrontTemplateId[];
 }): BuilderAiTurn {
+  const mergedSession = {
+    ...session,
+    business_profile: mergeSessionProfile(session),
+  };
+
   if (!isSubstantiveBuilderMessage(message)) {
     return {
-      business_profile: sanitizeBusinessProfile(session.business_profile ?? {}),
-      status: session.status,
-      assistant_message: conversationalReply(session, message),
+      business_profile: mergedSession.business_profile,
+      status: mergedSession.status,
+      assistant_message: conversationalReply(mergedSession, message),
       assistant_payload: { type: "conversation" },
     };
   }
 
-  const profile = extractBusinessProfile(message, session.business_profile ?? {});
+  const profile = extractBusinessProfile(message, mergedSession.business_profile ?? {});
   if (!hasMinimumBusinessProfile(profile)) {
     const missing = [];
     if (!profile.business_name) missing.push("business name");
@@ -165,14 +246,13 @@ export function fallbackBuilderTurn({
     };
   }
 
-  const top = recommendations[0];
-  const wantsWebsite = /\b(build|create|draft|generate|go ahead|make it|start|website|site)\b/i.test(message);
-  const selectedTemplateId =
-    session.selected_template_id ?? (wantsWebsite && top ? top.template_id : top?.template_id ?? null);
-  const shouldGenerate =
-    wantsWebsite &&
-    !!selectedTemplateId &&
-    availableTemplateIds.includes(selectedTemplateId as StorefrontTemplateId);
+  const wantsWebsite = isBuildIntent(message);
+  const selectedTemplateId = resolveSelectedTemplateId(
+    { ...mergedSession, business_profile: profile },
+    recommendations,
+    availableTemplateIds,
+  );
+  const shouldGenerate = wantsWebsite && !!selectedTemplateId;
 
   return {
     business_profile: profile,
@@ -183,7 +263,9 @@ export function fallbackBuilderTurn({
       : undefined,
     assistant_message: shouldGenerate
       ? "Your website is ready. Preview it on the right, then tell me what to refine — headline, about section, CTA, or SEO."
-      : "I have a clear picture of your business. Say “build my website” and I’ll design and generate your first draft.",
+      : recommendations.length
+        ? `Great — I can build a ${recommendations[0]?.label ?? "website"} style storefront for ${profile.business_name}. Say “build my website” when you’re ready.`
+        : "Tell me a bit more about your business, then say “build my website” and I’ll generate your first draft.",
     assistant_payload: {
       type: shouldGenerate ? "website_generated" : "agent_turn",
       profile,

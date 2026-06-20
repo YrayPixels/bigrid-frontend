@@ -27,8 +27,19 @@ export function BuilderChatPanel({
   const brandColor = session.store?.brand_color ?? session.business_profile.brand_color ?? "#0E7C66";
 
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [session.messages.length, sending]);
+    const container = scrollRef.current;
+    if (!container) return;
+
+    const scrollToBottom = () => {
+      container.scrollTop = container.scrollHeight;
+    };
+
+    scrollToBottom();
+
+    const observer = new ResizeObserver(scrollToBottom);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [session.messages, sending, generating]);
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -39,8 +50,8 @@ export function BuilderChatPanel({
   }
 
   return (
-    <div className="flex h-full min-h-[560px] flex-col rounded-2xl border border-border bg-card shadow-soft">
-      <div className="border-b border-border px-5 py-4">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-soft">
+      <div className="shrink-0 border-b border-border px-5 py-4">
         <div className="flex items-center gap-2 text-sm font-medium text-ink-soft">
           <Sparkles className="h-4 w-4 text-primary" />
           AI Website Builder
@@ -50,7 +61,7 @@ export function BuilderChatPanel({
         </p>
       </div>
 
-      <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
+      <div ref={scrollRef} className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
         {session.messages.map((message) => (
           <ChatBubble key={message.id} message={message} brandColor={brandColor} />
         ))}
@@ -80,7 +91,7 @@ export function BuilderChatPanel({
         ) : null}
       </div>
 
-      <form onSubmit={handleSubmit} className="border-t border-border p-4">
+      <form onSubmit={handleSubmit} className="shrink-0 border-t border-border p-4">
         <div className="flex items-end gap-2">
           <textarea
             value={input}

@@ -1,10 +1,14 @@
 # StoreHause AI Shop Builder - Product & Technical Specification
 
-Version: 1.0
+Version: 1.1
 
 Owner: StoreHause
 
-Status: Planning / Build Phase
+Status: Living Spec — Build Phase
+
+Last reviewed: June 2026
+
+See also: [arch.md](./arch.md) for implementation status, build backlog, and admin platform details.
 
 ---
 
@@ -602,12 +606,82 @@ referrer
 
 A merchant can:
 
-1. Sign up
-2. Describe business
-3. Generate store
-4. Add products
-5. Connect payments
-6. Publish
-7. Receive orders
+| Step | Criterion | Status |
+|------|-----------|--------|
+| 1 | Sign up | **Done** |
+| 2 | Describe business | **Partial** |
+| 3 | Generate store | **Partial** |
+| 4 | Add products | **Partial** |
+| 5 | Connect payments | **Deferred** |
+| 6 | Publish | **Deferred** |
+| 7 | Receive orders | **Partial** (orders only; payments deferred) |
 
 Without assistance from StoreHause support.
+
+---
+
+# Implementation Status
+
+High-level snapshot. Full detail, sprint progress, and build backlog are in [arch.md](./arch.md).
+
+---
+
+## Product Journey
+
+| Step | Spec | Built? |
+|------|------|--------|
+| Sign up + default store | User, Merchant, Store created on registration | Yes |
+| AI discovery chat | Business profile extraction via multi-agent flow | Partial — dual Next.js/Laravel paths |
+| Store generation | Brand, content, structure, template selection | Partial — not reliably end-to-end |
+| Preview (mobile + desktop) | Builder preview + website editor | Built |
+| Regenerate / edit | Chat edits + inline editor | Partial |
+| Product import (manual) | Admin products page | Partial — saves via full storefront PATCH |
+| Product import (CSV) | XLSX upload in frontend | Partial |
+| Product visible on storefront | Home + products pages show merchant catalog | **Broken / unreliable** |
+| Connect payments | Paystack / Flutterwave | **Deferred** — after core loop works |
+| Publish | Explicit publish separates draft from live | **Deferred** |
+| Receive paid orders | Webhook confirms payment | **Deferred** |
+
+---
+
+## Dashboard Modules
+
+| Module | Status |
+|--------|--------|
+| Dashboard (KPIs, charts) | Built |
+| AI Builder | **Partial** — chat works; generation unreliable; dual AI paths |
+| Products | **Partial** — no dedicated API; may not show on live storefront |
+| Orders | Partial — list + status, no refunds |
+| Customers | Not started |
+| Analytics | Partial — visits only, no funnels |
+| Website Editor | Partial — inline edit, no section controls |
+| Marketing | Not started (future) |
+| Settings | Partial — UI placeholders for payments, domain, shipping |
+
+---
+
+## AI Features Roadmap
+
+| Feature | Phase | Status |
+|---------|-------|--------|
+| AI Store Builder | 1 | **Partial** — needs reliable end-to-end generation |
+| AI Product Writer | 1 | Not started |
+| AI SEO Assistant | 1 | Not started |
+| AI Store Auditor | 2 | Partial (Critic agent in builder only) |
+| AI Sales Coach | 2 | Not started |
+| AI Growth Agent | 3 | Not started |
+
+---
+
+## What to Build Next
+
+**Principle:** perfect the creation loop (AI builder + products) before payments.
+
+Priority order (see [arch.md — Phase A](./arch.md#phase-a--core-creation-loop-current-focus)):
+
+1. **Dedicated products API** — stop saving products via full storefront PATCH
+2. **Products on storefront** — merge catalog at read time; show merchant products on home/products pages
+3. **Consolidate AI builder on backend** — Laravel owns generation; remove Next.js as generation source
+4. **Fix generate flow** — "build my website" reliably produces and persists a draft
+5. **Real API by default** — mocks opt-in only
+6. **Payments** — only after steps 1–5 pass acceptance criteria

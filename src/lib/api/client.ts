@@ -12,6 +12,7 @@ import type {
   StoreOrder,
   StoreOrdersResponse,
   StoreOrderStatus,
+  StoreProduct,
   StorefrontContent,
   StorefrontTemplateId,
   StorefrontTemplateOption,
@@ -323,7 +324,7 @@ export const api = {
     state?: PersistBuilderMessageInput,
   ): Promise<BuilderSessionResponse> {
     const token = requireToken();
-    if (USE_MOCKS) return mockApi.sendBuilderMessage(token, sessionId, message);
+    if (USE_MOCKS) return mockApi.sendBuilderMessage(token, sessionId, message, state);
     return http<BuilderSessionResponse>(
       `${STOREHAUSE_API_PREFIX}/storefront-builder/sessions/${sessionId}/messages`,
       { method: "POST", body: JSON.stringify({ message, ...(state ?? {}) }) },
@@ -348,7 +349,7 @@ export const api = {
     draft?: PersistBuilderDraftInput,
   ): Promise<BuilderSessionResponse> {
     const token = requireToken();
-    if (USE_MOCKS) return mockApi.generateBuilderDraft(token, sessionId);
+    if (USE_MOCKS) return mockApi.generateBuilderDraft(token, sessionId, draft);
     return http<BuilderSessionResponse>(
       `${STOREHAUSE_API_PREFIX}/storefront-builder/sessions/${sessionId}/generate`,
       { method: "POST", body: JSON.stringify(draft ?? {}) },
@@ -366,6 +367,49 @@ export const api = {
       `${STOREHAUSE_API_PREFIX}/storefront-builder/sessions/${sessionId}/edit`,
       { method: "POST", body: JSON.stringify({ instruction, ...(edit ?? {}) }) },
     );
+  },
+
+  async getProducts(): Promise<StoreProduct[]> {
+    requireToken();
+    if (USE_MOCKS) return mockApi.getProducts(requireToken());
+    const res = await http<{ data: StoreProduct[] }>(`${STOREHAUSE_API_PREFIX}/products`);
+    return res.data;
+  },
+
+  async createProduct(body: Omit<StoreProduct, "id"> & { id?: string }): Promise<StoreProduct> {
+    requireToken();
+    if (USE_MOCKS) return mockApi.createProduct(requireToken(), body);
+    const res = await http<{ product: StoreProduct }>(`${STOREHAUSE_API_PREFIX}/products`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+    return res.product;
+  },
+
+  async updateProduct(productId: string, body: Partial<StoreProduct>): Promise<StoreProduct> {
+    requireToken();
+    if (USE_MOCKS) return mockApi.updateProduct(requireToken(), productId, body);
+    const res = await http<{ product: StoreProduct }>(`${STOREHAUSE_API_PREFIX}/products/${productId}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
+    return res.product;
+  },
+
+  async deleteProduct(productId: string): Promise<void> {
+    requireToken();
+    if (USE_MOCKS) return mockApi.deleteProduct(requireToken(), productId);
+    await http(`${STOREHAUSE_API_PREFIX}/products/${productId}`, { method: "DELETE" });
+  },
+
+  async importProducts(products: StoreProduct[]): Promise<StoreProduct[]> {
+    requireToken();
+    if (USE_MOCKS) return mockApi.importProducts(requireToken(), products);
+    const res = await http<{ data: StoreProduct[] }>(`${STOREHAUSE_API_PREFIX}/products/import`, {
+      method: "POST",
+      body: JSON.stringify({ products }),
+    });
+    return res.data;
   },
 };
 

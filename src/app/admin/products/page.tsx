@@ -32,7 +32,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api/client";
-import type { Store, StoreProduct, StorefrontContent } from "@/lib/api/types";
+import type { Store, StoreProduct } from "@/lib/api/types";
 
 type ProductForm = {
   id?: string;
@@ -97,72 +97,6 @@ function uid() {
     return crypto.randomUUID();
   }
   return `product_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-}
-
-function createStarterStorefront(store: Store): StorefrontContent {
-  const description =
-    store.description || `Tell customers what makes ${store.business_name} special.`;
-
-  return {
-    template: {
-      id:
-        store.storefront_template_id && store.storefront_template_id !== "ai_pick"
-          ? store.storefront_template_id
-          : "classic",
-      source: "merchant_selected",
-    },
-    data_plugs: {
-      home_products_source: "merchant_products",
-    },
-    hero: {
-      headline: `Welcome to ${store.business_name}`,
-      subheadline: description,
-      cta_label: "Shop now",
-    },
-    about: {
-      title: `About ${store.business_name}`,
-      body: description,
-    },
-    value_props: [
-      { title: "Quality products", body: "Describe why customers should trust this store." },
-      { title: "Fast fulfilment", body: "Explain how orders are prepared and delivered." },
-      { title: "Helpful support", body: "Tell customers how buyers can get help." },
-    ],
-    pages: {
-      about: {
-        title: `About ${store.business_name}`,
-        body: description,
-        source: "merchant",
-      },
-      contact: {
-        title: "Contact us",
-        body: "Have a question? Send us a message and we will get back to you shortly.",
-        email: null,
-        phone: null,
-        source: "merchant",
-      },
-      faq: {
-        title: "Frequently asked questions",
-        source: "merchant",
-        items: [
-          {
-            question: "How do I place an order?",
-            answer: "Browse products, add items to your cart, and complete checkout.",
-          },
-        ],
-      },
-      privacy_policy: {
-        title: "Privacy policy",
-        body: `This privacy policy explains how ${store.business_name} collects, uses, and protects customer information.`,
-        source: "platform_default",
-      },
-    },
-    products: [],
-    seo: {
-      title: `${store.business_name} | Online Store`,
-      description: description.slice(0, 150),
-    },
-  };
 }
 
 function formFromProduct(product?: StoreProduct): ProductForm {
@@ -324,18 +258,13 @@ export default function AdminProductsPage() {
     }
   }, [storeQuery.isFetched, storeQuery.data, user, router]);
 
-  const storefrontQuery = useQuery({
-    queryKey: ["storefront", store?.id],
-    queryFn: () => api.getStorefront(store!.id),
+  const productsQuery = useQuery({
+    queryKey: ["products", store?.id],
+    queryFn: () => api.getProducts(),
     enabled: !!store,
   });
 
-  const storefront = useMemo(() => {
-    if (!store) return null;
-    return storefrontQuery.data ?? createStarterStorefront(store);
-  }, [store, storefrontQuery.data]);
-
-  const products = useMemo(() => storefront?.products ?? [], [storefront?.products]);
+  const products = productsQuery.data ?? [];
   const categoryOptions = useMemo(() => {
     const categories = products
       .map((product) => product.category)
@@ -379,23 +308,21 @@ export default function AdminProductsPage() {
   const draftCount = products.length - activeCount;
   const inventoryCount = products.reduce((sum, product) => sum + (product.stock_quantity ?? 0), 0);
 
-  const saveProducts = useMutation({
-    mutationFn: async (nextProducts: StoreProduct[]) => {
-      if (!store || !storefront) throw new Error("Storefront is not ready.");
-      const nextStorefront: StorefrontContent = {
-        ...storefront,
-        products: nextProducts,
-      };
-      return api.updateStorefront(store.id, {
-        storefront: nextStorefront,
-        storefront_template_id: nextStorefront.template?.id,
-      });
+  const saveProduct = useMutation({
+    mutationFn: async (product: StoreProduct) => {
+      if (editingProduct) {
+        const { id: _id, ...payload } = product;
+        return api.updateProduct(editingProduct.id, payload);
+      }
+      const { id: _id, ...payload } = product;
+      return api.createProduct(payload);
     },
-    onSuccess: (updatedStorefront) => {
-      if (store) queryClient.setQueryData(["storefront", store.id], updatedStorefront);
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["storefront"] });
       setLastUpdated(new Date());
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "Could not save products"),
+    onError: (err) => toast.error(err instanceof Error ? err.message : "Could not save product"),
   });
 
   function openNewProduct() {
@@ -422,11 +349,8 @@ export default function AdminProductsPage() {
     }
 
     const product = productFromForm(form, editingProduct);
-    const nextProducts = editingProduct
-      ? products.map((item) => (item.id === editingProduct.id ? product : item))
-      : [product, ...products];
 
-    await saveProducts.mutateAsync(nextProducts);
+    await saveProduct.mutateAsync(product);
     toast.success(editingProduct ? "Product updated." : "Product added.");
     setDialogOpen(false);
   }
@@ -466,7 +390,10 @@ export default function AdminProductsPage() {
         return;
       }
 
-      await saveProducts.mutateAsync([...importedProducts, ...products]);
+      await api.importProducts(importedProducts);
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["storefront"] });
+      setLastUpdated(new Date());
       toast.success(`${importedProducts.length} products imported.`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not import products");
@@ -475,7 +402,7 @@ export default function AdminProductsPage() {
     }
   }
 
-  if (storeQuery.isLoading || storefrontQuery.isLoading) {
+  if (storeQuery.isLoading || productsQuery.isLoading) {
     return (
       <div className="grid min-h-[50vh] place-items-center">
         <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -483,7 +410,7 @@ export default function AdminProductsPage() {
     );
   }
 
-  if (!store || !storefront) return null;
+  if (!store) return null;
 
   return (
     <div className="w-full bg-[#f7f7f5] px-4 py-6 text-[#171717] sm:px-6 lg:px-8">
@@ -735,7 +662,7 @@ export default function AdminProductsPage() {
                       accept=".csv,.xlsx,.xls"
                       className="sr-only"
                       onChange={(event) => void handleImport(event)}
-                      disabled={importing || saveProducts.isPending}
+                      disabled={importing || saveProduct.isPending}
                     />
                   </label>
                   <Button
@@ -1157,8 +1084,8 @@ export default function AdminProductsPage() {
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={saveProducts.isPending}>
-                {saveProducts.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              <Button type="submit" disabled={saveProduct.isPending}>
+                {saveProduct.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                 {editingProduct ? "Save product" : "Add product"}
               </Button>
             </DialogFooter>
