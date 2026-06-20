@@ -33,11 +33,56 @@ function publicToolLabel(name: string) {
       return "Building your website";
     case "refine_website_copy":
       return "Refining website copy";
+    case "apply_stock_images":
+      return "Adding stock photos";
+    case "source_website_images":
+      return "Finding brand photos";
+    case "replace_template_images":
+      return "Replacing template photos";
+    case "switch_design":
+      return "Switching design";
+    case "apply_brand_color":
+      return "Updating colors";
     case "ask_clarifying_question":
       return "Asking for details";
     default:
       return "Working on your website";
   }
+}
+
+function ImageSourceWidget({ payload }: { payload: Record<string, unknown> }) {
+  const recommendations = Array.isArray(payload.image_recommendations)
+    ? (payload.image_recommendations as Array<{ label?: string; url?: string; reason?: string; target?: string }>)
+    : [];
+  const searchTerms = Array.isArray(payload.search_terms)
+    ? payload.search_terms.filter((term): term is string => typeof term === "string")
+    : [];
+
+  if (!recommendations.length && !searchTerms.length) return null;
+
+  return (
+    <div className="mt-3 space-y-2 rounded-xl border border-border bg-background p-3">
+      {recommendations.length > 0 ? (
+        <div className="grid gap-2 sm:grid-cols-2">
+          {recommendations.map((entry) =>
+            entry.url ? (
+              <div key={`${entry.target}-${entry.url}`} className="overflow-hidden rounded-lg border border-border">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={entry.url} alt={entry.label ?? "Suggested photo"} className="h-24 w-full object-cover" />
+                <div className="px-2 py-1.5 text-[11px] text-ink-soft">
+                  <p className="font-medium text-ink">{entry.label ?? "Suggested photo"}</p>
+                  {entry.reason ? <p className="mt-0.5">{entry.reason}</p> : null}
+                </div>
+              </div>
+            ) : null,
+          )}
+        </div>
+      ) : null}
+      {searchTerms.length > 0 ? (
+        <p className="text-[11px] text-ink-soft">Search terms: {searchTerms.join(", ")}</p>
+      ) : null}
+    </div>
+  );
 }
 
 function AgentTurnWidget({ payload }: { payload: Record<string, unknown> }) {
@@ -169,6 +214,14 @@ export function BuilderMessageWidgets({
         activeColor={payload.brand_color as string}
       />
     );
+  }
+
+  if (type === "images_sourced") {
+    return <ImageSourceWidget payload={payload} />;
+  }
+
+  if (type === "stock_images_applied" && Array.isArray(payload.image_recommendations)) {
+    return <ImageSourceWidget payload={payload} />;
   }
 
   if (normalizeSuggestedActions(payload.suggested_actions).length && type === "conversation") {

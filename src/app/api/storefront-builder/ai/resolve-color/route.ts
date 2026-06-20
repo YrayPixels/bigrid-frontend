@@ -1,4 +1,4 @@
-import type { Industry, Store } from "@/lib/api/types";
+import type { Industry, Store, StorefrontContent } from "@/lib/api/types";
 import type { BrandColorContext } from "@/lib/storefront-builder/color-resolver";
 import { resolveBrandColorForMessage } from "@/lib/storefront-builder/local-ai";
 
@@ -22,6 +22,11 @@ function contextToStore(context?: BrandColorContext): Store | null {
   };
 }
 
+function contextToStorefront(context?: BrandColorContext): StorefrontContent | null {
+  if (!context?.current_palette) return null;
+  return { palette: context.current_palette } as StorefrontContent;
+}
+
 export async function POST(request: Request) {
   const body = (await request.json().catch(() => null)) as ResolveColorRequest | null;
 
@@ -29,7 +34,11 @@ export async function POST(request: Request) {
     return Response.json({ message: "Invalid request." }, { status: 422 });
   }
 
-  const resolved = await resolveBrandColorForMessage(body.message.trim(), contextToStore(body.context));
+  const resolved = await resolveBrandColorForMessage(
+    body.message.trim(),
+    contextToStore(body.context),
+    contextToStorefront(body.context),
+  );
 
   if (!resolved) {
     return Response.json({ message: "Could not resolve a brand color." }, { status: 503 });

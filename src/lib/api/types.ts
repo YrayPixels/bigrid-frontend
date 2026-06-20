@@ -182,6 +182,7 @@ export type BuilderSuggestedAction =
   | { type: "prompt"; label: string; message: string }
   | { type: "color"; label: string; color: string }
   | { type: "upload"; label: string; target: BuilderMediaTarget }
+  | { type: "image"; label: string; target: BuilderMediaTarget; url: string }
   | { type: "link"; label: string; href: string };
 
 export type BuilderMessage = {

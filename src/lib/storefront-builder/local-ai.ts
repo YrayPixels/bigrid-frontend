@@ -29,6 +29,11 @@ import {
 import { isFaqItemAppendInstruction } from "@/lib/storefront/blocks/catalog";
 import { applyStockImagesToStorefront } from "@/lib/storefront-builder/stock-images";
 import { resolveBrandColorWithAi, isOpenEndedColorRequest } from "@/lib/storefront-builder/color-resolver";
+import {
+  derivePaletteFromPrimary,
+  paletteChangedPaths,
+  sanitizeStorefrontPalette,
+} from "@/lib/storefront/palette-utils";
 import { colorPresetActions } from "@/lib/storefront-builder/suggested-actions";
 import { STOREFRONT_NAV_ITEMS } from "@/lib/storefront/template";
 import { parseJsonObject } from "@/lib/storefront-builder/agents/agentThinking";
@@ -1027,16 +1032,16 @@ export function applyBrandColorToStorefront(
     id: templateId,
     source: nextStorefront.template?.source ?? "merchant_selected",
   };
-  nextStorefront.palette = {
-    ...getDefaultStorefrontPalette(templateId, brandColor),
-    ...(paletteOverride ?? {}),
-    primary: paletteOverride?.primary ?? brandColor,
-  };
+
+  const palette =
+    sanitizeStorefrontPalette(paletteOverride, brandColor) ?? derivePaletteFromPrimary(brandColor);
+
+  nextStorefront.palette = palette;
 
   return {
     storefront: nextStorefront,
-    store: { ...store, brand_color: brandColor },
-    changed_paths: ["palette.primary"],
+    store: { ...store, brand_color: palette.primary },
+    changed_paths: paletteChangedPaths(storefront.palette, palette),
   };
 }
 
@@ -1058,12 +1063,14 @@ export function applyColorChangeFromMessage(
 export async function resolveBrandColorForMessage(
   message: string,
   store?: Store | null,
-): Promise<{ brand_color: string; label: string } | null> {
+  storefront?: StorefrontContent | null,
+): Promise<{ brand_color: string; label: string; palette: StorefrontColorPalette } | null> {
   const aiResolved = await resolveBrandColorWithAi(message, {
     business_name: store?.business_name ?? null,
     industry: store?.industry ?? null,
     description: store?.description ?? null,
     current_color: store?.brand_color ?? null,
+    current_palette: storefront?.palette ?? null,
   });
 
   if (aiResolved) return aiResolved;
@@ -1072,9 +1079,11 @@ export async function resolveBrandColorForMessage(
   if (!fallback) return null;
 
   const hint = extractColorHintFromMessage(message);
+  const palette = derivePaletteFromPrimary(fallback);
   return {
-    brand_color: fallback,
-    label: hint ? formatColorLabel(hint) : "Brand color",
+    brand_color: palette.primary,
+    label: hint ? formatColorLabel(hint) : "Custom palette",
+    palette,
   };
 }
 
@@ -1085,10 +1094,10 @@ export async function applyColorChangeFromMessageAsync(
 ): Promise<{ storefront: StorefrontContent; store: Store; changed_paths: string[]; color_label?: string } | null> {
   if (!isColorIntent(message)) return null;
 
-  const resolved = await resolveBrandColorForMessage(message, store);
+  const resolved = await resolveBrandColorForMessage(message, store, storefront);
   if (!resolved) return null;
 
-  const result = applyBrandColorToStorefront(storefront, store, resolved.brand_color);
+  const result = applyBrandColorToStorefront(storefront, store, resolved.brand_color, resolved.palette);
   return { ...result, color_label: resolved.label };
 }
 

@@ -169,6 +169,22 @@ export default function AdminBuilderPage() {
     onError: (error) => toast.error(error instanceof Error ? error.message : "Could not upload image"),
   });
 
+  const applyImage = useMutation({
+    mutationFn: async ({
+      target,
+      url,
+    }: {
+      target: BuilderMediaTarget;
+      url: string;
+      label: string;
+    }) => {
+      if (!session) throw new Error("No active builder session");
+      return applyBuilderMedia({ session, target, url });
+    },
+    onSuccess: handleSessionResponse,
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not apply image"),
+  });
+
   const clearChat = useMutation({
     mutationFn: async () => {
       if (!session) throw new Error("No active builder session");
@@ -211,7 +227,7 @@ export default function AdminBuilderPage() {
     );
   }
 
-  const chatBusy = sendMessage.isPending || applyColor.isPending || uploadMedia.isPending || selectTemplate.isPending;
+  const chatBusy = sendMessage.isPending || applyColor.isPending || uploadMedia.isPending || applyImage.isPending || selectTemplate.isPending;
   const hasThinkingHistory = allThinkingTurns.length > 0;
   const previewThinkingEntries = thinkingStreaming ? thinkingEntries : latestLiveEntries;
 
@@ -250,6 +266,7 @@ export default function AdminBuilderPage() {
           onSendMessage={(message) => sendMessage.mutate(message)}
           onApplyColor={(color, label) => applyColor.mutate({ color, label })}
           onUploadMedia={(target, file) => uploadMedia.mutate({ target, file })}
+          onApplyImage={(target, url, label) => applyImage.mutate({ target, url, label })}
           onSelectTemplate={(templateId) => selectTemplate.mutate(templateId)}
           onClearChat={() => clearChat.mutate()}
         />

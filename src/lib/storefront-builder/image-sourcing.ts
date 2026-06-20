@@ -1,0 +1,423 @@
+import type { BuilderMediaTarget, Industry, StorefrontContent } from "@/lib/api/types";
+import { ensureHomeBlocksOnStorefront } from "@/lib/storefront/blocks/sync-legacy";
+import { migrateAboutBlocks, migrateHomeBlocks } from "@/lib/storefront/blocks/migrate-page-blocks";
+import type { StorefrontBlock } from "@/lib/storefront/blocks/types";
+import { parseJsonObject } from "@/lib/storefront-builder/agents/agentThinking";
+import { getAssistantMessageContent, getThinkingModel, postChat } from "@/lib/storefront-builder/agents/openaiChat";
+import {
+  buildImageSearchLinks,
+  catalogEntriesBySection,
+  catalogEntriesForIndustry,
+  catalogEntryById,
+  catalogForAiPrompt,
+} from "@/lib/storefront-builder/image-catalog";
+import { applyMediaToStorefront } from "@/lib/storefront-builder/local-ai";
+import { fetchTemplatePlanFromUnsplash } from "@/lib/storefront-builder/unsplash-client";
+
+export type SourcedImageRecommendation = {
+  target: BuilderMediaTarget | "template_block" | "product";
+  url: string;
+  label: string;
+  reason: string;
+  catalog_id?: string;
+  path?: string;
+};
+
+export type ImageSourceContext = {
+  business_name?: string | null;
+  industry?: Industry | string | null;
+  description?: string | null;
+  tone?: string[];
+};
+
+export type ImageSourceResult = {
+  recommendations: SourcedImageRecommendation[];
+  search_terms: string[];
+  source_links: Array<{ label: string; href: string }>;
+  summary: string;
+};
+
+export type TemplateImagePlan = {
+  hero_url: string;
+  about_url: string;
+  promo_url: string;
+  spotlight_url: string;
+  product_urls: string[];
+};
+
+function fallbackPlan(industry?: Industry | string | null): TemplateImagePlan {
+  const pool = catalogEntriesForIndustry(industry);
+  const hero = pool.find((entry) => entry.section === "hero") ?? catalogEntryById("minimal-hero-product")!;
+  const about = pool.find((entry) => entry.section === "about") ?? catalogEntryById("minimal-about-interior")!;
+  const promo = pool.find((entry) => entry.section === "lifestyle") ?? pool.find((entry) => entry.section === "product") ?? hero;
+  const spotlight = pool.find((entry) => entry.section === "about" && entry.id !== about.id) ?? about;
+  const products = catalogEntriesBySection("product")
+    .filter((entry) => !industry || entry.industries.includes(industry as Industry))
+    .slice(0, 6)
+    .map((entry) => entry.url);
+
+  return {
+    hero_url: hero.url,
+    about_url: about.url,
+    promo_url: promo.url,
+    spotlight_url: spotlight.url,
+    product_urls: products.length ? products : [hero.url, about.url, promo.url],
+  };
+}
+
+function idsToUrls(ids: unknown, fallback: string[]): string[] {
+  if (!Array.isArray(ids)) return fallback;
+  const urls = ids
+    .map((id) => (typeof id === "string" ? catalogEntryById(id)?.url : null))
+    .filter((url): url is string => typeof url === "string");
+  return urls.length ? urls : fallback;
+}
+
+function buildSearchTerms(context: ImageSourceContext, intent?: string): string[] {
+  const industry = context.industry?.toString().replace(/_/g, " ") ?? "shop";
+  const parts = [context.business_name, industry, context.description, intent]
+    .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+    .map((value) => value.trim());
+  return parts.length ? parts.slice(0, 4) : ["small business", industry];
+}
+
+async function resolveTemplateImagePlan(
+  intent: string,
+  context: ImageSourceContext = {},
+): Promise<{ plan: TemplateImagePlan; summary: string; search_terms: string[]; source: "unsplash" | "catalog" }> {
+  const fallback = fallbackPlan(context.industry);
+
+  const unsplashPlan = await fetchTemplatePlanFromUnsplash(context, intent);
+  if (unsplashPlan) {
+    const terms = buildSearchTerms(context, intent);
+    return {
+      plan: unsplashPlan,
+      search_terms: terms,
+      summary: "I found fresh Unsplash photos that match your brand.",
+      source: "unsplash",
+    };
+  }
+
+  const catalog = catalogForAiPrompt();
+
+  try {
+    const data = await postChat({
+      model: getThinkingModel(),
+      temperature: 0.45,
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "system",
+          content:
+            "You pick cohesive stock photos for an entire small-business website template.\n" +
+            "Choose catalog ids that match the merchant business, industry, and vibe.\n" +
+            "Return ONLY valid JSON with keys:\n" +
+            '- "hero_image_id": string — homepage header\n' +
+            '- "about_image_id": string — about section / brand story\n' +
+            '- "promo_image_id": string — promo banner or secondary hero accent\n' +
+            '- "spotlight_image_id": string — about spotlight / rich text image on homepage\n' +
+            '- "product_image_ids": array of 3-6 catalog ids — product grid photos\n' +
+            '- "search_terms": array of 3-5 strings for finding more photos on Unsplash/Pexels\n' +
+            '- "summary": string — one warm sentence about the photo direction\n' +
+            "All ids must exist in the catalog. Pick a cohesive set — not random mismatches.",
+        },
+        {
+          role: "user",
+          content: JSON.stringify({
+            merchant_request: intent,
+            business_name: context.business_name ?? null,
+            industry: context.industry ?? null,
+            description: context.description ?? null,
+            tone: context.tone ?? [],
+            image_catalog: catalog,
+          }),
+        },
+      ],
+    });
+
+    const parsed = parseJsonObject<{
+      hero_image_id?: string;
+      about_image_id?: string;
+      promo_image_id?: string;
+      spotlight_image_id?: string;
+      product_image_ids?: unknown;
+      search_terms?: unknown;
+      summary?: string;
+    }>(getAssistantMessageContent(data), {});
+
+    const hero = typeof parsed.hero_image_id === "string" ? catalogEntryById(parsed.hero_image_id) : null;
+    const about = typeof parsed.about_image_id === "string" ? catalogEntryById(parsed.about_image_id) : null;
+    const promo = typeof parsed.promo_image_id === "string" ? catalogEntryById(parsed.promo_image_id) : null;
+    const spotlight =
+      typeof parsed.spotlight_image_id === "string" ? catalogEntryById(parsed.spotlight_image_id) : null;
+
+    const searchTerms = Array.isArray(parsed.search_terms)
+      ? parsed.search_terms
+          .filter((term): term is string => typeof term === "string" && term.trim().length > 0)
+          .map((term) => term.trim())
+      : [];
+
+    const plan: TemplateImagePlan = {
+      hero_url: hero?.url ?? fallback.hero_url,
+      about_url: about?.url ?? fallback.about_url,
+      promo_url: promo?.url ?? spotlight?.url ?? fallback.promo_url,
+      spotlight_url: spotlight?.url ?? about?.url ?? fallback.spotlight_url,
+      product_urls: idsToUrls(parsed.product_image_ids, fallback.product_urls),
+    };
+
+    return {
+      plan,
+      search_terms: searchTerms.length ? searchTerms : buildSearchTerms(context, intent),
+      summary:
+        typeof parsed.summary === "string" && parsed.summary.trim()
+          ? parsed.summary.trim()
+          : "I picked on-brand photos for your homepage, about section, and products.",
+      source: "catalog",
+    };
+  } catch {
+    return {
+      plan: fallback,
+      search_terms: buildSearchTerms(context, intent),
+      summary: "I picked starter photos that fit your industry.",
+      source: "catalog",
+    };
+  }
+}
+
+function patchBlockImage(block: StorefrontBlock, url: string): StorefrontBlock {
+  const props = block.props as Record<string, unknown>;
+  if (!props || !("image_url" in props)) return block;
+  return { ...block, props: { ...props, image_url: url } };
+}
+
+function patchHomeBlocks(blocks: StorefrontBlock[], plan: TemplateImagePlan): StorefrontBlock[] {
+  return blocks.map((block) => {
+    if (block.type === "hero") return patchBlockImage(block, plan.hero_url);
+    if (block.id === "about-spotlight" || (block.type === "rich_text" && block.id !== "about-main")) {
+      return patchBlockImage(block, plan.spotlight_url);
+    }
+    if (block.type === "cta_banner") return patchBlockImage(block, plan.promo_url);
+    return block;
+  });
+}
+
+function patchAboutBlocks(blocks: StorefrontBlock[], plan: TemplateImagePlan): StorefrontBlock[] {
+  return blocks.map((block) => {
+    if (block.id === "about-main" || block.type === "rich_text") {
+      return patchBlockImage(block, plan.about_url);
+    }
+    return block;
+  });
+}
+
+export function applyTemplateImagesAcrossStorefront(
+  storefront: StorefrontContent,
+  plan: TemplateImagePlan,
+): { storefront: StorefrontContent; changed_paths: string[] } {
+  const next = structuredClone(storefront);
+  const changedPaths = new Set<string>();
+
+  ensureHomeBlocksOnStorefront(next);
+
+  next.media = {
+    ...next.media,
+    hero_image_url: plan.hero_url,
+    about_image_url: plan.about_url,
+  };
+  changedPaths.add("media.hero_image_url");
+  changedPaths.add("media.about_image_url");
+
+  const homeBlocks = patchHomeBlocks(migrateHomeBlocks(next), plan);
+  next.pages = {
+    ...next.pages,
+    home: { blocks: homeBlocks },
+  };
+  for (const block of homeBlocks) {
+    const props = block.props as { image_url?: string };
+    if (props.image_url) changedPaths.add(`pages.home.blocks.${block.id}.props.image_url`);
+  }
+
+  const aboutBlocks = patchAboutBlocks(migrateAboutBlocks(next), plan);
+  next.pages = {
+    ...next.pages,
+    about: {
+      ...next.pages!.about!,
+      blocks: aboutBlocks,
+    },
+  };
+  for (const block of aboutBlocks) {
+    const props = block.props as { image_url?: string };
+    if (props.image_url) changedPaths.add(`pages.about.blocks.${block.id}.props.image_url`);
+  }
+
+  if (next.products?.length && plan.product_urls.length) {
+    next.products = next.products.map((product, index) => ({
+      ...product,
+      image_url: plan.product_urls[index % plan.product_urls.length] ?? product.image_url,
+    }));
+    next.products.forEach((_, index) => changedPaths.add(`products.${index}.image_url`));
+  }
+
+  ensureHomeBlocksOnStorefront(next);
+
+  return { storefront: next, changed_paths: [...changedPaths] };
+}
+
+function planToRecommendations(plan: TemplateImagePlan): SourcedImageRecommendation[] {
+  const recommendations: SourcedImageRecommendation[] = [
+    {
+      target: "media.hero_image_url",
+      url: plan.hero_url,
+      label: "Homepage header",
+      reason: "Primary hero image",
+    },
+    {
+      target: "media.about_image_url",
+      url: plan.about_url,
+      label: "About section",
+      reason: "Brand story image",
+    },
+    {
+      target: "template_block",
+      url: plan.promo_url,
+      label: "Promo banner",
+      reason: "Homepage promo accent",
+      path: "pages.home.blocks.serum-promo.props.image_url",
+    },
+  ];
+
+  plan.product_urls.slice(0, 3).forEach((url, index) => {
+    recommendations.push({
+      target: "product",
+      url,
+      label: `Product photo ${index + 1}`,
+      reason: "Product grid image",
+      path: `products.${index}.image_url`,
+    });
+  });
+
+  return recommendations;
+}
+
+export async function sourceWebsiteImagesWithAi(
+  intent: string,
+  context: ImageSourceContext = {},
+): Promise<ImageSourceResult> {
+  const { plan, summary, search_terms } = await resolveTemplateImagePlan(intent, context);
+  const recommendations = planToRecommendations(plan).slice(0, 2);
+
+  return {
+    recommendations,
+    search_terms,
+    source_links: buildImageSearchLinks(search_terms),
+    summary,
+  };
+}
+
+export function applySourcedImagesToStorefront(
+  storefront: StorefrontContent,
+  recommendations: SourcedImageRecommendation[],
+): { storefront: StorefrontContent; changed_paths: string[] } {
+  const updates: Partial<Record<BuilderMediaTarget, string>> = {};
+  for (const recommendation of recommendations) {
+    if (recommendation.target === "media.hero_image_url" || recommendation.target === "media.about_image_url") {
+      updates[recommendation.target] = recommendation.url;
+    }
+  }
+
+  if (Object.keys(updates).length === 0) {
+    return { storefront, changed_paths: [] };
+  }
+
+  return applyMediaToStorefront(storefront, updates);
+}
+
+export function imageSourceSuggestedActions(
+  result: ImageSourceResult,
+): import("@/lib/api/types").BuilderSuggestedAction[] {
+  const actions: import("@/lib/api/types").BuilderSuggestedAction[] = result.recommendations
+    .filter(
+      (entry): entry is SourcedImageRecommendation & { target: BuilderMediaTarget } =>
+        entry.target === "media.hero_image_url" || entry.target === "media.about_image_url",
+    )
+    .map((entry) => ({
+      type: "image" as const,
+      label: entry.target === "media.hero_image_url" ? `Use header: ${entry.label}` : `Use about: ${entry.label}`,
+      target: entry.target,
+      url: entry.url,
+    }));
+
+  actions.push(
+    { type: "upload", label: "Upload your own photo", target: "media.hero_image_url" },
+    ...result.source_links.slice(0, 2).map((link) => ({
+      type: "link" as const,
+      label: link.label,
+      href: link.href,
+    })),
+  );
+
+  return actions;
+}
+
+export async function replaceTemplateImagesForStorefront(args: {
+  intent: string;
+  storefront: StorefrontContent;
+  context?: ImageSourceContext;
+}): Promise<{
+  storefront: StorefrontContent;
+  changed_paths: string[];
+  result: ImageSourceResult;
+}> {
+  const { plan, summary, search_terms } = await resolveTemplateImagePlan(args.intent, args.context ?? {});
+  const applied = applyTemplateImagesAcrossStorefront(args.storefront, plan);
+  const result: ImageSourceResult = {
+    recommendations: planToRecommendations(plan),
+    search_terms,
+    source_links: buildImageSearchLinks(search_terms),
+    summary,
+  };
+
+  return {
+    storefront: applied.storefront,
+    changed_paths: applied.changed_paths,
+    result,
+  };
+}
+
+export async function sourceAndApplyWebsiteImages(args: {
+  intent: string;
+  storefront: StorefrontContent;
+  store: { business_name: string; industry: Industry; description: string; tone?: string[] };
+  applyToPreview: boolean;
+}): Promise<{
+  result: ImageSourceResult;
+  storefront: StorefrontContent;
+  changed_paths: string[];
+}> {
+  if (!args.applyToPreview) {
+    const result = await sourceWebsiteImagesWithAi(args.intent, {
+      business_name: args.store.business_name,
+      industry: args.store.industry,
+      description: args.store.description,
+      tone: args.store.tone,
+    });
+    return { result, storefront: args.storefront, changed_paths: [] };
+  }
+
+  const replaced = await replaceTemplateImagesForStorefront({
+    intent: args.intent,
+    storefront: args.storefront,
+    context: {
+      business_name: args.store.business_name,
+      industry: args.store.industry,
+      description: args.store.description,
+      tone: args.store.tone,
+    },
+  });
+
+  return {
+    result: replaced.result,
+    storefront: replaced.storefront,
+    changed_paths: replaced.changed_paths,
+  };
+}

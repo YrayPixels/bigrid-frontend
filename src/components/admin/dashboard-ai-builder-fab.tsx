@@ -102,6 +102,15 @@ export function DashboardAiBuilderFab({
     onError: (error) => toast.error(error instanceof Error ? error.message : "Could not upload image"),
   });
 
+  const applyImage = useMutation({
+    mutationFn: async ({ target, url }: { target: BuilderMediaTarget; url: string; label: string }) => {
+      if (!session) throw new Error("No active builder session");
+      return applyBuilderMedia({ session, target, url });
+    },
+    onSuccess: handleSessionResponse,
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not apply image"),
+  });
+
   const selectTemplate = useMutation({
     mutationFn: async (templateId: StorefrontTemplateId) => {
       if (!session) throw new Error("No active builder session");
@@ -111,7 +120,7 @@ export function DashboardAiBuilderFab({
     onError: (error) => toast.error(error instanceof Error ? error.message : "Could not select template"),
   });
 
-  const chatBusy = sendMessage.isPending || applyColor.isPending || uploadMedia.isPending || selectTemplate.isPending;
+  const chatBusy = sendMessage.isPending || applyColor.isPending || uploadMedia.isPending || applyImage.isPending || selectTemplate.isPending;
 
   return (
     <>
@@ -146,6 +155,7 @@ export function DashboardAiBuilderFab({
                 onSendMessage={(message) => sendMessage.mutate(message)}
                 onApplyColor={(color, label) => applyColor.mutate({ color, label })}
                 onUploadMedia={(target, file) => uploadMedia.mutate({ target, file })}
+                onApplyImage={(target, url, label) => applyImage.mutate({ target, url, label })}
                 onSelectTemplate={(templateId) => selectTemplate.mutate(templateId)}
               />
             </div>

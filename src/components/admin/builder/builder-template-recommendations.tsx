@@ -36,18 +36,20 @@ export function BuilderTemplateRecommendations({
   );
 
   const recommendedOptions = recommendations.length
-    ? recommendations
+    ? [...recommendationByTemplate.values()]
         .map((recommendation) =>
           templateOptions.find((option) => option.value === recommendation.template_id),
         )
         .filter((option): option is ConcreteTemplateOption => Boolean(option))
+    : [];
+
+  const remainingOptions = recommendations.length
+    ? templateOptions.filter((option) => !recommendationByTemplate.has(option.value))
+    : [];
+
+  const options = recommendations.length
+    ? [...recommendedOptions, ...remainingOptions]
     : templateOptions;
-
-  const remainingOptions = templateOptions.filter(
-    (option) => !recommendationByTemplate.has(option.value),
-  );
-
-  const options = [...recommendedOptions, ...remainingOptions];
 
   if (!options.length) return null;
 

@@ -31,6 +31,7 @@ export function BuilderChatPanel({
   onSendMessage,
   onApplyColor,
   onUploadMedia,
+  onApplyImage,
   onSelectTemplate,
   onClearChat,
 }: {
@@ -47,6 +48,7 @@ export function BuilderChatPanel({
   onSendMessage: (message: string) => void;
   onApplyColor: (color: string, label: string) => void;
   onUploadMedia: (target: BuilderMediaTarget, file: File) => void;
+  onApplyImage?: (target: BuilderMediaTarget, url: string, label: string) => void;
   onSelectTemplate?: (templateId: StorefrontTemplateId) => void;
   onClearChat?: () => void;
 }) {
@@ -194,6 +196,7 @@ export function BuilderChatPanel({
             onPrompt={onSendMessage}
             onColor={onApplyColor}
             onUpload={openUploadPicker}
+            onApplyImage={onApplyImage}
           />
         ) : null}
 

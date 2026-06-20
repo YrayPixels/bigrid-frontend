@@ -60,6 +60,21 @@ function normalizeAction(raw: unknown): BuilderSuggestedAction | null {
     return { type: "upload", label: action.label.trim(), target: action.target };
   }
 
+  if (
+    type === "image" &&
+    typeof action.label === "string" &&
+    typeof action.url === "string" &&
+    action.url.startsWith("https://") &&
+    (action.target === "media.hero_image_url" || action.target === "media.about_image_url")
+  ) {
+    return {
+      type: "image",
+      label: action.label.trim(),
+      target: action.target,
+      url: action.url.trim(),
+    };
+  }
+
   if (type === "link" && typeof action.label === "string" && typeof action.href === "string") {
     return { type: "link", label: action.label.trim(), href: action.href.trim() };
   }
@@ -87,6 +102,7 @@ export function fallbackSuggestedActions(session: BuilderSession): BuilderSugges
       { type: "prompt", label: "Try fashion look", message: "Switch to a bold fashion lookbook design with editorial colors" },
       { type: "prompt", label: "Try minimal look", message: "Switch to a calm minimal design with warm neutral colors" },
       { type: "prompt", label: "Make it more premium", message: "Make the homepage more premium" },
+      { type: "prompt", label: "Source brand photos", message: "Help me find photos that fit my brand for the homepage and about section" },
       { type: "upload", label: "Upload header photo", target: "media.hero_image_url" },
       ...COLOR_PRESETS[industryKey(industry)].slice(0, 2).map(
         (preset): BuilderSuggestedAction => ({

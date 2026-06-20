@@ -226,6 +226,8 @@ export function summarizeToolResult(name: string, result: Record<string, unknown
   if (name === "switch_design" && result.ok) return "[tool:switch_design] design and palette applied";
   if (name === "apply_brand_color" && result.ok) return "[tool:apply_brand_color] brand color updated";
   if (name === "apply_stock_images" && result.ok) return "[tool:apply_stock_images] stock photos applied";
+  if (name === "source_website_images" && result.ok) return "[tool:source_website_images] image recommendations ready";
+  if (name === "replace_template_images" && result.ok) return "[tool:replace_template_images] template photos replaced";
   if (name === "guide_add_products" && result.ok) return "[tool:guide_add_products] product guidance sent";
   if (name === "design_website" && result.ok) return "[tool:design_website] website design selected";
   if (name === "capture_business_details" && result.ok) return "[tool:capture_business_details] profile updated";

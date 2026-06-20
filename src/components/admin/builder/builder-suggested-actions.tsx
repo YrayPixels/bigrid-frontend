@@ -1,6 +1,6 @@
 "use client";
 
-import { ExternalLink, ImagePlus, MessageSquare, Palette } from "lucide-react";
+import { ExternalLink, ImageIcon, ImagePlus, MessageSquare, Palette } from "lucide-react";
 import Link from "next/link";
 import type { BuilderMediaTarget, BuilderSuggestedAction } from "@/lib/api/types";
 
@@ -10,12 +10,14 @@ export function BuilderSuggestedActions({
   onPrompt,
   onColor,
   onUpload,
+  onApplyImage,
 }: {
   actions: BuilderSuggestedAction[];
   disabled?: boolean;
   onPrompt: (message: string) => void;
   onColor: (color: string, label: string) => void;
   onUpload: (target: BuilderMediaTarget) => void;
+  onApplyImage?: (target: BuilderMediaTarget, url: string, label: string) => void;
 }) {
   if (!actions.length) return null;
 
@@ -68,6 +70,25 @@ export function BuilderSuggestedActions({
               >
                 <ImagePlus className="h-3.5 w-3.5" />
                 {action.label}
+              </button>
+            );
+          }
+
+          if (action.type === "image") {
+            return (
+              <button
+                key={`image-${action.target}-${action.url}`}
+                type="button"
+                disabled={disabled || !onApplyImage}
+                onClick={() => onApplyImage?.(action.target, action.url, action.label)}
+                className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-2.5 py-1.5 text-left text-xs text-ink hover:border-primary/40 disabled:opacity-50"
+              >
+                <span className="relative h-6 w-6 shrink-0 overflow-hidden rounded-full border border-black/10">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={action.url} alt="" className="h-full w-full object-cover" />
+                </span>
+                <ImageIcon className="h-3 w-3 text-ink-soft" />
+                <span>{action.label}</span>
               </button>
             );
           }

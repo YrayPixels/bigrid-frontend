@@ -3,6 +3,7 @@ import type {
   BuilderSession,
   Industry,
   Store,
+  StorefrontColorPalette,
   StorefrontContent,
   StorefrontTemplateId,
   StorefrontTemplateOption,
@@ -10,6 +11,11 @@ import type {
 } from "@/lib/api/types";
 import { parseJsonObject } from "@/lib/storefront-builder/agents/agentThinking";
 import { getAssistantMessageContent, getThinkingModel, postChat } from "@/lib/storefront-builder/agents/openaiChat";
+import {
+  expandSwatchPaletteToTheme,
+  sanitizeStorefrontPalette,
+} from "@/lib/storefront/palette-utils";
+import { replaceTemplateImagesForStorefront } from "@/lib/storefront-builder/image-sourcing";
 import {
   applyBrandColorToStorefront,
   concreteTemplateIds,
@@ -38,6 +44,7 @@ export type DesignDirectionResolution = {
   brand_color: string;
   color_label: string;
   palette: DesignPaletteColor[];
+  theme_palette: StorefrontColorPalette;
   industry: Industry | null;
   tone: string[];
   merchant_summary: string;
@@ -126,6 +133,7 @@ function fallbackDesignDirection(
     brand_color: fallbackColor,
     color_label: "Brand color",
     palette: [{ color: fallbackColor, label: "Brand color" }],
+    theme_palette: expandSwatchPaletteToTheme(fallbackColor, [{ color: fallbackColor }]),
     industry: parseIndustry(context.industry ?? null),
     tone: [],
     merchant_summary: `a ${templateId.replace(/_/g, " ")} style`,
@@ -157,10 +165,15 @@ export async function resolveDesignDirectionWithAi(
             '- "template_id": string — must be one of the catalog ids exactly\n' +
             '- "brand_color": "#RRGGBB" — primary button/brand color with enough contrast for white text\n' +
             '- "color_label": string — short name for the primary color\n' +
-            '- "palette": array of 3-4 objects {"color": "#RRGGBB", "label": "short name"} — harmonious palette including brand_color first\n' +
+            '- "palette": array of 3-4 objects {"color": "#RRGGBB", "label": "short name"} — swatches for quick picks, brand_color first\n' +
+            '- "theme_palette": object with ALL keys primary, accent, background, surface, text, muted, border — full cohesive storefront palette\n' +
             '- "industry": optional string — one of food_and_beverage, fashion_and_apparel, beauty_and_skincare, electronics, home_and_living, services, other\n' +
             '- "tone": optional array of tone words (premium, minimal, bold, natural, warm, etc.)\n' +
             '- "merchant_summary": string — one short phrase describing the look in plain language WITHOUT the words template, theme, or layout (e.g. "a clean cosmetics shop with soft botanical greens")\n' +
+            "Contrast rules (WCAG AA — verify before returning):\n" +
+            "- text on background and surface: at least 4.5:1 — use dark text (#111–#333) on light backgrounds (#F5–#FFF)\n" +
+            "- muted on background: at least 3:1 — never light gray on off-white\n" +
+            "- primary buttons use white text: primary must reach at least 4.5:1 vs #FFFFFF\n" +
             "Match the merchant's described business type, vibe, and aesthetic — not just keywords.\n" +
             "Cosmetic/skincare/beauty shops → prefer cosmetics or beauty.\n" +
             "Clothing/streetwear/fashion → prefer fashion_lookbook.\n" +
@@ -187,6 +200,7 @@ export async function resolveDesignDirectionWithAi(
       brand_color?: string;
       color_label?: string;
       palette?: unknown;
+      theme_palette?: unknown;
       industry?: string;
       tone?: unknown;
       merchant_summary?: string;
@@ -216,7 +230,9 @@ export async function resolveDesignDirectionWithAi(
         : normalizedPalette[0]?.label ?? "Brand color";
 
     const tone = Array.isArray(parsed.tone)
-      ? parsed.tone.filter((entry): entry is string => typeof entry === "string" && entry.trim()).map((entry) => entry.trim())
+      ? parsed.tone
+          .filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
+          .map((entry) => entry.trim())
       : [];
 
     const merchantSummary =
@@ -224,11 +240,18 @@ export async function resolveDesignDirectionWithAi(
         ? parsed.merchant_summary.trim()
         : `a refreshed look with ${colorLabel.toLowerCase()} tones`;
 
+    const themePalette =
+      sanitizeStorefrontPalette(
+        parsed.theme_palette as Partial<Record<string, unknown>> | undefined,
+        brandColor,
+      ) ?? expandSwatchPaletteToTheme(brandColor, normalizedPalette);
+
     return {
       template_id: templateId,
       brand_color: brandColor,
       color_label: colorLabel,
       palette: normalizedPalette,
+      theme_palette: themePalette,
       industry: parseIndustry(parsed.industry) ?? parseIndustry(context.industry ?? null),
       tone,
       merchant_summary: merchantSummary,
@@ -317,21 +340,33 @@ export async function rebuildStorefrontFromDesignRequest(args: {
     storefront.template.id = direction.template_id;
   }
 
-  const accentColor = direction.palette[1]?.color;
   const colorApplied = applyBrandColorToStorefront(
     storefront,
     nextStore,
     direction.brand_color,
-    accentColor ? { accent: accentColor } : undefined,
+    direction.theme_palette,
   );
   storefront = colorApplied.storefront;
+
+  const imageIntent = `${nextProfile.business_name ?? ""} ${nextProfile.description ?? ""} ${message}`.trim();
+  const imagesReplaced = await replaceTemplateImagesForStorefront({
+    intent: imageIntent,
+    storefront,
+    context: {
+      business_name: nextStore.business_name,
+      industry: nextStore.industry,
+      description: nextStore.description,
+      tone: nextProfile.tone,
+    },
+  });
+  storefront = imagesReplaced.storefront;
 
   const colorOptions = direction.palette.map((entry) => entry.color);
   const templateLabel =
     templateOptions.find((option) => option.value === direction.template_id)?.label ??
     direction.template_id.replace(/_/g, " ");
 
-  const assistantMessage = `Done — I refreshed your website with ${direction.merchant_summary}. Your primary color is ${direction.color_label.toLowerCase()}. Check the preview on the right, then tell me what to refine.`;
+  const assistantMessage = `Done — I refreshed your website with ${direction.merchant_summary}, a matching color palette (${direction.color_label.toLowerCase()}), and on-brand photos. Check the preview on the right, then tell me what to refine.`;
 
   return {
     business_profile: nextProfile,
@@ -347,9 +382,12 @@ export async function rebuildStorefrontFromDesignRequest(args: {
         brand_color: direction.brand_color,
         color_label: direction.color_label,
         palette: direction.palette,
+        theme_palette: direction.theme_palette,
         merchant_summary: direction.merchant_summary,
       },
       color_options: colorOptions,
+      image_summary: imagesReplaced.result.summary,
+      changed_paths: imagesReplaced.changed_paths,
       suggested_actions: direction.palette.slice(0, 3).map((entry) => ({
         type: "color" as const,
         label: entry.label,

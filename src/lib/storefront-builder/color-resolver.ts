@@ -1,17 +1,28 @@
+import type { StorefrontColorPalette } from "@/lib/api/types";
 import { parseJsonObject } from "@/lib/storefront-builder/agents/agentThinking";
 import { getAssistantMessageContent, getThinkingModel, postChat } from "@/lib/storefront-builder/agents/openaiChat";
-
-export type BrandColorResolution = {
-  brand_color: string;
-  label: string;
-};
+import {
+  derivePaletteFromPrimary,
+  normalizeHexColor,
+  PALETTE_KEYS,
+  sanitizeStorefrontPalette,
+} from "@/lib/storefront/palette-utils";
 
 export type BrandColorContext = {
   business_name?: string | null;
   industry?: string | null;
   description?: string | null;
   current_color?: string | null;
+  current_palette?: Partial<StorefrontColorPalette> | null;
 };
+
+export type PaletteResolution = {
+  brand_color: string;
+  label: string;
+  palette: StorefrontColorPalette;
+};
+
+export type BrandColorResolution = PaletteResolution;
 
 const OPEN_COLOR_REQUEST_PATTERN =
   /\b(random|surprise|unexpected|different|fresh|wild|crazy|fun)\b.*\b(color|colour|shade|hue|palette)\b/i;
@@ -35,10 +46,34 @@ export function isRandomColorRequest(message: string): boolean {
   return isOpenEndedColorRequest(message);
 }
 
-export async function resolveBrandColorWithAi(
+const PALETTE_AI_SYSTEM_PROMPT =
+  "You choose cohesive website color palettes for small business storefronts.\n" +
+  "Return ONLY valid JSON with keys:\n" +
+  '- "label": short palette name (e.g. "Soft Botanical")\n' +
+  '- "brand_color": "#RRGGBB" — same as palette.primary\n' +
+  '- "palette": object with ALL keys primary, accent, background, surface, text, muted, border — each a six-digit hex\n' +
+  "Rules:\n" +
+  "- primary: main brand/button color — must reach at least 4.5:1 contrast against white (#FFFFFF) for button labels; avoid pale pastels as primary unless darkened enough\n" +
+  "- accent: complementary or analogous highlight for banners and accents\n" +
+  "- background: very light page wash (roughly #F5F5F5–#FAFAFA) harmonizing with primary — never mid or dark tones\n" +
+  "- surface: cards/sections — white or near-white (#FAFAFA–#FFFFFF) with a subtle tint\n" +
+  "- text: dark body copy (#111111–#333333 range) with at least 4.5:1 contrast on both background and surface\n" +
+  "- muted: secondary text/captions — clearly darker than background, at least 3:1 contrast on background; never light gray on off-white\n" +
+  "- border: subtle dividers between surface and background\n" +
+  "CRITICAL: Never pair similar-lightness text and backgrounds (e.g. #E0E0E0 text on #F5F5F5 background). Verify readability before returning.\n" +
+  "Interpret ANY color name or mood: pink, soft lavender, earthy brown, warm sunset, ocean blue, etc.\n" +
+  "When the merchant describes a palette mood (warm, minimal, luxe, playful), reflect it across ALL seven colors while keeping text readable.\n" +
+  "Do not return only a primary — the full palette must work together on a storefront page.";
+
+function parsePaletteFromAi(raw: unknown, fallbackPrimary: string): StorefrontColorPalette | null {
+  if (!raw || typeof raw !== "object") return null;
+  return sanitizeStorefrontPalette(raw as Partial<Record<keyof StorefrontColorPalette, unknown>>, fallbackPrimary);
+}
+
+export async function resolvePaletteWithAi(
   message: string,
   context: BrandColorContext = {},
-): Promise<BrandColorResolution | null> {
+): Promise<PaletteResolution | null> {
   const randomPick = isRandomColorRequest(message);
 
   try {
@@ -50,17 +85,10 @@ export async function resolveBrandColorWithAi(
         {
           role: "system",
           content:
-            "You choose website brand colors for small business storefronts.\n" +
-            "Return ONLY valid JSON: {\"brand_color\": \"#RRGGBB\", \"label\": \"short color name\"}.\n" +
-            "brand_color must be a six-digit hex code suitable as the primary brand/button color.\n" +
-            "Pick a refined, on-brand shade — not neon unless the merchant asked for neon.\n" +
-            "Interpret ANY color name or description the merchant gives: pink, chartreuse, salmon, midnight blue, etc.\n" +
-            "You are not limited to a preset list — if they name a color, pick an appropriate hex for it.\n" +
-            "Interpret descriptive requests naturally: soft lavender, earthy brown, metallic silver, warm sunset, muted sage.\n" +
+            PALETTE_AI_SYSTEM_PROMPT +
             (randomPick
-              ? "The merchant asked for a random or surprise color — pick a distinctive, attractive brand color that fits their industry and is DIFFERENT from current_brand_color if provided. Be creative.\n"
-              : "") +
-            "Ensure enough contrast for white button text (avoid very light pastels as primary unless requested).",
+              ? "\nThe merchant asked for a random or surprise palette — pick a distinctive, attractive scheme that fits their industry and differs from current_palette if provided."
+              : ""),
         },
         {
           role: "user",
@@ -70,36 +98,63 @@ export async function resolveBrandColorWithAi(
             industry: context.industry ?? null,
             description: context.description ?? null,
             current_brand_color: context.current_color ?? null,
+            current_palette: context.current_palette ?? null,
             wants_random_color: randomPick,
           }),
         },
       ],
     });
 
-    const parsed = parseJsonObject<{ brand_color?: string; label?: string }>(
-      getAssistantMessageContent(data),
-      {},
-    );
-    const brandColor = typeof parsed.brand_color === "string" ? parsed.brand_color.trim() : "";
-    if (!/^#[0-9A-Fa-f]{6}$/.test(brandColor)) return null;
+    const parsed = parseJsonObject<{
+      brand_color?: string;
+      label?: string;
+      palette?: unknown;
+    }>(getAssistantMessageContent(data), {});
+
+    const brandColor =
+      normalizeHexColor(parsed.brand_color) ??
+      normalizeHexColor(
+        parsed.palette && typeof parsed.palette === "object"
+          ? (parsed.palette as { primary?: string }).primary
+          : null,
+      );
+    if (!brandColor) return null;
+
+    const palette =
+      parsePaletteFromAi(parsed.palette, brandColor) ?? derivePaletteFromPrimary(brandColor);
+
+    for (const key of PALETTE_KEYS) {
+      if (!normalizeHexColor(palette[key])) return null;
+    }
 
     const label =
       typeof parsed.label === "string" && parsed.label.trim()
         ? parsed.label.trim()
         : randomPick
-          ? "Surprise color"
-          : "Custom color";
+          ? "Surprise palette"
+          : "Custom palette";
 
-    return { brand_color: brandColor.toUpperCase(), label };
+    return {
+      brand_color: palette.primary,
+      label,
+      palette,
+    };
   } catch {
     return null;
   }
 }
 
-export async function fetchResolvedBrandColor(
+export async function resolveBrandColorWithAi(
   message: string,
   context: BrandColorContext = {},
 ): Promise<BrandColorResolution | null> {
+  return resolvePaletteWithAi(message, context);
+}
+
+export async function fetchResolvedBrandColor(
+  message: string,
+  context: BrandColorContext = {},
+): Promise<PaletteResolution | null> {
   const response = await fetch("/api/storefront-builder/ai/resolve-color", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -108,11 +163,16 @@ export async function fetchResolvedBrandColor(
 
   if (!response.ok) return null;
 
-  const payload = (await response.json().catch(() => null)) as BrandColorResolution | null;
-  if (!payload?.brand_color || !/^#[0-9A-Fa-f]{6}$/.test(payload.brand_color)) return null;
+  const payload = (await response.json().catch(() => null)) as PaletteResolution | null;
+  if (!payload?.brand_color || !payload.palette) return null;
+
+  const palette =
+    sanitizeStorefrontPalette(payload.palette, payload.brand_color) ??
+    derivePaletteFromPrimary(payload.brand_color);
 
   return {
-    brand_color: payload.brand_color.toUpperCase(),
-    label: payload.label?.trim() || "Custom color",
+    brand_color: palette.primary,
+    label: payload.label?.trim() || "Custom palette",
+    palette,
   };
 }
