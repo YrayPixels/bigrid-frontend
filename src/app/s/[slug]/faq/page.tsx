@@ -1,10 +1,9 @@
 "use client";
 
-import { StorefrontFaqSection } from "@/components/storefront/pages/storefront-faq-section";
+import { PageRenderer } from "@/components/storefront/blocks/page-renderer";
 import { useStorefront } from "@/lib/storefront/store-context";
 
 export default function FaqPage() {
-  const { storefront } = useStorefront();
-
-  return <StorefrontFaqSection faqPage={storefront.pages?.faq} />;
+  const { store, storefront } = useStorefront();
+  return <PageRenderer page="faq" store={store} storefront={storefront} />;
 }

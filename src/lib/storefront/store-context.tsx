@@ -1,7 +1,8 @@
 "use client";
 
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, useContext, useMemo, type ReactNode } from "react";
 import type { PublicStorefront } from "@/lib/api/types";
+import { normalizeStorefrontContent } from "@/lib/storefront/draft";
 
 const StorefrontContext = createContext<PublicStorefront | null>(null);
 
@@ -12,7 +13,17 @@ export function StorefrontProvider({
   value: PublicStorefront;
   children: ReactNode;
 }) {
-  return <StorefrontContext.Provider value={value}>{children}</StorefrontContext.Provider>;
+  const normalizedValue = useMemo(
+    () => ({
+      ...value,
+      storefront: normalizeStorefrontContent(value.storefront, value.store),
+    }),
+    [value],
+  );
+
+  return (
+    <StorefrontContext.Provider value={normalizedValue}>{children}</StorefrontContext.Provider>
+  );
 }
 
 export function useStorefront() {

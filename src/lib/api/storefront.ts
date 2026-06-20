@@ -1,5 +1,5 @@
 import { mockApi } from "./mocks";
-import type { CreateStoreOrderInput, PublicStorefront, StoreOrder } from "./types";
+import type { CreateStoreOrderInput, PublicStorefront, StoreContactInquiryInput, StoreOrder } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ?? "";
 const STOREHAUSE_API_PREFIX = "/storehause";
@@ -72,6 +72,14 @@ export const storefrontApi = {
     if (USE_MOCKS) return mockApi.recordVisit(slug, body);
     return publicWrite<{ message: string }>(
       `${STOREHAUSE_API_PREFIX}/public/storefronts/${slug}/visits`,
+      body,
+    );
+  },
+
+  async submitContact(slug: string, body: StoreContactInquiryInput): Promise<{ message: string }> {
+    if (USE_MOCKS) return mockApi.submitContact(slug, body);
+    return publicWrite<{ message: string }>(
+      `${STOREHAUSE_API_PREFIX}/public/storefronts/${slug}/contact`,
       body,
     );
   },

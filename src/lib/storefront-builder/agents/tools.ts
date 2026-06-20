@@ -1,5 +1,5 @@
 import {
-  applyStorefrontEdit,
+  applyStorefrontEditAsync,
   concreteTemplateIds,
   extractBusinessProfile,
   hasMinimumBusinessProfile,
@@ -98,7 +98,7 @@ export function websiteBuilderTools(): WebsiteBuilderToolDef[] {
     {
       name: "refine_website_copy",
       description:
-        "Refine existing website copy such as the hero headline, about section, CTA label, or SEO text.",
+        "Refine existing website copy such as the hero headline, about section, FAQ answers, CTA label, or SEO text.",
       parameters: {
         type: "object",
         properties: {
@@ -113,7 +113,9 @@ export function websiteBuilderTools(): WebsiteBuilderToolDef[] {
           typeof args.instruction === "string" && args.instruction.trim()
             ? args.instruction.trim()
             : ctx.message;
-        const result = applyStorefrontEdit(ctx.storefront, instruction);
+        const result = await applyStorefrontEditAsync(ctx.storefront, instruction, {
+          store: ctx.session.store,
+        });
         ctx.storefront = result.storefront;
         ctx.status = "review_ready";
         ctx.assistantMessage = result.assistant_message;

@@ -30,6 +30,7 @@ import {
 import {
   applyTemplateToDraft,
   cloneStorefrontContent,
+  normalizeStorefrontContent,
   setDraftField,
 } from "@/lib/storefront/draft";
 import { getProductPlugSource } from "@/lib/storefront/product-plugs";
@@ -119,7 +120,7 @@ export function VisualStorefrontEditor({
   saving,
   onSave,
 }: VisualStorefrontEditorProps) {
-  const [draft, setDraft] = useState(() => cloneStorefrontContent(storefront));
+  const [draft, setDraft] = useState(() => normalizeStorefrontContent(cloneStorefrontContent(storefront), store));
   const [templateId, setTemplateId] = useState<StorefrontTemplateId>(() =>
     resolveStorefrontTemplate(store, storefront),
   );
@@ -143,7 +144,7 @@ export function VisualStorefrontEditor({
 
   useEffect(() => {
     const nextTemplateId = resolveStorefrontTemplate(store, storefront);
-    setDraft(cloneStorefrontContent(storefront));
+    setDraft(normalizeStorefrontContent(cloneStorefrontContent(storefront), store));
     setTemplateId(nextTemplateId);
     setPalette({
       ...getDefaultStorefrontPalette(nextTemplateId, store.brand_color),

@@ -521,6 +521,8 @@ AI only outputs component configuration.
 
 Never React code.
 
+Full phased plan for block-based generation and editing: **[modular-storefront-roadmap.md](./modular-storefront-roadmap.md)**.
+
 ---
 
 # Visual Editor

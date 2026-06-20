@@ -9,14 +9,13 @@ import type {
 } from "@/lib/api/types";
 import { StoreShell } from "@/components/storefront/store-shell";
 import { HomePageView } from "@/components/storefront/pages/home-page";
+import { PageRenderer } from "@/components/storefront/blocks/page-renderer";
 import { ProductsPageView } from "@/components/storefront/pages/products-page-view";
-import { ContentPageView } from "@/components/storefront/pages/content-page-view";
-import { FaqPageView } from "@/components/storefront/pages/faq-page-view";
 import { api } from "@/lib/api/client";
 import { CartProvider } from "@/lib/storefront/cart-context";
 import { StorefrontProvider } from "@/lib/storefront/store-context";
 import { StorefrontThemeProvider } from "@/lib/storefront/theme-context";
-import { applyTemplateToDraft, setDraftField } from "@/lib/storefront/draft";
+import { applyTemplateToDraft, normalizeStorefrontContent, setDraftField } from "@/lib/storefront/draft";
 import { getStorefrontTheme } from "@/lib/storefront/template";
 import { getStorefrontUrl } from "@/lib/store-host";
 
@@ -57,7 +56,10 @@ export function StorefrontEditorCanvas({
   const previewData = useMemo(
     () => ({
       store: previewStore,
-      storefront: applyTemplateToDraft(draft, templateId, palette),
+      storefront: normalizeStorefrontContent(
+        applyTemplateToDraft(draft, templateId, palette),
+        previewStore,
+      ),
       generation_id: null,
     }),
     [previewStore, draft, templateId, palette],
@@ -79,38 +81,11 @@ export function StorefrontEditorCanvas({
       case "products":
         return <ProductsPageView />;
       case "about":
-        return (
-          <ContentPageView
-            title={draft.pages?.about?.title ?? draft.about.title}
-            body={draft.pages?.about?.body ?? draft.about.body}
-            titlePath="about.title"
-            bodyPath="about.body"
-          />
-        );
-      case "contact": {
-        const contact = draft.pages?.contact;
-        const details = [
-          contact?.email ? `Email: ${contact.email}` : null,
-          contact?.phone ? `Phone: ${contact.phone}` : null,
-        ]
-          .filter(Boolean)
-          .join("\n");
-        return (
-          <ContentPageView
-            title={contact?.title ?? "Contact us"}
-            body={[contact?.body ?? "", details].filter(Boolean).join("\n\n")}
-            titlePath="pages.contact.title"
-            bodyPath="pages.contact.body"
-          />
-        );
-      }
+        return <PageRenderer page="about" store={store} storefront={previewData.storefront} />;
+      case "contact":
+        return <PageRenderer page="contact" store={store} storefront={previewData.storefront} />;
       case "faq":
-        return (
-          <FaqPageView
-            title={draft.pages?.faq?.title ?? "Frequently asked questions"}
-            items={draft.pages?.faq?.items ?? []}
-          />
-        );
+        return <PageRenderer page="faq" store={store} storefront={previewData.storefront} />;
       default:
         return <HomePageView />;
     }

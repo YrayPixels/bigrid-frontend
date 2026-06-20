@@ -5,21 +5,31 @@ import {
   type Industry,
   type Store,
   type StorefrontContent,
+  type StorefrontTemplateChoice,
   type StorefrontTemplateId,
   type StorefrontTemplateOption,
   type StorefrontTemplateRecommendation,
 } from "@/lib/api/types";
-import { getDefaultStorefrontPalette } from "@/lib/storefront/template";
+import { getDefaultStorefrontPalette, resolveStorefrontTemplate } from "@/lib/storefront/template";
+import { BUILDER_WELCOME_MESSAGE } from "@/lib/storefront-builder/copy";
+import { describeStorefrontEdit } from "@/lib/storefront-builder/edit-summary";
+import {
+  isEditableStorefrontPath,
+  setEditableStorefrontPath,
+  tryAppendFaqItem,
+} from "@/lib/storefront-builder/editable-paths";
+import { ensureHomeBlocksOnStorefront, maybeSyncHomeBlocksFromLegacyPaths } from "@/lib/storefront/blocks/sync-legacy";
+import { tryApplyContactFormInstruction, tryApplyHomeBlockInstruction } from "@/lib/storefront/blocks/operations";
+import { isFaqItemAppendInstruction } from "@/lib/storefront/blocks/catalog";
+import { applyStockImagesToStorefront } from "@/lib/storefront-builder/stock-images";
+import { colorPresetActions } from "@/lib/storefront-builder/suggested-actions";
+import { STOREFRONT_NAV_ITEMS } from "@/lib/storefront/template";
+import { parseJsonObject } from "@/lib/storefront-builder/agents/agentThinking";
+import { getAssistantMessageContent, getThinkingModel, postChat } from "@/lib/storefront-builder/agents/openaiChat";
+import { BUILDER_EDITOR_SYSTEM_PROMPT } from "@/lib/storefront-builder/prompts";
+import { BASE_EDITABLE_STOREFRONT_PATHS } from "@/lib/storefront-builder/editable-paths";
 
-export const EDITABLE_STOREFRONT_PATHS = [
-  "hero.headline",
-  "hero.subheadline",
-  "hero.cta_label",
-  "about.title",
-  "about.body",
-  "seo.title",
-  "seo.description",
-] as const;
+export { EDITABLE_STOREFRONT_PATHS } from "@/lib/storefront-builder/editable-paths";
 
 type BuilderToolCall = {
   name: "recommend_templates" | "select_template" | "generate_draft" | "ask_clarifying_question";
@@ -63,13 +73,61 @@ const INDUSTRY_KEYWORDS: Record<string, Industry> = {
   salon: "services",
 };
 
+export function isRebuildIntent(message: string): boolean {
+  const trimmed = message.trim().toLowerCase();
+  return (
+    (/\b(build|create|generate|make|switch|rebuild|redo)\b.*\bfor\b/.test(trimmed) &&
+      /\b(cosmetics|beauty|skincare|fashion|lookbook|minimalistic|minimal|candle|food|electronics)\b/.test(
+        trimmed,
+      )) ||
+    /\blets?\s+build\s+for\b/.test(trimmed)
+  );
+}
+
 export function isBuildIntent(message: string): boolean {
   const trimmed = message.trim().toLowerCase();
   return (
     /\b(build|create|generate|make)\b.*\b(website|site|storefront|store|draft)\b/.test(trimmed) ||
     /\b(build my website|generate my website|create my website|yes proceed|yes,? build|go ahead and build|go ahead)\b/.test(
       trimmed,
-    )
+    ) ||
+    isRebuildIntent(message)
+  );
+}
+
+export function isStockImageIntent(message: string): boolean {
+  const trimmed = message.trim().toLowerCase();
+  return (
+    /\bstock\s+(?:photo|photos|image|images)\b/.test(trimmed) ||
+    /\b(add|suggest|provide|use)\s+(?:suitable\s+)?stock\b/.test(trimmed) ||
+    /\bsuitable\s+stock\s+(?:photo|photos|image|images)\b/.test(trimmed)
+  );
+}
+
+export function isProductIntent(message: string): boolean {
+  const trimmed = message.trim().toLowerCase();
+  return (
+    /\b(add|create|new|upload|list)\b.*\b(product|products|item|items|sku)\b/.test(trimmed) ||
+    /\bi want to add a product\b/.test(trimmed)
+  );
+}
+
+export function isColorIntent(message: string): boolean {
+  const trimmed = message.trim().toLowerCase();
+  return (
+    /\b(brand color|colour|color palette|use .+#([0-9a-f]{3}|[0-9a-f]{6}))\b/i.test(message) ||
+    /\b(make it|try|use|switch to|go with)\b.*\b(green|teal|terracotta|navy|blush|black|burgundy|sage|amber|coral|cream)\b/i.test(
+      trimmed,
+    ) ||
+    /^#[0-9a-f]{6}$/i.test(trimmed)
+  );
+}
+
+export function isImageIntent(message: string): boolean {
+  const trimmed = message.trim().toLowerCase();
+  return (
+    /\b(upload|add|use|set|change|replace)\b.*\b(photo|image|picture|header|background|banner)\b/i.test(trimmed) ||
+    isStockImageIntent(message)
   );
 }
 
@@ -77,11 +135,15 @@ export function isEditIntent(message: string): boolean {
   const trimmed = message.trim().toLowerCase();
   if (!trimmed || isBuildIntent(message)) return false;
 
+  if (isProductIntent(message)) return false;
+
+  if (isColorIntent(message) || isImageIntent(message)) return true;
+
   return (
     /\b(change|update|edit|rewrite|revise|shorten|lengthen|improve|fix|replace|make (?:the|it)|set (?:the|my))\b/.test(
       trimmed,
     ) ||
-    /\b(headline|subheadline|tagline|cta|button|about(?:\s+section|\s+copy|\s+page)?|seo|title|description|copy|hero)\b/.test(
+    /\b(headline|subheadline|tagline|cta|button|about(?:\s+section|\s+copy|\s+page)?|contact(?:\s+page|\s+intro|\s+copy)?|faq|seo|title|description|copy|hero|value prop|trust)\b/.test(
       trimmed,
     ) ||
     /\b(more premium|more luxury|more minimal|warmer|friendlier|professional|playful|bold|shorter|longer)\b/.test(
@@ -262,10 +324,10 @@ export function fallbackBuilderTurn({
       ? synthesizeStorefront(profileToStore(profile, selectedTemplateId), recommendations)
       : undefined,
     assistant_message: shouldGenerate
-      ? "Your website is ready. Preview it on the right, then tell me what to refine — headline, about section, CTA, or SEO."
+      ? "Your website draft is ready — check the preview on the right. Tell me anything you'd like to change."
       : recommendations.length
-        ? `Great — I can build a ${recommendations[0]?.label ?? "website"} style storefront for ${profile.business_name}. Say “build my website” when you’re ready.`
-        : "Tell me a bit more about your business, then say “build my website” and I’ll generate your first draft.",
+        ? `Got it — a ${recommendations[0]?.label ?? "website"} style site for ${profile.business_name}. Say "build my website" when you're ready.`
+        : 'Tell me a bit more about your business, then say "build my website" and I\'ll create your first draft.',
     assistant_payload: {
       type: shouldGenerate ? "website_generated" : "agent_turn",
       profile,
@@ -275,7 +337,7 @@ export function fallbackBuilderTurn({
 
 export function profileToStore(
   profile: BuilderBusinessProfile,
-  selectedTemplateId?: StorefrontTemplateId | null,
+  selectedTemplateId?: StorefrontTemplateChoice | null,
 ): Store {
   const businessName = profile.business_name ?? "My Store";
   const slug = slugify(businessName) || "my-store";
@@ -312,7 +374,7 @@ export function synthesizeStorefront(
     body: `${name} was built around a simple idea: ${industryLabel} should feel personal, clear, and easy to shop. ${desc}`,
   };
 
-  return {
+  return ensureHomeBlocksOnStorefront({
     template: {
       id: templateId,
       source: store.storefront_template_id === "ai_pick" ? "ai_selected" : "merchant_selected",
@@ -322,6 +384,25 @@ export function synthesizeStorefront(
     hero,
     about,
     value_props: copy?.value_props ?? valuePropsForIndustry(store.industry),
+    navigation:
+      copy?.navigation ??
+      (templateId === "cosmetics"
+        ? [
+            { label: "Product", href: "/products" },
+            { label: "Features", href: "/" },
+            { label: "Reviews", href: "/faq" },
+            { label: "About us", href: "/about" },
+          ]
+        : STOREFRONT_NAV_ITEMS.map((item) => ({ label: item.label, href: item.href }))),
+    home_stats:
+      copy?.home_stats ??
+      (templateId === "cosmetics"
+        ? [
+            { value: "Trusted by over 350,000+ Clients", label: "worldwide since 2008" },
+            { value: "6M+", label: "Worldwide Product sale per year" },
+            { value: "4.6", label: "3,350 Rating Worldwide" },
+          ]
+        : []),
     pages: copy?.pages ?? {
       about: { title: about.title, body: about.body, source: "ai_generated" },
       contact: {
@@ -377,7 +458,7 @@ export function synthesizeStorefront(
       last_generation_prompt: "frontend_ai_agent",
       last_generated_at: new Date().toISOString(),
     },
-  };
+  });
 }
 
 export function applyStorefrontEdit(
@@ -385,26 +466,84 @@ export function applyStorefrontEdit(
   instruction: string,
   updates?: Record<string, unknown>,
   assistantMessage?: string,
+  store?: Store | null,
 ): BuilderEditTurn {
-  const next = structuredClone(storefront);
-  const changedPaths: string[] = [];
-  const candidateUpdates = updates && Object.keys(updates).length ? updates : fallbackEditUpdates(next, instruction);
-  const lockedPaths = next.edit_metadata?.locked_paths ?? [];
+  return applyStorefrontEditWithUpdates(storefront, instruction, updates, assistantMessage, store);
+}
 
-  for (const [path, value] of Object.entries(candidateUpdates)) {
-    if (
-      !EDITABLE_STOREFRONT_PATHS.includes(path as (typeof EDITABLE_STOREFRONT_PATHS)[number]) ||
-      lockedPaths.includes(path) ||
-      typeof value !== "string" ||
-      !value.trim()
-    ) {
-      continue;
+export async function applyStorefrontEditAsync(
+  storefront: StorefrontContent,
+  instruction: string,
+  options?: {
+    store?: Store | null;
+    updates?: Record<string, unknown>;
+    assistantMessage?: string;
+  },
+): Promise<BuilderEditTurn> {
+  if (!isFaqItemAppendInstruction(instruction)) {
+    const blockResult = tryApplyHomeBlockInstruction(storefront, instruction);
+    if (blockResult) {
+      return finalizeStorefrontEdit(storefront, instruction, blockResult.storefront, blockResult.changed_paths, blockResult.assistant_message);
     }
 
-    setEditablePath(next, path, value.trim());
-    changedPaths.push(path);
+    const contactFormResult = tryApplyContactFormInstruction(storefront, instruction);
+    if (contactFormResult) {
+      return finalizeStorefrontEdit(
+        storefront,
+        instruction,
+        contactFormResult.storefront,
+        contactFormResult.changed_paths,
+        contactFormResult.assistant_message,
+      );
+    }
   }
 
+  if (shouldRefreshFaq(instruction)) {
+    return applyFaqRefreshTurn(storefront, instruction, options?.store);
+  }
+
+  const faqResult = tryAppendFaqItem(storefront, instruction);
+  if (faqResult) {
+    const next = maybeSyncHomeBlocksFromLegacyPaths(faqResult.storefront, faqResult.changed_paths);
+    return finalizeStorefrontEdit(
+      storefront,
+      instruction,
+      next,
+      faqResult.changed_paths,
+      describeStorefrontEdit(faqResult.changed_paths),
+    );
+  }
+
+  if (shouldResetHeadline(instruction, storefront)) {
+    return applyStorefrontEditWithUpdates(
+      storefront,
+      instruction,
+      headlineResetUpdates(storefront, options?.store),
+      options?.assistantMessage,
+      options?.store,
+    );
+  }
+
+  const aiResult = await tryAiStorefrontEdit(storefront, instruction, options?.store);
+  if (aiResult) return aiResult;
+
+  return applyStorefrontEditWithUpdates(
+    storefront,
+    instruction,
+    options?.updates,
+    options?.assistantMessage,
+    options?.store,
+  );
+}
+
+function finalizeStorefrontEdit(
+  _original: StorefrontContent,
+  instruction: string,
+  storefront: StorefrontContent,
+  changedPaths: string[],
+  assistantMessage: string,
+): BuilderEditTurn {
+  const next = structuredClone(storefront);
   next.edit_metadata = {
     ...next.edit_metadata,
     user_edited_paths: [...new Set([...(next.edit_metadata?.user_edited_paths ?? []), ...changedPaths])],
@@ -418,12 +557,225 @@ export function applyStorefrontEdit(
   return {
     storefront: next,
     changed_paths: changedPaths,
-    assistant_message:
-      assistantMessage ??
-      (changedPaths.length
-        ? `Updated: ${changedPaths.join(", ")}.`
-        : "I reviewed your request but did not change any protected fields."),
+    assistant_message: assistantMessage,
   };
+}
+
+function applyStorefrontEditWithUpdates(
+  storefront: StorefrontContent,
+  instruction: string,
+  updates?: Record<string, unknown>,
+  assistantMessage?: string,
+  store?: Store | null,
+): BuilderEditTurn {
+  if (!isFaqItemAppendInstruction(instruction)) {
+    const blockResult = tryApplyHomeBlockInstruction(storefront, instruction);
+    if (blockResult) {
+      return finalizeStorefrontEdit(storefront, instruction, blockResult.storefront, blockResult.changed_paths, blockResult.assistant_message);
+    }
+
+    const contactFormResult = tryApplyContactFormInstruction(storefront, instruction);
+    if (contactFormResult) {
+      return finalizeStorefrontEdit(
+        storefront,
+        instruction,
+        contactFormResult.storefront,
+        contactFormResult.changed_paths,
+        contactFormResult.assistant_message,
+      );
+    }
+  }
+
+  const faqResult = tryAppendFaqItem(storefront, instruction);
+  if (faqResult) {
+    const next = maybeSyncHomeBlocksFromLegacyPaths(faqResult.storefront, faqResult.changed_paths);
+    return finalizeStorefrontEdit(
+      storefront,
+      instruction,
+      next,
+      faqResult.changed_paths,
+      describeStorefrontEdit(faqResult.changed_paths),
+    );
+  }
+
+  if (shouldRefreshFaq(instruction)) {
+    return applyFaqRefreshToStorefront(
+      storefront,
+      instruction,
+      defaultFaqItemsForStore(store, storefront),
+    );
+  }
+
+  const next = structuredClone(storefront);
+  const changedPaths: string[] = [];
+  const candidateUpdates =
+    updates && Object.keys(updates).length
+      ? updates
+      : fallbackEditUpdates(next, instruction, store);
+  const lockedPaths = next.edit_metadata?.locked_paths ?? [];
+
+  for (const [path, value] of Object.entries(candidateUpdates)) {
+    if (lockedPaths.includes(path) || typeof value !== "string" || !value.trim()) {
+      continue;
+    }
+
+    if (setEditableStorefrontPath(next, path, value.trim())) {
+      changedPaths.push(path);
+    }
+  }
+
+  const finalStorefront = maybeSyncHomeBlocksFromLegacyPaths(next, changedPaths);
+  return finalizeStorefrontEdit(
+    storefront,
+    instruction,
+    finalStorefront,
+    changedPaths,
+    assistantMessage ?? describeStorefrontEdit(changedPaths),
+  );
+}
+
+async function tryAiStorefrontEdit(
+  storefront: StorefrontContent,
+  instruction: string,
+  store?: Store | null,
+): Promise<BuilderEditTurn | null> {
+  try {
+    const data = await postChat({
+      model: getThinkingModel(),
+      temperature: 0.35,
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: BUILDER_EDITOR_SYSTEM_PROMPT },
+        {
+          role: "user",
+          content: JSON.stringify({
+            instruction,
+            business: {
+              name: store?.business_name ?? store?.name ?? null,
+              industry: store?.industry ?? null,
+              description: store?.description ?? null,
+            },
+            current_storefront: {
+              hero: storefront.hero,
+              about: storefront.about,
+              seo: storefront.seo,
+              value_props: storefront.value_props,
+              pages: {
+                about: storefront.pages?.about ?? null,
+                contact: storefront.pages?.contact ?? null,
+                faq: storefront.pages?.faq ?? null,
+              },
+              edit_metadata: storefront.edit_metadata ?? null,
+            },
+            allowed_paths: BASE_EDITABLE_STOREFRONT_PATHS,
+          }),
+        },
+      ],
+    });
+
+    const content = getAssistantMessageContent(data);
+    const parsed = parseJsonObject<{
+      updates?: Record<string, unknown>;
+      changed_paths?: string[];
+      assistant_message?: string;
+    }>(content, {});
+
+    const rawUpdates = parsed.updates && typeof parsed.updates === "object" ? parsed.updates : {};
+    const flatUpdates = flattenAiEditUpdates(rawUpdates);
+
+    if (!Object.keys(flatUpdates).length) return null;
+
+    const mergedUpdates = mergeMandatoryEditUpdates(
+      instruction,
+      storefront,
+      flatUpdates,
+      store,
+    );
+
+    return applyStorefrontEditWithUpdates(
+      storefront,
+      instruction,
+      mergedUpdates,
+      typeof parsed.assistant_message === "string" ? parsed.assistant_message : undefined,
+      store,
+    );
+  } catch {
+    return null;
+  }
+}
+
+export function extractColorFromMessage(message: string): string | null {
+  const hex = message.match(/#([0-9A-Fa-f]{6})\b/);
+  if (hex) return `#${hex[1]}`;
+
+  const lower = message.toLowerCase();
+  const named: Record<string, string> = {
+    terracotta: "#C47A2C",
+    teal: "#0E7C66",
+    navy: "#1E3A5F",
+    blush: "#E6A79F",
+    burgundy: "#80131B",
+    sage: "#6B7F5E",
+    amber: "#D99359",
+    coral: "#E07A5F",
+    cream: "#F5E6D3",
+    black: "#111111",
+    green: "#2D6A4F",
+  };
+
+  for (const [name, color] of Object.entries(named)) {
+    if (lower.includes(name)) return color;
+  }
+
+  return null;
+}
+
+export function applyBrandColorToStorefront(
+  storefront: StorefrontContent,
+  store: Store,
+  brandColor: string,
+): { storefront: StorefrontContent; store: Store; changed_paths: string[] } {
+  const templateId = resolveStorefrontTemplate(store, storefront);
+  const nextStorefront = structuredClone(storefront);
+  nextStorefront.palette = getDefaultStorefrontPalette(templateId, brandColor);
+
+  return {
+    storefront: nextStorefront,
+    store: { ...store, brand_color: brandColor },
+    changed_paths: ["palette.primary"],
+  };
+}
+
+export function applyMediaToStorefront(
+  storefront: StorefrontContent,
+  updates: Partial<Record<"media.hero_image_url" | "media.about_image_url", string>>,
+): { storefront: StorefrontContent; changed_paths: string[] } {
+  const next = structuredClone(storefront);
+  const changedPaths: string[] = [];
+
+  if (updates["media.hero_image_url"]) {
+    setEditableStorefrontPath(next, "media.hero_image_url", updates["media.hero_image_url"]);
+    changedPaths.push("media.hero_image_url");
+  }
+  if (updates["media.about_image_url"]) {
+    setEditableStorefrontPath(next, "media.about_image_url", updates["media.about_image_url"]);
+    changedPaths.push("media.about_image_url");
+  }
+
+  return { storefront: next, changed_paths: changedPaths };
+}
+
+export function applyStockImagesFromMessage(
+  storefront: StorefrontContent,
+  store: Store,
+): { storefront: StorefrontContent; changed_paths: string[] } {
+  const templateId = resolveStorefrontTemplate(store, storefront);
+  return applyStockImagesToStorefront(storefront, templateId);
+}
+
+export function suggestedActionsForTurn(session: BuilderSession): import("@/lib/api/types").BuilderSuggestedAction[] {
+  const industry = session.business_profile.industry ?? session.store?.industry ?? null;
+  return colorPresetActions(industry, 3);
 }
 
 export function concreteTemplateIds(
@@ -436,11 +788,15 @@ export function concreteTemplateIds(
 
 function conversationalReply(session: BuilderSession, message: string): string {
   if (!message.trim()) {
-    return "Hi! Tell me about your business, what you sell, who it is for, and the vibe you want. I will design and build your website.";
+    return BUILDER_WELCOME_MESSAGE;
   }
-  if (session.storefront_snapshot) return "Tell me what you want changed on your website and I will update it.";
-  if (session.store) return "Say “build my website” whenever you are ready and I will generate your first draft.";
-  return "Tell me your business name and what you sell, then I will start designing your website.";
+  if (session.storefront_snapshot) {
+    return 'Tell me what you\'d like to change — for example "Change the button to Shop Gifts" or "Make the homepage more premium". I\'ll update the preview on the right.';
+  }
+  if (session.store) {
+    return 'Say "build my website" whenever you\'re ready and I\'ll create your first draft.';
+  }
+  return 'Tell me your business name and what you sell — for example "Glow & Wick sells handmade candles for cozy gifts."';
 }
 
 function resolveTemplateId(
@@ -519,36 +875,345 @@ function productsForIndustry(name: string, industry: Industry, slugBase: string)
   ];
 }
 
-function fallbackEditUpdates(storefront: StorefrontContent, instruction: string): Record<string, string> {
+function stripEditSpam(text: string): string {
+  return text
+    .replace(/\s*Updated to match your request\./gi, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+function isPlaceholderHeadline(headline: string): boolean {
+  const trimmed = headline.trim();
+  return /^(new header text|header text|your headline here|headline here|test headline|sample headline)$/i.test(
+    trimmed,
+  );
+}
+
+function inferBusinessName(storefront: StorefrontContent, store?: Store | null): string {
+  if (store?.business_name?.trim()) return store.business_name.trim();
+  if (store?.name?.trim()) return store.name.trim();
+  const seoMatch = storefront.seo?.title?.match(/^(.+?)\s*[|–-]/);
+  if (seoMatch?.[1]?.trim()) return seoMatch[1].trim();
+  return "Our brand";
+}
+
+function defaultHeadlineForStorefront(storefront: StorefrontContent, store?: Store | null): string {
+  const name = inferBusinessName(storefront, store);
+  const industry = (store?.industry ?? "other") as Industry;
+  const desc = stripEditSpam(storefront.hero.subheadline || storefront.about.body || "");
+  return heroForStore(name, industry, desc).headline;
+}
+
+const BUILDER_FAQ_GENERATOR_PROMPT =
+  "You write FAQ sections for small business online stores.\n" +
+  "Return ONLY valid JSON: {\"items\": [{\"question\": string, \"answer\": string}]}\n" +
+  "Write 3-5 practical questions customers would ask this business.\n" +
+  "Answers must be 1-2 warm sentences. Use the business name when natural.";
+
+function shouldRefreshFaq(instruction: string): boolean {
   const lower = instruction.toLowerCase();
-  if (lower.includes("cta") || lower.includes("button")) {
-    return { "hero.cta_label": lower.includes("collection") ? "Shop the collection" : "Discover more" };
+  return (
+    /\b(update|refresh|rewrite|revise|improve|fix|change|regenerate|redo)\b.*\bfaq\b/i.test(lower) ||
+    /\bfaq\b.*\b(update|refresh|rewrite|revise|improve|fix|change|answers?|questions?)\b/i.test(lower) ||
+    (/\bfaq\b/i.test(lower) &&
+      /\b(update|refresh|rewrite|revise|improve|fix|change|answers?|questions?)\b/i.test(lower))
+  );
+}
+
+function defaultFaqItemsForStore(
+  store: Store | null | undefined,
+  storefront: StorefrontContent,
+): Array<{ question: string; answer: string }> {
+  const name = inferBusinessName(storefront, store);
+  const industry = store?.industry ?? "other";
+
+  if (industry === "fashion_and_apparel") {
+    return [
+      {
+        question: `How do I choose the right size at ${name}?`,
+        answer:
+          "Check the size notes on each product page, or message us with your usual size and we will help you pick the best fit.",
+      },
+      {
+        question: "What is your return policy?",
+        answer:
+          "Unworn items with tags attached can be returned within 14 days. Contact us through the contact page to start a return.",
+      },
+      {
+        question: "How long does delivery take?",
+        answer: "Most orders arrive within 2-4 business days across Nigeria once your order is confirmed.",
+      },
+      {
+        question: "Can I change or cancel my order?",
+        answer:
+          "If your order has not shipped yet, reach out as soon as possible and we will do our best to update it for you.",
+      },
+    ];
   }
+
+  if (industry === "beauty_and_skincare") {
+    return [
+      {
+        question: `Are ${name} products suitable for daily use?`,
+        answer:
+          "Yes — our formulas are designed for gentle everyday routines. Patch-test new products if you have sensitive skin.",
+      },
+      {
+        question: "How do I build a routine with your products?",
+        answer:
+          "Start with cleanser, treatment serum, then moisturizer. Message us if you want a simple routine recommendation.",
+      },
+      {
+        question: "How long does delivery take?",
+        answer: "Most orders arrive within 2-4 business days depending on your location.",
+      },
+    ];
+  }
+
+  return [
+    {
+      question: "How do I place an order?",
+      answer: `Browse ${name}, add items to your cart, and complete checkout with your delivery details.`,
+    },
+    {
+      question: "What payment methods do you accept?",
+      answer: "We accept card payments and bank transfers through secure checkout.",
+    },
+    {
+      question: "How long does delivery take?",
+      answer: "Most orders arrive within 2-4 business days depending on your location.",
+    },
+    {
+      question: "How can I contact support?",
+      answer: "Use our contact page and our team will reply as quickly as possible.",
+    },
+  ];
+}
+
+function flattenAiEditUpdates(raw: Record<string, unknown>): Record<string, string> {
+  const flat: Record<string, string> = {};
+
+  for (const [path, value] of Object.entries(raw)) {
+    if (typeof value === "string" && value.trim()) {
+      flat[path] = value.trim();
+    }
+  }
+
+  const nestedFaq = raw["pages.faq.items"];
+  if (Array.isArray(nestedFaq)) {
+    nestedFaq.forEach((item, index) => {
+      if (!item || typeof item !== "object") return;
+      const row = item as Record<string, unknown>;
+      if (typeof row.question === "string" && row.question.trim()) {
+        flat[`pages.faq.items.${index}.question`] = row.question.trim();
+      }
+      if (typeof row.answer === "string" && row.answer.trim()) {
+        flat[`pages.faq.items.${index}.answer`] = row.answer.trim();
+      }
+    });
+  }
+
+  return flat;
+}
+
+async function tryAiGenerateFaqItems(
+  storefront: StorefrontContent,
+  store?: Store | null,
+): Promise<Array<{ question: string; answer: string }> | null> {
+  try {
+    const data = await postChat({
+      model: getThinkingModel(),
+      temperature: 0.45,
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: BUILDER_FAQ_GENERATOR_PROMPT },
+        {
+          role: "user",
+          content: JSON.stringify({
+            business_name: inferBusinessName(storefront, store),
+            industry: store?.industry ?? null,
+            description: store?.description ?? storefront.about.body ?? null,
+            existing_items: storefront.pages?.faq?.items ?? [],
+          }),
+        },
+      ],
+    });
+
+    const content = getAssistantMessageContent(data);
+    const parsed = parseJsonObject<{ items?: Array<{ question?: string; answer?: string }> }>(content, {});
+    const items = (parsed.items ?? [])
+      .map((item) => ({
+        question: typeof item.question === "string" ? item.question.trim() : "",
+        answer: typeof item.answer === "string" ? item.answer.trim() : "",
+      }))
+      .filter((item) => item.question && item.answer);
+
+    return items.length >= 2 ? items : null;
+  } catch {
+    return null;
+  }
+}
+
+function applyFaqRefreshToStorefront(
+  storefront: StorefrontContent,
+  instruction: string,
+  items: Array<{ question: string; answer: string }>,
+): BuilderEditTurn {
+  const next = structuredClone(storefront);
+  const title = next.pages?.faq?.title?.trim() || "Frequently asked questions";
+  next.pages = {
+    ...next.pages,
+    faq: {
+      title,
+      source: "merchant",
+      items,
+    },
+  };
+
+  const changedPaths = items.flatMap((_, index) => [
+    `pages.faq.items.${index}.question`,
+    `pages.faq.items.${index}.answer`,
+  ]);
+
+  const finalStorefront = maybeSyncHomeBlocksFromLegacyPaths(next, changedPaths);
+  return finalizeStorefrontEdit(
+    storefront,
+    instruction,
+    finalStorefront,
+    changedPaths,
+    "Done — I refreshed your FAQ with answers tailored to your business. Check the preview on the right.",
+  );
+}
+
+async function applyFaqRefreshTurn(
+  storefront: StorefrontContent,
+  instruction: string,
+  store?: Store | null,
+): Promise<BuilderEditTurn> {
+  const items = (await tryAiGenerateFaqItems(storefront, store)) ?? defaultFaqItemsForStore(store, storefront);
+  return applyFaqRefreshToStorefront(storefront, instruction, items);
+}
+
+function shouldResetHeadline(instruction: string, storefront: StorefrontContent): boolean {
+  const lower = instruction.toLowerCase();
+  return (
+    /\b(remove|delete|clear|reset|fix)\b.*\b(header|headline)\b/i.test(lower) ||
+    /\b(header|headline)\b.*\b(remove|delete|clear|reset|fix)\b/i.test(lower) ||
+    /\bfit (our|the|my) copy\b/i.test(lower) ||
+    /new header text/i.test(instruction) ||
+    isPlaceholderHeadline(storefront.hero.headline)
+  );
+}
+
+function headlineResetUpdates(
+  storefront: StorefrontContent,
+  store?: Store | null,
+): Record<string, string> {
+  const updates: Record<string, string> = {
+    "hero.headline": defaultHeadlineForStorefront(storefront, store),
+  };
+  const cleanedSubheadline = stripEditSpam(storefront.hero.subheadline);
+  if (cleanedSubheadline !== storefront.hero.subheadline) {
+    updates["hero.subheadline"] = cleanedSubheadline;
+  }
+  return updates;
+}
+
+function mergeMandatoryEditUpdates(
+  instruction: string,
+  storefront: StorefrontContent,
+  updates: Record<string, string>,
+  store?: Store | null,
+): Record<string, string> {
+  if (!shouldResetHeadline(instruction, storefront)) {
+    return updates;
+  }
+
+  return {
+    ...updates,
+    ...headlineResetUpdates(storefront, store),
+  };
+}
+
+
+function fallbackEditUpdates(
+  storefront: StorefrontContent,
+  instruction: string,
+  store?: Store | null,
+): Record<string, string> {
+  const lower = instruction.toLowerCase();
+  const quoted =
+    instruction.match(/[""](.+?)["”]/s)?.[1]?.trim() ||
+    instruction.match(/\b(?:to|:)\s+(.+)$/is)?.[1]?.trim();
+
+  if (shouldResetHeadline(instruction, storefront)) {
+    return headlineResetUpdates(storefront, store);
+  }
+
+  if (lower.includes("cta") || lower.includes("button")) {
+    return {
+      "hero.cta_label": quoted || (lower.includes("collection") ? "Shop the collection" : "Shop now"),
+    };
+  }
+
+  if (lower.includes("headline") && quoted) {
+    return { "hero.headline": quoted };
+  }
+
+  if (lower.includes("subheadline") && quoted) {
+    return { "hero.subheadline": quoted };
+  }
+
+  if (lower.includes("intro") || lower.includes("homepage copy")) {
+    if (quoted) return { "hero.subheadline": quoted };
+    return { "hero.subheadline": stripEditSpam(storefront.hero.subheadline) };
+  }
+
+  if (lower.includes("contact")) {
+    return {
+      "pages.contact.body":
+        quoted ||
+        storefront.pages?.contact?.body ||
+        "Have a question about an order or product? Reach out and our team will get back to you shortly.",
+    };
+  }
+
+  if (lower.includes("about") && !lower.includes("faq")) {
+    const updates: Record<string, string> = {};
+    if (quoted) {
+      updates["about.body"] = quoted;
+    } else if (lower.includes("family")) {
+      updates["about.body"] = `${storefront.about.body} We are a family-run business built on care, trust, and personal service.`.trim();
+      updates["about.title"] = storefront.about.title.includes("Our story")
+        ? storefront.about.title
+        : "Our family story";
+    } else if (lower.includes("warm") || lower.includes("warmer")) {
+      updates["about.body"] = `${storefront.about.body} We keep every order personal, thoughtful, and made with care.`.trim();
+    } else if (lower.includes("premium") || lower.includes("luxury")) {
+      updates["about.body"] = `${storefront.about.body} Every detail is chosen for quality, comfort, and a premium customer experience.`.trim();
+    } else {
+      updates["about.body"] = quoted || `${storefront.about.body}`.trim();
+    }
+    return updates;
+  }
+
   if (lower.includes("premium") || lower.includes("luxury")) {
     return {
-      "hero.headline": storefront.hero.headline.replace(/\b(shop|buy|online)\b/gi, "").trim() || storefront.hero.headline,
-      "hero.subheadline": `${storefront.hero.subheadline} Crafted with premium quality and a refined customer experience.`,
+      "hero.headline":
+        storefront.hero.headline.replace(/\b(shop|buy|online)\b/gi, "").trim() ||
+        defaultHeadlineForStorefront(storefront, store),
+      "hero.subheadline": stripEditSpam(
+        `${storefront.hero.subheadline} Crafted with premium quality and a refined customer experience.`,
+      ),
       "hero.cta_label": "Shop the collection",
     };
   }
-  if (lower.includes("about")) return { "about.body": `${storefront.about.body} Updated to match your request.` };
-  return { "hero.subheadline": `${storefront.hero.subheadline} Updated to match your request.` };
-}
 
-function setEditablePath(storefront: StorefrontContent, path: string, value: string): void {
-  if (path === "hero.headline") storefront.hero.headline = value;
-  if (path === "hero.subheadline") storefront.hero.subheadline = value;
-  if (path === "hero.cta_label") storefront.hero.cta_label = value;
-  if (path === "about.title") {
-    storefront.about.title = value;
-    if (storefront.pages?.about) storefront.pages.about.title = value;
+  if (quoted) {
+    return { "hero.subheadline": quoted };
   }
-  if (path === "about.body") {
-    storefront.about.body = value;
-    if (storefront.pages?.about) storefront.pages.about.body = value;
-  }
-  if (path === "seo.title") storefront.seo.title = value.slice(0, 160);
-  if (path === "seo.description") storefront.seo.description = value.slice(0, 300);
+
+  return {};
 }
 
 function slugify(value: string): string {

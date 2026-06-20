@@ -15,11 +15,13 @@ import {
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api/client";
 import {
-  applyBuilderChatEditForSession,
+  applyBuilderBrandColor,
+  applyBuilderMedia,
   processBuilderMessage,
 } from "@/lib/storefront-builder/client";
 import {
   STOREFRONT_TEMPLATE_OPTIONS,
+  type BuilderMediaTarget,
   type BuilderSession,
 } from "@/lib/api/types";
 
@@ -55,6 +57,14 @@ export function DashboardAiBuilderFab({
     [templatesQuery.data],
   );
 
+  const handleSessionResponse = async (data: Awaited<ReturnType<typeof processBuilderMessage>>) => {
+    queryClient.setQueryData(["builder-session"], data);
+    if (data.session?.store) {
+      await refresh();
+      queryClient.invalidateQueries({ queryKey: ["store", "me"] });
+    }
+  };
+
   const sendMessage = useMutation({
     mutationFn: async (message: string) => {
       if (!session) {
@@ -66,21 +76,32 @@ export function DashboardAiBuilderFab({
         });
       }
 
-      if (session.storefront_snapshot) {
-        return applyBuilderChatEditForSession({ session, instruction: message });
-      }
-
       return processBuilderMessage({ session, message, templateOptions });
     },
-    onSuccess: async (data) => {
-      queryClient.setQueryData(["builder-session"], data);
-      if (data.session?.store) {
-        await refresh();
-        queryClient.invalidateQueries({ queryKey: ["store", "me"] });
-      }
-    },
+    onSuccess: handleSessionResponse,
     onError: (error) => toast.error(error instanceof Error ? error.message : "Could not send message"),
   });
+
+  const applyColor = useMutation({
+    mutationFn: async ({ color, label }: { color: string; label: string }) => {
+      if (!session) throw new Error("No active builder session");
+      return applyBuilderBrandColor({ session, color, label });
+    },
+    onSuccess: handleSessionResponse,
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not apply color"),
+  });
+
+  const uploadMedia = useMutation({
+    mutationFn: async ({ target, file }: { target: BuilderMediaTarget; file: File }) => {
+      if (!session?.store) throw new Error("Create your store before uploading images");
+      const { url } = await api.uploadStorefrontImage(session.store.id, file);
+      return applyBuilderMedia({ session, target, url });
+    },
+    onSuccess: handleSessionResponse,
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not upload image"),
+  });
+
+  const chatBusy = sendMessage.isPending || applyColor.isPending || uploadMedia.isPending;
 
   return (
     <>
@@ -108,9 +129,11 @@ export function DashboardAiBuilderFab({
             <div className="h-[min(720px,calc(100vh-3rem))]">
               <BuilderChatPanel
                 session={session as BuilderSession}
-                sending={sendMessage.isPending}
+                sending={chatBusy}
                 generating={sendMessage.isPending && !!session.storefront_snapshot}
                 onSendMessage={(message) => sendMessage.mutate(message)}
+                onApplyColor={(color, label) => applyColor.mutate({ color, label })}
+                onUploadMedia={(target, file) => uploadMedia.mutate({ target, file })}
               />
             </div>
           )}

@@ -1,19 +1,28 @@
 import { api } from "@/lib/api/client";
 import type {
+  BuilderMediaTarget,
   BuilderSession,
   BuilderSessionResponse,
   StorefrontContent,
   StorefrontTemplateId,
   StorefrontTemplateOption,
 } from "@/lib/api/types";
+import { STOREFRONT_TEMPLATE_OPTIONS } from "@/lib/api/types";
+import type { AgentThinkingLogEntry } from "@/lib/storefront-builder/agents/types";
 import {
+  extractColorFromMessage,
   fallbackBuilderTurn,
   hasMinimumBusinessProfile,
   isBuildIntent,
+  isColorIntent,
   isEditIntent,
+  isImageIntent,
+  isProductIntent,
+  isStockImageIntent,
   mergeSessionProfile,
   resolveSelectedTemplateId,
 } from "@/lib/storefront-builder/local-ai";
+import { streamBuilderThinkingTurn } from "@/lib/storefront-builder/thinking-stream";
 
 async function loadRecommendations(session: BuilderSession) {
   const profile = mergeSessionProfile(session);
@@ -29,14 +38,89 @@ async function loadRecommendations(session: BuilderSession) {
   });
 }
 
-export async function processBuilderMessage({
+export function shouldStreamBuilderThinking(
+  message: string,
+  extras?: {
+    brandColor?: string;
+    mediaUpdates?: Partial<Record<BuilderMediaTarget, string>>;
+  },
+): boolean {
+  if (extras?.brandColor || extras?.mediaUpdates) return false;
+  if (isColorIntent(message) && extractColorFromMessage(message)) return false;
+  if (isStockImageIntent(message)) return false;
+  if (isProductIntent(message)) return false;
+  return true;
+}
+
+export async function streamAndPersistBuilderMessage({
   session,
   message,
   templateOptions,
+  onLog,
+  signal,
 }: {
   session: BuilderSession;
   message: string;
   templateOptions: StorefrontTemplateOption[];
+  onLog?: (entry: AgentThinkingLogEntry) => void;
+  signal?: AbortSignal;
+}): Promise<BuilderSessionResponse> {
+  const enrichedSession: BuilderSession = {
+    ...session,
+    business_profile: mergeSessionProfile(session),
+  };
+  const recommendations = await loadRecommendations(enrichedSession);
+  const history = session.messages
+    .slice(-8)
+    .map((entry) => ({
+      role: entry.role,
+      content: entry.content,
+    }))
+    .filter((entry): entry is { role: "user" | "assistant"; content: string } =>
+      entry.role === "user" || entry.role === "assistant",
+    );
+
+  const thinkingLog: AgentThinkingLogEntry[] = [];
+
+  const turn = await streamBuilderThinkingTurn({
+    message,
+    session: enrichedSession,
+    recommendations,
+    templateOptions,
+    history,
+    signal,
+    onLog: (entry) => {
+      thinkingLog.push(entry);
+      onLog?.(entry);
+    },
+  });
+
+  return api.sendBuilderMessage(session.id, message, {
+    business_profile: turn.business_profile,
+    status: turn.status,
+    assistant_message: turn.assistant_message,
+    assistant_payload: {
+      ...turn.assistant_payload,
+      thinking_log: thinkingLog,
+      user_message: message,
+    },
+    selected_template_id: turn.selected_template_id ?? session.selected_template_id,
+    storefront_snapshot: turn.storefront ?? session.storefront_snapshot,
+  });
+}
+
+export async function processBuilderMessage({
+  session,
+  message,
+  templateOptions,
+  brandColor,
+  mediaUpdates,
+}: {
+  session: BuilderSession;
+  message: string;
+  templateOptions: StorefrontTemplateOption[];
+  brandColor?: string;
+  mediaUpdates?: Partial<Record<BuilderMediaTarget, string>>;
 }): Promise<BuilderSessionResponse> {
   const enrichedSession: BuilderSession = {
     ...session,
@@ -46,22 +130,51 @@ export async function processBuilderMessage({
     .filter((option) => option.value !== "ai_pick")
     .map((option) => option.value as StorefrontTemplateId);
   const recommendations = await loadRecommendations(enrichedSession);
+  const extras = {
+    ...(brandColor ? { brand_color: brandColor } : {}),
+    ...(mediaUpdates ? { media_updates: mediaUpdates } : {}),
+  };
 
-  if (session.storefront_snapshot) {
+  if (session.storefront_snapshot && session.store) {
     if (isBuildIntent(message)) {
-      return generateBuilderDraftForSession({
-        session: enrichedSession,
-        store: enrichedSession.store,
-        templateOptions,
-        recommendations,
-      });
+      return api.sendBuilderMessage(session.id, message);
+    }
+
+    if (brandColor || mediaUpdates) {
+      return api.sendBuilderMessage(session.id, message, extras);
+    }
+
+    if (isStockImageIntent(message)) {
+      return api.sendBuilderMessage(session.id, message, { apply_stock_images: true });
+    }
+
+    if (isProductIntent(message)) {
+      return api.sendBuilderMessage(session.id, message);
+    }
+
+    if (isColorIntent(message)) {
+      const color = extractColorFromMessage(message) ?? brandColor;
+      if (color) {
+        return api.sendBuilderMessage(session.id, message, { brand_color: color });
+      }
     }
 
     if (isEditIntent(message)) {
       return applyBuilderChatEditForSession({ session: enrichedSession, instruction: message });
     }
 
-    return api.sendBuilderMessage(session.id, message);
+    return api.sendBuilderMessage(session.id, message, extras);
+  }
+
+  if (brandColor || mediaUpdates) {
+    return api.sendBuilderMessage(session.id, message, extras);
+  }
+
+  if (isColorIntent(message)) {
+    const color = extractColorFromMessage(message);
+    if (color) {
+      return api.sendBuilderMessage(session.id, message, { brand_color: color });
+    }
   }
 
   if (isBuildIntent(message) && !session.storefront_snapshot) {
@@ -171,6 +284,47 @@ export async function applyBuilderChatEditForSession({
 
   return api.applyBuilderChatEdit(session.id, instruction);
 }
+
+export async function applyBuilderBrandColor({
+  session,
+  color,
+  label,
+}: {
+  session: BuilderSession;
+  color: string;
+  label?: string;
+}): Promise<BuilderSessionResponse> {
+  const message = label
+    ? `Use ${label} (${color}) as my brand color`
+    : `Use ${color} as my brand color`;
+  return processBuilderMessage({
+    session,
+    message,
+    templateOptions: STOREFRONT_TEMPLATE_OPTIONS,
+    brandColor: color,
+  });
+}
+
+export async function applyBuilderMedia({
+  session,
+  target,
+  url,
+}: {
+  session: BuilderSession;
+  target: BuilderMediaTarget;
+  url: string;
+}): Promise<BuilderSessionResponse> {
+  const label = target === "media.hero_image_url" ? "homepage header" : "about section";
+  return processBuilderMessage({
+    session,
+    message: `Use this photo for my ${label}`,
+    templateOptions: STOREFRONT_TEMPLATE_OPTIONS,
+    mediaUpdates: { [target]: url },
+  });
+}
+
+// re-export for page usage without circular imports from types-only paths
+export { fallbackSuggestedActions, getLatestSuggestedActions } from "@/lib/storefront-builder/suggested-actions";
 
 export async function generateStorefrontForStore({
   storeId,

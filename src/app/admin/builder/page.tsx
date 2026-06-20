@@ -1,27 +1,46 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
+import { Loader2, Sparkles } from "lucide-react";
+import Link from "next/link";
 import { toast } from "sonner";
 import { BuilderChatPanel } from "@/components/admin/builder/builder-chat-panel";
 import { BuilderPreviewPanel } from "@/components/admin/builder/builder-preview-panel";
 import { BuilderProgress } from "@/components/admin/builder/builder-progress";
+import { BuilderThinkingLogSheet } from "@/components/admin/builder/builder-thinking-log-sheet";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api/client";
-import { processBuilderMessage } from "@/lib/storefront-builder/client";
+import {
+  applyBuilderBrandColor,
+  applyBuilderMedia,
+  streamAndPersistBuilderMessage,
+} from "@/lib/storefront-builder/client";
 import {
   STOREFRONT_TEMPLATE_OPTIONS,
+  type BuilderMediaTarget,
   type BuilderSession,
   type StorefrontContent,
 } from "@/lib/api/types";
+import { BUILDER_PAGE } from "@/lib/storefront-builder/copy";
+import type { AgentThinkingLogEntry } from "@/lib/storefront-builder/agents/types";
+import {
+  extractThinkingLogTurns,
+  getLatestThinkingTurn,
+  type ThinkingLogTurn,
+} from "@/lib/storefront-builder/session-thinking-log";
 
 export default function AdminBuilderPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { user, loading, refresh } = useAuth();
   const [localStorefront, setLocalStorefront] = useState<StorefrontContent | null>(null);
+  const [thinkingEntries, setThinkingEntries] = useState<AgentThinkingLogEntry[]>([]);
+  const [thinkingStreaming, setThinkingStreaming] = useState(false);
+  const [thinkingLogOpen, setThinkingLogOpen] = useState(false);
+  const [pendingUserMessage, setPendingUserMessage] = useState("");
+  const thinkingRunRef = useRef<AgentThinkingLogEntry[]>([]);
 
   const templatesQuery = useQuery({
     queryKey: ["storefront-templates"],
@@ -43,6 +62,23 @@ export default function AdminBuilderPage() {
     () => templatesQuery.data ?? STOREFRONT_TEMPLATE_OPTIONS,
     [templatesQuery.data],
   );
+  const sessionThinkingTurns = useMemo(
+    () => (session ? extractThinkingLogTurns(session as BuilderSession) : []),
+    [session],
+  );
+  const liveThinkingTurn = useMemo<ThinkingLogTurn | null>(() => {
+    if (!thinkingStreaming && thinkingEntries.length === 0) return null;
+    return {
+      id: "live",
+      userMessage: pendingUserMessage,
+      entries: thinkingEntries,
+    };
+  }, [thinkingStreaming, thinkingEntries, pendingUserMessage]);
+  const allThinkingTurns = useMemo(
+    () => (liveThinkingTurn ? [...sessionThinkingTurns, liveThinkingTurn] : sessionThinkingTurns),
+    [sessionThinkingTurns, liveThinkingTurn],
+  );
+  const latestLiveEntries = liveThinkingTurn?.entries ?? getLatestThinkingTurn(sessionThinkingTurns)?.entries ?? [];
 
   useEffect(() => {
     if (!loading && !user) router.replace("/login");
@@ -54,28 +90,76 @@ export default function AdminBuilderPage() {
     }
   }, [session?.storefront_snapshot]);
 
+  const handleSessionResponse = async (data: Awaited<ReturnType<typeof streamAndPersistBuilderMessage>>) => {
+    queryClient.setQueryData(["builder-session"], data);
+    const nextStorefront = data.storefront ?? data.session?.storefront_snapshot ?? null;
+    if (nextStorefront) setLocalStorefront(nextStorefront);
+    if (data.session?.store) {
+      await refresh();
+      queryClient.invalidateQueries({ queryKey: ["store", "me"] });
+    }
+  };
+
   const sendMessage = useMutation({
     mutationFn: async (message: string) => {
-      if (!session) {
-        const started = await api.startBuilderSession();
-        return processBuilderMessage({
-          session: started.session as BuilderSession,
+      const activeSession = session ?? (await api.startBuilderSession()).session;
+      if (!activeSession) throw new Error("Could not start builder session");
+
+      thinkingRunRef.current = [];
+      setPendingUserMessage(message);
+      setThinkingEntries([]);
+      setThinkingStreaming(true);
+
+      try {
+        return await streamAndPersistBuilderMessage({
+          session: activeSession as BuilderSession,
           message,
           templateOptions,
+          onLog: (entry) => {
+            thinkingRunRef.current = [...thinkingRunRef.current, entry];
+            setThinkingEntries(thinkingRunRef.current);
+          },
         });
-      }
-
-      return processBuilderMessage({ session, message, templateOptions });
-    },
-    onSuccess: async (data) => {
-      queryClient.setQueryData(["builder-session"], data);
-      if (data.storefront) setLocalStorefront(data.storefront);
-      if (data.session?.store) {
-        await refresh();
-        queryClient.invalidateQueries({ queryKey: ["store", "me"] });
+      } finally {
+        setThinkingEntries([]);
+        setThinkingStreaming(false);
+        setPendingUserMessage("");
+        thinkingRunRef.current = [];
       }
     },
+    onSuccess: handleSessionResponse,
     onError: (error) => toast.error(error instanceof Error ? error.message : "Could not send message"),
+  });
+
+  const applyColor = useMutation({
+    mutationFn: async ({ color, label }: { color: string; label: string }) => {
+      if (!session) throw new Error("No active builder session");
+      return applyBuilderBrandColor({ session, color, label });
+    },
+    onSuccess: handleSessionResponse,
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not apply color"),
+  });
+
+  const uploadMedia = useMutation({
+    mutationFn: async ({ target, file }: { target: BuilderMediaTarget; file: File }) => {
+      if (!session?.store) throw new Error("Create your store before uploading images");
+      const { url } = await api.uploadStorefrontImage(session.store.id, file);
+      return applyBuilderMedia({ session, target, url });
+    },
+    onSuccess: handleSessionResponse,
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not upload image"),
+  });
+
+  const clearChat = useMutation({
+    mutationFn: async () => {
+      if (!session) throw new Error("No active builder session");
+      return api.clearBuilderChat(session.id);
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(["builder-session"], data);
+      toast.success("Chat cleared");
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not clear chat"),
   });
 
   if (loading || !user || sessionQuery.isLoading) {
@@ -94,18 +178,26 @@ export default function AdminBuilderPage() {
     );
   }
 
+  const chatBusy = sendMessage.isPending || applyColor.isPending || uploadMedia.isPending;
+  const hasThinkingHistory = allThinkingTurns.length > 0;
+  const previewThinkingEntries = thinkingStreaming ? thinkingEntries : latestLiveEntries;
+
   return (
     <div className="flex h-[calc(100vh-3.5rem)] flex-col overflow-hidden px-6 py-8">
-      <div className="mb-6 shrink-0 space-y-4">
-        <div>
-          <span className="text-xs font-medium uppercase tracking-wide text-ink-soft">AI Website Builder</span>
-          <h1 className="mt-1 font-display text-3xl font-bold tracking-tight">
-            Build your website by chat
-          </h1>
-          <p className="mt-1 text-sm text-ink-soft">
-            Describe your business and the AI will design, write, and generate your website. Refine it
-            with follow-up messages.
-          </p>
+        <div className="mb-6 shrink-0 space-y-4">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-ink-soft">{BUILDER_PAGE.eyebrow}</p>
+            <h1 className="mt-1 font-display text-3xl font-bold tracking-tight">{BUILDER_PAGE.title}</h1>
+            <p className="mt-1 text-sm text-ink-soft">{BUILDER_PAGE.subtitle}</p>
+          </div>
+          <Link
+            href="/admin/builder/thinking"
+            className="inline-flex items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2 text-xs font-medium text-ink-soft hover:text-ink"
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            AI thinking log
+          </Link>
         </div>
         <BuilderProgress status={session.status} />
       </div>
@@ -113,16 +205,35 @@ export default function AdminBuilderPage() {
       <div className="grid min-h-0 flex-1 gap-6 xl:grid-cols-[minmax(0,420px)_1fr]">
         <BuilderChatPanel
           session={session as BuilderSession}
-          sending={sendMessage.isPending}
+          sending={chatBusy}
           generating={sendMessage.isPending && !localStorefront}
+          clearing={clearChat.isPending}
+          thinkingEntries={thinkingEntries}
+          thinkingStreaming={thinkingStreaming}
+          hasThinkingHistory={hasThinkingHistory}
+          onOpenThinkingLog={() => setThinkingLogOpen(true)}
           onSendMessage={(message) => sendMessage.mutate(message)}
+          onApplyColor={(color, label) => applyColor.mutate({ color, label })}
+          onUploadMedia={(target, file) => uploadMedia.mutate({ target, file })}
+          onClearChat={() => clearChat.mutate()}
         />
         <BuilderPreviewPanel
           store={session.store}
           storefront={localStorefront}
           generating={sendMessage.isPending}
+          thinkingEntries={previewThinkingEntries}
+          thinkingStreaming={thinkingStreaming}
+          hasThinkingHistory={hasThinkingHistory}
+          onOpenThinkingLog={() => setThinkingLogOpen(true)}
         />
       </div>
+
+      <BuilderThinkingLogSheet
+        open={thinkingLogOpen}
+        onOpenChange={setThinkingLogOpen}
+        turns={allThinkingTurns}
+        streaming={thinkingStreaming}
+      />
     </div>
   );
 }

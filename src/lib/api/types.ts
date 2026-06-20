@@ -1,3 +1,5 @@
+import type { StorefrontBlock } from "@/lib/storefront/blocks/types";
+
 export type User = {
   id: string;
   name: string;
@@ -96,20 +98,28 @@ export type StoreProduct = {
 export type StorePageSource = "merchant" | "ai_generated" | "platform_default";
 
 export type StorefrontPages = {
-  about: { title: string; body: string; source: StorePageSource };
+  home?: { blocks: StorefrontBlock[] };
+  about: { title: string; body: string; source: StorePageSource; blocks?: StorefrontBlock[] };
   contact: {
     title: string;
     body: string;
     email?: string | null;
     phone?: string | null;
     source: StorePageSource;
+    blocks?: StorefrontBlock[];
   };
   faq: {
     title: string;
     source: StorePageSource;
     items: { question: string; answer: string }[];
+    blocks?: StorefrontBlock[];
   };
   privacy_policy: { title: string; body: string; source: StorePageSource };
+};
+
+export type StoreContactInquiryInput = {
+  block_id?: string;
+  fields: Record<string, string>;
 };
 
 export type StorefrontEditMetadata = {
@@ -137,6 +147,8 @@ export type StorefrontContent = {
   hero: { headline: string; subheadline: string; cta_label: string };
   about: { title: string; body: string };
   value_props: { title: string; body: string }[];
+  navigation?: { label: string; href: string }[];
+  home_stats?: { value: string; label: string }[];
   pages?: StorefrontPages;
   products?: StoreProduct[];
   seo: { title: string; description: string };
@@ -161,6 +173,14 @@ export type BuilderBusinessProfile = {
 
 export type BuilderMessageRole = "user" | "assistant";
 
+export type BuilderMediaTarget = "media.hero_image_url" | "media.about_image_url";
+
+export type BuilderSuggestedAction =
+  | { type: "prompt"; label: string; message: string }
+  | { type: "color"; label: string; color: string }
+  | { type: "upload"; label: string; target: BuilderMediaTarget }
+  | { type: "link"; label: string; href: string };
+
 export type BuilderMessage = {
   id: string;
   role: BuilderMessageRole;
@@ -173,7 +193,7 @@ export type BuilderSession = {
   id: string;
   status: BuilderSessionStatus;
   business_profile: BuilderBusinessProfile;
-  selected_template_id: StorefrontTemplateId | null;
+  selected_template_id: StorefrontTemplateChoice | null;
   storefront_snapshot: StorefrontContent | null;
   store: Store | null;
   messages: BuilderMessage[];

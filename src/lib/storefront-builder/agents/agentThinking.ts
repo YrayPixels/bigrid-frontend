@@ -1,5 +1,11 @@
 import type { WebsiteBuilderToolDef } from "./types";
 import { getAssistantMessageContent, getThinkingModel, postChat } from "./openaiChat";
+import {
+  BUILDER_CRITIC_SYSTEM_PROMPT,
+  BUILDER_EXECUTOR_CONTEXT_SUFFIX,
+  BUILDER_INTERPRETER_SYSTEM_PROMPT,
+  BUILDER_PLANNER_SYSTEM_PROMPT_PREFIX,
+} from "@/lib/storefront-builder/prompts";
 
 export type InterpreterResult = {
   task_summary: string;
@@ -91,14 +97,7 @@ export async function runInterpreter(args: {
     messages: [
       {
         role: "system",
-        content:
-          "You are the Interpreter agent for Storehaus website builder.\n" +
-          "Read the merchant message and restate what must happen to build or refine their website.\n" +
-          "Never mention templates, themes, or internal design systems.\n\n" +
-          "Return ONLY valid JSON with keys:\n" +
-          '- "task_summary": string\n' +
-          '- "steps": array of short imperative strings in execution order\n' +
-          '- "constraints": optional array of strings',
+        content: BUILDER_INTERPRETER_SYSTEM_PROMPT,
       },
       {
         role: "user",
@@ -142,13 +141,7 @@ export async function runPlanner(args: {
       {
         role: "system",
         content:
-          "You are the Planner agent for Storehaus website builder.\n" +
-          "Turn the interpreter output into a short plan for building or refining the merchant website.\n" +
-          "Speak in terms of websites, pages, copy, and brand — never templates.\n\n" +
-          "Return ONLY valid JSON with keys:\n" +
-          '- "intent": string\n' +
-          '- "plan_steps": array of { "step": number, "description": string, "tools": string[] }\n' +
-          '- "notes": optional string\n\n' +
+          BUILDER_PLANNER_SYSTEM_PROMPT_PREFIX +
           "Allowed tools:\n" +
           (allowed.size ? [...allowed].sort().join(", ") : "(none enabled)") +
           "\n\n### Tool reference\n" +
@@ -200,10 +193,7 @@ export async function runCritic(args: {
     messages: [
       {
         role: "system",
-        content:
-          "You are the Critic agent for Storehaus website builder.\n" +
-          "After the Executor ran tools, decide whether to continue, finish, or ask the merchant a question.\n\n" +
-          'Return ONLY valid JSON: { "status": "CONTINUE" | "DONE" | "NEED_USER", "reason": string }',
+        content: BUILDER_CRITIC_SYSTEM_PROMPT,
       },
       {
         role: "user",
@@ -266,7 +256,6 @@ export function formatThinkingContext(interpretation: InterpreterResult, plan: P
     "### Planner steps\n" +
     `${planLines || "(none)"}\n` +
     (plan.notes ? `\n### Planner notes\n${plan.notes}\n` : "") +
-    "\nYou are the Storehaus website builder assistant. Never mention templates or internal design systems. " +
-    "Speak as if you are personally designing and building the merchant's website."
+    BUILDER_EXECUTOR_CONTEXT_SUFFIX
   );
 }

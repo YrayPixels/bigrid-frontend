@@ -1,4 +1,21 @@
 import { getStoreSubdomainHost } from "@/lib/store-host";
+import { BUILDER_WELCOME_MESSAGE } from "@/lib/storefront-builder/copy";
+import { fallbackSuggestedActions } from "@/lib/storefront-builder/suggested-actions";
+import {
+  applyBrandColorToStorefront,
+  applyMediaToStorefront,
+  applyStockImagesFromMessage,
+  applyStorefrontEdit,
+  extractColorFromMessage,
+  isBuildIntent,
+  isColorIntent,
+  isEditIntent,
+  isProductIntent,
+  isStockImageIntent,
+} from "@/lib/storefront-builder/local-ai";
+import { colorPresetActions } from "@/lib/storefront-builder/suggested-actions";
+import { describeStorefrontEdit } from "@/lib/storefront-builder/edit-summary";
+import { ensureHomeBlocksOnStorefront } from "@/lib/storefront/blocks/sync-legacy";
 import { STOREFRONT_TEMPLATE_OPTIONS } from "./types";
 import type {
   AuthResponse,
@@ -36,6 +53,10 @@ type MockDB = {
   visits: Record<
     string,
     { session_id?: string; path?: string; referrer?: string; visited_at: string }[]
+  >;
+  contact_inquiries?: Record<
+    string,
+    { block_id?: string | null; fields: Record<string, string>; submitted_at: string }[]
   >;
   sessions: Record<string, string>;
   builderSessions: Record<string, BuilderSession>;
@@ -544,6 +565,27 @@ export const mockApi = {
     return { message: "Visit recorded." };
   },
 
+  async submitContact(
+    slug: string,
+    body: { block_id?: string; fields: Record<string, string> },
+  ): Promise<{ message: string }> {
+    const db = load();
+    const store = Object.values(db.stores).find((entry) => entry.slug === slug);
+    if (!store) throw { status: 404, message: "Storefront not found" };
+
+    db.contact_inquiries = db.contact_inquiries ?? {};
+    db.contact_inquiries[store.id] = [
+      ...(db.contact_inquiries[store.id] ?? []),
+      {
+        block_id: body.block_id ?? null,
+        fields: body.fields,
+        submitted_at: new Date().toISOString(),
+      },
+    ];
+    save(db);
+    return { message: "Message sent." };
+  },
+
   async getCurrentBuilderSession(token: string): Promise<BuilderSessionResponse> {
     await delay(150);
     const db = load();
@@ -573,8 +615,7 @@ export const mockApi = {
       session.messages.push({
         id: uid(),
         role: "assistant",
-        content:
-          "Hi! I'm your storefront builder. Tell me about your business — what you sell, who it's for, and the vibe you want — and I'll recommend templates and draft your site.",
+        content: BUILDER_WELCOME_MESSAGE,
         payload: { type: "welcome" },
         created_at: new Date().toISOString(),
       });
@@ -596,6 +637,9 @@ export const mockApi = {
       assistant_payload?: Record<string, unknown>;
       selected_template_id?: StorefrontTemplateId | null;
       storefront_snapshot?: StorefrontContent | null;
+      brand_color?: string;
+      media_updates?: Partial<Record<"media.hero_image_url" | "media.about_image_url", string>>;
+      apply_stock_images?: boolean;
     },
   ): Promise<BuilderSessionResponse> {
     await delay(300);
@@ -611,6 +655,72 @@ export const mockApi = {
       content: message,
       created_at: new Date().toISOString(),
     });
+
+    if (state?.brand_color || state?.media_updates || state?.apply_stock_images) {
+      const store = session.store ?? ensureBuilderStore(db, userId, session);
+      session.store = store;
+      let storefront = session.storefront_snapshot ?? db.storefronts[store.id] ?? null;
+      const changedPaths: string[] = [];
+      let summary = "";
+      let payloadType = "website_refined";
+
+      if (state.brand_color) {
+        if (storefront) {
+          const result = applyBrandColorToStorefront(storefront, store, state.brand_color);
+          storefront = result.storefront;
+          store.brand_color = result.store.brand_color;
+          changedPaths.push(...result.changed_paths);
+        } else {
+          store.brand_color = state.brand_color;
+        }
+        session.business_profile = {
+          ...session.business_profile,
+          brand_color: state.brand_color,
+        };
+        summary = "Done — I updated your brand color. Check the preview on the right.";
+        payloadType = "brand_color_applied";
+      }
+
+      if (storefront && state.media_updates) {
+        const mediaResult = applyMediaToStorefront(storefront, state.media_updates);
+        storefront = mediaResult.storefront;
+        changedPaths.push(...mediaResult.changed_paths);
+        summary = summary || describeStorefrontEdit(mediaResult.changed_paths);
+      }
+
+      if (storefront && state.apply_stock_images) {
+        const stockResult = applyStockImagesFromMessage(storefront, store);
+        storefront = stockResult.storefront;
+        changedPaths.push(...stockResult.changed_paths);
+        summary = "Done — I added suitable photos to your website. Check the preview on the right.";
+      }
+
+      if (storefront) {
+        session.storefront_snapshot = storefront;
+        db.storefronts[store.id] = storefront;
+        session.status = "review_ready";
+      }
+
+      db.stores[userId] = store;
+      session.messages.push({
+        id: uid(),
+        role: "assistant",
+        content: summary || describeStorefrontEdit(changedPaths),
+        payload: enrichMockAssistantPayload(session, {
+          type: payloadType,
+          changed_paths: changedPaths,
+          brand_color: state.brand_color ?? store.brand_color,
+        }),
+        created_at: new Date().toISOString(),
+      });
+      session.updated_at = new Date().toISOString();
+      db.builderSessions[userId] = session;
+      save(db);
+      return {
+        session: hydrateBuilderSession(db, session),
+        storefront: storefront ?? undefined,
+      };
+    }
 
     if (state?.assistant_message) {
       if (state.business_profile) session.business_profile = state.business_profile;
@@ -640,6 +750,29 @@ export const mockApi = {
     db.builderSessions[userId] = next;
     save(db);
     return { session: hydrateBuilderSession(db, next) };
+  },
+
+  async clearBuilderChat(token: string, sessionId: string): Promise<BuilderSessionResponse> {
+    await delay(150);
+    const db = load();
+    const userId = db.sessions[token];
+    if (!userId) throw { status: 401, message: "Unauthenticated" };
+    const session = db.builderSessions[userId];
+    if (!session || session.id !== sessionId) throw { status: 404, message: "Builder session not found" };
+
+    session.messages = [
+      {
+        id: uid(),
+        role: "assistant",
+        content: BUILDER_WELCOME_MESSAGE,
+        payload: { type: "welcome" },
+        created_at: new Date().toISOString(),
+      },
+    ];
+    session.updated_at = new Date().toISOString();
+    db.builderSessions[userId] = session;
+    save(db);
+    return { session: hydrateBuilderSession(db, session) };
   },
 
   async selectBuilderTemplate(
@@ -757,9 +890,7 @@ export const mockApi = {
     session.messages.push({
       id: uid(),
       role: "assistant",
-      content: result.changed_paths.length
-        ? `Updated: ${result.changed_paths.join(", ")}.`
-        : "I reviewed your request but did not change any protected fields.",
+      content: describeStorefrontEdit(result.changed_paths),
       payload: { type: "edit_applied", changed_paths: result.changed_paths },
       created_at: new Date().toISOString(),
     });
@@ -868,6 +999,31 @@ function extractBusinessProfile(message: string, profile: BuilderBusinessProfile
   return next;
 }
 
+function enrichMockAssistantPayload(
+  session: BuilderSession,
+  payload: Record<string, unknown>,
+): Record<string, unknown> {
+  const industry = session.business_profile.industry ?? session.store?.industry ?? null;
+  const colorOptions = colorPresetActions(industry, 3).map((action) => action.color);
+  const applied =
+    typeof payload.brand_color === "string"
+      ? payload.brand_color
+      : session.business_profile.brand_color ?? session.store?.brand_color ?? null;
+
+  if (applied && /^#[0-9A-Fa-f]{6}$/.test(applied)) {
+    const normalized = applied.toUpperCase();
+    if (!colorOptions.some((color) => color.toUpperCase() === normalized)) {
+      colorOptions.unshift(applied);
+    }
+  }
+
+  return {
+    suggested_actions: fallbackSuggestedActions(session),
+    color_options: colorOptions,
+    ...payload,
+  };
+}
+
 function processBuilderMessage(
   db: MockDB,
   userId: string,
@@ -876,16 +1032,102 @@ function processBuilderMessage(
 ): BuilderSession {
   session.business_profile = extractBusinessProfile(message, session.business_profile ?? {});
   const profile = session.business_profile;
+
+  if (session.storefront_snapshot && session.store) {
+    const store = session.store;
+    let storefront = session.storefront_snapshot;
+    let changedPaths: string[] = [];
+    let summary = "";
+    let payloadType = "conversation";
+
+    if (isStockImageIntent(message)) {
+      const stockResult = applyStockImagesFromMessage(storefront, store);
+      storefront = stockResult.storefront;
+      changedPaths = stockResult.changed_paths;
+      summary = "Done — I added suitable photos to your website. Check the preview on the right.";
+      payloadType = "website_refined";
+    } else if (isProductIntent(message)) {
+      session.messages.push({
+        id: uid(),
+        role: "assistant",
+        content:
+          "Products live on your Products page — add names, prices, photos, and inventory there. They appear on your storefront automatically.",
+        payload: enrichMockAssistantPayload(session, {
+          type: "product_guidance",
+          suggested_actions: [
+            { type: "link", label: "Go to Products", href: "/admin/products" },
+            { type: "prompt", label: "Suggest stock photos", message: "Add suitable stock photos to my website" },
+            ...colorPresetActions(profile.industry ?? store.industry, 2),
+          ],
+        }),
+        created_at: new Date().toISOString(),
+      });
+      session.updated_at = new Date().toISOString();
+      return session;
+    } else if (isBuildIntent(message)) {
+      if (/\bcosmetics\b/i.test(message)) {
+        session.selected_template_id = "cosmetics";
+        store.storefront_template_id = "cosmetics";
+        profile.industry = "beauty_and_skincare";
+      }
+      storefront = synthesizeStorefront(store);
+      session.storefront_snapshot = storefront;
+      db.storefronts[store.id] = storefront;
+      session.status = "content_generated";
+      summary = /\bfor\b/i.test(message)
+        ? "Great — I rebuilt your site with the cosmetics layout. Check the preview on the right, then tell me what to refine."
+        : "Your website is ready. Preview it on the right, then tell me what to refine — headline, about section, CTA, or SEO.";
+      payloadType = "website_generated";
+    } else if (isColorIntent(message)) {
+      const color = extractColorFromMessage(message);
+      if (color) {
+        const result = applyBrandColorToStorefront(storefront, store, color);
+        storefront = result.storefront;
+        store.brand_color = result.store.brand_color;
+        session.business_profile = { ...profile, brand_color: color };
+        changedPaths = result.changed_paths;
+        summary = "Done — I updated your brand color. Check the preview on the right.";
+        payloadType = "brand_color_applied";
+      }
+    } else if (isEditIntent(message)) {
+      const editResult = applyStorefrontEdit(storefront, message);
+      storefront = editResult.storefront;
+      changedPaths = editResult.changed_paths;
+      summary = editResult.assistant_message;
+      payloadType = "website_refined";
+    } else {
+      summary =
+        "Tell me what you'd like to change — for example \"Change the button to Shop Gifts\" or \"Make the homepage more premium\". I'll update the preview on the right.";
+    }
+
+    if (payloadType !== "conversation" && payloadType !== "website_generated") {
+      session.storefront_snapshot = storefront;
+      db.storefronts[store.id] = storefront;
+      db.stores[userId] = store;
+      session.status = "review_ready";
+    }
+
+    session.messages.push({
+      id: uid(),
+      role: "assistant",
+      content: summary,
+      payload: enrichMockAssistantPayload(session, {
+        type: payloadType,
+        ...(changedPaths.length ? { changed_paths: changedPaths } : {}),
+        ...(payloadType === "brand_color_applied" ? { brand_color: store.brand_color } : {}),
+      }),
+      created_at: new Date().toISOString(),
+    });
+    session.updated_at = new Date().toISOString();
+    return session;
+  }
+
   const hasMinimum =
     !!profile.business_name &&
     !!profile.description &&
     profile.description.length >= 10;
 
-  const wantsWebsite =
-    /\b(build|create|generate|make)\b.*\b(website|site|storefront|store|draft)\b/i.test(message) ||
-    /\b(build my website|generate my website|create my website|yes proceed|yes,? build|go ahead)\b/i.test(
-      message,
-    );
+  const wantsWebsite = isBuildIntent(message);
 
   if (wantsWebsite && hasMinimum && !session.storefront_snapshot) {
     const store = ensureBuilderStore(db, userId, session);
@@ -1006,7 +1248,14 @@ function applyMockChatEdit(
     if (path === "hero.headline") next.hero.headline = value;
     if (path === "hero.subheadline") next.hero.subheadline = value;
     if (path === "hero.cta_label") next.hero.cta_label = value;
-    if (path === "about.body") next.about.body = value;
+    if (path === "about.title") {
+      next.about.title = value;
+      if (next.pages?.about) next.pages.about.title = value;
+    }
+    if (path === "about.body") {
+      next.about.body = value;
+      if (next.pages?.about) next.pages.about.body = value;
+    }
     if (path === "seo.description") next.seo.description = value.slice(0, 300);
     changed.push(path);
   };
@@ -1020,7 +1269,10 @@ function applyMockChatEdit(
   } else if (lower.includes("hero") || lower.includes("headline")) {
     setPath("hero.subheadline", `${next.hero.subheadline} Updated to match your request.`);
   } else if (lower.includes("about")) {
-    setPath("about.body", `${next.about.body} Updated to match your request.`);
+    if (lower.includes("family")) {
+      setPath("about.title", "Our family story");
+    }
+    setPath("about.body", `${next.about.body} Updated to match your request.`.trim());
   } else {
     setPath("hero.subheadline", `${next.hero.subheadline} Updated to match your request.`);
   }
@@ -1082,7 +1334,7 @@ function synthesizeStorefront(store: Store): StorefrontContent {
 
   const slugBase = slugify(name);
 
-  return {
+  return ensureHomeBlocksOnStorefront({
     template: {
       id: templateId,
       source: store.storefront_template_id === "ai_pick" ? "ai_selected" : "merchant_selected",
@@ -1262,7 +1514,7 @@ function synthesizeStorefront(store: Store): StorefrontContent {
       title: `${name} - ${industry.replace(/\b\w/g, (c) => c.toUpperCase())}`,
       description: `${desc.slice(0, 150)}`.replace(/\s+\S*$/, "..."),
     },
-  };
+  });
 }
 
 function recommendTemplates(body: RecommendStorefrontTemplatesInput) {

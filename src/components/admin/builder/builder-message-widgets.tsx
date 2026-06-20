@@ -2,6 +2,9 @@
 
 import { Check, Circle, Globe, Sparkles, Wand2 } from "lucide-react";
 import type { BuilderMessage } from "@/lib/api/types";
+import { isTechnicalEditMessage } from "@/lib/storefront-builder/edit-summary";
+import { BuilderColorFeedback } from "@/components/admin/builder/builder-suggested-actions";
+import { normalizeSuggestedActions } from "@/lib/storefront-builder/suggested-actions";
 
 type AgentPlanStep = {
   step?: number;
@@ -113,7 +116,7 @@ function AgentTurnWidget({ payload }: { payload: Record<string, unknown> }) {
 
 export function BuilderMessageWidgets({
   message,
-  brandColor: _brandColor,
+  brandColor,
 }: {
   message: BuilderMessage;
   brandColor: string;
@@ -122,6 +125,12 @@ export function BuilderMessageWidgets({
   if (!payload || typeof payload !== "object") return null;
 
   const type = payload.type;
+
+  const colorOptions = Array.isArray(payload.color_options)
+    ? payload.color_options.filter((value): value is string => typeof value === "string")
+    : [];
+  const appliedColor = typeof payload.brand_color === "string" ? payload.brand_color : brandColor;
+
   if (type === "agent_turn") {
     return <AgentTurnWidget payload={payload} />;
   }
@@ -139,10 +148,33 @@ export function BuilderMessageWidgets({
     const changedPaths = payload.changed_paths as string[] | undefined;
     if (!changedPaths?.length) return null;
     return (
-      <div className="mt-3 rounded-lg border border-border bg-background px-3 py-2 text-xs text-ink-soft">
-        Updated: {changedPaths.join(", ")}
-      </div>
+      <>
+        {!isTechnicalEditMessage(message.content) ? (
+          <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+            <Wand2 className="h-3.5 w-3.5" />
+            Preview updated
+          </div>
+        ) : null}
+        {colorOptions.length ? (
+          <BuilderColorFeedback colors={colorOptions} activeColor={appliedColor} />
+        ) : null}
+      </>
     );
+  }
+
+  if (type === "brand_color_applied" && typeof payload.brand_color === "string") {
+    return (
+      <BuilderColorFeedback
+        colors={colorOptions.length ? colorOptions : [payload.brand_color as string]}
+        activeColor={payload.brand_color as string}
+      />
+    );
+  }
+
+  if (normalizeSuggestedActions(payload.suggested_actions).length && type === "conversation") {
+    return colorOptions.length ? (
+      <BuilderColorFeedback colors={colorOptions} activeColor={appliedColor} />
+    ) : null;
   }
 
   return null;

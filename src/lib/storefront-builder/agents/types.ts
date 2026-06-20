@@ -40,3 +40,13 @@ export type AgentActivityPayload = {
   title: string;
   detail?: string;
 };
+
+export type AgentThinkingLogEntry = {
+  id: string;
+  ts: string;
+  agent: "System" | "Interpreter" | "Planner" | "Executor" | "Critic";
+  phase: "start" | "complete" | "error" | "info";
+  title: string;
+  detail?: string;
+  data?: Record<string, unknown>;
+};

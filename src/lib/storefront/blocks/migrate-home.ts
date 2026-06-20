@@ -1,0 +1,148 @@
+import type { StorefrontContent, StorefrontTemplateId } from "@/lib/api/types";
+import { cosmeticsTemplateImages } from "@/lib/storefront/cosmetics-defaults";
+import type { StorefrontBlock } from "@/lib/storefront/blocks/types";
+
+const DEFAULT_HOME_STATS = [
+  { value: "Trusted by over 350,000+ Clients", label: "worldwide since 2008" },
+  { value: "6M+", label: "Worldwide Product sale per year" },
+  { value: "4.6", label: "3,350 Rating Worldwide" },
+];
+
+export function buildCosmeticsHomeBlocks(storefront: StorefrontContent): StorefrontBlock[] {
+  const stats = storefront.home_stats?.length ? storefront.home_stats : DEFAULT_HOME_STATS;
+  const valueProps = storefront.value_props?.length
+    ? storefront.value_props
+    : [
+        { title: "100% organic", body: "Botanical ingredients chosen for gentle daily care." },
+        { title: "Clinical feel", body: "Simple formulas that support comfort, glow, and consistency." },
+        { title: "Herbal products", body: "Clean textures made to layer easily in any routine." },
+      ];
+
+  return [
+    {
+      id: "hero-main",
+      type: "hero",
+      props: {
+        eyebrow: "Discover the Nature with",
+        headline: storefront.hero.headline,
+        subheadline: storefront.hero.subheadline,
+        cta_label: storefront.hero.cta_label,
+        cta_href: "/products",
+        image_url: storefront.media?.hero_image_url ?? cosmeticsTemplateImages.hero,
+      },
+    },
+    {
+      id: "home-stats",
+      type: "stats_row",
+      props: { items: stats },
+    },
+    {
+      id: "about-spotlight",
+      type: "rich_text",
+      props: {
+        title: storefront.about.title,
+        body: storefront.about.body,
+        image_url: cosmeticsTemplateImages.cleanser,
+        badges: valueProps.slice(0, 3).map((item) => ({
+          value: item.title,
+          label: item.body,
+        })),
+      },
+    },
+    {
+      id: "serum-promo",
+      type: "cta_banner",
+      props: {
+        title: "Our Best Serums",
+        body: "Lightweight botanical actives made to layer cleanly after cleansing and before daily moisture.",
+        bullets: [
+          "Designed for bright, hydrated-looking skin.",
+          "Calm textures for morning and evening routines.",
+          "Simple steps customers can understand quickly.",
+        ],
+        cta_label: "Explore",
+        cta_href: "/products",
+        image_url: cosmeticsTemplateImages.serum,
+        layout: "text_left",
+      },
+    },
+    {
+      id: "trust-features",
+      type: "feature_grid",
+      props: {
+        title: "Why Choose Us",
+        body: "A calm product story, premium formulas, and trust blocks that match the clean cosmetics reference.",
+        items: valueProps.slice(0, 3),
+      },
+    },
+    {
+      id: "featured-products",
+      type: "product_grid",
+      props: {
+        title: "Shop the line",
+        limit: 4,
+      },
+    },
+    {
+      id: "home-faq",
+      type: "faq",
+      props: {
+        title: storefront.pages?.faq?.title ?? "Frequently Ask Questions",
+        items: storefront.pages?.faq?.items ?? [],
+      },
+    },
+  ];
+}
+
+export function buildDefaultHomeBlocks(
+  storefront: StorefrontContent,
+  templateId: StorefrontTemplateId = storefront.template?.id ?? "classic",
+): StorefrontBlock[] {
+  if (templateId === "cosmetics") {
+    return buildCosmeticsHomeBlocks(storefront);
+  }
+
+  return [
+    {
+      id: "hero-main",
+      type: "hero",
+      props: {
+        headline: storefront.hero.headline,
+        subheadline: storefront.hero.subheadline,
+        cta_label: storefront.hero.cta_label,
+        cta_href: "/products",
+        image_url: storefront.media?.hero_image_url ?? null,
+      },
+    },
+    {
+      id: "trust-features",
+      type: "feature_grid",
+      props: {
+        title: "Why shop with us",
+        body: storefront.about.body,
+        items: storefront.value_props.slice(0, 3),
+      },
+    },
+    {
+      id: "featured-products",
+      type: "product_grid",
+      props: { title: "Featured products", limit: 3 },
+    },
+    {
+      id: "home-faq",
+      type: "faq",
+      props: {
+        title: storefront.pages?.faq?.title ?? "Frequently asked questions",
+        items: storefront.pages?.faq?.items ?? [],
+      },
+    },
+  ];
+}
+
+export function migrateHomeBlocks(storefront: StorefrontContent): StorefrontBlock[] {
+  const existing = storefront.pages?.home?.blocks;
+  if (existing?.length) return existing;
+
+  const templateId = storefront.template?.id ?? "classic";
+  return buildDefaultHomeBlocks(storefront, templateId);
+}

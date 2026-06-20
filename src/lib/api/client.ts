@@ -32,6 +32,9 @@ export type PersistBuilderMessageInput = {
   assistant_payload?: Record<string, unknown>;
   selected_template_id?: StorefrontTemplateId | null;
   storefront_snapshot?: StorefrontContent | null;
+  brand_color?: string;
+  media_updates?: Partial<Record<"media.hero_image_url" | "media.about_image_url", string>>;
+  apply_stock_images?: boolean;
 };
 
 export type PersistBuilderDraftInput = {
@@ -327,7 +330,24 @@ export const api = {
     if (USE_MOCKS) return mockApi.sendBuilderMessage(token, sessionId, message, state);
     return http<BuilderSessionResponse>(
       `${STOREHAUSE_API_PREFIX}/storefront-builder/sessions/${sessionId}/messages`,
-      { method: "POST", body: JSON.stringify({ message, ...(state ?? {}) }) },
+      {
+        method: "POST",
+        body: JSON.stringify({
+          message,
+          ...(state?.brand_color ? { brand_color: state.brand_color } : {}),
+          ...(state?.media_updates ? { media_updates: state.media_updates } : {}),
+          ...(state ?? {}),
+        }),
+      },
+    );
+  },
+
+  async clearBuilderChat(sessionId: string): Promise<BuilderSessionResponse> {
+    const token = requireToken();
+    if (USE_MOCKS) return mockApi.clearBuilderChat(token, sessionId);
+    return http<BuilderSessionResponse>(
+      `${STOREHAUSE_API_PREFIX}/storefront-builder/sessions/${sessionId}/clear`,
+      { method: "POST" },
     );
   },
 

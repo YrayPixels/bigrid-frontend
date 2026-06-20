@@ -3,12 +3,13 @@ import type {
   BuilderSession,
   Store,
   StorefrontContent,
+  StorefrontTemplateChoice,
   StorefrontTemplateId,
   StorefrontTemplateOption,
   StorefrontTemplateRecommendation,
 } from "@/lib/api/types";
 import { StorefrontBuilderManager } from "@/lib/storefront-builder/agents/StorefrontBuilderManager";
-import { applyStorefrontEdit, profileToStore, synthesizeStorefront } from "@/lib/storefront-builder/local-ai";
+import { applyStorefrontEditAsync, profileToStore, synthesizeStorefront } from "@/lib/storefront-builder/local-ai";
 
 type MessageRequest = {
   mode: "message";
@@ -23,7 +24,7 @@ type DraftRequest = {
   mode: "draft";
   session?: BuilderSession;
   store?: Store;
-  selected_template_id?: StorefrontTemplateId | null;
+  selected_template_id?: StorefrontTemplateChoice | null;
   recommendations?: StorefrontTemplateRecommendation[];
 };
 
@@ -74,7 +75,9 @@ export async function POST(request: Request) {
   }
 
   if (body.mode === "edit") {
-    return NextResponse.json(applyStorefrontEdit(body.storefront, body.instruction));
+    return NextResponse.json(
+      await applyStorefrontEditAsync(body.storefront, body.instruction),
+    );
   }
 
   return NextResponse.json({ message: "Unsupported AI builder mode." }, { status: 422 });

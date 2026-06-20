@@ -1,0 +1,102 @@
+export type StorefrontBlockType =
+  | "hero"
+  | "stats_row"
+  | "rich_text"
+  | "feature_grid"
+  | "cta_banner"
+  | "product_grid"
+  | "faq"
+  | "contact_form";
+
+export type StorefrontContentPageSlug = "home" | "about" | "contact" | "faq";
+
+export type StorefrontBlock = {
+  id: string;
+  type: StorefrontBlockType;
+  props: Record<string, unknown>;
+  edit_metadata?: {
+    source?: "ai_generated" | "merchant" | "platform_default";
+    locked?: boolean;
+  };
+};
+
+export type StorefrontHomePage = {
+  blocks: StorefrontBlock[];
+};
+
+export type StorefrontBlockOperation =
+  | { op: "update_block"; block_id: string; props: Record<string, unknown> }
+  | { op: "reorder_blocks"; order: string[] }
+  | {
+      op: "add_block";
+      type: StorefrontBlockType;
+      after?: string;
+      before?: string;
+      props?: Record<string, unknown>;
+    }
+  | { op: "remove_block"; block_id: string };
+
+export type HeroBlockProps = {
+  eyebrow?: string;
+  headline: string;
+  subheadline: string;
+  cta_label: string;
+  cta_href?: string;
+  image_url?: string | null;
+  layout?: "centered" | "split" | "image_right";
+};
+
+export type StatsRowBlockProps = {
+  items: { value: string; label: string }[];
+};
+
+export type RichTextBlockProps = {
+  title: string;
+  body: string;
+  image_url?: string | null;
+  badges?: { value: string; label: string }[];
+};
+
+export type FeatureGridBlockProps = {
+  title: string;
+  body: string;
+  items: { title: string; body: string }[];
+};
+
+export type CtaBannerBlockProps = {
+  title: string;
+  body: string;
+  bullets?: string[];
+  cta_label: string;
+  cta_href?: string;
+  image_url?: string | null;
+  layout?: "text_left" | "text_right";
+};
+
+export type ProductGridBlockProps = {
+  title?: string;
+  limit?: number;
+};
+
+export type FaqBlockProps = {
+  title: string;
+  items: { question: string; answer: string }[];
+};
+
+export type ContactFormFieldType = "text" | "email" | "tel" | "textarea" | "number";
+
+export type ContactFormField = {
+  name: string;
+  label: string;
+  type: ContactFormFieldType;
+  required?: boolean;
+  placeholder?: string;
+};
+
+export type ContactFormBlockProps = {
+  title: string;
+  intro: string;
+  fields: ContactFormField[];
+  submit_label: string;
+  success_message: string;
+};

@@ -8,10 +8,10 @@ import { StorefrontLink } from "@/components/storefront/theme/storefront-link";
 import { useCart } from "@/lib/storefront/cart-context";
 import { useStorefront } from "@/lib/storefront/store-context";
 import { useStorefrontTheme } from "@/lib/storefront/theme-context";
-import { STOREFRONT_FOOTER_LINKS, STOREFRONT_NAV_ITEMS } from "@/lib/storefront/template";
+import { STOREFRONT_FOOTER_LINKS } from "@/lib/storefront/template";
 import { cn } from "@/lib/utils";
 
-const cosmeticsNavItems = [
+const defaultCosmeticsNavItems = [
   { href: "/products", label: "Product" },
   { href: "/", label: "Features" },
   { href: "/faq", label: "Reviews" },
@@ -19,12 +19,13 @@ const cosmeticsNavItems = [
 ];
 
 export function CosmeticsShell({ children }: { children: React.ReactNode }) {
-  const { store } = useStorefront();
+  const { store, storefront } = useStorefront();
   const { itemCount } = useCart();
   const { theme, mode } = useStorefrontTheme();
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const brandName = store.business_name;
+  const navItems = storefront.navigation?.length ? storefront.navigation : defaultCosmeticsNavItems;
 
   return (
     <div className={`${theme.pageBg} min-h-screen ${theme.pageText}`}>
@@ -44,13 +45,13 @@ export function CosmeticsShell({ children }: { children: React.ReactNode }) {
           </StorefrontLink>
 
           <nav className="hidden items-center gap-11 lg:flex">
-            {cosmeticsNavItems.map((item) => {
+            {navItems.map((item, index) => {
               const active =
                 mode !== "edit" &&
                 (pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href)));
               return (
                 <StorefrontLink
-                  key={item.label}
+                  key={`${item.href}-${item.label}`}
                   href={item.href}
                   className={cn(
                     "text-[10px] font-bold tracking-[0.02em] text-[#172012] transition hover:text-[#748442]",
@@ -102,9 +103,9 @@ export function CosmeticsShell({ children }: { children: React.ReactNode }) {
             style={{ backgroundColor: theme.palette.background }}
           >
             <nav className="flex flex-col gap-2">
-              {STOREFRONT_NAV_ITEMS.map((item) => (
+              {navItems.map((item) => (
                 <StorefrontLink
-                  key={item.href}
+                  key={`mobile-${item.href}-${item.label}`}
                   href={item.href}
                   onClick={() => setMobileOpen(false)}
                   className="px-4 py-2 text-sm font-semibold uppercase tracking-[0.1em]"
