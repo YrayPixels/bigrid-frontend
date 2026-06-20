@@ -149,6 +149,9 @@ export type StorefrontContent = {
   value_props: { title: string; body: string }[];
   navigation?: { label: string; href: string }[];
   home_stats?: { value: string; label: string }[];
+  home_testimonials_title?: string;
+  home_testimonials_intro?: string;
+  home_testimonials?: { quote: string; author: string }[];
   pages?: StorefrontPages;
   products?: StoreProduct[];
   seo: { title: string; description: string };

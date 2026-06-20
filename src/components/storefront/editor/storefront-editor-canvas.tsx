@@ -11,11 +11,19 @@ import { StoreShell } from "@/components/storefront/store-shell";
 import { HomePageView } from "@/components/storefront/pages/home-page";
 import { PageRenderer } from "@/components/storefront/blocks/page-renderer";
 import { ProductsPageView } from "@/components/storefront/pages/products-page-view";
+import { BlockEditorProvider } from "@/components/storefront/editor/block-editor-context";
 import { api } from "@/lib/api/client";
 import { CartProvider } from "@/lib/storefront/cart-context";
 import { StorefrontProvider } from "@/lib/storefront/store-context";
 import { StorefrontThemeProvider } from "@/lib/storefront/theme-context";
-import { applyTemplateToDraft, normalizeStorefrontContent, setDraftField } from "@/lib/storefront/draft";
+import {
+  reorderPageBlock,
+  type SelectedBlockRef,
+} from "@/lib/storefront/blocks/block-draft";
+import type { StorefrontContentPageSlug } from "@/lib/storefront/blocks/types";
+import { ensureHomeBlocksOnStorefront } from "@/lib/storefront/blocks/sync-legacy";
+import { applyTemplateToDraft, cloneStorefrontContent, normalizeStorefrontContent } from "@/lib/storefront/draft";
+import { setEditableStorefrontPath } from "@/lib/storefront-builder/editable-paths";
 import { getStorefrontTheme } from "@/lib/storefront/template";
 import { getStorefrontUrl } from "@/lib/store-host";
 
@@ -30,6 +38,8 @@ type StorefrontEditorCanvasProps = {
   activePage: EditorPage;
   onDraftChange: (draft: StorefrontContent) => void;
   readOnly?: boolean;
+  selectedBlock?: SelectedBlockRef | null;
+  onSelectBlock?: (selection: SelectedBlockRef | null) => void;
 };
 
 export function StorefrontEditorCanvas({
@@ -41,6 +51,8 @@ export function StorefrontEditorCanvas({
   activePage,
   onDraftChange,
   readOnly = false,
+  selectedBlock = null,
+  onSelectBlock,
 }: StorefrontEditorCanvasProps) {
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
 
@@ -68,12 +80,20 @@ export function StorefrontEditorCanvas({
   const theme = getStorefrontTheme(templateId, brandColor, palette);
 
   function handleFieldChange(path: string, value: string) {
-    onDraftChange(setDraftField(draft, path, value));
+    const next = cloneStorefrontContent(draft);
+    ensureHomeBlocksOnStorefront(next);
+    if (setEditableStorefrontPath(next, path, value)) {
+      onDraftChange(next);
+    }
   }
 
   async function handleImageUpload(path: string, file: File) {
     const { url } = await api.uploadStorefrontImage(store.id, file);
-    onDraftChange(setDraftField(draft, path, url));
+    const next = cloneStorefrontContent(draft);
+    ensureHomeBlocksOnStorefront(next);
+    if (setEditableStorefrontPath(next, path, url)) {
+      onDraftChange(next);
+    }
   }
 
   function renderPage() {
@@ -91,6 +111,14 @@ export function StorefrontEditorCanvas({
     }
   }
 
+  function handleBlockReorder(
+    page: StorefrontContentPageSlug,
+    blockId: string,
+    direction: "up" | "down",
+  ) {
+    onDraftChange(reorderPageBlock(draft, page, blockId, direction));
+  }
+
   return (
     <div className="overflow-hidden rounded-2xl border border-border bg-canvas shadow-elevated">
       <div className="flex items-center gap-2 border-b border-border bg-secondary px-4 py-2.5">
@@ -102,7 +130,7 @@ export function StorefrontEditorCanvas({
         </span>
         {!readOnly ? (
           <span className="ml-auto text-[10px] font-semibold uppercase tracking-wide text-primary">
-            Click text, double-click images
+            Click section labels or text to edit
           </span>
         ) : null}
       </div>
@@ -122,9 +150,19 @@ export function StorefrontEditorCanvas({
                   }
             }
           >
-            <CartProvider storeId={store.id}>
-              <StoreShell>{renderPage()}</StoreShell>
-            </CartProvider>
+            <BlockEditorProvider
+              value={{
+                selectedBlock: readOnly ? null : selectedBlock,
+                onSelectBlock: readOnly ? () => {} : (onSelectBlock ?? (() => {})),
+                onReorderBlock: readOnly
+                  ? () => {}
+                  : (page, blockId, direction) => handleBlockReorder(page, blockId, direction),
+              }}
+            >
+              <CartProvider storeId={store.id}>
+                <StoreShell>{renderPage()}</StoreShell>
+              </CartProvider>
+            </BlockEditorProvider>
           </StorefrontThemeProvider>
         </StorefrontProvider>
       </div>

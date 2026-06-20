@@ -4,6 +4,31 @@ import {
   syncLegacyFieldsFromHomeBlocks,
 } from "@/lib/storefront/blocks/sync-legacy";
 
+export const PROMPT_INDEXED_STOREFRONT_PATHS = [
+  "pages.faq.items[N].question",
+  "pages.faq.items[N].answer",
+  "value_props[N].title",
+  "value_props[N].body",
+  "home_stats[N].value",
+  "home_stats[N].label",
+  "home_testimonials[N].quote",
+  "home_testimonials[N].author",
+  "navigation[N].label",
+  "pages.home.blocks.hero-main.props.eyebrow",
+  "pages.home.blocks.serum-promo.props.title",
+  "pages.home.blocks.serum-promo.props.body",
+  "pages.home.blocks.serum-promo.props.bullets[N]",
+  "pages.home.blocks.serum-promo.props.cta_label",
+  "pages.home.blocks.trust-features.props.title",
+  "pages.home.blocks.trust-features.props.body",
+  "pages.home.blocks.trust-features.props.items[N].title",
+  "pages.home.blocks.trust-features.props.items[N].body",
+] as const;
+
+export function promptAllowedStorefrontPaths(): string[] {
+  return [...BASE_EDITABLE_STOREFRONT_PATHS, ...PROMPT_INDEXED_STOREFRONT_PATHS];
+}
+
 export const BASE_EDITABLE_STOREFRONT_PATHS = [
   "hero.headline",
   "hero.subheadline",
@@ -21,14 +46,17 @@ export const BASE_EDITABLE_STOREFRONT_PATHS = [
   "pages.about.title",
   "pages.about.body",
   "pages.faq.title",
+  "home_testimonials_title",
+  "home_testimonials_intro",
 ] as const;
 
 const EDITABLE_PATH_PATTERNS = [
   /^pages\.faq\.items\.\d+\.(question|answer)$/,
   /^value_props\.\d+\.(title|body)$/,
   /^home_stats\.\d+\.(value|label)$/,
+  /^home_testimonials\.\d+\.(quote|author)$/,
   /^navigation\.\d+\.label$/,
-  /^pages\.home\.blocks\.[\w-]+\.props\.(title|body|cta_label)$/,
+  /^pages\.home\.blocks\.[\w-]+\.props\.[\w.]+$/,
   /^pages\.(about|contact|faq)\.blocks\.[\w-]+\.props\.(title|body|intro|submit_label|success_message)$/,
 ];
 
@@ -61,9 +89,17 @@ export function storefrontPathLabel(path: string): string {
     "pages.contact.email": "contact email",
     "pages.contact.phone": "contact phone",
     "pages.faq.title": "FAQ page title",
+    "home_testimonials_title": "testimonials heading",
+    "home_testimonials_intro": "testimonials intro",
   };
 
   if (labels[path]) return labels[path];
+
+  const testimonialQuote = path.match(/^home_testimonials\.(\d+)\.quote$/);
+  if (testimonialQuote) return `testimonial ${Number(testimonialQuote[1]) + 1} quote`;
+
+  const testimonialAuthor = path.match(/^home_testimonials\.(\d+)\.author$/);
+  if (testimonialAuthor) return `testimonial ${Number(testimonialAuthor[1]) + 1} author`;
 
   const faqQuestion = path.match(/^pages\.faq\.items\.(\d+)\.question$/);
   if (faqQuestion) return `FAQ question ${Number(faqQuestion[1]) + 1}`;
@@ -100,9 +136,22 @@ export function storefrontPathLabel(path: string): string {
     return labels[homeBlock[1]] ?? "homepage section";
   }
 
-  const homeBlockProp = path.match(/^pages\.home\.blocks\.([\w-]+)\.props\.(title|body)$/);
+  const homeBlockProp = path.match(/^pages\.home\.blocks\.([\w-]+)\.props\.(.+)$/);
   if (homeBlockProp) {
-    return homeBlockProp[2] === "title" ? "homepage section title" : "homepage section copy";
+    const blockLabels: Record<string, string> = {
+      "hero-main": "homepage hero",
+      "serum-promo": "serum promo",
+      "trust-features": "why choose us",
+    };
+    const section = blockLabels[homeBlockProp[1]] ?? "homepage section";
+    const prop = homeBlockProp[2].replace(/\.\d+/g, "");
+    if (prop === "eyebrow") return `${section} eyebrow`;
+    if (prop === "title") return `${section} title`;
+    if (prop === "body") return `${section} copy`;
+    if (prop.startsWith("bullets")) return `${section} bullet`;
+    if (prop.startsWith("items")) return `${section} feature`;
+    if (prop === "cta_label") return `${section} button`;
+    return section;
   }
 
   return path.replaceAll(".", " ");
@@ -152,6 +201,8 @@ export function setEditableStorefrontPath(
   else if (path === "about.body" || path === "pages.about.body") setAboutField(storefront, "body", trimmed);
   else if (path === "seo.title") storefront.seo.title = trimmed;
   else if (path === "seo.description") storefront.seo.description = trimmed;
+  else if (path === "home_testimonials_title") storefront.home_testimonials_title = trimmed;
+  else if (path === "home_testimonials_intro") storefront.home_testimonials_intro = trimmed;
   else if (path === "media.hero_image_url") {
     storefront.media = { ...storefront.media, hero_image_url: trimmed };
   } else if (path === "media.about_image_url") {
@@ -160,6 +211,8 @@ export function setEditableStorefrontPath(
     applyIndexedField(storefront, "value_props", path, trimmed);
   } else if (path.startsWith("home_stats.")) {
     applyIndexedField(storefront, "home_stats", path, trimmed);
+  } else if (path.startsWith("home_testimonials.")) {
+    applyHomeTestimonialField(storefront, path, trimmed);
   } else if (path.startsWith("pages.faq.items.")) {
     applyFaqItemField(storefront, path, trimmed);
   } else if (path.startsWith("pages.contact.")) {
@@ -235,17 +288,68 @@ function applyFaqItemField(storefront: StorefrontContent, path: string, value: s
 }
 
 function applyHomeBlockPropField(storefront: StorefrontContent, path: string, value: string): void {
-  const match = path.match(/^pages\.home\.blocks\.([\w-]+)\.props\.(\w+)$/);
+  const match = path.match(/^pages\.home\.blocks\.([\w-]+)\.props\.(.+)$/);
   if (!match) return;
 
-  const [, blockId, field] = match;
-  const blocks = storefront.pages?.home?.blocks;
+  const [, blockId, propPath] = match;
+  let blocks = storefront.pages?.home?.blocks;
+  if (!blocks?.length) {
+    syncHomeBlocksFromLegacyFields(storefront);
+    blocks = storefront.pages?.home?.blocks;
+  }
   if (!blocks?.length) return;
 
   const block = blocks.find((item) => item.id === blockId);
   if (!block) return;
 
-  block.props = { ...block.props, [field]: value };
+  block.props = setNestedBlockProp(block.props ?? {}, propPath, value);
+}
+
+function setNestedBlockProp(
+  props: Record<string, unknown>,
+  propPath: string,
+  value: string,
+): Record<string, unknown> {
+  const next = { ...props };
+  const parts = propPath.split(".");
+
+  if (parts.length === 1) {
+    next[parts[0]] = value;
+    return next;
+  }
+
+  if (parts[0] === "items" && parts.length === 3) {
+    const index = Number(parts[1]);
+    const field = parts[2];
+    const items = Array.isArray(next.items) ? [...next.items] : [];
+    const current = (items[index] ?? {}) as Record<string, unknown>;
+    items[index] = { ...current, [field]: value };
+    next.items = items;
+    return next;
+  }
+
+  if (parts[0] === "bullets" && parts.length === 2) {
+    const index = Number(parts[1]);
+    const bullets = Array.isArray(next.bullets) ? [...next.bullets] : [];
+    bullets[index] = value;
+    next.bullets = bullets;
+    return next;
+  }
+
+  return next;
+}
+
+function applyHomeTestimonialField(storefront: StorefrontContent, path: string, value: string): void {
+  const match = path.match(/^home_testimonials\.(\d+)\.(quote|author)$/);
+  if (!match) return;
+
+  const index = Number(match[1]);
+  const field = match[2] as "quote" | "author";
+  storefront.home_testimonials = storefront.home_testimonials ?? [];
+  if (!storefront.home_testimonials[index]) {
+    storefront.home_testimonials[index] = { quote: "", author: "" };
+  }
+  storefront.home_testimonials[index][field] = value;
 }
 
 function applyIndexedField(

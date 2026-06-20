@@ -32,7 +32,7 @@ import { STOREFRONT_NAV_ITEMS } from "@/lib/storefront/template";
 import { parseJsonObject } from "@/lib/storefront-builder/agents/agentThinking";
 import { getAssistantMessageContent, getThinkingModel, postChat } from "@/lib/storefront-builder/agents/openaiChat";
 import { BUILDER_EDITOR_SYSTEM_PROMPT } from "@/lib/storefront-builder/prompts";
-import { BASE_EDITABLE_STOREFRONT_PATHS } from "@/lib/storefront-builder/editable-paths";
+import { promptAllowedStorefrontPaths } from "@/lib/storefront-builder/editable-paths";
 
 export { EDITABLE_STOREFRONT_PATHS } from "@/lib/storefront-builder/editable-paths";
 
@@ -683,7 +683,7 @@ async function tryAiStorefrontEdit(
               description: store?.description ?? null,
             },
             current_storefront: buildStorefrontEditorContext(storefront),
-            allowed_paths: BASE_EDITABLE_STOREFRONT_PATHS,
+            allowed_paths: promptAllowedStorefrontPaths(),
           }),
         },
       ],
@@ -752,6 +752,11 @@ function buildStorefrontEditorContext(storefront: StorefrontContent) {
     hero: storefront.hero,
     about: storefront.about,
     seo: storefront.seo,
+    media: storefront.media ?? null,
+    home_stats: storefront.home_stats ?? null,
+    home_testimonials_title: storefront.home_testimonials_title ?? null,
+    home_testimonials_intro: storefront.home_testimonials_intro ?? null,
+    home_testimonials: storefront.home_testimonials ?? null,
     value_props: storefront.value_props,
     pages: {
       home: { blocks: resolvePageBlocks(storefront, "home") },

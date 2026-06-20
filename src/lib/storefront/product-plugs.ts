@@ -64,13 +64,21 @@ export function getHomepageProducts(
   limit: number,
 ): { products: StoreProduct[]; source: ProductPlugSource } {
   const source = getProductPlugSource(storefront);
-  const merchantProducts = storefront.products ?? [];
-  const themeProducts = getThemeProducts(templateId);
-  const products =
-    source === "theme_products" ? themeProducts : [...merchantProducts, ...themeProducts];
+
+  if (source === "theme_products") {
+    return {
+      source,
+      products: getThemeProducts(templateId).slice(0, limit),
+    };
+  }
+
+  const catalogProducts = storefront.products ?? [];
 
   return {
-    source,
-    products: products.slice(0, limit),
+    source: "merchant_products",
+    products: catalogProducts.slice(0, limit),
   };
 }
+
+/** @deprecated Use getHomepageProducts — kept for call-site clarity in block renderers */
+export const getProductGridProducts = getHomepageProducts;

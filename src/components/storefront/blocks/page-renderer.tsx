@@ -2,11 +2,12 @@
 
 import type { ReactNode } from "react";
 import type { Store, StorefrontContent } from "@/lib/api/types";
-import { CosmeticsPromoTrustRow } from "@/components/storefront/blocks/cosmetics-blocks";
 import { getBlockRenderer } from "@/components/storefront/blocks/registry";
 import { resolvePageBlocks } from "@/lib/storefront/blocks/migrate-page-blocks";
 import type { StorefrontBlock, StorefrontContentPageSlug } from "@/lib/storefront/blocks/types";
 import { useStorefrontTheme } from "@/lib/storefront/theme-context";
+import { CosmeticsPromoTrustRow } from "@/components/storefront/blocks/cosmetics-blocks";
+import { EditableBlockShell } from "@/components/storefront/editor/editable-block-shell";
 
 function PageBlockItem({
   block,
@@ -24,7 +25,11 @@ function PageBlockItem({
 
   if (!Renderer) return null;
 
-  return <Renderer block={block} store={store} storefront={storefront} page={page} />;
+  return (
+    <EditableBlockShell block={block} page={page}>
+      <Renderer block={block} store={store} storefront={storefront} page={page} />
+    </EditableBlockShell>
+  );
 }
 
 function renderPageBlocks(
@@ -43,7 +48,9 @@ function renderPageBlocks(
 
     if (pairPromoWithTrust && block.type === "cta_banner" && next?.type === "feature_grid") {
       nodes.push(
-        <CosmeticsPromoTrustRow key={`${block.id}-${next.id}`} ctaBlock={block} featureBlock={next} page={page} />,
+        <EditableBlockShell key={`${block.id}-pair`} block={block} page={page}>
+          <CosmeticsPromoTrustRow ctaBlock={block} featureBlock={next} page={page} />
+        </EditableBlockShell>,
       );
       index += 2;
       continue;

@@ -1,7 +1,7 @@
 # Modular Storefront Roadmap
 
 **Audience:** Engineering, product  
-**Status:** Phase 3 complete (all pages + contact forms)  
+**Status:** Phase 4 complete (AI block ops + catalog grid) · Home: cosmetics uses blocks; other templates keep bespoke designs  
 **Last updated:** June 2026
 
 This doc describes how StoreHause moves from flat copy fields and hard-coded templates to **block-based storefronts** that the AI can generate and edit down to individual sections — including About, Contact (with forms), FAQ, and homepage modules.
@@ -132,7 +132,7 @@ Apply ops server-side with validation against a **block catalog** (allowed types
 | M3.2 | Add `contact_form` block + `POST /stores/{id}/contact` (or inquiries table) | backend, storehause |
 | M3.3 | AI generation produces block trees for all standard pages | backend |
 | M3.4 | Builder preview renders all pages from the same block pipeline | storehause |
-| M3.5 | Visual editor: click section → edit props; optional drag reorder | storehause |
+| M3.5 | Visual editor: click section → edit props; reorder sections | storehause ✅ |
 | M3.6 | Migration adapter: flat `hero` / `about` / `value_props` → blocks on read | storehause, backend |
 
 **Acceptance:** Merchant can say *“Add a contact form with name, email, and order number”* and get a working form on the live storefront.
@@ -158,22 +158,23 @@ Apply ops server-side with validation against a **block catalog** (allowed types
 
 ---
 
-## Phase 4 — Design intelligence (site-wide)
+## Phase 4 — Design intelligence (complete)
 
-**Outcome:** AI can fix, regenerate, and update any section on any page (home, about, contact, FAQ) via block patch operations — not just the homepage hero.
+**Outcome:** AI can fix, regenerate, and update any section on any page (home, about, contact, FAQ) via block patch operations. Cosmetics homepage uses the block pipeline; beauty, classic, fashion, and minimalistic templates keep their dedicated home designs.
 
 | # | Task | Repos |
 |---|------|-------|
-| M4.1 | Block layout variants (`hero.split`, `hero.centered`, `hero.image_right`) | storehause |
-| M4.2 | Template = theme tokens + default block recipes, not separate React trees per industry | storehause, backend |
-| M4.3 | `regenerate_section` + `update_block` / `reorder_blocks` / `remove_block` on **all pages** | backend, storehause |
-| M4.4 | `edit_metadata` at block level (`ai_generated` vs `merchant_locked`) | backend, storehause |
-| M4.5 | Product grid always reads merchant catalog API, not embedded placeholders | backend, storehause |
+| M4.1 | Block layout variants (`hero.split`, `hero.centered`, `hero.image_right`) | storehause ✅ |
+| M4.2 | Template = theme tokens + default block recipes (cosmetics home on blocks; other templates keep bespoke React until migrated) | storehause, backend (partial) |
+| M4.3 | `regenerate_section` + `update_block` / `reorder_blocks` / `remove_block` on **all pages** | backend, storehause ✅ |
+| M4.4 | `edit_metadata` at block level (`ai_generated` vs `merchant_locked`) | backend, storehause ✅ |
+| M4.5 | Product grid always reads merchant catalog API, not embedded placeholders | backend, storehause ✅ |
 
 **Acceptance:**
 - *“Redesign just the hero”* — homepage hero regenerates without losing products or contact settings.
 - *“Fix the about page”* / *“Regenerate the FAQ section”* / *“Make the contact intro more premium”* — target page section updates via block ops; other pages unchanged.
 - AI editor receives full `pages.*.blocks` context and may return `operations[]` or flat `updates`.
+- `product_grid` blocks show live catalog products (merged at read time); empty catalog shows a placeholder — not theme filler products.
 
 ---
 
@@ -199,4 +200,4 @@ From [arch.md — Prioritized Build Backlog](./arch.md#prioritized-build-backlog
 | M Phase 3 | M Phase 2 + B1 (publish flow) |
 | M Phase 4 | B5 (component registry) foundation from M Phase 2 |
 
-**Recommended next step:** M Phase 1 — widen editable paths and AI context before rewriting templates.
+**Recommended next step:** Phase B from [arch.md](./arch.md) — publish flow, component registry polish, and retiring legacy home React trees after migration verification.

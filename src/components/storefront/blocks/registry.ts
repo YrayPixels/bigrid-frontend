@@ -40,5 +40,6 @@ export function getBlockRenderer(
     return cosmeticsRegistry[blockType] ?? null;
   }
 
+  // About, contact, and FAQ block pages use the cosmetics block set for now.
   return cosmeticsRegistry[blockType] ?? null;
 }

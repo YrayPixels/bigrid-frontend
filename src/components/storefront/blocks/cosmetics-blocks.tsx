@@ -566,11 +566,11 @@ export function CosmeticsProductGridBlock({
 }) {
   const { theme } = useStorefrontTheme();
   const props = block.props as ProductGridBlockProps;
-  const products = storefront.products ?? [];
+  const catalogProducts = storefront.products ?? [];
   const limit = props.limit ?? 4;
-  const { products: homepageProducts, source: productSource } = getHomepageProducts(
+  const { products: gridProducts, source: productSource } = getHomepageProducts(
     storefront,
-    "cosmetics",
+    theme.id,
     limit,
   );
 
@@ -586,19 +586,37 @@ export function CosmeticsProductGridBlock({
             style={{ color: theme.palette.primary }}
           />
         ) : null}
-        <div className={`grid gap-6 ${theme.productGridCols}`}>
-          {homepageProducts.map((product, index) => (
-            <ProductCardThemed
-              key={product.id}
-              product={product}
-              imagePath={
-                productSource === "merchant_products" && products[index]?.id === product.id
-                  ? `products.${index}.image_url`
-                  : undefined
-              }
-            />
-          ))}
-        </div>
+        {gridProducts.length === 0 ? (
+          <div
+            className="rounded-2xl border border-dashed px-6 py-10 text-center"
+            style={{ borderColor: theme.palette.border, color: theme.palette.muted }}
+          >
+            <p className="text-sm font-medium" style={{ color: theme.palette.text }}>
+              {productSource === "theme_products"
+                ? "Theme preview products will appear here."
+                : "Your catalog products will appear here."}
+            </p>
+            <p className="mx-auto mt-2 max-w-md text-sm leading-6">
+              {productSource === "theme_products"
+                ? "Switch to live catalog products in the website editor when you are ready to publish."
+                : "Add products in your admin catalog to feature them on the homepage."}
+            </p>
+          </div>
+        ) : (
+          <div className={`grid gap-6 ${theme.productGridCols}`}>
+            {gridProducts.map((product, index) => (
+              <ProductCardThemed
+                key={product.id}
+                product={product}
+                imagePath={
+                  productSource === "merchant_products" && catalogProducts[index]?.id === product.id
+                    ? `products.${index}.image_url`
+                    : undefined
+                }
+              />
+            ))}
+          </div>
+        )}
       </div>
     </section>
   );

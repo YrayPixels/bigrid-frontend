@@ -1,6 +1,6 @@
 import type { StorefrontContent, StorefrontTemplateId } from "@/lib/api/types";
 import { cosmeticsTemplateImages } from "@/lib/storefront/cosmetics-defaults";
-import type { StorefrontBlock } from "@/lib/storefront/blocks/types";
+import type { HeroBlockProps, StorefrontBlock } from "@/lib/storefront/blocks/types";
 
 const DEFAULT_HOME_STATS = [
   { value: "Trusted by over 350,000+ Clients", label: "worldwide since 2008" },
@@ -29,6 +29,7 @@ export function buildCosmeticsHomeBlocks(storefront: StorefrontContent): Storefr
         cta_label: storefront.hero.cta_label,
         cta_href: "/products",
         image_url: storefront.media?.hero_image_url ?? cosmeticsTemplateImages.hero,
+        layout: "split",
       },
     },
     {
@@ -94,6 +95,18 @@ export function buildCosmeticsHomeBlocks(storefront: StorefrontContent): Storefr
   ];
 }
 
+function heroLayoutForTemplate(templateId: StorefrontTemplateId): HeroBlockProps["layout"] {
+  if (templateId === "editorial" || templateId === "minimalistic") return "centered";
+  if (templateId === "bold_grid") return "image_right";
+  return "split";
+}
+
+function productLimitForTemplate(templateId: StorefrontTemplateId): number {
+  if (templateId === "bold_grid") return 6;
+  if (templateId === "classic") return 3;
+  return 4;
+}
+
 export function buildDefaultHomeBlocks(
   storefront: StorefrontContent,
   templateId: StorefrontTemplateId = storefront.template?.id ?? "classic",
@@ -101,6 +114,14 @@ export function buildDefaultHomeBlocks(
   if (templateId === "cosmetics") {
     return buildCosmeticsHomeBlocks(storefront);
   }
+
+  const valueProps = storefront.value_props?.length
+    ? storefront.value_props
+    : [
+        { title: "Curated for your customers", body: "A focused storefront built around what buyers need most." },
+        { title: "Fast local delivery", body: "Most orders ship within 2–4 business days." },
+        { title: "Built for trust", body: "Clear messaging and a simple shopping experience." },
+      ];
 
   return [
     {
@@ -112,6 +133,7 @@ export function buildDefaultHomeBlocks(
         cta_label: storefront.hero.cta_label,
         cta_href: "/products",
         image_url: storefront.media?.hero_image_url ?? null,
+        layout: heroLayoutForTemplate(templateId),
       },
     },
     {
@@ -120,13 +142,16 @@ export function buildDefaultHomeBlocks(
       props: {
         title: "Why shop with us",
         body: storefront.about.body,
-        items: storefront.value_props.slice(0, 3),
+        items: valueProps.slice(0, 3),
       },
     },
     {
       id: "featured-products",
       type: "product_grid",
-      props: { title: "Featured products", limit: 3 },
+      props: {
+        title: templateId === "beauty" ? "Shop the collection" : "Featured products",
+        limit: productLimitForTemplate(templateId),
+      },
     },
     {
       id: "home-faq",
@@ -144,5 +169,9 @@ export function migrateHomeBlocks(storefront: StorefrontContent): StorefrontBloc
   if (existing?.length) return existing;
 
   const templateId = storefront.template?.id ?? "classic";
+  if (templateId === "cosmetics") {
+    return buildCosmeticsHomeBlocks(storefront);
+  }
+
   return buildDefaultHomeBlocks(storefront, templateId);
 }

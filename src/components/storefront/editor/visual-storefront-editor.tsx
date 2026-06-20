@@ -27,6 +27,13 @@ import {
   StorefrontEditorCanvas,
   type EditorPage,
 } from "@/components/storefront/editor/storefront-editor-canvas";
+import { BlockEditorPanel } from "@/components/storefront/editor/block-editor-panel";
+import type { SelectedBlockRef } from "@/lib/storefront/blocks/block-draft";
+import type { StorefrontContentPageSlug } from "@/lib/storefront/blocks/types";
+import {
+  reorderPageBlock,
+  setBlockPropField,
+} from "@/lib/storefront/blocks/block-draft";
 import {
   applyTemplateToDraft,
   cloneStorefrontContent,
@@ -129,6 +136,7 @@ export function VisualStorefrontEditor({
     ...storefront.palette,
   }));
   const [activePage, setActivePage] = useState<EditorPage>("home");
+  const [selectedBlock, setSelectedBlock] = useState<SelectedBlockRef | null>(null);
   const [viewport, setViewport] = useState<"desktop" | "tablet" | "mobile">("desktop");
   const [openSection, setOpenSection] = useState("template-style");
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -202,6 +210,28 @@ export function VisualStorefrontEditor({
     setDraft((current) => setDraftField(current, path, value));
   }
 
+  function handlePageChange(page: EditorPage) {
+    setActivePage(page);
+    setSelectedBlock(null);
+  }
+
+  function handleBlockPropChange(
+    page: StorefrontContentPageSlug,
+    blockId: string,
+    field: string,
+    value: string,
+  ) {
+    setDraft((current) => setBlockPropField(current, page, blockId, field, value));
+  }
+
+  function handleBlockReorder(
+    page: StorefrontContentPageSlug,
+    blockId: string,
+    direction: "up" | "down",
+  ) {
+    setDraft((current) => reorderPageBlock(current, page, blockId, direction));
+  }
+
   function selectTemplate(nextTemplateId: StorefrontTemplateId) {
     setTemplateId(nextTemplateId);
     setPalette(getDefaultStorefrontPalette(nextTemplateId));
@@ -260,7 +290,7 @@ export function VisualStorefrontEditor({
               <button
                 key={page.id}
                 type="button"
-                onClick={() => setActivePage(page.id)}
+                onClick={() => handlePageChange(page.id)}
                 className={`rounded-full px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition ${
                   activePage === page.id
                     ? "bg-primary text-primary-foreground"
@@ -308,11 +338,22 @@ export function VisualStorefrontEditor({
               templateId={templateId}
               activePage={activePage}
               onDraftChange={setDraft}
+              selectedBlock={selectedBlock}
+              onSelectBlock={setSelectedBlock}
             />
           </div>
         </div>
 
         <aside className="space-y-3">
+          <BlockEditorPanel
+            draft={draft}
+            activePage={activePage}
+            selectedBlock={selectedBlock}
+            onClose={() => setSelectedBlock(null)}
+            onUpdateProp={handleBlockPropChange}
+            onReorder={handleBlockReorder}
+          />
+
           <EditorControlSection
             title="Template style"
             open={openSection === "template-style"}
