@@ -4,7 +4,11 @@ const FULL_SITE_PATTERN =
   /\b(all|every|whole|entire|full|across)\b.*\b(photo|photos|image|images|picture|pictures|site|website|template|storefront)\b|\b(refresh|replace|update)\b.*\b(all|every)\b.*\b(photo|photos|image|images)\b/;
 
 const CATEGORY_SHOWCASE_PATTERN =
-  /\b(essentials|shop the essentials|category showcase|categories section|category grid|shop by category)\b/;
+  /\b(essentials|essentials page|shop the essentials|category showcase|categories section|category grid|shop by category)\b/;
+
+export function isCategoryShowcaseInstruction(text: string): boolean {
+  return CATEGORY_SHOWCASE_PATTERN.test(text.toLowerCase().trim());
+}
 
 const PRODUCTS_PAGE_PATTERN =
   /\b(products page|product page|product listing|explore our essentials)\b/;
@@ -18,8 +22,8 @@ const HERO_PATTERN =
 export function inferImageReplaceScope(text: string): ImageReplaceScope | null {
   const lower = text.toLowerCase().trim();
   if (!lower) return null;
-  if (FULL_SITE_PATTERN.test(lower)) return "full_site";
   if (CATEGORY_SHOWCASE_PATTERN.test(lower)) return "category_showcase";
+  if (FULL_SITE_PATTERN.test(lower)) return "full_site";
   if (PRODUCTS_PAGE_PATTERN.test(lower)) return "products";
   if (HERO_PATTERN.test(lower)) return "hero";
   if (ABOUT_PATTERN.test(lower)) return "about";
@@ -58,4 +62,28 @@ export function remainingPlannedTools(
   const planned = [...new Set(planSteps.flatMap((step) => step.tools ?? []).filter(Boolean))];
   const done = new Set(completedToolNames);
   return planned.filter((tool) => !done.has(tool));
+}
+
+export function resolveImageReplaceScope(
+  text: string,
+  explicitScope?: ImageReplaceScope | null,
+): ImageReplaceScope | null {
+  if (explicitScope) return explicitScope;
+  const inferred = inferImageReplaceScope(text);
+  if (inferred) return inferred;
+  if (isExplicitFullSiteImageRequest(text)) return "full_site";
+  return null;
+}
+
+export function resolveCategoryShowcaseImageScope(
+  instruction: string,
+  planIntent?: string,
+  message?: string,
+  explicitScope?: ImageReplaceScope | null,
+): ImageReplaceScope | null {
+  const combined = [message, planIntent, instruction].filter(Boolean).join(" ");
+  if (isCategoryShowcaseInstruction(combined) || isCategoryShowcaseInstruction(message ?? "")) {
+    return "category_showcase";
+  }
+  return resolveImageReplaceScope(combined, explicitScope);
 }

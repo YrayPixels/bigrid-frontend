@@ -21,6 +21,7 @@ import {
 } from "@/lib/storefront-builder/editable-paths";
 import { ensureHomeBlocksOnStorefront, maybeSyncHomeBlocksFromLegacyPaths } from "@/lib/storefront/blocks/sync-legacy";
 import { tryApplyContactFormInstruction, tryApplyHomeBlockInstruction } from "@/lib/storefront/blocks/operations";
+import { tryApplyCategoryShowcaseInstruction } from "@/lib/storefront/blocks/category-showcase-operations";
 import {
   applyAiBlockOperations,
   tryApplyPageBlockInstruction,
@@ -722,9 +723,28 @@ export async function applyStorefrontEditAsync(
     store?: Store | null;
     updates?: Record<string, unknown>;
     assistantMessage?: string;
+    planIntent?: string;
+    message?: string;
   },
 ): Promise<BuilderEditTurn> {
   if (!isFaqItemAppendInstruction(instruction)) {
+    const categoryResult = tryApplyCategoryShowcaseInstruction(
+      storefront,
+      instruction,
+      options?.store,
+      options?.planIntent,
+      options?.message,
+    );
+    if (categoryResult) {
+      return finalizeStorefrontEdit(
+        storefront,
+        instruction,
+        categoryResult.storefront,
+        categoryResult.changed_paths,
+        categoryResult.assistant_message,
+      );
+    }
+
     const pageBlockResult = tryApplyPageBlockInstruction(storefront, instruction, options?.store);
     if (pageBlockResult) {
       return finalizeStorefrontEdit(
@@ -947,6 +967,7 @@ async function tryAiStorefrontEdit(
     if (!operations.length && !Object.keys(flatUpdates).length) return null;
 
     let next = structuredClone(storefront);
+    ensureHomeBlocksOnStorefront(next);
     const changedPaths: string[] = [];
 
     if (operations.length) {

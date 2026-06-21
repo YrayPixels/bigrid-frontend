@@ -1,4 +1,7 @@
-import type { Store, StorefrontContent } from "@/lib/api/types";
+import { isCategoryShowcaseInstruction } from "@/lib/storefront-builder/section-scope";
+import {
+  buildCategoryShowcasePropsForContext,
+} from "@/lib/storefront/blocks/category-showcase-operations";
 import {
   blockTypeLabel,
   createHomeBlock,
@@ -77,6 +80,11 @@ const BLOCK_ID_ALIASES: Record<string, string> = {
   banner: "serum-promo",
   products: "featured-products",
   "product grid": "featured-products",
+  essentials: "category-showcase",
+  "essentials page": "category-showcase",
+  "shop the essentials": "category-showcase",
+  "category showcase": "category-showcase",
+  "categories section": "category-showcase",
   "home faq": "home-faq",
   "faq section": "faq-main",
   "contact intro": "contact-intro",
@@ -191,7 +199,16 @@ export function resolveBlockIdFromInstruction(
   if (/\b(about|story|spotlight)\b/.test(lower)) {
     return blocks.find((b) => b.type === "rich_text")?.id ?? (page === "about" ? "about-main" : "about-spotlight");
   }
-  if (/\b(products?|shop)\b/.test(lower)) return blocks.find((b) => b.type === "product_grid")?.id ?? "featured-products";
+  if (
+    /\b(essentials|essentials page|shop the essentials|category showcase|categories section|category grid|shop by category)\b/.test(
+      lower,
+    )
+  ) {
+    return blocks.find((b) => b.type === "category_showcase")?.id ?? "category-showcase";
+  }
+  if (/\b(products?|shop)\b/.test(lower) && !/\bshop the essentials\b/.test(lower)) {
+    return blocks.find((b) => b.type === "product_grid")?.id ?? "featured-products";
+  }
   if (/\b(promo|banner|cta)\b/.test(lower)) return blocks.find((b) => b.type === "cta_banner")?.id ?? "serum-promo";
 
   return blocks[0]?.id ?? null;
@@ -245,6 +262,8 @@ export function regenerateSectionProps(
       };
     case "product_grid":
       return { title: "Shop the line", limit: 4 };
+    case "category_showcase":
+      return buildCategoryShowcasePropsForContext(storefront, store, "", undefined, undefined);
     case "faq":
       return {
         title: storefront.pages?.faq?.title ?? "Frequently asked questions",
@@ -402,7 +421,11 @@ export function tryRegenerateSection(
   store?: Store | null,
 ): { storefront: StorefrontContent; changed_paths: string[]; assistant_message: string } | null {
   const lower = instruction.toLowerCase();
-  if (!/\b(redesign|regenerate|refresh|rewrite|fix)\b/.test(lower)) return null;
+  const sectionRefresh =
+    /\b(redesign|regenerate|refresh|rewrite|fix|update|refined|change)\b/.test(lower) ||
+    (isCategoryShowcaseInstruction(instruction) &&
+      /\b(copy|images?|photos?|labels?|titles?|theme)\b/.test(lower));
+  if (!sectionRefresh) return null;
   if (/\b(entire|whole|full|all)\b.*\b(site|storefront|website)\b/.test(lower)) return null;
 
   const page = resolvePageFromInstruction(instruction);

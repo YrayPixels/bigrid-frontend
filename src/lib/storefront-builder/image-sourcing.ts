@@ -11,6 +11,7 @@ import {
   catalogEntriesForIndustry,
   catalogEntryById,
   catalogForAiPrompt,
+  WEBSITE_IMAGE_CATALOG,
 } from "@/lib/storefront-builder/image-catalog";
 import { applyMediaToStorefront } from "@/lib/storefront-builder/local-ai";
 import {
@@ -210,15 +211,39 @@ function patchBlockImage(block: StorefrontBlock, url: string): StorefrontBlock {
   return { ...block, props: { ...props, image_url: url } };
 }
 
-function patchHomeBlocks(blocks: StorefrontBlock[], plan: TemplateImagePlan): StorefrontBlock[] {
+function patchCategoryShowcaseBlocks(blocks: StorefrontBlock[], plan: TemplateImagePlan): StorefrontBlock[] {
   return blocks.map((block) => {
+    if (block.type !== "category_showcase" && block.id !== "category-showcase") return block;
+
+    const props = (block.props ?? {}) as { items?: Array<{ label?: string; image_url?: string | null }> };
+    const items = Array.isArray(props.items) ? props.items : [];
+    if (!items.length || !plan.product_urls.length) return block;
+
+    return {
+      ...block,
+      props: {
+        ...props,
+        items: items.map((item, index) => ({
+          ...item,
+          image_url: plan.product_urls[index % plan.product_urls.length] ?? item.image_url,
+        })),
+      },
+    };
+  });
+}
+
+function patchHomeBlocks(blocks: StorefrontBlock[], plan: TemplateImagePlan): StorefrontBlock[] {
+  return patchCategoryShowcaseBlocks(
+    blocks.map((block) => {
     if (block.type === "hero") return patchBlockImage(block, plan.hero_url);
     if (block.id === "about-spotlight" || (block.type === "rich_text" && block.id !== "about-main")) {
       return patchBlockImage(block, plan.spotlight_url);
     }
     if (block.type === "cta_banner") return patchBlockImage(block, plan.promo_url);
     return block;
-  });
+    }),
+    plan,
+  );
 }
 
 function patchAboutBlocks(blocks: StorefrontBlock[], plan: TemplateImagePlan): StorefrontBlock[] {
@@ -253,8 +278,13 @@ export function applyTemplateImagesAcrossStorefront(
     home: { blocks: homeBlocks },
   };
   for (const block of homeBlocks) {
-    const props = block.props as { image_url?: string };
+    const props = block.props as { image_url?: string; items?: Array<{ image_url?: string | null }> };
     if (props.image_url) changedPaths.add(`pages.home.blocks.${block.id}.props.image_url`);
+    if (block.type === "category_showcase" || block.id === "category-showcase") {
+      props.items?.forEach((_, index) => {
+        changedPaths.add(`pages.home.blocks.${block.id}.props.items.${index}.image_url`);
+      });
+    }
   }
 
   const aboutBlocks = patchAboutBlocks(migrateAboutBlocks(next), plan);
@@ -301,6 +331,25 @@ async function fetchImageUrlsForQueries(queries: string[], max: number): Promise
   }
 
   return urls;
+}
+
+function fallbackCategoryShowcaseUrls(
+  intent: string,
+  context: ImageSourceContext,
+  count: number,
+): string[] {
+  const lower = `${intent} ${context.description ?? ""} ${context.business_name ?? ""}`.toLowerCase();
+  const jewelry = /\b(jewelry|jewellery|ring|necklace|bracelet|earring|gold|silver|luxury)\b/.test(lower);
+  const entries = jewelry
+    ? WEBSITE_IMAGE_CATALOG.filter((entry) => entry.tags.some((tag) => /jewelry|luxury|gold|premium|accessories/.test(tag)))
+    : catalogEntriesForIndustry(context.industry);
+
+  const urls = entries.map((entry) => entry.url);
+  if (!urls.length) {
+    return WEBSITE_IMAGE_CATALOG.slice(0, count).map((entry) => entry.url);
+  }
+
+  return Array.from({ length: count }, (_, index) => urls[index % urls.length]);
 }
 
 function applyHeroImagesOnly(
@@ -395,16 +444,16 @@ async function applyCategoryShowcaseImagesOnly(
         : [intent, context.description ?? "product category"].filter(Boolean).map(String);
 
   const urls = await fetchImageUrlsForQueries(queries, itemCount);
+  const resolvedUrls =
+    urls.length > 0 ? urls : fallbackCategoryShowcaseUrls(intent, context, itemCount);
   const changedPaths: string[] = [];
   const homeBlocks = migrateHomeBlocks(next).map((block) => {
     if (block.type !== "category_showcase" && block.id !== "category-showcase") return block;
 
     const currentItems = resolveCategoryShowcaseProps(next, block.id).items;
     const items = currentItems.map((item, index) => {
-      const imageUrl = urls[index % Math.max(urls.length, 1)] ?? item.image_url;
-      if (imageUrl && imageUrl !== item.image_url) {
-        changedPaths.push(`pages.home.blocks.${block.id}.props.items.${index}.image_url`);
-      }
+      const imageUrl = resolvedUrls[index % Math.max(resolvedUrls.length, 1)] ?? item.image_url;
+      changedPaths.push(`pages.home.blocks.${block.id}.props.items.${index}.image_url`);
       return { ...item, image_url: imageUrl ?? item.image_url };
     });
 

@@ -1,8 +1,5 @@
 import type { StorefrontContent } from "@/lib/api/types";
-import {
-  syncHomeBlocksFromLegacyFields,
-  syncLegacyFieldsFromHomeBlocks,
-} from "@/lib/storefront/blocks/sync-legacy";
+import { resolveHomeBlocks, syncHomeBlocksFromLegacyFields, syncLegacyFieldsFromHomeBlocks } from "@/lib/storefront/blocks/sync-legacy";
 
 export const PROMPT_INDEXED_STOREFRONT_PATHS = [
   "pages.faq.items[N].question",
@@ -325,17 +322,16 @@ function applyHomeBlockPropField(storefront: StorefrontContent, path: string, va
   if (!match) return;
 
   const [, blockId, propPath] = match;
-  let blocks = storefront.pages?.home?.blocks;
-  if (!blocks?.length) {
-    syncHomeBlocksFromLegacyFields(storefront);
-    blocks = storefront.pages?.home?.blocks;
-  }
-  if (!blocks?.length) return;
-
+  const blocks = resolveHomeBlocks(storefront);
   const block = blocks.find((item) => item.id === blockId);
   if (!block) return;
 
   block.props = setNestedBlockProp(block.props ?? {}, propPath, value);
+  storefront.pages = {
+    ...storefront.pages,
+    home: { blocks },
+  };
+  syncLegacyFieldsFromHomeBlocks(storefront, blocks);
 }
 
 function setNestedBlockProp(

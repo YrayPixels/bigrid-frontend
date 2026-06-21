@@ -29,6 +29,7 @@ export type WebsiteBuilderToolDef = {
 
 export type WebsiteBuilderContext = {
   message: string;
+  planIntent?: string;
   session: BuilderSession;
   profile: BuilderBusinessProfile;
   recommendations: StorefrontTemplateRecommendation[];

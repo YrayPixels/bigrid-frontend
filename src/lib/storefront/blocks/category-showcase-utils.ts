@@ -43,6 +43,8 @@ export function resolveCategoryShowcaseItemLabel(
   item: CategoryShowcaseItem,
   categories: StoreCategory[] | undefined,
 ): string {
+  if (item.label?.trim()) return item.label.trim();
+
   if (item.category_id && categories?.length) {
     const match = categories.find((category) => category.id === item.category_id);
     if (match?.name) return match.name;

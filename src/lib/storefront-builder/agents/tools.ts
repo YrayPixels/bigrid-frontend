@@ -21,8 +21,7 @@ import {
 } from "@/lib/storefront-builder/image-sourcing";
 import {
   describeImageScope,
-  inferImageReplaceScope,
-  isExplicitFullSiteImageRequest,
+  resolveCategoryShowcaseImageScope,
   type ImageReplaceScope,
 } from "@/lib/storefront-builder/section-scope";
 import type { BuilderSession } from "@/lib/api/types";
@@ -338,12 +337,13 @@ export function websiteBuilderTools(): WebsiteBuilderToolDef[] {
       },
       handler: async (args, ctx) => {
         if (!ctx.storefront) return { ok: false, error: "website_not_generated" };
-        const instruction =
-          typeof args.instruction === "string" && args.instruction.trim()
-            ? args.instruction.trim()
-            : ctx.message;
+        const stepInstruction =
+          typeof args.instruction === "string" && args.instruction.trim() ? args.instruction.trim() : "";
+        const instruction = [stepInstruction, ctx.planIntent, ctx.message].filter(Boolean).join(" — ");
         const result = await applyStorefrontEditAsync(ctx.storefront, instruction, {
           store: ctx.session.store,
+          planIntent: ctx.planIntent,
+          message: ctx.message,
         });
         ctx.storefront = result.storefront;
         ctx.status = "review_ready";
@@ -468,17 +468,14 @@ export function websiteBuilderTools(): WebsiteBuilderToolDef[] {
             ? args.intent.trim()
             : `${ctx.profile.business_name ?? ""} ${ctx.profile.description ?? ""} ${ctx.message}`.trim();
 
-        const combined = `${ctx.message} ${intent}`;
-        const inferredScope = inferImageReplaceScope(combined);
         const explicitScope =
           typeof args.scope === "string" && args.scope.trim()
             ? (args.scope.trim() as ImageReplaceScope)
             : null;
-        let scope: ImageReplaceScope =
-          explicitScope ?? inferredScope ?? (isExplicitFullSiteImageRequest(combined) ? "full_site" : "full_site");
+        const scope = resolveCategoryShowcaseImageScope(intent, ctx.planIntent, ctx.message, explicitScope);
 
-        if (scope === "full_site" && inferredScope && inferredScope !== "full_site") {
-          scope = inferredScope;
+        if (!scope) {
+          return { ok: false, error: "scope_not_recognized" };
         }
 
         const replaced = await replaceScopedStorefrontImages({

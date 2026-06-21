@@ -29,7 +29,7 @@ import type { AgentActivityPayload, AgentThinkingLogEntry, WebsiteBuilderContext
 import { createThinkingLogEntry } from "./thinking-log";
 import { aiSuggestedActions, colorPresetActions } from "@/lib/storefront-builder/suggested-actions";
 import { formatBuilderHistorySnippet } from "@/lib/storefront-builder/chat-history";
-import { sectionScopeHint } from "@/lib/storefront-builder/section-scope";
+import { remainingPlannedTools, sectionScopeHint } from "@/lib/storefront-builder/section-scope";
 
 type AssistantToolCall = {
   id: string;
@@ -172,6 +172,7 @@ export class StorefrontBuilderManager {
 
     const ctx: WebsiteBuilderContext = {
       message,
+      planIntent: plan.intent,
       session,
       profile: sanitizeBusinessProfile(session.business_profile ?? {}),
       recommendations,
@@ -214,6 +215,16 @@ export class StorefrontBuilderManager {
     let criticStatus: "CONTINUE" | "DONE" | "NEED_USER" = "CONTINUE";
 
     for (let iteration = 0; iteration < 8 && criticStatus === "CONTINUE"; iteration++) {
+      const pendingPlanTools = remainingPlannedTools(plan.plan_steps, toolCallsLog.map((call) => call.name));
+      if (iteration > 0 && pendingPlanTools.length > 0) {
+        messages.push({
+          role: "user",
+          content:
+            `[internal] Continue the merchant plan. Still required: ${pendingPlanTools.join(", ")}. ` +
+            "Call the next planned tool now — do not repeat tools that already finished.",
+        });
+      }
+
       this.log({
         agent: "Executor",
         phase: "start",
@@ -323,7 +334,13 @@ export class StorefrontBuilderManager {
         memoryLines: memory,
         lastToolSummaries,
         completedToolNames: toolCallsLog.map((call) => call.name),
-      }).catch(() => ({ status: "DONE" as const, reason: "fallback" }));
+      }).catch(() => {
+        const pending = remainingPlannedTools(plan.plan_steps, toolCallsLog.map((call) => call.name));
+        if (pending.length > 0) {
+          return { status: "CONTINUE" as const, reason: `Planned tools still pending: ${pending.join(", ")}` };
+        }
+        return { status: "DONE" as const, reason: "fallback" };
+      });
 
       criticStatus = critic.status;
       memory = appendMemory(memory, `[critic] ${critic.status}: ${critic.reason}`);
