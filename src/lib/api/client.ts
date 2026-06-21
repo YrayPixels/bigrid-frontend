@@ -13,9 +13,14 @@ import type {
   StoreOrdersResponse,
   StoreOrderStatus,
   StoreProduct,
+  ProductImportReport,
   StorefrontContent,
+  StorefrontDraftResponse,
+  StorefrontPublishState,
+  PublishStorefrontResponse,
   StorefrontTemplateId,
   StorefrontTemplateOption,
+  UpdateStoreInput,
   UpdateStorefrontInput,
   User,
 } from "./types";
@@ -233,6 +238,13 @@ export const api = {
     );
   },
 
+  async getOrder(orderId: string): Promise<StoreOrder> {
+    const token = requireToken();
+    if (USE_MOCKS) return mockApi.getOrder(token, orderId);
+    const res = await http<{ order: StoreOrder }>(`${STOREHAUSE_API_PREFIX}/orders/${orderId}`);
+    return res.order;
+  },
+
   async updateOrderStatus(
     orderId: string,
     body: { status: StoreOrderStatus; notes?: string },
@@ -249,7 +261,7 @@ export const api = {
     storeId: string,
     storefrontTemplateId?: StorefrontTemplateId,
     storefront?: StorefrontContent,
-  ): Promise<StorefrontContent> {
+  ): Promise<StorefrontDraftResponse> {
     const token = requireToken();
     const body = {
       store_id: storeId,
@@ -257,35 +269,40 @@ export const api = {
     };
     const res = USE_MOCKS
       ? await mockApi.generateStorefront(token, body)
-      : await http<{ generation_id: string; storefront: StorefrontContent }>(
+      : await http<{ generation_id: string; storefront: StorefrontContent; publish: StorefrontPublishState }>(
           `${STOREHAUSE_API_PREFIX}/ai/storefront/generate`,
           { method: "POST", body: JSON.stringify({ ...body, ...(storefront ? { storefront } : {}) }) },
         );
-    return res.storefront;
+    return { storefront: res.storefront, publish: res.publish };
   },
 
-  async getStorefront(storeId: string): Promise<StorefrontContent | null> {
+  async getStorefront(storeId: string): Promise<StorefrontDraftResponse> {
     const token = requireToken();
-    const res = USE_MOCKS
-      ? await mockApi.getStorefront(token, storeId)
-      : await http<{ storefront: StorefrontContent | null }>(
-          `${STOREHAUSE_API_PREFIX}/ai/storefront/${storeId}`,
-        );
-    return res.storefront;
+    return USE_MOCKS
+      ? mockApi.getStorefront(token, storeId)
+      : http<StorefrontDraftResponse>(`${STOREHAUSE_API_PREFIX}/ai/storefront/${storeId}`);
   },
 
-  async updateStorefront(storeId: string, body: UpdateStorefrontInput): Promise<StorefrontContent> {
+  async updateStorefront(storeId: string, body: UpdateStorefrontInput): Promise<StorefrontDraftResponse> {
     const token = requireToken();
-    const res = USE_MOCKS
-      ? await mockApi.updateStorefront(token, storeId, body)
-      : await http<{ storefront: StorefrontContent }>(
-          `${STOREHAUSE_API_PREFIX}/ai/storefront/${storeId}`,
-          { method: "PATCH", body: JSON.stringify(body) },
-        );
-    return res.storefront;
+    return USE_MOCKS
+      ? mockApi.updateStorefront(token, storeId, body)
+      : http<StorefrontDraftResponse>(`${STOREHAUSE_API_PREFIX}/ai/storefront/${storeId}`, {
+          method: "PATCH",
+          body: JSON.stringify(body),
+        });
   },
 
-  async updateMyStore(body: { brand_color?: string }): Promise<Store> {
+  async publishStorefront(storeId: string): Promise<PublishStorefrontResponse> {
+    const token = requireToken();
+    return USE_MOCKS
+      ? mockApi.publishStorefront(token, storeId)
+      : http<PublishStorefrontResponse>(`${STOREHAUSE_API_PREFIX}/stores/${storeId}/publish`, {
+          method: "POST",
+        });
+  },
+
+  async updateMyStore(body: UpdateStoreInput): Promise<Store> {
     const token = requireToken();
     if (USE_MOCKS) {
       const res = await mockApi.updateMyStore(token, body);
@@ -417,20 +434,29 @@ export const api = {
     return res.product;
   },
 
+  async duplicateProduct(productId: string): Promise<StoreProduct> {
+    requireToken();
+    if (USE_MOCKS) return mockApi.duplicateProduct(requireToken(), productId);
+    const res = await http<{ product: StoreProduct }>(
+      `${STOREHAUSE_API_PREFIX}/products/${productId}/duplicate`,
+      { method: "POST" },
+    );
+    return res.product;
+  },
+
   async deleteProduct(productId: string): Promise<void> {
     requireToken();
     if (USE_MOCKS) return mockApi.deleteProduct(requireToken(), productId);
     await http(`${STOREHAUSE_API_PREFIX}/products/${productId}`, { method: "DELETE" });
   },
 
-  async importProducts(products: StoreProduct[]): Promise<StoreProduct[]> {
+  async importProducts(products: StoreProduct[]): Promise<ProductImportReport> {
     requireToken();
     if (USE_MOCKS) return mockApi.importProducts(requireToken(), products);
-    const res = await http<{ data: StoreProduct[] }>(`${STOREHAUSE_API_PREFIX}/products/import`, {
+    return http<ProductImportReport>(`${STOREHAUSE_API_PREFIX}/products/import`, {
       method: "POST",
       body: JSON.stringify({ products }),
     });
-    return res.data;
   },
 };
 

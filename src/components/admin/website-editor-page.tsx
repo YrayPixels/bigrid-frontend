@@ -13,9 +13,14 @@ import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api/client";
 import { getDefaultStorefrontPalette } from "@/lib/storefront/template";
 import {
+  PublishStorefrontButton,
+  PublishStatusBadge,
+} from "@/components/admin/publish-storefront-button";
+import {
   STOREFRONT_TEMPLATE_OPTIONS,
   type Store,
   type StorefrontContent,
+  type StorefrontPublishState,
   type StorefrontTemplateId,
   type StorefrontTemplateOption,
   type StorefrontTemplatePreview,
@@ -419,8 +424,10 @@ export default function WebsiteEditorPage() {
     mutationFn: ({ storeId, templateId }: { storeId: string; templateId?: StorefrontTemplateId }) =>
       api.generateStorefront(storeId, templateId),
     onSuccess: (data) => {
-      if (store) queryClient.setQueryData(["storefront", store.id], data);
-      toast.success("Storefront generated!");
+      if (store) {
+        queryClient.setQueryData(["storefront", store.id], data);
+      }
+      toast.success("Draft generated — publish when you're ready to go live.");
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : "Generation failed"),
   });
@@ -441,12 +448,27 @@ export default function WebsiteEditorPage() {
       }),
     onSuccess: (data) => {
       if (store) queryClient.setQueryData(["storefront", store.id], data);
-      toast.success("Live storefront updated.");
+      toast.success("Draft saved.");
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : "Could not save edits"),
   });
 
-  const generatedStorefront = generate.data;
+  const publishStorefront = useMutation({
+    mutationFn: () => api.publishStorefront(store!.id),
+    onSuccess: (data) => {
+      queryClient.setQueryData(["store", "me"], data.store);
+      if (store) {
+        queryClient.setQueryData(["storefront", store.id], {
+          storefront: data.storefront ?? storefrontQuery.data?.storefront ?? null,
+          publish: data.publish,
+        });
+      }
+      toast.success(data.message);
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : "Could not publish storefront"),
+  });
+
+  const generatedStorefront = generate.data?.storefront ?? null;
   const generationPending = generate.isPending;
 
   if (storeQuery.isLoading) {
@@ -459,8 +481,19 @@ export default function WebsiteEditorPage() {
 
   if (!store) return null;
 
-  const storefront = storefrontQuery.data ?? generatedStorefront ?? null;
+  const storefront = storefrontQuery.data?.storefront ?? generatedStorefront ?? null;
+  const publishState: StorefrontPublishState | undefined =
+    storefrontQuery.data?.publish ??
+    (store
+      ? {
+          status: store.status ?? "draft",
+          published_at: store.published_at ?? null,
+          is_published: store.is_published ?? false,
+          has_unpublished_changes: store.has_unpublished_changes ?? !!storefront,
+        }
+      : undefined);
   const liveStoreUrl = getStorefrontUrl(store.slug);
+  const canViewLive = publishState?.is_published;
 
   return (
     <div className="w-full px-6 py-10">
@@ -475,6 +508,7 @@ export default function WebsiteEditorPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <PublishStatusBadge publish={publishState} />
           <button
             type="button"
             onClick={() => setPreviewOpen(true)}
@@ -482,17 +516,34 @@ export default function WebsiteEditorPage() {
             className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-4 py-2 text-sm font-semibold text-ink shadow-soft hover:bg-secondary disabled:opacity-60"
           >
             <Eye className="h-4 w-4" />
-            Preview storefront
+            Preview draft
           </button>
-          <a
-            href={liveStoreUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-4 py-2 text-sm font-semibold text-ink shadow-soft hover:bg-secondary"
-          >
-            <ExternalLink className="h-4 w-4" />
-            View live store
-          </a>
+          {canViewLive ? (
+            <a
+              href={liveStoreUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-4 py-2 text-sm font-semibold text-ink shadow-soft hover:bg-secondary"
+            >
+              <ExternalLink className="h-4 w-4" />
+              View live store
+            </a>
+          ) : (
+            <span
+              title="Publish your storefront to share the live link."
+              className="inline-flex cursor-not-allowed items-center gap-2 rounded-md border border-border bg-card/60 px-4 py-2 text-sm font-semibold text-ink-soft opacity-70"
+            >
+              <ExternalLink className="h-4 w-4" />
+              View live store
+            </span>
+          )}
+          <PublishStorefrontButton
+            store={store}
+            publish={publishState}
+            publishing={publishStorefront.isPending}
+            disabled={!storefront}
+            onPublish={() => publishStorefront.mutate()}
+          />
           <button
             onClick={() =>
               generate.mutate({

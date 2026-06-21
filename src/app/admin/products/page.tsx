@@ -4,9 +4,12 @@ import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  Archive,
+  ArchiveRestore,
   CalendarDays,
   ChevronLeft,
   ChevronRight,
+  Copy,
   Filter,
   ImagePlus,
   Loader2,
@@ -15,11 +18,19 @@ import {
   Plus,
   Search,
   Star,
+  Trash2,
   Upload,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
@@ -32,7 +43,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api/client";
-import type { Store, StoreProduct } from "@/lib/api/types";
+import type { ProductImportReport, Store, StoreProduct } from "@/lib/api/types";
 
 type ProductForm = {
   id?: string;
@@ -45,13 +56,29 @@ type ProductForm = {
   sku: string;
   category: string;
   stock_quantity: string;
-  status: "active" | "draft";
+  status: "active" | "draft" | "archived";
   variants: { name: string; options: string }[];
   perks: string[];
 };
 
 type ImportRow = Record<string, unknown>;
-type StatusFilter = "all" | "active" | "draft";
+type StatusFilter = "all" | "active" | "draft" | "archived";
+
+const LOW_STOCK_THRESHOLD = 10;
+
+function stockBadge(product: StoreProduct) {
+  if (typeof product.stock_quantity !== "number") return null;
+  if (product.stock_quantity <= 0) {
+    return { label: "Out of stock", className: "bg-destructive/10 text-destructive" };
+  }
+  if (product.low_stock || product.stock_quantity <= LOW_STOCK_THRESHOLD) {
+    return {
+      label: `Low stock · ${product.stock_quantity}`,
+      className: "bg-amber-500/10 text-amber-800",
+    };
+  }
+  return { label: `${product.stock_quantity} in stock`, className: "bg-secondary text-ink-soft" };
+}
 
 const blankForm: ProductForm = {
   name: "",
@@ -197,34 +224,34 @@ function parseList(value: string) {
 }
 
 function productsFromRows(rows: ImportRow[]): StoreProduct[] {
-  return rows
-    .map<StoreProduct | null>((row) => {
-      const name = rowString(row, "name") || rowString(row, "product name");
-      if (!name) return null;
-      const price = Number(rowString(row, "price") || 0);
-      const stockValue = rowString(row, "stock_quantity") || rowString(row, "stock");
-      const stock = stockValue ? Number(stockValue) : undefined;
-      const variants = parseVariants(rowString(row, "variants"));
-      const perks = parseList(rowString(row, "perks"));
+  return rows.map((row) => {
+    const name = rowString(row, "name") || rowString(row, "product name");
+    const price = Number(rowString(row, "price") || 0);
+    const stockValue = rowString(row, "stock_quantity") || rowString(row, "stock");
+    const stock = stockValue ? Number(stockValue) : undefined;
+    const variants = parseVariants(rowString(row, "variants"));
+    const perks = parseList(rowString(row, "perks"));
+    const statusValue = rowString(row, "status").toLowerCase();
 
-      const product: StoreProduct = {
-        id: uid(),
-        slug: slugify(rowString(row, "slug") || name),
-        name,
-        description: rowString(row, "description"),
-        price: Number.isFinite(price) ? price : 0,
-        currency: (rowString(row, "currency") || "NGN").toUpperCase(),
-        image_url: rowString(row, "image_url") || rowString(row, "image") || null,
-        sku: rowString(row, "sku") || undefined,
-        category: rowString(row, "category") || undefined,
-        stock_quantity: Number.isFinite(stock) ? stock : undefined,
-        status: rowString(row, "status").toLowerCase() === "draft" ? "draft" : "active",
-        variants,
-        perks: perks.length ? perks : undefined,
-      };
-      return product;
-    })
-    .filter((product): product is StoreProduct => Boolean(product));
+    return {
+      id: uid(),
+      slug: slugify(rowString(row, "slug") || name || "product"),
+      name,
+      description: rowString(row, "description"),
+      price: Number.isFinite(price) ? price : -1,
+      currency: (rowString(row, "currency") || "NGN").toUpperCase(),
+      image_url: rowString(row, "image_url") || rowString(row, "image") || null,
+      sku: rowString(row, "sku") || undefined,
+      category: rowString(row, "category") || undefined,
+      stock_quantity: Number.isFinite(stock) ? stock : undefined,
+      status:
+        statusValue === "draft" || statusValue === "archived"
+          ? statusValue
+          : "active",
+      variants,
+      perks: perks.length ? perks : undefined,
+    };
+  });
 }
 
 export default function AdminProductsPage() {
@@ -242,6 +269,8 @@ export default function AdminProductsPage() {
   const [form, setForm] = useState<ProductForm>(blankForm);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [importReport, setImportReport] = useState<ProductImportReport | null>(null);
+  const [importReportOpen, setImportReportOpen] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(() => new Date());
 
   const storeQuery = useQuery({
@@ -302,10 +331,15 @@ export default function AdminProductsPage() {
     return matchesSearch && matchesStatus && matchesCategory && matchesPrice && matchesStock;
   });
 
-  const activeCount = products.filter(
-    (product) => (product.status ?? "active") === "active",
+  const activeCount = products.filter((product) => (product.status ?? "active") === "active").length;
+  const draftCount = products.filter((product) => product.status === "draft").length;
+  const archivedCount = products.filter((product) => product.status === "archived").length;
+  const lowStockCount = products.filter(
+    (product) =>
+      typeof product.stock_quantity === "number" &&
+      product.stock_quantity > 0 &&
+      product.stock_quantity <= LOW_STOCK_THRESHOLD,
   ).length;
-  const draftCount = products.length - activeCount;
   const inventoryCount = products.reduce((sum, product) => sum + (product.stock_quantity ?? 0), 0);
 
   const saveProduct = useMutation({
@@ -323,6 +357,37 @@ export default function AdminProductsPage() {
       setLastUpdated(new Date());
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : "Could not save product"),
+  });
+
+  const duplicateProduct = useMutation({
+    mutationFn: (productId: string) => api.duplicateProduct(productId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      setLastUpdated(new Date());
+      toast.success("Product duplicated as draft.");
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : "Could not duplicate product"),
+  });
+
+  const archiveProduct = useMutation({
+    mutationFn: ({ productId, archived }: { productId: string; archived: boolean }) =>
+      api.updateProduct(productId, { status: archived ? "archived" : "active" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      setLastUpdated(new Date());
+      toast.success("Product updated.");
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : "Could not update product"),
+  });
+
+  const deleteProduct = useMutation({
+    mutationFn: (productId: string) => api.deleteProduct(productId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      setLastUpdated(new Date());
+      toast.success("Product deleted.");
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : "Could not delete product"),
   });
 
   function openNewProduct() {
@@ -383,18 +448,37 @@ export default function AdminProductsPage() {
       const workbook = XLSX.read(buffer, { type: "array" });
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json<ImportRow>(sheet, { defval: "" });
-      const importedProducts = productsFromRows(rows);
 
-      if (!importedProducts.length) {
-        toast.error("No products found in that file.");
+      if (!rows.length) {
+        toast.error("No rows found in that file.");
         return;
       }
 
-      await api.importProducts(importedProducts);
+      const importedProducts = productsFromRows(rows);
+
+      const report = await api.importProducts(importedProducts);
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["storefront"] });
       setLastUpdated(new Date());
-      toast.success(`${importedProducts.length} products imported.`);
+
+      if (report.imported > 0) {
+        queryClient.setQueryData(["products"], report.data);
+      }
+
+      if (report.failed > 0) {
+        setImportReport(report);
+        setImportReportOpen(true);
+        if (report.imported > 0) {
+          toast.warning(
+            `${report.imported} products imported, ${report.failed} row${report.failed === 1 ? "" : "s"} skipped.`,
+          );
+        } else {
+          toast.error("Import failed. Fix the highlighted rows and try again.");
+        }
+        return;
+      }
+
+      toast.success(`${report.imported} products imported.`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not import products");
     } finally {
@@ -614,11 +698,12 @@ export default function AdminProductsPage() {
           <main className="min-w-0 bg-[#fbfbfa] p-4 sm:p-5">
             <div className="rounded-2xl border border-border/80 bg-white p-4 shadow-sm">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="inline-grid overflow-hidden rounded-xl border border-border bg-[#f7f7f5] p-1 text-xs font-semibold sm:grid-cols-3">
+                <div className="inline-grid overflow-hidden rounded-xl border border-border bg-[#f7f7f5] p-1 text-xs font-semibold sm:grid-cols-4">
                   {[
                     { value: "all", label: "All", count: products.length },
                     { value: "active", label: "Active", count: activeCount },
-                    { value: "draft", label: "Non Active", count: draftCount },
+                    { value: "draft", label: "Draft", count: draftCount },
+                    { value: "archived", label: "Archived", count: archivedCount },
                   ].map((tab) => (
                     <button
                       key={tab.value}
@@ -665,6 +750,11 @@ export default function AdminProductsPage() {
                       disabled={importing || saveProduct.isPending}
                     />
                   </label>
+                  {lowStockCount > 0 ? (
+                    <span className="rounded-full bg-amber-500/10 px-3 py-1 text-xs font-medium text-amber-800">
+                      {lowStockCount} low stock
+                    </span>
+                  ) : null}
                   <Button
                     onClick={openNewProduct}
                     className="h-10 rounded-xl bg-[#1f1f1f] text-white"
@@ -679,6 +769,8 @@ export default function AdminProductsPage() {
                 <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                   {filteredProducts.map((product, index) => {
                     const rating = (4.4 + (index % 4) * 0.1).toFixed(1);
+                    const inventory = stockBadge(product);
+                    const isArchived = product.status === "archived";
                     return (
                       <article
                         key={product.id}
@@ -688,14 +780,58 @@ export default function AdminProductsPage() {
                           <span className="h-1.5 w-4 rounded-full bg-primary" />
                           <span className="h-1.5 w-1.5 rounded-full bg-primary/30" />
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => openEditProduct(product)}
-                          className="absolute right-2 top-2 z-10 rounded-full p-2 text-ink-soft hover:bg-secondary hover:text-ink"
-                          aria-label={`Edit ${product.name}`}
-                        >
-                          <MoreVertical className="h-4 w-4" />
-                        </button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              type="button"
+                              className="absolute right-2 top-2 z-10 rounded-full p-2 text-ink-soft hover:bg-secondary hover:text-ink"
+                              aria-label={`Actions for ${product.name}`}
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-44">
+                            <DropdownMenuItem onClick={() => openEditProduct(product)}>
+                              Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => duplicateProduct.mutate(product.id)}
+                              disabled={duplicateProduct.isPending}
+                            >
+                              <Copy className="h-4 w-4" />
+                              Duplicate
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() =>
+                                archiveProduct.mutate({ productId: product.id, archived: !isArchived })
+                              }
+                            >
+                              {isArchived ? (
+                                <>
+                                  <ArchiveRestore className="h-4 w-4" />
+                                  Restore
+                                </>
+                              ) : (
+                                <>
+                                  <Archive className="h-4 w-4" />
+                                  Archive
+                                </>
+                              )}
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onClick={() => {
+                                if (window.confirm(`Delete ${product.name}?`)) {
+                                  deleteProduct.mutate(product.id);
+                                }
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                         <button
                           type="button"
                           onClick={() => openEditProduct(product)}
@@ -735,9 +871,11 @@ export default function AdminProductsPage() {
                                 {product.category}
                               </span>
                             ) : null}
-                            {typeof product.stock_quantity === "number" ? (
-                              <span className="rounded-full bg-secondary px-2 py-1 text-[10px] text-ink-soft">
-                                {product.stock_quantity} left
+                            {inventory ? (
+                              <span
+                                className={`rounded-full px-2 py-1 text-[10px] font-semibold ${inventory.className}`}
+                              >
+                                {inventory.label}
                               </span>
                             ) : null}
                           </div>
@@ -1090,6 +1228,40 @@ export default function AdminProductsPage() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={importReportOpen} onOpenChange={setImportReportOpen}>
+        <DialogContent className="max-h-[85vh] max-w-lg overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Import report</DialogTitle>
+            <DialogDescription>
+              {importReport
+                ? `${importReport.imported} imported, ${importReport.failed} skipped`
+                : "Review the rows that could not be imported."}
+            </DialogDescription>
+          </DialogHeader>
+          {importReport?.errors.length ? (
+            <ul className="space-y-3 text-sm">
+              {importReport.errors.map((error, index) => (
+                <li
+                  key={`${error.row}-${error.field ?? "row"}-${index}`}
+                  className="rounded-lg border border-border bg-background px-3 py-2"
+                >
+                  <p className="font-medium">
+                    Row {error.row}
+                    {error.field ? ` · ${error.field}` : ""}
+                  </p>
+                  <p className="mt-1 text-ink-soft">{error.message}</p>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          <DialogFooter>
+            <Button type="button" onClick={() => setImportReportOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

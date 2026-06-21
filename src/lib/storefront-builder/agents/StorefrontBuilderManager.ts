@@ -28,6 +28,7 @@ import { BUILDER_EXECUTOR_SYSTEM_PROMPT } from "@/lib/storefront-builder/prompts
 import type { AgentActivityPayload, AgentThinkingLogEntry, WebsiteBuilderContext, WebsiteBuilderToolDef } from "./types";
 import { createThinkingLogEntry } from "./thinking-log";
 import { aiSuggestedActions, colorPresetActions } from "@/lib/storefront-builder/suggested-actions";
+import { formatBuilderHistorySnippet } from "@/lib/storefront-builder/chat-history";
 
 type AssistantToolCall = {
   id: string;
@@ -108,10 +109,7 @@ export class StorefrontBuilderManager {
     }
 
     const toolDefs = websiteBuilderToolsForSession(session);
-    const historySnippet = (history ?? [])
-      .slice(-8)
-      .map((entry) => `${entry.role === "assistant" ? "Assistant" : "Merchant"}: ${entry.content}`)
-      .join("\n");
+    const historySnippet = formatBuilderHistorySnippet(history ?? []);
 
     this.log({
       agent: "Interpreter",
@@ -147,7 +145,7 @@ export class StorefrontBuilderManager {
       phase: "start",
       title: "Planning your website",
     });
-    const plan = await runPlanner({ userText: message, interpretation, toolDefs }).catch((error) => {
+    const plan = await runPlanner({ userText: message, interpretation, toolDefs, historySnippet }).catch((error) => {
       this.log({
         agent: "Planner",
         phase: "error",
@@ -186,7 +184,7 @@ export class StorefrontBuilderManager {
       payload: { type: "agent_turn", plan: plan.plan_steps, tool_calls: [], tool_results: [] },
     };
 
-    const memory: string[] = [];
+    let memory: string[] = [];
     const toolCallsLog: Array<{ name: string; arguments: Record<string, unknown> }> = [];
     const toolResultsLog: Array<Record<string, unknown>> = [];
 
@@ -296,8 +294,9 @@ export class StorefrontBuilderManager {
         toolResultsLog.push({ name, ...result });
         const payload = JSON.stringify(result);
         messages.push({ role: "tool", tool_call_id: callId, content: payload });
-        lastToolSummaries.push(summarizeToolResult(name, result));
-        memory.push(...lastToolSummaries);
+        const summary = summarizeToolResult(name, result);
+        lastToolSummaries.push(summary);
+        memory = appendMemory(memory, summary);
 
         this.log({
           agent: "Executor",
@@ -323,7 +322,7 @@ export class StorefrontBuilderManager {
       }).catch(() => ({ status: "DONE" as const, reason: "fallback" }));
 
       criticStatus = critic.status;
-      memory.push(`[critic] ${critic.status}: ${critic.reason}`);
+      memory = appendMemory(memory, `[critic] ${critic.status}: ${critic.reason}`);
 
       this.log({
         agent: "Critic",

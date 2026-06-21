@@ -20,6 +20,7 @@ import {
   synthesizeStorefront,
 } from "@/lib/storefront-builder/local-ai";
 import { streamBuilderThinkingTurn } from "@/lib/storefront-builder/thinking-stream";
+import { buildBuilderChatHistory } from "@/lib/storefront-builder/chat-history";
 import { alignStorefrontTemplateToSelection } from "@/lib/storefront/template";
 
 export function asConcreteTemplateId(value: string | null | undefined): StorefrontTemplateId | undefined {
@@ -126,15 +127,7 @@ export async function streamAndPersistBuilderMessage({
   };
 
   const recommendations = await loadRecommendations(enrichedSession);
-  const history = session.messages
-    .slice(-8)
-    .map((entry) => ({
-      role: entry.role,
-      content: entry.content,
-    }))
-    .filter((entry): entry is { role: "user" | "assistant"; content: string } =>
-      entry.role === "user" || entry.role === "assistant",
-    );
+  const history = buildBuilderChatHistory(session.messages);
 
   const thinkingLog: AgentThinkingLogEntry[] = [];
 
@@ -211,15 +204,7 @@ export async function processBuilderMessage({
     });
   }
 
-  const history = session.messages
-    .slice(-8)
-    .map((entry) => ({
-      role: entry.role,
-      content: entry.content,
-    }))
-    .filter((entry): entry is { role: "user" | "assistant"; content: string } =>
-      entry.role === "user" || entry.role === "assistant",
-    );
+  const history = buildBuilderChatHistory(session.messages);
 
   try {
     const turn = await runBuilderAgentTurn({
@@ -347,5 +332,5 @@ export async function generateStorefrontForStore({
   templateId?: StorefrontTemplateId;
 }): Promise<StorefrontContent> {
   const response = await api.generateStorefront(storeId, templateId);
-  return response;
+  return response.storefront!;
 }

@@ -1003,7 +1003,7 @@ These block a working merchant experience today. Fix before payments or publish 
 3. **No dedicated product API** — Products page saves via `PATCH /ai/storefront/{id}` with the entire storefront. No validation, no partial update.
 4. **AI generation not reliably end-to-end** — Chat can stall before draft generation; "build my website" depends on OpenAI on the Next.js side while backend has separate logic.
 5. **Mock-first API client** — Frontend defaults to mocks when `NEXT_PUBLIC_API_BASE_URL` is unset, hiding integration bugs.
-6. **No draft vs published** — Needed later; not the current blocker.
+6. **Draft vs published** — Implemented (B1): `draft_json` / `published_json` + publish endpoint. **Draft versioning / undo** deferred (B6).
 
 ---
 
@@ -1124,11 +1124,14 @@ A merchant can:
 
 | # | Task | Repos | Unblocks |
 |---|------|-------|----------|
-| B1 | Publish flow (`draft_json` / `published_json`, `POST /stores/{id}/publish`) | backend, storehause | Safe preview before go-live |
+| B1 | Publish flow (`draft_json` / `published_json`, `POST /stores/{id}/publish`) | backend, storehause | Safe preview before go-live ✅ |
 | B2 | Product import improvements (CSV validation, error reporting) | storehause, backend | Bulk catalog setup |
 | B3 | AI starter products during generation | backend | Faster time-to-first-product |
 | B4 | Visual editor section controls | storehause | Sprint 7 completion |
 | B5 | Component registry | storehause | Faster template additions |
+| B6 | **Deferred** — Draft versioning & undo/redo (in-session Ctrl+Z, server draft revisions, revert to last published) | storehause, backend | Safer AI + manual editing; after B1 + editor polish |
+
+See [modular-storefront-roadmap.md — Deferred versioning](./modular-storefront-roadmap.md#deferred--draft-versioning--undoredo).
 
 ---
 

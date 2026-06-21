@@ -38,8 +38,13 @@ import type {
   StoreOrderStatus,
   StoreProduct,
   StorefrontContent,
+  StorefrontDraftResponse,
+  StorefrontPublishState,
+  PublishStorefrontResponse,
+  ProductImportReport,
   StorefrontTemplateId,
   StorefrontTemplateOption,
+  UpdateStoreInput,
   UpdateStorefrontInput,
   User,
 } from "./types";
@@ -50,6 +55,7 @@ type MockDB = {
   users: Record<string, { user: User; password: string }>;
   stores: Record<string, Store>;
   storefronts: Record<string, StorefrontContent>;
+  publishedStorefronts: Record<string, StorefrontContent>;
   products: Record<string, StoreProduct[]>;
   orders: Record<string, StoreOrder[]>;
   visits: Record<
@@ -69,6 +75,7 @@ function emptyDb(): MockDB {
     users: {},
     stores: {},
     storefronts: {},
+    publishedStorefronts: {},
     products: {},
     orders: {},
     visits: {},
@@ -87,6 +94,7 @@ function load(): MockDB {
       users: db.users ?? {},
       stores: db.stores ?? {},
       storefronts: db.storefronts ?? {},
+      publishedStorefronts: db.publishedStorefronts ?? {},
       products: db.products ?? {},
       orders: db.orders ?? {},
       visits: db.visits ?? {},
@@ -132,6 +140,33 @@ function mergeProductsIntoStorefront(
     };
   }
   return next;
+}
+
+function publishedStorefrontForStore(db: MockDB, storeId: string): StorefrontContent | null {
+  const storefront = db.publishedStorefronts[storeId] ?? null;
+  const products = db.products[storeId] ?? [];
+  return mergeProductsIntoStorefront(storefront, products);
+}
+
+function publishMetaForStore(db: MockDB, store: Store): StorefrontPublishState {
+  const draft = db.storefronts[store.id] ?? null;
+  const published = db.publishedStorefronts[store.id] ?? null;
+  const isPublished = store.status === "published" && published !== null;
+  const hasUnpublishedChanges = !isPublished
+    ? draft !== null
+    : JSON.stringify(draft) !== JSON.stringify(published);
+
+  return {
+    status: store.status ?? "draft",
+    published_at: store.published_at ?? null,
+    is_published: isPublished,
+    has_unpublished_changes: hasUnpublishedChanges,
+  };
+}
+
+function withPublishFields(db: MockDB, store: Store): Store {
+  const meta = publishMetaForStore(db, store);
+  return { ...store, ...meta };
 }
 
 function storefrontForStore(db: MockDB, storeId: string): StorefrontContent | null {
@@ -231,12 +266,14 @@ export const mockApi = {
       subdomain_host: getStoreSubdomainHost(slug),
       primary_domain: getStoreSubdomainHost(slug),
       storefront_template_id: body.storefront_template_id ?? "classic",
+      status: "draft",
+      published_at: null,
       ...body,
     };
     db.stores[userId] = store;
     if (db.users[userId]) db.users[userId].user.has_store = true;
     save(db);
-    return { store };
+    return { store: withPublishFields(db, store) };
   },
 
   async getMyStore(token: string): Promise<{ store: Store | null }> {
@@ -244,7 +281,8 @@ export const mockApi = {
     const db = load();
     const userId = db.sessions[token];
     if (!userId) throw { status: 401, message: "Unauthenticated" };
-    return { store: db.stores[userId] ?? null };
+    const store = db.stores[userId] ?? null;
+    return { store: store ? withPublishFields(db, store) : null };
   },
 
   async getDashboardOverview(token: string): Promise<MerchantDashboardOverview> {
@@ -323,6 +361,14 @@ export const mockApi = {
     };
   },
 
+  async getOrder(token: string, orderId: string): Promise<StoreOrder> {
+    await delay(150);
+    const { db, store } = findStoreForToken(token);
+    const order = (db.orders[store.id] ?? []).find((entry) => entry.id === orderId);
+    if (!order) throw { status: 404, message: "Order not found" };
+    return order;
+  },
+
   async updateOrderStatus(
     token: string,
     orderId: string,
@@ -343,7 +389,7 @@ export const mockApi = {
   async generateStorefront(
     token: string,
     body: { store_id: string; storefront_template_id?: StorefrontTemplateId },
-  ): Promise<{ generation_id: string; storefront: StorefrontContent }> {
+  ): Promise<StorefrontDraftResponse & { generation_id: string }> {
     await delay(2200);
     const db = load();
     const userId = db.sessions[token];
@@ -356,25 +402,31 @@ export const mockApi = {
     const storefront = synthesizeStorefront(store);
     db.storefronts[store.id] = storefront;
     save(db);
-    return { generation_id: uid(), storefront };
+    return {
+      generation_id: uid(),
+      storefront: storefrontForStore(db, store.id)!,
+      publish: publishMetaForStore(db, store),
+    };
   },
 
-  async getStorefront(
-    token: string,
-    storeId: string,
-  ): Promise<{ storefront: StorefrontContent | null }> {
+  async getStorefront(token: string, storeId: string): Promise<StorefrontDraftResponse> {
     await delay(150);
     const db = load();
     const userId = db.sessions[token];
     if (!userId) throw { status: 401, message: "Unauthenticated" };
-    return { storefront: storefrontForStore(db, storeId) };
+    const store = db.stores[userId];
+    if (!store || store.id !== storeId) throw { status: 404, message: "Store not found" };
+    return {
+      storefront: storefrontForStore(db, storeId),
+      publish: publishMetaForStore(db, store),
+    };
   },
 
   async updateStorefront(
     token: string,
     storeId: string,
     body: UpdateStorefrontInput,
-  ): Promise<{ storefront: StorefrontContent }> {
+  ): Promise<StorefrontDraftResponse> {
     await delay(400);
     const db = load();
     const userId = db.sessions[token];
@@ -389,7 +441,33 @@ export const mockApi = {
     const { products: _ignored, ...storefrontWithoutProducts } = body.storefront;
     db.storefronts[storeId] = storefrontWithoutProducts;
     save(db);
-    return { storefront: storefrontForStore(db, storeId)! };
+    return {
+      storefront: storefrontForStore(db, storeId)!,
+      publish: publishMetaForStore(db, store),
+    };
+  },
+
+  async publishStorefront(token: string, storeId: string): Promise<PublishStorefrontResponse> {
+    await delay(500);
+    const db = load();
+    const userId = db.sessions[token];
+    if (!userId) throw { status: 401, message: "Unauthenticated" };
+    const store = db.stores[userId];
+    if (!store || store.id !== storeId) throw { status: 404, message: "Store not found" };
+    const draft = db.storefronts[storeId];
+    if (!draft) throw { status: 422, message: "Create a storefront draft before publishing." };
+
+    db.publishedStorefronts[storeId] = draft;
+    store.status = "published";
+    store.published_at = new Date().toISOString();
+    save(db);
+
+    return {
+      store: withPublishFields(db, store),
+      storefront: publishedStorefrontForStore(db, storeId),
+      publish: publishMetaForStore(db, store),
+      message: "Your storefront is live.",
+    };
   },
 
   async getProducts(token: string): Promise<StoreProduct[]> {
@@ -434,6 +512,23 @@ export const mockApi = {
     return updated;
   },
 
+  async duplicateProduct(token: string, productId: string): Promise<StoreProduct> {
+    await delay(250);
+    const { db, store } = findStoreForToken(token);
+    const source = (db.products[store.id] ?? []).find((entry) => entry.id === productId);
+    if (!source) throw { status: 404, message: "Product not found" };
+    const product: StoreProduct = {
+      ...source,
+      id: uid(),
+      name: `${source.name} (Copy)`,
+      slug: slugify(`${source.slug}-copy-${Date.now().toString(36)}`),
+      status: "draft",
+    };
+    db.products[store.id] = [product, ...(db.products[store.id] ?? [])];
+    save(db);
+    return product;
+  },
+
   async deleteProduct(token: string, productId: string): Promise<void> {
     await delay(200);
     const { db, store } = findStoreForToken(token);
@@ -441,21 +536,49 @@ export const mockApi = {
     save(db);
   },
 
-  async importProducts(token: string, products: StoreProduct[]): Promise<StoreProduct[]> {
+  async importProducts(token: string, products: StoreProduct[]): Promise<ProductImportReport> {
     await delay(350);
     const { db, store } = findStoreForToken(token);
-    db.products[store.id] = [...products, ...(db.products[store.id] ?? [])];
+    const errors: ProductImportReport["errors"] = [];
+    let imported = 0;
+    let failed = 0;
+
+    products.forEach((product, index) => {
+      const row = index + 1;
+      if (!product.name?.trim()) {
+        failed++;
+        errors.push({ row, field: "name", message: "Product name is required." });
+        return;
+      }
+      if (product.price < 0 || Number.isNaN(product.price)) {
+        failed++;
+        errors.push({ row, field: "price", message: "Price must be a number greater than or equal to 0." });
+        return;
+      }
+      db.products[store.id] = [product, ...(db.products[store.id] ?? [])];
+      imported++;
+    });
+
     save(db);
-    return db.products[store.id] ?? [];
+    return {
+      imported,
+      failed,
+      errors,
+      data: db.products[store.id] ?? [],
+    };
   },
 
-  async updateMyStore(token: string, body: { brand_color?: string }): Promise<{ store: Store }> {
+  async updateMyStore(token: string, body: UpdateStoreInput): Promise<{ store: Store }> {
     await delay(200);
     const db = load();
     const userId = db.sessions[token];
     if (!userId) throw { status: 401, message: "Unauthenticated" };
     const store = db.stores[userId];
     if (!store) throw { status: 404, message: "Store not found" };
+    if (body.business_name !== undefined) store.business_name = body.business_name;
+    if (body.description !== undefined) store.description = body.description;
+    if (body.contact_email !== undefined) store.contact_email = body.contact_email;
+    if (body.contact_phone !== undefined) store.contact_phone = body.contact_phone;
     if (body.brand_color) store.brand_color = body.brand_color;
     save(db);
     return { store };
@@ -488,8 +611,12 @@ export const mockApi = {
     const db = load();
     const store = Object.values(db.stores).find((entry) => entry.slug === slug);
     if (!store) throw { status: 404, message: "Storefront not found" };
-    const storefront = storefrontForStore(db, store.id) ?? synthesizeStorefront(store);
-    return { store, storefront, generation_id: null };
+    const meta = publishMetaForStore(db, store);
+    if (!meta.is_published) {
+      throw { status: 404, message: "This storefront has not been published yet." };
+    }
+    const storefront = publishedStorefrontForStore(db, store.id) ?? synthesizeStorefront(store);
+    return { store: withPublishFields(db, store), storefront, generation_id: null };
   },
 
   async getPublicStorefrontByHost(host: string): Promise<PublicStorefront> {
@@ -504,8 +631,12 @@ export const mockApi = {
           entry.slug === hostname.split(".")[0],
       ) ?? null;
     if (!store) throw { status: 404, message: "Storefront not found" };
-    const storefront = storefrontForStore(db, store.id) ?? synthesizeStorefront(store);
-    return { store, storefront, generation_id: null };
+    const meta = publishMetaForStore(db, store);
+    if (!meta.is_published) {
+      throw { status: 404, message: "This storefront has not been published yet." };
+    }
+    const storefront = publishedStorefrontForStore(db, store.id) ?? synthesizeStorefront(store);
+    return { store: withPublishFields(db, store), storefront, generation_id: null };
   },
 
   async placeOrder(slug: string, body: CreateStoreOrderInput): Promise<{ order: StoreOrder }> {
@@ -513,6 +644,9 @@ export const mockApi = {
     const db = load();
     const store = Object.values(db.stores).find((entry) => entry.slug === slug);
     if (!store) throw { status: 404, message: "Storefront not found" };
+    if (!publishMetaForStore(db, store).is_published) {
+      throw { status: 404, message: "This storefront has not been published yet." };
+    }
     const products = new Map((db.products[store.id] ?? []).map((product) => [product.id, product]));
     const items = body.items.map((line) => {
       const product = products.get(line.product_id);
@@ -574,6 +708,9 @@ export const mockApi = {
     const db = load();
     const store = Object.values(db.stores).find((entry) => entry.slug === slug);
     if (!store) throw { status: 404, message: "Storefront not found" };
+    if (!publishMetaForStore(db, store).is_published) {
+      throw { status: 404, message: "This storefront has not been published yet." };
+    }
 
     db.contact_inquiries = db.contact_inquiries ?? {};
     db.contact_inquiries[store.id] = [

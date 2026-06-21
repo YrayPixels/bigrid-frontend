@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import Link from "next/link";
 import {
   Banknote,
   BarChart3,
@@ -17,6 +18,7 @@ import { getStorefrontUrl } from "@/lib/store-host";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api/client";
 import { DashboardAiBuilderFab } from "@/components/admin/dashboard-ai-builder-fab";
+import { PublishStatusBadge } from "@/components/admin/publish-storefront-button";
 
 function formatMoney(value: number, currency = "NGN") {
   return new Intl.NumberFormat("en-NG", {
@@ -123,6 +125,13 @@ export default function AdminDashboardPage() {
   const overview = dashboardQuery.data;
   const metrics = overview?.metrics;
   const maxDailySales = Math.max(...(overview?.sales_by_day.map((day) => day.sales) ?? [0]), 1);
+  const canViewLive = store.is_published ?? false;
+  const publishState = {
+    status: store.status ?? "draft",
+    published_at: store.published_at ?? null,
+    is_published: store.is_published ?? false,
+    has_unpublished_changes: store.has_unpublished_changes ?? false,
+  };
 
   return (
     <div className="w-full px-6 py-10">
@@ -138,15 +147,27 @@ export default function AdminDashboardPage() {
             Sales, traffic, conversion, and order activity for your storefront.
           </p>
         </div>
-        <a
-          href={getStorefrontUrl(store.slug)}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-4 py-2 text-sm font-semibold text-ink shadow-soft hover:bg-secondary"
-        >
-          <ExternalLink className="h-4 w-4" />
-          View live store
-        </a>
+        <div className="flex flex-wrap items-center gap-2">
+          <PublishStatusBadge publish={publishState} />
+          {canViewLive ? (
+            <a
+              href={getStorefrontUrl(store.slug)}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-4 py-2 text-sm font-semibold text-ink shadow-soft hover:bg-secondary"
+            >
+              <ExternalLink className="h-4 w-4" />
+              View live store
+            </a>
+          ) : (
+            <Link
+              href="/admin/website"
+              className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-4 py-2 text-sm font-semibold text-ink shadow-soft hover:bg-secondary"
+            >
+              Publish storefront
+            </Link>
+          )}
+        </div>
       </div>
 
       <section className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -229,9 +250,10 @@ export default function AdminDashboardPage() {
               ))
             ) : overview?.recent_orders.length ? (
               overview.recent_orders.map((order) => (
-                <div
+                <Link
                   key={order.id}
-                  className="flex items-center justify-between gap-3 rounded-xl border border-border bg-background p-3"
+                  href={`/admin/orders/${order.id}`}
+                  className="flex items-center justify-between gap-3 rounded-xl border border-border bg-background p-3 transition hover:bg-secondary/30"
                 >
                   <div className="min-w-0">
                     <div className="truncate text-sm font-semibold">{order.order_number}</div>
@@ -245,7 +267,7 @@ export default function AdminDashboardPage() {
                     </div>
                     <div className="text-xs capitalize text-ink-soft">{order.status}</div>
                   </div>
-                </div>
+                </Link>
               ))
             ) : (
               <div className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-ink-soft">

@@ -3,14 +3,21 @@
 import Link from "next/link";
 import { ExternalLink, ListTree, Loader2, Sparkles } from "lucide-react";
 import { BuilderThinkingLogCompact } from "@/components/admin/builder/builder-thinking-log-compact";
+import {
+  PublishStorefrontButton,
+  PublishStatusBadge,
+} from "@/components/admin/publish-storefront-button";
 import { StorefrontPreview } from "@/components/storefront/storefront-preview";
-import type { Store, StorefrontContent } from "@/lib/api/types";
+import type { Store, StorefrontContent, StorefrontPublishState } from "@/lib/api/types";
 import { getStorefrontUrl } from "@/lib/store-host";
 import type { AgentThinkingLogEntry } from "@/lib/storefront-builder/agents/types";
 
 export function BuilderPreviewPanel({
   store,
   storefront,
+  publish,
+  publishing = false,
+  onPublish,
   generating,
   thinkingEntries = [],
   thinkingStreaming = false,
@@ -19,6 +26,9 @@ export function BuilderPreviewPanel({
 }: {
   store: Store | null;
   storefront: StorefrontContent | null;
+  publish?: StorefrontPublishState | null;
+  publishing?: boolean;
+  onPublish?: () => void;
   generating: boolean;
   thinkingEntries?: AgentThinkingLogEntry[];
   thinkingStreaming?: boolean;
@@ -34,6 +44,9 @@ export function BuilderPreviewPanel({
         <PreviewHeader
           store={store}
           storefront={null}
+          publish={publish}
+          publishing={publishing}
+          onPublish={onPublish}
           hasThinkingHistory={hasThinkingHistory}
           onOpenThinkingLog={onOpenThinkingLog}
         />
@@ -53,6 +66,9 @@ export function BuilderPreviewPanel({
         <PreviewHeader
           store={store}
           storefront={null}
+          publish={publish}
+          publishing={publishing}
+          onPublish={onPublish}
           hasThinkingHistory={hasThinkingHistory || thinkingStreaming}
           onOpenThinkingLog={onOpenThinkingLog}
         />
@@ -73,6 +89,9 @@ export function BuilderPreviewPanel({
         <PreviewHeader
           store={store}
           storefront={null}
+          publish={publish}
+          publishing={publishing}
+          onPublish={onPublish}
           hasThinkingHistory={hasThinkingHistory}
           onOpenThinkingLog={onOpenThinkingLog}
         />
@@ -95,6 +114,9 @@ export function BuilderPreviewPanel({
       <PreviewHeader
         store={store}
         storefront={storefront}
+        publish={publish}
+        publishing={publishing}
+        onPublish={onPublish}
         hasThinkingHistory={hasThinkingHistory || thinkingStreaming}
         onOpenThinkingLog={onOpenThinkingLog}
       />
@@ -110,14 +132,22 @@ export function BuilderPreviewPanel({
 function PreviewHeader({
   store,
   storefront,
+  publish,
+  publishing = false,
+  onPublish,
   hasThinkingHistory = false,
   onOpenThinkingLog,
 }: {
   store: Store | null;
   storefront: StorefrontContent | null;
+  publish?: StorefrontPublishState | null;
+  publishing?: boolean;
+  onPublish?: () => void;
   hasThinkingHistory?: boolean;
   onOpenThinkingLog?: () => void;
 }) {
+  const canViewLive = publish?.is_published;
+
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4">
       <div>
@@ -146,20 +176,29 @@ function PreviewHeader({
           </Link>
         ) : null}
         {store ? (
-          <a
-            href={getStorefrontUrl(store.slug)}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm font-medium text-ink hover:bg-secondary"
-          >
-            <ExternalLink className="h-4 w-4" />
-            View live
-          </a>
+          canViewLive ? (
+            <a
+              href={getStorefrontUrl(store.slug)}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm font-medium text-ink hover:bg-secondary"
+            >
+              <ExternalLink className="h-4 w-4" />
+              View live
+            </a>
+          ) : null
+        ) : null}
+        {storefront && onPublish ? (
+          <PublishStorefrontButton
+            store={store}
+            publish={publish}
+            publishing={publishing}
+            onPublish={onPublish}
+            className="px-3 py-2 text-sm"
+          />
         ) : null}
         {storefront ? (
-          <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
-            Draft ready
-          </span>
+          <PublishStatusBadge publish={publish} />
         ) : (
           <span className="inline-flex items-center gap-1 rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-ink-soft">
             <Loader2 className="h-3 w-3" />

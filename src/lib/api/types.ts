@@ -59,10 +59,35 @@ export type Store = {
   description: string;
   brand_color: string;
   logo_url: string | null;
+  contact_email?: string | null;
+  contact_phone?: string | null;
   storefront_template_id: StorefrontTemplateChoice;
   subdomain?: string;
   subdomain_host?: string;
   primary_domain?: string;
+  status?: "draft" | "published" | string;
+  published_at?: string | null;
+  is_published?: boolean;
+  has_unpublished_changes?: boolean;
+};
+
+export type StorefrontPublishState = {
+  status: string;
+  published_at: string | null;
+  is_published: boolean;
+  has_unpublished_changes: boolean;
+};
+
+export type StorefrontDraftResponse = {
+  storefront: StorefrontContent | null;
+  publish: StorefrontPublishState;
+};
+
+export type PublishStorefrontResponse = {
+  store: Store;
+  storefront: StorefrontContent | null;
+  publish: StorefrontPublishState;
+  message: string;
 };
 
 export type CreateStoreInput = {
@@ -72,6 +97,27 @@ export type CreateStoreInput = {
   brand_color: string;
   logo_url: string | null;
   storefront_template_id?: StorefrontTemplateChoice;
+};
+
+export type UpdateStoreInput = {
+  business_name?: string;
+  description?: string;
+  contact_email?: string | null;
+  contact_phone?: string | null;
+  brand_color?: string;
+};
+
+export type ProductImportError = {
+  row: number;
+  field: string | null;
+  message: string;
+};
+
+export type ProductImportReport = {
+  imported: number;
+  failed: number;
+  errors: ProductImportError[];
+  data: StoreProduct[];
 };
 
 export type UpdateStorefrontInput = {
@@ -90,7 +136,9 @@ export type StoreProduct = {
   sku?: string;
   category?: string;
   stock_quantity?: number;
-  status?: "active" | "draft";
+  status?: "active" | "draft" | "archived";
+  in_stock?: boolean;
+  low_stock?: boolean;
   variants?: { name: string; options: string[] }[];
   perks?: string[];
 };

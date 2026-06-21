@@ -13,6 +13,7 @@ import { STOREFRONT_TEMPLATE_OPTIONS } from "@/lib/api/types";
 import type { AgentThinkingLogEntry } from "@/lib/storefront-builder/agents/types";
 import type { BuilderAiTurn } from "@/lib/storefront-builder/local-ai";
 import { streamBuilderThinkingTurn } from "@/lib/storefront-builder/thinking-stream";
+import { buildBuilderChatHistory } from "@/lib/storefront-builder/chat-history";
 
 export default function BuilderThinkingPage() {
   const router = useRouter();
@@ -63,15 +64,7 @@ export default function BuilderThinkingPage() {
     setFinalTurn(null);
 
     try {
-      const history = session.messages
-        .slice(-8)
-        .map((entry) => ({
-          role: entry.role,
-          content: entry.content,
-        }))
-        .filter((entry): entry is { role: "user" | "assistant"; content: string } =>
-          entry.role === "user" || entry.role === "assistant",
-        );
+      const history = buildBuilderChatHistory(session.messages);
 
       const turn = await streamBuilderThinkingTurn({
         message,

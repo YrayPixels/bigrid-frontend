@@ -1,3 +1,4 @@
+import { BUILDER_HISTORY_SNIPPET_MAX_CHARS } from "@/lib/storefront-builder/chat-history";
 import type { WebsiteBuilderToolDef } from "./types";
 import { getAssistantMessageContent, getThinkingModel, postChat } from "./openaiChat";
 import {
@@ -87,7 +88,7 @@ export async function runInterpreter(args: {
   const { userText, historySnippet } = args;
   const historyBlock =
     historySnippet && historySnippet.trim()
-      ? `\n\n### Recent conversation\n${historySnippet.trim().slice(0, 2500)}`
+      ? `\n\n### Recent conversation\n${historySnippet.trim().slice(0, BUILDER_HISTORY_SNIPPET_MAX_CHARS)}`
       : "";
 
   const data = await postChat({
@@ -129,9 +130,14 @@ export async function runPlanner(args: {
   userText: string;
   interpretation: InterpreterResult;
   toolDefs: WebsiteBuilderToolDef[];
+  historySnippet?: string;
 }): Promise<PlannerResult> {
-  const { userText, interpretation, toolDefs } = args;
+  const { userText, interpretation, toolDefs, historySnippet } = args;
   const allowed = new Set(toolDefs.map((tool) => tool.name));
+  const historyBlock =
+    historySnippet && historySnippet.trim()
+      ? `\n\n### Recent conversation\n${historySnippet.trim().slice(0, BUILDER_HISTORY_SNIPPET_MAX_CHARS)}`
+      : "";
 
   const data = await postChat({
     model: getThinkingModel(),
@@ -151,7 +157,7 @@ export async function runPlanner(args: {
         role: "user",
         content:
           `### Interpreter output\n${JSON.stringify(interpretation)}\n\n` +
-          `### Latest merchant message\n${userText.trim()}`,
+          `### Latest merchant message\n${userText.trim()}${historyBlock}`,
       },
     ],
   });
@@ -201,7 +207,7 @@ export async function runCritic(args: {
           latest_message: userText,
           interpretation,
           plan,
-          memory: memoryLines.slice(-12),
+          memory: memoryLines.slice(-24),
           last_tool_summaries: lastToolSummaries,
         }),
       },

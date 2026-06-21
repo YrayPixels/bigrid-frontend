@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, PackageSearch, RefreshCcw, Search, ShoppingBag } from "lucide-react";
@@ -181,9 +182,14 @@ export default function AdminOrdersPage() {
               </thead>
               <tbody className="divide-y divide-border">
                 {orders.map((order) => (
-                  <tr key={order.id} className="align-top">
+                  <tr key={order.id} className="align-top hover:bg-secondary/20">
                     <td className="px-5 py-4">
-                      <div className="font-mono text-sm font-semibold">{order.order_number}</div>
+                      <Link
+                        href={`/admin/orders/${order.id}`}
+                        className="font-mono text-sm font-semibold text-primary hover:underline"
+                      >
+                        {order.order_number}
+                      </Link>
                       <div className="mt-1 text-xs capitalize text-ink-soft">
                         Payment: {order.payment_status}
                       </div>

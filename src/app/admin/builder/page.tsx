@@ -208,6 +208,21 @@ export default function AdminBuilderPage() {
     onError: (error) => toast.error(error instanceof Error ? error.message : "Could not select template"),
   });
 
+  const publishStorefront = useMutation({
+    mutationFn: () => {
+      const storeId = session?.store?.id;
+      if (!storeId) throw new Error("No store to publish");
+      return api.publishStorefront(storeId);
+    },
+    onSuccess: async (data) => {
+      queryClient.setQueryData(["store", "me"], data.store);
+      await refresh();
+      queryClient.invalidateQueries({ queryKey: ["builder-session"] });
+      toast.success(data.message);
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not publish storefront"),
+  });
+
   if (loading || !user || sessionQuery.isLoading) {
     return (
       <div className="grid min-h-[50vh] place-items-center">
@@ -227,6 +242,15 @@ export default function AdminBuilderPage() {
   const chatBusy = sendMessage.isPending || applyColor.isPending || uploadMedia.isPending || applyImage.isPending || selectTemplate.isPending;
   const hasThinkingHistory = allThinkingTurns.length > 0;
   const previewThinkingEntries = thinkingStreaming ? thinkingEntries : latestLiveEntries;
+  const publishState = session.store
+    ? {
+        status: session.store.status ?? "draft",
+        published_at: session.store.published_at ?? null,
+        is_published: session.store.is_published ?? false,
+        has_unpublished_changes:
+          session.store.has_unpublished_changes ?? !!localStorefront,
+      }
+    : null;
 
   return (
     <div className="flex h-[calc(100vh-3.5rem)] flex-col overflow-hidden px-6 py-8">
@@ -270,6 +294,9 @@ export default function AdminBuilderPage() {
         <BuilderPreviewPanel
           store={session.store}
           storefront={localStorefront}
+          publish={publishState}
+          publishing={publishStorefront.isPending}
+          onPublish={() => publishStorefront.mutate()}
           generating={sendMessage.isPending || selectTemplate.isPending}
           thinkingEntries={previewThinkingEntries}
           thinkingStreaming={thinkingStreaming}

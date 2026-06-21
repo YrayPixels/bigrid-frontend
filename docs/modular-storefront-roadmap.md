@@ -200,4 +200,20 @@ From [arch.md — Prioritized Build Backlog](./arch.md#prioritized-build-backlog
 | M Phase 3 | M Phase 2 + B1 (publish flow) |
 | M Phase 4 | B5 (component registry) foundation from M Phase 2 |
 
-**Recommended next step:** Phase B from [arch.md](./arch.md) — publish flow, component registry polish, and retiring legacy home React trees after migration verification.
+**Recommended next step:** Phase B from [arch.md](./arch.md) — component registry polish, template migration, and retiring legacy home React trees. Publish flow (B1) is implemented.
+
+---
+
+## Deferred — Draft versioning & undo/redo
+
+**Status:** Planned; not in current scope. Revisit after publish flow and visual editor polish.
+
+Merchants will eventually need to undo manual edits and recover from AI changes without republishing by accident. Intended approach (when we pick this up):
+
+| Layer | Scope | Notes |
+|-------|--------|--------|
+| **In-session undo/redo** | Visual editor (Ctrl+Z / Ctrl+Shift+Z) | Local snapshot stack; fast; lost on refresh unless saved |
+| **Draft revisions (server)** | AI edits, manual saves | `storefront_draft_revisions` table; restore API; snapshot before destructive AI ops |
+| **Revert to last published** | One-click safety | Copy `published_json` → `draft_json` (complements publish, no full history required) |
+
+**Rules when implemented:** revisions are **draft-only** — live site changes only on publish; product catalog stays out of revision blobs (same as `draft_json` / `published_json` today).

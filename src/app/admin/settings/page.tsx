@@ -1,8 +1,8 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import {
   Banknote,
   BellRing,
@@ -24,7 +24,9 @@ import {
   Zap,
   type LucideIcon,
 } from "lucide-react";
+import { toast } from "sonner";
 import { api } from "@/lib/api/client";
+import type { UpdateStoreInput } from "@/lib/api/types";
 import { INDUSTRY_OPTIONS } from "@/lib/api/types";
 import { getStorefrontUrl } from "@/lib/store-host";
 import { Badge } from "@/components/ui/badge";
@@ -138,21 +140,90 @@ function ToggleRow({
   );
 }
 
-function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
+function Field({
+  label,
+  children,
+  hint,
+  comingSoon,
+}: {
+  label: string;
+  children: ReactNode;
+  hint?: string;
+  comingSoon?: boolean;
+}) {
   return (
     <div className="space-y-2">
-      <Label>{label}</Label>
+      <div className="flex items-center gap-2">
+        <Label>{label}</Label>
+        {comingSoon ? <Badge variant="secondary">Coming soon</Badge> : null}
+      </div>
       {children}
       {hint ? <p className="text-xs text-ink-soft">{hint}</p> : null}
     </div>
   );
 }
 
+type StoreProfileForm = {
+  business_name: string;
+  description: string;
+  contact_email: string;
+  contact_phone: string;
+  brand_color: string;
+};
+
+function storeProfileFromStore(store: NonNullable<Awaited<ReturnType<typeof api.getMyStore>>>): StoreProfileForm {
+  return {
+    business_name: store.business_name,
+    description: store.description,
+    contact_email: store.contact_email ?? "",
+    contact_phone: store.contact_phone ?? "",
+    brand_color: store.brand_color,
+  };
+}
+
 export default function AdminSettingsPage() {
+  const queryClient = useQueryClient();
   const storeQuery = useQuery({
     queryKey: ["store", "me"],
     queryFn: () => api.getMyStore(),
   });
+  const [storeForm, setStoreForm] = useState<StoreProfileForm | null>(null);
+
+  useEffect(() => {
+    if (storeQuery.data) {
+      setStoreForm(storeProfileFromStore(storeQuery.data));
+    }
+  }, [storeQuery.data]);
+
+  const saveStoreProfile = useMutation({
+    mutationFn: (body: UpdateStoreInput) => api.updateMyStore(body),
+    onSuccess: (store) => {
+      queryClient.setQueryData(["store", "me"], store);
+      setStoreForm(storeProfileFromStore(store));
+      toast.success("Store settings saved.");
+    },
+    onError: (error) =>
+      toast.error(error instanceof Error ? error.message : "Could not save store settings"),
+  });
+
+  async function handleStoreProfileSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!storeForm) return;
+
+    const businessName = storeForm.business_name.trim();
+    if (!businessName) {
+      toast.error("Business name is required.");
+      return;
+    }
+
+    await saveStoreProfile.mutateAsync({
+      business_name: businessName,
+      description: storeForm.description.trim(),
+      contact_email: storeForm.contact_email.trim() || null,
+      contact_phone: storeForm.contact_phone.trim() || null,
+      brand_color: storeForm.brand_color,
+    });
+  }
 
   if (storeQuery.isLoading) {
     return (
@@ -217,7 +288,7 @@ export default function AdminSettingsPage() {
             />
           </section>
 
-          <Tabs defaultValue="billing" className="mt-8">
+          <Tabs defaultValue="store" className="mt-8">
             <TabsList className="h-auto flex-wrap justify-start gap-1 bg-card p-1 shadow-soft">
               <TabsTrigger value="billing">Plan & SMS</TabsTrigger>
               <TabsTrigger value="payouts">Payouts</TabsTrigger>
@@ -443,58 +514,119 @@ export default function AdminSettingsPage() {
                     content.
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="grid gap-5 lg:grid-cols-2">
-                  <Field label="Business name">
-                    <Input defaultValue={store.business_name} />
-                  </Field>
-                  <Field label="Industry">
-                    <select
-                      defaultValue={store.industry}
-                      className="h-10 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+                <CardContent>
+                  {storeForm ? (
+                    <form
+                      className="grid gap-5 lg:grid-cols-2"
+                      onSubmit={handleStoreProfileSubmit}
                     >
-                      {INDUSTRY_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-                  <Field label="Store slug" hint="This controls your Storehaus storefront URL.">
-                    <Input defaultValue={store.slug} />
-                  </Field>
-                  <Field label="Custom domain">
-                    <Input
-                      defaultValue={store.primary_domain ?? ""}
-                      placeholder="shop.yourdomain.com"
-                    />
-                  </Field>
-                  <Field label="Brand color">
-                    <div className="flex gap-3">
-                      <Input
-                        type="color"
-                        defaultValue={store.brand_color}
-                        className="h-10 w-16 p-1"
-                      />
-                      <Input defaultValue={store.brand_color} />
-                    </div>
-                  </Field>
-                  <Field label="Support phone">
-                    <Input placeholder="+234 800 000 0000" />
-                  </Field>
-                  <div className="lg:col-span-2">
-                    <Field label="Store description">
-                      <Textarea defaultValue={store.description} className="min-h-28" />
-                    </Field>
-                  </div>
-                  <div className="lg:col-span-2 flex flex-wrap gap-3">
-                    <Button>
-                      <Save className="mr-2 h-4 w-4" />
-                      Save store settings
-                    </Button>
-                    <Button asChild variant="outline">
-                      <Link href="/admin/website">Open website editor</Link>
-                    </Button>
-                  </div>
+                      <Field label="Business name">
+                        <Input
+                          value={storeForm.business_name}
+                          onChange={(event) =>
+                            setStoreForm((current) =>
+                              current ? { ...current, business_name: event.target.value } : current,
+                            )
+                          }
+                          required
+                        />
+                      </Field>
+                      <Field label="Industry" comingSoon>
+                        <select
+                          defaultValue={store.industry}
+                          disabled
+                          className="h-10 w-full rounded-md border border-input bg-muted/40 px-3 text-sm text-ink-soft"
+                        >
+                          {INDUSTRY_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+                      <Field label="Store slug" hint="This controls your Storehaus storefront URL." comingSoon>
+                        <Input defaultValue={store.slug} disabled />
+                      </Field>
+                      <Field label="Custom domain" comingSoon>
+                        <Input
+                          defaultValue={store.primary_domain ?? ""}
+                          placeholder="shop.yourdomain.com"
+                          disabled
+                        />
+                      </Field>
+                      <Field label="Brand color">
+                        <div className="flex gap-3">
+                          <Input
+                            type="color"
+                            value={storeForm.brand_color}
+                            onChange={(event) =>
+                              setStoreForm((current) =>
+                                current ? { ...current, brand_color: event.target.value } : current,
+                              )
+                            }
+                            className="h-10 w-16 p-1"
+                          />
+                          <Input
+                            value={storeForm.brand_color}
+                            onChange={(event) =>
+                              setStoreForm((current) =>
+                                current ? { ...current, brand_color: event.target.value } : current,
+                              )
+                            }
+                          />
+                        </div>
+                      </Field>
+                      <Field label="Support phone">
+                        <Input
+                          value={storeForm.contact_phone}
+                          onChange={(event) =>
+                            setStoreForm((current) =>
+                              current ? { ...current, contact_phone: event.target.value } : current,
+                            )
+                          }
+                          placeholder="+234 800 000 0000"
+                        />
+                      </Field>
+                      <Field label="Contact email">
+                        <Input
+                          type="email"
+                          value={storeForm.contact_email}
+                          onChange={(event) =>
+                            setStoreForm((current) =>
+                              current ? { ...current, contact_email: event.target.value } : current,
+                            )
+                          }
+                          placeholder="hello@yourstore.com"
+                        />
+                      </Field>
+                      <div className="lg:col-span-2">
+                        <Field label="Store description">
+                          <Textarea
+                            value={storeForm.description}
+                            onChange={(event) =>
+                              setStoreForm((current) =>
+                                current ? { ...current, description: event.target.value } : current,
+                              )
+                            }
+                            className="min-h-28"
+                          />
+                        </Field>
+                      </div>
+                      <div className="lg:col-span-2 flex flex-wrap gap-3">
+                        <Button type="submit" disabled={saveStoreProfile.isPending}>
+                          {saveStoreProfile.isPending ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          ) : (
+                            <Save className="mr-2 h-4 w-4" />
+                          )}
+                          Save store settings
+                        </Button>
+                        <Button asChild variant="outline" type="button">
+                          <Link href="/admin/website">Open website editor</Link>
+                        </Button>
+                      </div>
+                    </form>
+                  ) : null}
                 </CardContent>
               </Card>
             </TabsContent>
