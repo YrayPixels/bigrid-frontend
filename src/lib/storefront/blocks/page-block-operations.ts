@@ -1,3 +1,4 @@
+import type { Store, StorefrontContent } from "@/lib/api/types";
 import { isCategoryShowcaseInstruction } from "@/lib/storefront-builder/section-scope";
 import {
   buildCategoryShowcasePropsForContext,
@@ -422,9 +423,9 @@ export function tryRegenerateSection(
 ): { storefront: StorefrontContent; changed_paths: string[]; assistant_message: string } | null {
   const lower = instruction.toLowerCase();
   const sectionRefresh =
-    /\b(redesign|regenerate|refresh|rewrite|fix|update|refined|change)\b/.test(lower) ||
+    /\b(redesign|regenerate|refresh|rewrite|fix)\b/.test(lower) ||
     (isCategoryShowcaseInstruction(instruction) &&
-      /\b(copy|images?|photos?|labels?|titles?|theme)\b/.test(lower));
+      /\b(update|refined|change|copy|images?|photos?|labels?|titles?|theme)\b/.test(lower));
   if (!sectionRefresh) return null;
   if (/\b(entire|whole|full|all)\b.*\b(site|storefront|website)\b/.test(lower)) return null;
 
