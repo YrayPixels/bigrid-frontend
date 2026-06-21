@@ -8,10 +8,12 @@ import { EditableImage } from "@/components/storefront/theme/editable-image";
 import { EditableText } from "@/components/storefront/theme/editable-text";
 import { StorefrontLink } from "@/components/storefront/theme/storefront-link";
 import { StorefrontFaqSection } from "@/components/storefront/pages/storefront-faq-section";
+import { CategoryShowcaseBlock } from "@/components/storefront/blocks/category-showcase-block";
 import { beautyTemplateImages } from "@/lib/storefront/beauty-defaults";
 import { formatMoney } from "@/lib/storefront/format";
 import { getHomepageProducts } from "@/lib/storefront/product-plugs";
 import { useCart } from "@/lib/storefront/cart-context";
+import { useStorefront } from "@/lib/storefront/store-context";
 import { useStorefrontTheme } from "@/lib/storefront/theme-context";
 
 const beautyDifference = [
@@ -19,13 +21,6 @@ const beautyDifference = [
   ["02", "Virgin textures", "Soft, full bundles selected for movement, body, and longevity."],
   ["03", "No-shed finishing", "Reinforced wefts and gentle care routines for longer wear."],
   ["04", "Ready-to-style", "Curated textures, ponytails, and kits for salon-level looks."],
-];
-
-const beautyStyleTiles = [
-  "Wefted hair & closures",
-  "Kinky curl",
-  "Blowout volume",
-  "Sleek ponytails",
 ];
 
 function BeautyProductCard({
@@ -99,6 +94,7 @@ export function BeautyHome({
   storefront: StorefrontContent;
 }) {
   const { theme, mode } = useStorefrontTheme();
+  const { categories } = useStorefront();
   const products = storefront.products ?? [];
   const { products: featuredProducts, source: productSource } = getHomepageProducts(
     storefront,
@@ -254,52 +250,7 @@ export function BeautyHome({
         </div>
       </section>
 
-      <section
-        className="px-4 py-12 text-center sm:px-6 lg:py-16"
-        style={{ backgroundColor: theme.palette.background }}
-      >
-        <div className="mx-auto max-w-5xl">
-          <h2 className="text-3xl font-bold tracking-[-0.04em]" style={{ fontFamily: "var(--font-editorial)" }}>
-            Choose your style
-          </h2>
-          <div className="mt-6 grid gap-2 sm:grid-cols-2">
-            {beautyStyleTiles.map((label, index) => (
-              <StorefrontLink
-                key={label}
-                href="/products"
-                className="group relative block aspect-[1.55] overflow-hidden"
-                style={{ backgroundColor: theme.palette.accent }}
-              >
-                <EditableImage
-                  src={beautyTemplateImages.styles[index]}
-                  alt={label}
-                  className="h-full w-full"
-                  imgClassName="object-cover transition duration-500 group-hover:scale-105"
-                />
-                <div className="absolute inset-0" style={{ backgroundColor: `${theme.palette.text}1a` }} />
-                {index === 0 ? (
-                  <div
-                    className="absolute inset-0 grid place-items-center"
-                    style={{ backgroundColor: `${theme.palette.text}73`, color: theme.palette.background }}
-                  >
-                    <div>
-                      <h3 className="text-2xl font-bold leading-none" style={{ fontFamily: "var(--font-editorial)" }}>
-                        {label}
-                      </h3>
-                      <span
-                        className="mt-3 inline-flex px-4 py-2 text-[10px] font-bold uppercase tracking-[0.12em]"
-                        style={{ backgroundColor: theme.palette.background, color: theme.palette.text }}
-                      >
-                        Shop now
-                      </span>
-                    </div>
-                  </div>
-                ) : null}
-              </StorefrontLink>
-            ))}
-          </div>
-        </div>
-      </section>
+      <CategoryShowcaseBlock storefront={storefront} categories={categories} blockId="category-showcase" />
 
       <section
         className="px-4 pb-16 text-center sm:px-6"

@@ -1,5 +1,9 @@
 import type { StorefrontContent, StorefrontTemplateId } from "@/lib/api/types";
 import { cosmeticsTemplateImages } from "@/lib/storefront/cosmetics-defaults";
+import {
+  categoryShowcaseLayoutForTemplate,
+  defaultCategoryShowcaseProps,
+} from "@/lib/storefront/blocks/category-showcase-defaults";
 import type { HeroBlockProps, StorefrontBlock } from "@/lib/storefront/blocks/types";
 
 const DEFAULT_HOME_STATS = [
@@ -107,6 +111,14 @@ function productLimitForTemplate(templateId: StorefrontTemplateId): number {
   return 4;
 }
 
+function categoryShowcaseBlock(templateId: StorefrontTemplateId): StorefrontBlock {
+  return {
+    id: "category-showcase",
+    type: "category_showcase",
+    props: defaultCategoryShowcaseProps(categoryShowcaseLayoutForTemplate(templateId)),
+  };
+}
+
 export function buildDefaultHomeBlocks(
   storefront: StorefrontContent,
   templateId: StorefrontTemplateId = storefront.template?.id ?? "classic",
@@ -123,7 +135,7 @@ export function buildDefaultHomeBlocks(
         { title: "Built for trust", body: "Clear messaging and a simple shopping experience." },
       ];
 
-  return [
+  const blocks: StorefrontBlock[] = [
     {
       id: "hero-main",
       type: "hero",
@@ -145,6 +157,13 @@ export function buildDefaultHomeBlocks(
         items: valueProps.slice(0, 3),
       },
     },
+  ];
+
+  if (templateId === "fashion_lookbook" || templateId === "beauty") {
+    blocks.push(categoryShowcaseBlock(templateId));
+  }
+
+  blocks.push(
     {
       id: "featured-products",
       type: "product_grid",
@@ -161,12 +180,36 @@ export function buildDefaultHomeBlocks(
         items: storefront.pages?.faq?.items ?? [],
       },
     },
-  ];
+  );
+
+  return blocks;
+}
+
+function ensureCategoryShowcaseBlock(
+  blocks: StorefrontBlock[],
+  storefront: StorefrontContent,
+): StorefrontBlock[] {
+  const templateId = storefront.template?.id ?? "classic";
+  if (templateId !== "fashion_lookbook" && templateId !== "beauty") return blocks;
+  if (blocks.some((block) => block.type === "category_showcase")) return blocks;
+
+  const categoryBlock = categoryShowcaseBlock(templateId);
+  const trustIndex = blocks.findIndex((block) => block.id === "trust-features");
+  if (trustIndex >= 0) {
+    return [...blocks.slice(0, trustIndex + 1), categoryBlock, ...blocks.slice(trustIndex + 1)];
+  }
+
+  const heroIndex = blocks.findIndex((block) => block.id === "hero-main");
+  if (heroIndex >= 0) {
+    return [...blocks.slice(0, heroIndex + 1), categoryBlock, ...blocks.slice(heroIndex + 1)];
+  }
+
+  return [categoryBlock, ...blocks];
 }
 
 export function migrateHomeBlocks(storefront: StorefrontContent): StorefrontBlock[] {
   const existing = storefront.pages?.home?.blocks;
-  if (existing?.length) return existing;
+  if (existing?.length) return ensureCategoryShowcaseBlock(existing, storefront);
 
   const templateId = storefront.template?.id ?? "classic";
   if (templateId === "cosmetics") {

@@ -2,15 +2,17 @@
 
 import Link from "next/link";
 import { StorefrontLink } from "@/components/storefront/theme/storefront-link";
-import { ArrowRight, BadgeCheck, RotateCcw, ShieldCheck, Truck } from "lucide-react";
+import { BadgeCheck, RotateCcw, ShieldCheck, Truck } from "lucide-react";
 import type { CSSProperties } from "react";
 import type { Store, StorefrontContent } from "@/lib/api/types";
 import { EditableImage } from "@/components/storefront/theme/editable-image";
 import { EditableText } from "@/components/storefront/theme/editable-text";
 import { StorefrontFaqSection } from "@/components/storefront/pages/storefront-faq-section";
+import { CategoryShowcaseBlock } from "@/components/storefront/blocks/category-showcase-block";
 import { useStorefrontTheme } from "@/lib/storefront/theme-context";
+import { useStorefront } from "@/lib/storefront/store-context";
 import { formatMoney } from "@/lib/storefront/format";
-import { fashionCategories, fashionTemplateImages } from "@/lib/storefront/fashion-defaults";
+import { fashionTemplateImages } from "@/lib/storefront/fashion-defaults";
 import { getHomepageProducts } from "@/lib/storefront/product-plugs";
 
 function FashionImageCard({
@@ -52,6 +54,7 @@ export function FashionLookbookHome({
   storefront: StorefrontContent;
 }) {
   const { theme, mode } = useStorefrontTheme();
+  const { categories } = useStorefront();
   const products = storefront.products ?? [];
   const featureIcons = [ShieldCheck, BadgeCheck, RotateCcw, Truck];
   const { products: featuredProducts, source: productSource } = getHomepageProducts(
@@ -145,53 +148,11 @@ export function FashionLookbookHome({
         </div>
       </section>
 
-      <section
-        className="px-4 py-16 text-center sm:px-6 lg:py-20"
-        style={{ backgroundColor: theme.palette.background }}
-      >
-        <p
-          className="text-[11px] font-medium tracking-[0.18em]"
-          style={{ color: theme.palette.muted }}
-        >
-          Minimal. Comfortable. Timeless.
-        </p>
-        <h2
-          className="mt-3 text-4xl font-bold tracking-[-0.04em]"
-          style={{ fontFamily: "var(--font-editorial)" }}
-        >
-          Shop the Essentials
-        </h2>
-        <div className="mx-auto mt-10 grid max-w-7xl gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {fashionCategories.map((category, index) => {
-            const inner = (
-              <>
-                <FashionImageCard
-                  imageUrl={storefront.media?.category_images?.[index] ?? category.image}
-                  imagePath={`media.category_images.${index}`}
-                  alt={`${category.title} category`}
-                  className="aspect-[4/5]"
-                />
-                <div
-                  className="mx-auto mt-3 flex w-fit items-center justify-center gap-2 border-b pb-0.5 text-lg font-bold leading-none"
-                  style={{ borderColor: theme.palette.text, fontFamily: "var(--font-editorial)" }}
-                >
-                  {category.title}
-                  <ArrowRight className="h-4 w-4" />
-                </div>
-              </>
-            );
-            return mode === "edit" ? (
-              <div key={category.title} className="text-left">
-                {inner}
-              </div>
-            ) : (
-              <Link key={category.title} href="/products" className="group text-left">
-                {inner}
-              </Link>
-            );
-          })}
-        </div>
-      </section>
+      <CategoryShowcaseBlock
+        storefront={storefront}
+        categories={categories}
+        blockId="category-showcase"
+      />
 
       <section
         className="px-4 py-16 text-center sm:px-6 lg:py-20"

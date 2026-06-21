@@ -1,4 +1,5 @@
 import { BUILDER_HISTORY_SNIPPET_MAX_CHARS } from "@/lib/storefront-builder/chat-history";
+import { remainingPlannedTools } from "@/lib/storefront-builder/section-scope";
 import type { WebsiteBuilderToolDef } from "./types";
 import { getAssistantMessageContent, getThinkingModel, postChat } from "./openaiChat";
 import {
@@ -189,8 +190,16 @@ export async function runCritic(args: {
   plan: PlannerResult;
   memoryLines: string[];
   lastToolSummaries: string[];
+  completedToolNames?: string[];
 }): Promise<CriticResult> {
-  const { userText, interpretation, plan, memoryLines, lastToolSummaries } = args;
+  const { userText, interpretation, plan, memoryLines, lastToolSummaries, completedToolNames = [] } = args;
+  const pendingTools = remainingPlannedTools(plan.plan_steps, completedToolNames);
+  if (pendingTools.length > 0) {
+    return {
+      status: "CONTINUE",
+      reason: `Planned tools still pending: ${pendingTools.join(", ")}`,
+    };
+  }
 
   const data = await postChat({
     model: getThinkingModel(),
@@ -207,6 +216,8 @@ export async function runCritic(args: {
           latest_message: userText,
           interpretation,
           plan,
+          completed_tool_names: completedToolNames,
+          pending_plan_tools: pendingTools,
           memory: memoryLines.slice(-24),
           last_tool_summaries: lastToolSummaries,
         }),

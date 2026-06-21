@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import type {
   Store,
   StorefrontColorPalette,
@@ -65,6 +66,11 @@ export function StorefrontEditorCanvas({
     [store, brandColor, templateId],
   );
 
+  const categoriesQuery = useQuery({
+    queryKey: ["categories", store.id],
+    queryFn: () => api.getCategories(),
+  });
+
   const previewData = useMemo(
     () => ({
       store: previewStore,
@@ -72,9 +78,10 @@ export function StorefrontEditorCanvas({
         applyTemplateToDraft(draft, templateId, palette),
         previewStore,
       ),
+      categories: categoriesQuery.data ?? [],
       generation_id: null,
     }),
-    [previewStore, draft, templateId, palette],
+    [previewStore, draft, templateId, palette, categoriesQuery.data],
   );
 
   const theme = getStorefrontTheme(templateId, brandColor, palette);

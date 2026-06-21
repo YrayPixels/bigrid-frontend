@@ -27,10 +27,12 @@ export const BUILDER_TOOL_DECISION_RULES = [
   "No draft yet + build/go ahead: design_website if needed, then generate_website.",
   "Draft exists + new design, different look, switch shop type, or need something else: switch_design with the merchant's full description.",
   "Draft exists + color or palette only: apply_brand_color — updates the full palette (primary, accent, background, surface, text, muted, border), never switch_design or refine_website_copy.",
-  "Draft exists + copy/headline/about/FAQ/SEO edits: refine_website_copy.",
+  "Draft exists + copy/headline/about/FAQ/SEO edits, or updates to ONE page/section (Essentials, category showcase, hero, about): refine_website_copy.",
   "Draft exists + stock photos (quick template defaults): apply_stock_images.",
   "Draft exists + find/source photo ideas, brand-matched images, or what photos to use: source_website_images.",
-  "Draft exists + replace all placeholder photos across homepage, about, and products: replace_template_images.",
+  "Draft exists + replace ALL placeholder photos across the entire website: replace_template_images with scope full_site only.",
+  "Draft exists + replace photos on ONE section only (Essentials/category showcase, homepage hero, about, product grid): replace_template_images with the matching scope — never full_site unless the merchant asked for the whole website.",
+  "Essentials, Shop the Essentials, and category showcase mean the homepage category-showcase section — not the whole site.",
   "When generating a website or switching design, photos are auto-sourced — use replace_template_images only if the merchant asks to refresh photos again.",
   "Draft exists + add products: guide_add_products.",
   "Call exactly the tool(s) needed — prefer one focused tool per request.",
@@ -52,6 +54,7 @@ export const BUILDER_INTERPRETER_SYSTEM_PROMPT =
   "You are the Interpreter agent for StoreHause website builder.\n" +
   "Read the merchant message and restate what must happen to build or refine their website.\n" +
   "Focus on business goals and copy changes — not technical implementation.\n" +
+  "If they name a specific page or section (Essentials, category showcase, hero, about, products page), treat it as scoped work — not a whole-site rebuild.\n" +
   "Never mention templates, themes, or internal design systems.\n\n" +
   "Return ONLY valid JSON with keys:\n" +
   '- "task_summary": string\n' +
@@ -62,7 +65,9 @@ export const BUILDER_PLANNER_SYSTEM_PROMPT_PREFIX =
   "You are the Planner agent for StoreHause website builder.\n" +
   "Turn the interpreter output into a short plan for building or refining the merchant website.\n" +
   "Plan step descriptions must use plain language a shop owner understands.\n" +
-  "Speak in terms of websites, pages, copy, and brand — never templates.\n\n" +
+  "Speak in terms of websites, pages, copy, and brand — never templates.\n" +
+  "When the merchant scoped work to one page or section, every step must stay within that scope.\n" +
+  "Do not assign replace_template_images for section-only requests — use refine_website_copy for copy and replace_template_images with a section scope for images.\n\n" +
   "Return ONLY valid JSON with keys:\n" +
   '- "intent": string\n' +
   '- "plan_steps": array of { "step": number, "description": string, "tools": string[] }\n' +
@@ -71,7 +76,8 @@ export const BUILDER_PLANNER_SYSTEM_PROMPT_PREFIX =
 export const BUILDER_CRITIC_SYSTEM_PROMPT =
   "You are the Critic agent for StoreHause website builder.\n" +
   "After the Executor ran tools, decide whether to continue, finish, or ask the merchant a question.\n" +
-  "Prefer DONE when a website was generated or copy was refined and a warm merchant reply is ready.\n" +
+  "If the planner listed multiple tools and some have not run yet, return CONTINUE until each planned tool has executed.\n" +
+  "Prefer DONE only when every planned tool step is complete, or when a single-tool request is fully satisfied.\n" +
   "Use NEED_USER only when one missing detail blocks progress.\n\n" +
   'Return ONLY valid JSON: { "status": "CONTINUE" | "DONE" | "NEED_USER", "reason": string }';
 
@@ -86,6 +92,7 @@ export const BUILDER_EDITOR_HOME_SECTIONS =
   '- about-spotlight: title, body, badges — or about.title / about.body / value_props[N].title / value_props[N].body\n' +
   '- serum-promo: title, body, bullets[], cta_label — or pages.home.blocks.serum-promo.props.*\n' +
   '- trust-features: title, body, items[{title,body}] — or pages.home.blocks.trust-features.props.*\n' +
+  '- category-showcase: title, eyebrow, layout, items[{label,image_url,category_id,cta_label}] — also called "Essentials" or "Shop the Essentials"\n' +
   "- testimonials: home_testimonials_title, home_testimonials_intro, home_testimonials[N].quote, home_testimonials[N].author\n" +
   "- homepage FAQ preview: pages.faq.title and pages.faq.items[N].question / answer\n" +
   'Example update_block: {"op":"update_block","page":"home","block_id":"serum-promo","props":{"title":"Glow Serums","bullets":["...","..."]}}';
@@ -102,11 +109,11 @@ export const BUILDER_EDITOR_SYSTEM_PROMPT =
   '- regenerate_section: {"op":"regenerate_section","page":"...","block_id":"..."} when redesigning/refreshing/fixing a whole section\n' +
   '- reorder_blocks: {"op":"reorder_blocks","page":"home","order":["hero-main","..."]}\n' +
   '- remove_block: {"op":"remove_block","page":"...","block_id":"..."} — never remove hero-main, about-main, contact-form, or faq-main\n' +
-  "Block types: hero, stats_row, rich_text, feature_grid, cta_banner, product_grid, faq, contact_form.\n" +
-  "Common home block ids: hero-main, home-stats, about-spotlight, serum-promo, trust-features, home-faq.\n" +
+  "Block types: hero, stats_row, rich_text, feature_grid, cta_banner, product_grid, category_showcase, faq, contact_form.\n" +
+  "Common home block ids: hero-main, home-stats, about-spotlight, serum-promo, trust-features, category-showcase, home-faq.\n" +
   "Respect edit_metadata.locked on blocks.\n" +
   "If the merchant asks to remove placeholder or test header text, replace hero.headline with on-brand copy using the business name and industry tone from context.\n" +
-  "If the merchant asks to update stats, testimonials, serum promo, why choose us, or hero eyebrow, apply the matching paths or update_block props above.\n" +
+  "If the merchant asks to update, refresh, or improve a named section (Essentials, category showcase, hero, about, products page), change only that section — not the whole website.\n" +
   "If the merchant asks to update, refresh, or improve FAQ questions or answers without specifics, rewrite all FAQ items tailored to their business.\n" +
   "Never append filler like 'Updated to match your request.' — rewrite copy cleanly.\n" +
   "Do not change products, palette, template, or unrelated fields.\n" +

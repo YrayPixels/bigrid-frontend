@@ -1,5 +1,9 @@
 import type { StorefrontContent } from "@/lib/api/types";
 import { cosmeticsTemplateImages } from "@/lib/storefront/cosmetics-defaults";
+import {
+  categoryShowcaseLayoutForTemplate,
+  defaultCategoryShowcaseProps,
+} from "@/lib/storefront/blocks/category-showcase-defaults";
 import type { StorefrontBlock, StorefrontBlockType } from "@/lib/storefront/blocks/types";
 
 export const MAX_HOME_BLOCKS = 12;
@@ -12,6 +16,7 @@ const ADDABLE_HOME_BLOCK_TYPES: StorefrontBlockType[] = [
   "cta_banner",
   "feature_grid",
   "product_grid",
+  "category_showcase",
   "faq",
 ];
 
@@ -22,6 +27,7 @@ const BLOCK_ID_PREFIX: Record<StorefrontBlockType, string> = {
   cta_banner: "promo-banner",
   feature_grid: "feature-grid",
   product_grid: "featured-products",
+  category_showcase: "category-showcase",
   faq: "home-faq",
   contact_form: "contact-form",
 };
@@ -104,6 +110,10 @@ export function defaultHomeBlockProps(
         title: "Shop the line",
         limit: 4,
       };
+    case "category_showcase":
+      return defaultCategoryShowcaseProps(
+        categoryShowcaseLayoutForTemplate(storefront.template?.id ?? "classic"),
+      );
     case "faq":
       return {
         title: storefront.pages?.faq?.title ?? "Frequently asked questions",
@@ -163,6 +173,11 @@ export function resolveBlockTypeFromInstruction(instruction: string): Storefront
   if (/\b(products?|shop)\b.*\b(section|grid|area)\b/.test(lower) || /\b(product grid|shop section)\b/.test(lower)) {
     return "product_grid";
   }
+  if (
+    /\b(categor(y|ies)|essentials|shop by|style tiles?|choose your style|shop the essentials)\b/.test(lower)
+  ) {
+    return "category_showcase";
+  }
   if (/\bfaq\b|\bquestions\b/.test(lower)) return "faq";
   if (/\b(about|spotlight|story)\b/.test(lower)) return "rich_text";
 
@@ -193,6 +208,9 @@ export function resolveRemoveBlockId(instruction: string, blocks: StorefrontBloc
   if (/\b(products?|shop)\b/.test(lower) && /\b(section|grid|area|line)\b/.test(lower)) {
     return blocks.find((block) => block.type === "product_grid")?.id ?? "featured-products";
   }
+  if (/\b(categor(y|ies)|essentials|style tiles?)\b/.test(lower)) {
+    return blocks.find((block) => block.type === "category_showcase")?.id ?? "category-showcase";
+  }
   if (/\bfaq\b|\bquestions\b/.test(lower)) return "home-faq";
   if (/\b(trust|feature|highlight|testimonial)\b/.test(lower)) return "trust-features";
   if (/\b(about|spotlight)\b/.test(lower)) return "about-spotlight";
@@ -211,6 +229,7 @@ export function blockTypeLabel(type: StorefrontBlockType): string {
     cta_banner: "promo banner",
     feature_grid: "trust highlights",
     product_grid: "product section",
+    category_showcase: "category showcase",
     faq: "FAQ section",
     contact_form: "contact form",
   };

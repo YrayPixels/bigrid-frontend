@@ -9,6 +9,9 @@ import type {
   MerchantDashboardOverview,
   RecommendStorefrontTemplatesInput,
   Store,
+  StoreCategory,
+  CreateCategoryInput,
+  UpdateCategoryInput,
   StoreOrder,
   StoreOrdersResponse,
   StoreOrderStatus,
@@ -412,6 +415,39 @@ export const api = {
     if (USE_MOCKS) return mockApi.getProducts(requireToken());
     const res = await http<{ data: StoreProduct[] }>(`${STOREHAUSE_API_PREFIX}/products`);
     return res.data;
+  },
+
+  async getCategories(): Promise<StoreCategory[]> {
+    requireToken();
+    if (USE_MOCKS) return mockApi.getCategories(requireToken());
+    const res = await http<{ data: StoreCategory[] }>(`${STOREHAUSE_API_PREFIX}/categories`);
+    return res.data;
+  },
+
+  async createCategory(body: CreateCategoryInput): Promise<StoreCategory> {
+    requireToken();
+    if (USE_MOCKS) return mockApi.createCategory(requireToken(), body);
+    const res = await http<{ category: StoreCategory }>(`${STOREHAUSE_API_PREFIX}/categories`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+    return res.category;
+  },
+
+  async updateCategory(categoryId: string, body: UpdateCategoryInput): Promise<StoreCategory> {
+    requireToken();
+    if (USE_MOCKS) return mockApi.updateCategory(requireToken(), categoryId, body);
+    const res = await http<{ category: StoreCategory }>(
+      `${STOREHAUSE_API_PREFIX}/categories/${categoryId}`,
+      { method: "PATCH", body: JSON.stringify(body) },
+    );
+    return res.category;
+  },
+
+  async deleteCategory(categoryId: string): Promise<void> {
+    requireToken();
+    if (USE_MOCKS) return mockApi.deleteCategory(requireToken(), categoryId);
+    await http(`${STOREHAUSE_API_PREFIX}/categories/${categoryId}`, { method: "DELETE" });
   },
 
   async createProduct(body: Omit<StoreProduct, "id"> & { id?: string }): Promise<StoreProduct> {

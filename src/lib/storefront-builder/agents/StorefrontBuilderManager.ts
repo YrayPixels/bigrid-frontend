@@ -29,6 +29,7 @@ import type { AgentActivityPayload, AgentThinkingLogEntry, WebsiteBuilderContext
 import { createThinkingLogEntry } from "./thinking-log";
 import { aiSuggestedActions, colorPresetActions } from "@/lib/storefront-builder/suggested-actions";
 import { formatBuilderHistorySnippet } from "@/lib/storefront-builder/chat-history";
+import { sectionScopeHint } from "@/lib/storefront-builder/section-scope";
 
 type AssistantToolCall = {
   id: string;
@@ -110,6 +111,7 @@ export class StorefrontBuilderManager {
 
     const toolDefs = websiteBuilderToolsForSession(session);
     const historySnippet = formatBuilderHistorySnippet(history ?? []);
+    const scopeHint = sectionScopeHint(message);
 
     this.log({
       agent: "Interpreter",
@@ -195,6 +197,7 @@ export class StorefrontBuilderManager {
           BUILDER_EXECUTOR_SYSTEM_PROMPT +
           "\n\n" +
           formatThinkingContext(interpretation, plan) +
+          (scopeHint ? `\n\n### Scope\n${scopeHint}\n` : "") +
           (session.storefront_snapshot
             ? "\n\n### Session state\nA website draft already exists in the preview. Choose the single best tool for this message — do not guess or reply without calling a tool when an action is requested.\n" +
               `Enabled tools: ${toolDefs.map((tool) => tool.name).join(", ")}`
@@ -319,6 +322,7 @@ export class StorefrontBuilderManager {
         plan,
         memoryLines: memory,
         lastToolSummaries,
+        completedToolNames: toolCallsLog.map((call) => call.name),
       }).catch(() => ({ status: "DONE" as const, reason: "fallback" }));
 
       criticStatus = critic.status;

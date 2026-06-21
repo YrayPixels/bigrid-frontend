@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   LogOut,
   MessageSquare,
+  FolderTree,
   Package,
   Settings,
   ShoppingBag,
@@ -33,6 +34,7 @@ const navItems = [
   { href: "/admin/builder", label: "Website Builder", icon: MessageSquare, exact: false },
   { href: "/admin/website", label: "Website", icon: Sparkles, exact: false },
   { href: "/admin/products", label: "Products", icon: Package, exact: false },
+  { href: "/admin/categories", label: "Categories", icon: FolderTree, exact: false },
   { href: "/admin/orders", label: "Orders", icon: ShoppingBag, exact: false },
   { href: "/admin/settings", label: "Settings", icon: Settings, exact: false },
 ];

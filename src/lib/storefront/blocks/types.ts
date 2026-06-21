@@ -5,8 +5,27 @@ export type StorefrontBlockType =
   | "feature_grid"
   | "cta_banner"
   | "product_grid"
+  | "category_showcase"
   | "faq"
   | "contact_form";
+
+export type CategoryShowcaseLayout = "editorial_grid" | "style_tiles" | "compact_grid";
+
+export type CategoryShowcaseItem = {
+  label: string;
+  category_id?: string | null;
+  category_slug?: string | null;
+  image_url?: string | null;
+  href?: string | null;
+  cta_label?: string | null;
+};
+
+export type CategoryShowcaseBlockProps = {
+  title: string;
+  eyebrow?: string;
+  layout?: CategoryShowcaseLayout;
+  items: CategoryShowcaseItem[];
+};
 
 export type StorefrontContentPageSlug = "home" | "about" | "contact" | "faq";
 

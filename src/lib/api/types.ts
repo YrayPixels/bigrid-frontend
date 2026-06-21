@@ -135,12 +135,37 @@ export type StoreProduct = {
   image_url: string | null;
   sku?: string;
   category?: string;
+  category_id?: string | null;
   stock_quantity?: number;
   status?: "active" | "draft" | "archived";
   in_stock?: boolean;
   low_stock?: boolean;
   variants?: { name: string; options: string[] }[];
   perks?: string[];
+};
+
+export type StoreCategory = {
+  id: string;
+  name: string;
+  slug: string;
+  parent_id?: string | null;
+  parent_name?: string | null;
+  sort_order?: number;
+  products_count?: number;
+};
+
+export type CreateCategoryInput = {
+  name: string;
+  slug?: string;
+  parent_id?: string | null;
+  sort_order?: number;
+};
+
+export type UpdateCategoryInput = {
+  name?: string;
+  slug?: string;
+  parent_id?: string | null;
+  sort_order?: number;
 };
 
 export type StorePageSource = "merchant" | "ai_generated" | "platform_default";
@@ -264,6 +289,7 @@ export type PublicStorefront = {
   store: Store;
   storefront: StorefrontContent;
   generation_id: string | null;
+  categories?: StoreCategory[];
 };
 
 export type StoreOrderStatus = "pending" | "processing" | "fulfilled" | "cancelled" | "refunded";

@@ -53,6 +53,24 @@ const blockPropsSchema: Record<StorefrontBlockType, z.ZodType<Record<string, unk
     title: z.string().optional(),
     limit: z.number().int().min(1).max(12).optional(),
   }),
+  category_showcase: z.object({
+    title: z.string().min(1),
+    eyebrow: z.string().optional(),
+    layout: z.enum(["editorial_grid", "style_tiles", "compact_grid"]).optional(),
+    items: z
+      .array(
+        z.object({
+          label: z.string().min(1),
+          category_id: z.string().nullable().optional(),
+          category_slug: z.string().nullable().optional(),
+          image_url: z.string().nullable().optional(),
+          href: z.string().nullable().optional(),
+          cta_label: z.string().nullable().optional(),
+        }),
+      )
+      .min(1)
+      .max(8),
+  }),
   faq: z.object({
     title: z.string().min(1),
     items: z.array(faqItemSchema).max(12),

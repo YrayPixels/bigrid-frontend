@@ -2,24 +2,27 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { ChevronDown, Star, X } from "lucide-react";
 import { toast } from "sonner";
-import type { StoreProduct } from "@/lib/api/types";
+import type { StoreCategory, StoreProduct } from "@/lib/api/types";
 import { useCart } from "@/lib/storefront/cart-context";
 import { useStorefront } from "@/lib/storefront/store-context";
+import {
+  categoryLabel,
+  productMatchesCategoryFilter,
+  resolveStorefrontFilterCategories,
+} from "@/lib/storefront/category-filters";
 import { PageContainer } from "@/components/storefront/theme/page-container";
 import { PageTitle } from "@/components/storefront/theme/page-title";
 import { ProductCardThemed } from "@/components/storefront/theme/product-card-themed";
 import { useStorefrontTheme } from "@/lib/storefront/theme-context";
 import { EditableImage } from "@/components/storefront/theme/editable-image";
 import { formatMoney } from "@/lib/storefront/format";
-import { beautyCategories, beautyTemplateImages } from "@/lib/storefront/beauty-defaults";
-import { cosmeticsCategories, cosmeticsTemplateImages } from "@/lib/storefront/cosmetics-defaults";
-import { fashionCategories, fashionTemplateImages } from "@/lib/storefront/fashion-defaults";
-import {
-  minimalisticCategories,
-  minimalisticTemplateImages,
-} from "@/lib/storefront/minimalistic-defaults";
+import { beautyTemplateImages } from "@/lib/storefront/beauty-defaults";
+import { cosmeticsTemplateImages } from "@/lib/storefront/cosmetics-defaults";
+import { fashionTemplateImages } from "@/lib/storefront/fashion-defaults";
+import { minimalisticTemplateImages } from "@/lib/storefront/minimalistic-defaults";
 import { cn } from "@/lib/utils";
 
 const fashionColorOptions = [
@@ -145,22 +148,36 @@ function FashionProductsCard({
   return <Link href={`/products/${product.slug}`}>{card}</Link>;
 }
 
-function FashionProductsPage({ products }: { products: StoreProduct[] }) {
+function useInitialCategoryId(categories: StoreCategory[]): string | null {
+  const searchParams = useSearchParams();
+  const raw = searchParams.get("category_id");
+
+  return useMemo(() => {
+    if (!raw) return null;
+    return categories.some((category) => category.id === raw) ? raw : null;
+  }, [categories, raw]);
+}
+
+function FashionProductsPage({
+  products,
+  categories,
+  initialCategoryId = null,
+}: {
+  products: StoreProduct[];
+  categories: StoreCategory[];
+  initialCategoryId?: string | null;
+}) {
   const { theme, mode } = useStorefrontTheme();
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(initialCategoryId);
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSelectedCategoryId(initialCategoryId);
+  }, [initialCategoryId]);
+
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [priceLimit, setPriceLimit] = useState(0);
   const [sortBy, setSortBy] = useState<"newest" | "price-low" | "price-high">("newest");
-
-  const categories = useMemo(() => {
-    const productCategories = products
-      .map((product) => product.category)
-      .filter((category): category is string => Boolean(category));
-    return Array.from(
-      new Set([...productCategories, ...fashionCategories.map((category) => category.title)]),
-    );
-  }, [products]);
 
   const productPrices = useMemo(() => products.map((product) => product.price), [products]);
   const maxPrice = useMemo(() => Math.max(...productPrices, 0), [productPrices]);
@@ -179,7 +196,11 @@ function FashionProductsPage({ products }: { products: StoreProduct[] }) {
   const filteredProducts = useMemo(() => {
     const next = products.filter((product) => {
       const text = productSearchText(product);
-      const matchesCategory = !selectedCategory || product.category === selectedCategory;
+      const matchesCategory = productMatchesCategoryFilter(
+        product,
+        selectedCategoryId,
+        categories,
+      );
       const matchesColor = !selectedColor || text.includes(selectedColor);
       const matchesSize = !selectedSize || text.includes(selectedSize.toLowerCase());
       return matchesCategory && matchesColor && matchesSize && product.price <= priceLimit;
@@ -190,10 +211,14 @@ function FashionProductsPage({ products }: { products: StoreProduct[] }) {
       if (sortBy === "price-high") return b.price - a.price;
       return 0;
     });
-  }, [priceLimit, products, selectedCategory, selectedColor, selectedSize, sortBy]);
+  }, [categories, priceLimit, products, selectedCategoryId, selectedColor, selectedSize, sortBy]);
+
+  const selectedCategoryName = selectedCategoryId
+    ? categories.find((category) => category.id === selectedCategoryId)?.name
+    : null;
 
   const activeFilters = [
-    selectedCategory,
+    selectedCategoryName,
     selectedColor
       ? fashionColorOptions.find((color) => color.value === selectedColor)?.label
       : null,
@@ -204,7 +229,7 @@ function FashionProductsPage({ products }: { products: StoreProduct[] }) {
   ].filter((filter): filter is string => Boolean(filter));
 
   function clearFilters() {
-    setSelectedCategory(null);
+    setSelectedCategoryId(null);
     setSelectedColor(null);
     setSelectedSize(null);
     setPriceLimit(maxPrice);
@@ -240,18 +265,26 @@ function FashionProductsPage({ products }: { products: StoreProduct[] }) {
 
             <div>
               <h3 className="mb-5 text-base font-extrabold">Category</h3>
-              <div className="grid gap-3">
-                {categories.map((category) => (
-                  <FashionCheckbox
-                    key={category}
-                    label={category}
-                    checked={selectedCategory === category}
-                    onClick={() =>
-                      setSelectedCategory(selectedCategory === category ? null : category)
-                    }
-                  />
-                ))}
-              </div>
+              {categories.length ? (
+                <div className="grid gap-3">
+                  {categories.map((category) => (
+                    <FashionCheckbox
+                      key={category.id}
+                      label={categoryLabel(category)}
+                      checked={selectedCategoryId === category.id}
+                      onClick={() =>
+                        setSelectedCategoryId(
+                          selectedCategoryId === category.id ? null : category.id,
+                        )
+                      }
+                    />
+                  ))}
+                </div>
+              ) : (
+                <p className="text-[13px]" style={{ color: theme.palette.muted }}>
+                  No categories yet.
+                </p>
+              )}
             </div>
 
             <div>
@@ -422,22 +455,27 @@ function FashionProductsPage({ products }: { products: StoreProduct[] }) {
   );
 }
 
-function BeautyProductsPage({ products }: { products: StoreProduct[] }) {
+function BeautyProductsPage({
+  products,
+  categories,
+  initialCategoryId = null,
+}: {
+  products: StoreProduct[];
+  categories: StoreCategory[];
+  initialCategoryId?: string | null;
+}) {
   const { theme, mode } = useStorefrontTheme();
   const isCosmetics = theme.id === "cosmetics";
-  const [selectedCategory, setSelectedCategory] = useState("Best sellers");
-  const templateCategories = isCosmetics ? cosmeticsCategories : beautyCategories;
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(initialCategoryId);
+
+  useEffect(() => {
+    setSelectedCategoryId(initialCategoryId);
+  }, [initialCategoryId]);
+
   const templateImages = isCosmetics ? cosmeticsTemplateImages : beautyTemplateImages;
-  const categories = useMemo(() => {
-    const productCategories = products
-      .map((product) => product.category)
-      .filter((category): category is string => Boolean(category));
-    return Array.from(new Set([...templateCategories, ...productCategories]));
-  }, [products, templateCategories]);
-  const filteredProducts =
-    selectedCategory === "Best sellers"
-      ? products
-      : products.filter((product) => product.category === selectedCategory);
+  const filteredProducts = products.filter((product) =>
+    productMatchesCategoryFilter(product, selectedCategoryId, categories),
+  );
 
   return (
     <div style={{ backgroundColor: theme.palette.background, color: theme.palette.text }}>
@@ -458,13 +496,25 @@ function BeautyProductsPage({ products }: { products: StoreProduct[] }) {
       <section className="px-4 pb-14 sm:px-6 lg:pb-20">
         <div className="mx-auto max-w-7xl">
           <div className="mb-8 flex flex-wrap justify-center gap-3">
+            <button
+              type="button"
+              onClick={() => setSelectedCategoryId(null)}
+              className="rounded-full border px-4 py-2 text-xs font-semibold transition"
+              style={{
+                borderColor: !selectedCategoryId ? theme.palette.primary : theme.palette.border,
+                backgroundColor: !selectedCategoryId ? theme.palette.primary : theme.palette.surface,
+                color: !selectedCategoryId ? theme.palette.background : theme.palette.text,
+              }}
+            >
+              All products
+            </button>
             {categories.map((category) => {
-              const active = selectedCategory === category;
+              const active = selectedCategoryId === category.id;
               return (
                 <button
-                  key={category}
+                  key={category.id}
                   type="button"
-                  onClick={() => setSelectedCategory(category)}
+                  onClick={() => setSelectedCategoryId(category.id)}
                   className="rounded-full border px-4 py-2 text-xs font-semibold transition"
                   style={{
                     borderColor: active ? theme.palette.primary : theme.palette.border,
@@ -472,7 +522,7 @@ function BeautyProductsPage({ products }: { products: StoreProduct[] }) {
                     color: active ? theme.palette.background : theme.palette.text,
                   }}
                 >
-                  {category}
+                  {categoryLabel(category)}
                 </button>
               );
             })}
@@ -534,18 +584,25 @@ function BeautyProductsPage({ products }: { products: StoreProduct[] }) {
   );
 }
 
-function MinimalisticProductsPage({ products }: { products: StoreProduct[] }) {
+function MinimalisticProductsPage({
+  products,
+  categories,
+  initialCategoryId = null,
+}: {
+  products: StoreProduct[];
+  categories: StoreCategory[];
+  initialCategoryId?: string | null;
+}) {
   const { theme, mode } = useStorefrontTheme();
   const { addItem } = useCart();
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(initialCategoryId);
   const [priceLimit, setPriceLimit] = useState(0);
+
+  useEffect(() => {
+    setSelectedCategoryId(initialCategoryId);
+  }, [initialCategoryId]);
+
   const [sortBy, setSortBy] = useState<"newest" | "price-low" | "price-high">("newest");
-  const categories = useMemo(() => {
-    const productCategories = products
-      .map((product) => product.category)
-      .filter((category): category is string => Boolean(category));
-    return Array.from(new Set([...minimalisticCategories, ...productCategories]));
-  }, [products]);
   const productPrices = useMemo(() => products.map((product) => product.price), [products]);
   const maxPrice = useMemo(() => Math.max(...productPrices, 0), [productPrices]);
   const minPrice = useMemo(
@@ -562,7 +619,11 @@ function MinimalisticProductsPage({ products }: { products: StoreProduct[] }) {
 
   const filteredProducts = useMemo(() => {
     const next = products.filter((product) => {
-      const matchesCategory = !selectedCategory || product.category === selectedCategory;
+      const matchesCategory = productMatchesCategoryFilter(
+        product,
+        selectedCategoryId,
+        categories,
+      );
       const matchesPrice = !priceLimit || product.price <= priceLimit;
       return matchesCategory && matchesPrice;
     });
@@ -572,10 +633,14 @@ function MinimalisticProductsPage({ products }: { products: StoreProduct[] }) {
       if (sortBy === "price-high") return b.price - a.price;
       return 0;
     });
-  }, [priceLimit, products, selectedCategory, sortBy]);
+  }, [categories, priceLimit, products, selectedCategoryId, sortBy]);
+
+  const selectedCategoryName = selectedCategoryId
+    ? categories.find((category) => category.id === selectedCategoryId)?.name
+    : null;
 
   const activeFilters = [
-    selectedCategory,
+    selectedCategoryName,
     maxPrice > 0 && priceLimit < maxPrice
       ? `Price: ${formatMoney(minPrice, products[0]?.currency ?? "NGN")} - ${formatMoney(
           priceLimit,
@@ -590,7 +655,7 @@ function MinimalisticProductsPage({ products }: { products: StoreProduct[] }) {
   }
 
   function clearFilters() {
-    setSelectedCategory(null);
+    setSelectedCategoryId(null);
     setPriceLimit(maxPrice);
   }
 
@@ -644,17 +709,35 @@ function MinimalisticProductsPage({ products }: { products: StoreProduct[] }) {
             <div>
               <h3 className="mb-4 text-sm font-bold">Category</h3>
               <div className="grid gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedCategoryId(null)}
+                  className={cn(
+                    "flex items-center justify-between rounded-full px-4 py-2.5 text-left text-xs font-semibold transition",
+                    !selectedCategoryId ? "" : "hover:opacity-80",
+                  )}
+                  style={{
+                    backgroundColor: !selectedCategoryId
+                      ? theme.palette.primary
+                      : `${theme.palette.surface}cc`,
+                    color: !selectedCategoryId ? theme.palette.background : theme.palette.muted,
+                  }}
+                >
+                  All products
+                  {!selectedCategoryId ? (
+                    <span
+                      className="h-2 w-2 rounded-full"
+                      style={{ backgroundColor: theme.palette.background }}
+                    />
+                  ) : null}
+                </button>
                 {categories.map((category) => {
-                  const active =
-                    (category === "All Products" && !selectedCategory) ||
-                    selectedCategory === category;
+                  const active = selectedCategoryId === category.id;
                   return (
                     <button
-                      key={category}
+                      key={category.id}
                       type="button"
-                      onClick={() =>
-                        setSelectedCategory(category === "All Products" ? null : category)
-                      }
+                      onClick={() => setSelectedCategoryId(category.id)}
                       className={cn(
                         "flex items-center justify-between rounded-full px-4 py-2.5 text-left text-xs font-semibold transition",
                         active ? "" : "hover:opacity-80",
@@ -666,7 +749,7 @@ function MinimalisticProductsPage({ products }: { products: StoreProduct[] }) {
                         color: active ? theme.palette.background : theme.palette.muted,
                       }}
                     >
-                      {category}
+                      {categoryLabel(category)}
                       {active ? (
                         <span
                           className="h-2 w-2 rounded-full"
@@ -871,33 +954,106 @@ function MinimalisticProductsPage({ products }: { products: StoreProduct[] }) {
 }
 
 export function ProductsPageView() {
-  const { store, storefront } = useStorefront();
+  const { store, storefront, categories: apiCategories } = useStorefront();
   const { theme, mode } = useStorefrontTheme();
   const products = (storefront.products ?? []).filter(
     (product) => mode === "edit" || (product.status ?? "active") === "active",
   );
+  const filterCategories = useMemo(
+    () => resolveStorefrontFilterCategories(apiCategories, products),
+    [apiCategories, products],
+  );
+  const initialCategoryId = useInitialCategoryId(filterCategories);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(initialCategoryId);
+
+  useEffect(() => {
+    setSelectedCategoryId(initialCategoryId);
+  }, [initialCategoryId]);
+
+  const defaultFilteredProducts = useMemo(
+    () =>
+      products.filter((product) =>
+        productMatchesCategoryFilter(product, selectedCategoryId, filterCategories),
+      ),
+    [filterCategories, products, selectedCategoryId],
+  );
 
   if (theme.id === "fashion_lookbook") {
-    return <FashionProductsPage products={products} />;
+    return (
+      <FashionProductsPage
+        products={products}
+        categories={filterCategories}
+        initialCategoryId={initialCategoryId}
+      />
+    );
   }
 
   if (theme.id === "minimalistic") {
-    return <MinimalisticProductsPage products={products} />;
+    return (
+      <MinimalisticProductsPage
+        products={products}
+        categories={filterCategories}
+        initialCategoryId={initialCategoryId}
+      />
+    );
   }
 
   if (theme.id === "beauty") {
-    return <BeautyProductsPage products={products} />;
+    return (
+      <BeautyProductsPage
+        products={products}
+        categories={filterCategories}
+        initialCategoryId={initialCategoryId}
+      />
+    );
   }
 
   if (theme.id === "cosmetics") {
-    return <BeautyProductsPage products={products} />;
+    return (
+      <BeautyProductsPage
+        products={products}
+        categories={filterCategories}
+        initialCategoryId={initialCategoryId}
+      />
+    );
   }
 
   return (
     <PageContainer>
       <PageTitle title="Products" subtitle={`Shop the full catalog from ${store.business_name}.`} />
+      {filterCategories.length ? (
+        <div className="mt-8 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setSelectedCategoryId(null)}
+            className={cn(
+              "rounded-full border px-4 py-2 text-xs font-semibold transition",
+              !selectedCategoryId
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-border bg-background text-ink-soft hover:text-ink",
+            )}
+          >
+            All products
+          </button>
+          {filterCategories.map((category) => (
+            <button
+              key={category.id}
+              type="button"
+              onClick={() => setSelectedCategoryId(category.id)}
+              className={cn(
+                "rounded-full border px-4 py-2 text-xs font-semibold transition",
+                selectedCategoryId === category.id
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border bg-background text-ink-soft hover:text-ink",
+              )}
+            >
+              {categoryLabel(category)}
+            </button>
+          ))}
+        </div>
+      ) : null}
       <div className={`mt-10 grid gap-6 ${theme.productGridCols}`}>
-        {products.map((product, index) => (
+        {defaultFilteredProducts.map((product, index) => (
           <ProductCardThemed
             key={product.id}
             product={product}

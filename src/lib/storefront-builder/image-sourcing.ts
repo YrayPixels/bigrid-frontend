@@ -13,7 +13,15 @@ import {
   catalogForAiPrompt,
 } from "@/lib/storefront-builder/image-catalog";
 import { applyMediaToStorefront } from "@/lib/storefront-builder/local-ai";
-import { fetchTemplatePlanFromUnsplash } from "@/lib/storefront-builder/unsplash-client";
+import {
+  fetchTemplatePlanFromUnsplash,
+  formatUnsplashPhotoUrl,
+  inferUnsplashSearchPlanWithAi,
+  searchUnsplashPhotos,
+} from "@/lib/storefront-builder/unsplash-client";
+import { resolveCategoryShowcaseProps } from "@/lib/storefront/blocks/category-showcase-utils";
+import type { ImageReplaceScope } from "@/lib/storefront-builder/section-scope";
+import { describeImageScope } from "@/lib/storefront-builder/section-scope";
 
 export type SourcedImageRecommendation = {
   target: BuilderMediaTarget | "template_block" | "product";
@@ -273,6 +281,199 @@ export function applyTemplateImagesAcrossStorefront(
   ensureHomeBlocksOnStorefront(next);
 
   return { storefront: next, changed_paths: [...changedPaths] };
+}
+
+async function fetchImageUrlsForQueries(queries: string[], max: number): Promise<string[]> {
+  const urls: string[] = [];
+  const seen = new Set<string>();
+
+  for (const query of queries) {
+    if (urls.length >= max) break;
+    const results = await searchUnsplashPhotos(query, 3);
+    for (const photo of results) {
+      const url = formatUnsplashPhotoUrl(photo, 1080);
+      if (url && !seen.has(url)) {
+        seen.add(url);
+        urls.push(url);
+        break;
+      }
+    }
+  }
+
+  return urls;
+}
+
+function applyHeroImagesOnly(
+  storefront: StorefrontContent,
+  plan: TemplateImagePlan,
+): { storefront: StorefrontContent; changed_paths: string[] } {
+  const next = structuredClone(storefront);
+  const changedPaths = new Set<string>();
+  ensureHomeBlocksOnStorefront(next);
+
+  next.media = { ...next.media, hero_image_url: plan.hero_url };
+  changedPaths.add("media.hero_image_url");
+
+  const homeBlocks = migrateHomeBlocks(next).map((block) =>
+    block.type === "hero" ? patchBlockImage(block, plan.hero_url) : block,
+  );
+  next.pages = { ...next.pages, home: { blocks: homeBlocks } };
+  for (const block of homeBlocks) {
+    if (block.type === "hero") {
+      changedPaths.add(`pages.home.blocks.${block.id}.props.image_url`);
+    }
+  }
+
+  ensureHomeBlocksOnStorefront(next);
+  return { storefront: next, changed_paths: [...changedPaths] };
+}
+
+function applyAboutImagesOnly(
+  storefront: StorefrontContent,
+  plan: TemplateImagePlan,
+): { storefront: StorefrontContent; changed_paths: string[] } {
+  const next = structuredClone(storefront);
+  const changedPaths = new Set<string>();
+  ensureHomeBlocksOnStorefront(next);
+
+  next.media = { ...next.media, about_image_url: plan.about_url };
+  changedPaths.add("media.about_image_url");
+
+  const aboutBlocks = patchAboutBlocks(migrateAboutBlocks(next), plan);
+  next.pages = {
+    ...next.pages,
+    about: {
+      ...next.pages!.about!,
+      blocks: aboutBlocks,
+    },
+  };
+  for (const block of aboutBlocks) {
+    const props = block.props as { image_url?: string };
+    if (props.image_url) changedPaths.add(`pages.about.blocks.${block.id}.props.image_url`);
+  }
+
+  ensureHomeBlocksOnStorefront(next);
+  return { storefront: next, changed_paths: [...changedPaths] };
+}
+
+function applyProductImagesOnly(
+  storefront: StorefrontContent,
+  plan: TemplateImagePlan,
+): { storefront: StorefrontContent; changed_paths: string[] } {
+  const next = structuredClone(storefront);
+  const changedPaths: string[] = [];
+
+  if (!next.products?.length || !plan.product_urls.length) {
+    return { storefront: next, changed_paths: changedPaths };
+  }
+
+  next.products = next.products.map((product, index) => ({
+    ...product,
+    image_url: plan.product_urls[index % plan.product_urls.length] ?? product.image_url,
+  }));
+  next.products.forEach((_, index) => changedPaths.push(`products.${index}.image_url`));
+
+  return { storefront: next, changed_paths: changedPaths };
+}
+
+async function applyCategoryShowcaseImagesOnly(
+  storefront: StorefrontContent,
+  intent: string,
+  context: ImageSourceContext = {},
+): Promise<{ storefront: StorefrontContent; changed_paths: string[]; search_terms: string[]; summary: string }> {
+  const next = structuredClone(storefront);
+  ensureHomeBlocksOnStorefront(next);
+
+  const props = resolveCategoryShowcaseProps(next);
+  const itemCount = Math.max(props.items.length, 4);
+  const searchPlan = await inferUnsplashSearchPlanWithAi(context, intent);
+  const queries =
+    searchPlan.products.length > 0
+      ? searchPlan.products
+      : searchPlan.search_terms.length > 0
+        ? searchPlan.search_terms
+        : [intent, context.description ?? "product category"].filter(Boolean).map(String);
+
+  const urls = await fetchImageUrlsForQueries(queries, itemCount);
+  const changedPaths: string[] = [];
+  const homeBlocks = migrateHomeBlocks(next).map((block) => {
+    if (block.type !== "category_showcase" && block.id !== "category-showcase") return block;
+
+    const currentItems = resolveCategoryShowcaseProps(next, block.id).items;
+    const items = currentItems.map((item, index) => {
+      const imageUrl = urls[index % Math.max(urls.length, 1)] ?? item.image_url;
+      if (imageUrl && imageUrl !== item.image_url) {
+        changedPaths.push(`pages.home.blocks.${block.id}.props.items.${index}.image_url`);
+      }
+      return { ...item, image_url: imageUrl ?? item.image_url };
+    });
+
+    return { ...block, props: { ...(block.props as Record<string, unknown>), items } };
+  });
+
+  next.pages = { ...next.pages, home: { blocks: homeBlocks } };
+  ensureHomeBlocksOnStorefront(next);
+
+  return {
+    storefront: next,
+    changed_paths: changedPaths,
+    search_terms: searchPlan.search_terms,
+    summary: searchPlan.summary ?? `I updated photos in your ${describeImageScope("category_showcase")}.`,
+  };
+}
+
+export async function replaceScopedStorefrontImages(args: {
+  intent: string;
+  storefront: StorefrontContent;
+  scope: ImageReplaceScope;
+  context?: ImageSourceContext;
+}): Promise<{
+  storefront: StorefrontContent;
+  changed_paths: string[];
+  result: ImageSourceResult;
+}> {
+  if (args.scope === "full_site") {
+    return replaceTemplateImagesForStorefront(args);
+  }
+
+  if (args.scope === "category_showcase") {
+    const applied = await applyCategoryShowcaseImagesOnly(args.storefront, args.intent, args.context ?? {});
+    return {
+      storefront: applied.storefront,
+      changed_paths: applied.changed_paths,
+      result: {
+        recommendations: applied.changed_paths.map((path, index) => ({
+          target: "template_block" as const,
+          url: "",
+          label: `Category image ${index + 1}`,
+          reason: describeImageScope("category_showcase"),
+          path,
+        })),
+        search_terms: applied.search_terms,
+        source_links: buildImageSearchLinks(applied.search_terms),
+        summary: applied.summary,
+      },
+    };
+  }
+
+  const { plan, summary, search_terms } = await resolveTemplateImagePlan(args.intent, args.context ?? {});
+  const applied =
+    args.scope === "hero"
+      ? applyHeroImagesOnly(args.storefront, plan)
+      : args.scope === "about"
+        ? applyAboutImagesOnly(args.storefront, plan)
+        : applyProductImagesOnly(args.storefront, plan);
+
+  return {
+    storefront: applied.storefront,
+    changed_paths: applied.changed_paths,
+    result: {
+      recommendations: [],
+      search_terms,
+      source_links: buildImageSearchLinks(search_terms),
+      summary: summary.replace(/homepage, about section, and products/i, describeImageScope(args.scope)),
+    },
+  };
 }
 
 function planToRecommendations(plan: TemplateImagePlan): SourcedImageRecommendation[] {

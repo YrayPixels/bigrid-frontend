@@ -23,6 +23,12 @@ export const PROMPT_INDEXED_STOREFRONT_PATHS = [
   "pages.home.blocks.trust-features.props.body",
   "pages.home.blocks.trust-features.props.items[N].title",
   "pages.home.blocks.trust-features.props.items[N].body",
+  "pages.home.blocks.category-showcase.props.title",
+  "pages.home.blocks.category-showcase.props.eyebrow",
+  "pages.home.blocks.category-showcase.props.items[N].label",
+  "pages.home.blocks.category-showcase.props.items[N].image_url",
+  "pages.home.blocks.category-showcase.props.items[N].category_id",
+  "pages.home.blocks.category-showcase.props.items[N].cta_label",
 ] as const;
 
 export function promptAllowedStorefrontPaths(): string[] {
@@ -131,6 +137,7 @@ export function storefrontPathLabel(path: string): string {
       "serum-promo": "promo banner",
       "trust-features": "trust highlights",
       "featured-products": "product section",
+      "category-showcase": "category showcase",
       "home-faq": "homepage FAQ",
     };
     return labels[homeBlock[1]] ?? "homepage section";
@@ -142,6 +149,7 @@ export function storefrontPathLabel(path: string): string {
       "hero-main": "homepage hero",
       "serum-promo": "serum promo",
       "trust-features": "why choose us",
+      "category-showcase": "category showcase",
     };
     const section = blockLabels[homeBlockProp[1]] ?? "homepage section";
     const prop = homeBlockProp[2].replace(/\.\d+/g, "");

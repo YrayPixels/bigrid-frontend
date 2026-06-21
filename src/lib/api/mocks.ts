@@ -33,6 +33,9 @@ import type {
   PublicStorefront,
   RecommendStorefrontTemplatesInput,
   Store,
+  StoreCategory,
+  CreateCategoryInput,
+  UpdateCategoryInput,
   StoreOrder,
   StoreOrdersResponse,
   StoreOrderStatus,
@@ -57,6 +60,7 @@ type MockDB = {
   storefronts: Record<string, StorefrontContent>;
   publishedStorefronts: Record<string, StorefrontContent>;
   products: Record<string, StoreProduct[]>;
+  categories: Record<string, StoreCategory[]>;
   orders: Record<string, StoreOrder[]>;
   visits: Record<
     string,
@@ -77,6 +81,7 @@ function emptyDb(): MockDB {
     storefronts: {},
     publishedStorefronts: {},
     products: {},
+    categories: {},
     orders: {},
     visits: {},
     sessions: {},
@@ -96,6 +101,7 @@ function load(): MockDB {
       storefronts: db.storefronts ?? {},
       publishedStorefronts: db.publishedStorefronts ?? {},
       products: db.products ?? {},
+      categories: db.categories ?? {},
       orders: db.orders ?? {},
       visits: db.visits ?? {},
       sessions: db.sessions ?? {},
@@ -118,6 +124,60 @@ function findStoreForToken(token: string): { db: MockDB; store: Store } {
   const store = db.stores[userId];
   if (!store) throw { status: 404, message: "Store not found" };
   return { db, store };
+}
+
+function formatCategory(db: MockDB, storeId: string, category: StoreCategory): StoreCategory {
+  const products = db.products[storeId] ?? [];
+  const parent = category.parent_id
+    ? (db.categories[storeId] ?? []).find((entry) => entry.id === category.parent_id)
+    : null;
+
+  return {
+    ...category,
+    parent_name: parent?.name ?? null,
+    products_count: products.filter((product) => product.category_id === category.id).length,
+  };
+}
+
+function resolveMockProductCategory(
+  db: MockDB,
+  storeId: string,
+  body: Partial<StoreProduct>,
+): Partial<StoreProduct> {
+  if (body.category_id !== undefined) {
+    if (!body.category_id) {
+      return { category_id: null, category: undefined };
+    }
+
+    const category = (db.categories[storeId] ?? []).find((entry) => entry.id === body.category_id);
+    return { category_id: body.category_id, category: category?.name };
+  }
+
+  if (body.category !== undefined) {
+    const name = body.category.trim();
+    if (!name) {
+      return { category_id: null, category: undefined };
+    }
+
+    let category = (db.categories[storeId] ?? []).find(
+      (entry) => entry.name.toLowerCase() === name.toLowerCase(),
+    );
+
+    if (!category) {
+      category = {
+        id: uid(),
+        name,
+        slug: slugify(name),
+        parent_id: null,
+        sort_order: db.categories[storeId]?.length ?? 0,
+      };
+      db.categories[storeId] = [...(db.categories[storeId] ?? []), category];
+    }
+
+    return { category_id: category.id, category: category.name };
+  }
+
+  return {};
 }
 
 function byLatestOrder(a: StoreOrder, b: StoreOrder) {
@@ -476,6 +536,94 @@ export const mockApi = {
     return db.products[store.id] ?? [];
   },
 
+  async getCategories(token: string): Promise<StoreCategory[]> {
+    await delay(150);
+    const { db, store } = findStoreForToken(token);
+    return (db.categories[store.id] ?? []).map((category) => formatCategory(db, store.id, category));
+  },
+
+  async createCategory(token: string, body: CreateCategoryInput): Promise<StoreCategory> {
+    await delay(200);
+    const { db, store } = findStoreForToken(token);
+    const name = body.name.trim();
+    if (!name) throw { status: 422, message: "Category name is required." };
+
+    const category: StoreCategory = {
+      id: uid(),
+      name,
+      slug: body.slug ? slugify(body.slug) : slugify(name),
+      parent_id: body.parent_id ?? null,
+      sort_order: body.sort_order ?? (db.categories[store.id]?.length ?? 0),
+    };
+
+    db.categories[store.id] = [...(db.categories[store.id] ?? []), category];
+    save(db);
+    return formatCategory(db, store.id, category);
+  },
+
+  async updateCategory(
+    token: string,
+    categoryId: string,
+    body: UpdateCategoryInput,
+  ): Promise<StoreCategory> {
+    await delay(200);
+    const { db, store } = findStoreForToken(token);
+    const categories = db.categories[store.id] ?? [];
+    const index = categories.findIndex((entry) => entry.id === categoryId);
+    if (index === -1) throw { status: 404, message: "Category not found" };
+
+    const current = categories[index];
+    const updated: StoreCategory = {
+      ...current,
+      ...body,
+      name: body.name !== undefined ? body.name.trim() : current.name,
+      slug:
+        body.slug !== undefined
+          ? slugify(body.slug)
+          : body.name !== undefined
+            ? slugify(body.name)
+            : current.slug,
+    };
+
+    categories[index] = updated;
+    db.categories[store.id] = categories;
+
+    (db.products[store.id] ?? [])
+      .filter((product) => product.category_id === categoryId)
+      .forEach((product) => {
+        product.category = updated.name;
+      });
+
+    save(db);
+    return formatCategory(db, store.id, updated);
+  },
+
+  async deleteCategory(token: string, categoryId: string): Promise<void> {
+    await delay(200);
+    const { db, store } = findStoreForToken(token);
+    const categories = db.categories[store.id] ?? [];
+    const category = categories.find((entry) => entry.id === categoryId);
+    if (!category) throw { status: 404, message: "Category not found" };
+
+    const hasProducts = (db.products[store.id] ?? []).some(
+      (product) => product.category_id === categoryId,
+    );
+    if (hasProducts) {
+      throw { status: 422, message: "Remove or reassign products before deleting this category." };
+    }
+
+    const hasChildren = categories.some((entry) => entry.parent_id === categoryId);
+    if (hasChildren) {
+      throw {
+        status: 422,
+        message: "Remove or reassign child categories before deleting this category.",
+      };
+    }
+
+    db.categories[store.id] = categories.filter((entry) => entry.id !== categoryId);
+    save(db);
+  },
+
   async createProduct(
     token: string,
     body: Omit<StoreProduct, "id"> & { id?: string },
@@ -484,6 +632,7 @@ export const mockApi = {
     const { db, store } = findStoreForToken(token);
     const product: StoreProduct = {
       ...body,
+      ...resolveMockProductCategory(db, store.id, body),
       id: body.id ?? uid(),
       slug: body.slug || slugify(body.name),
       currency: body.currency || "NGN",
@@ -505,7 +654,12 @@ export const mockApi = {
     const products = db.products[store.id] ?? [];
     const index = products.findIndex((item) => item.id === productId);
     if (index === -1) throw { status: 404, message: "Product not found" };
-    const updated = { ...products[index], ...body, id: productId };
+    const updated = {
+      ...products[index],
+      ...body,
+      ...resolveMockProductCategory(db, store.id, body),
+      id: productId,
+    };
     products[index] = updated;
     db.products[store.id] = products;
     save(db);
@@ -555,7 +709,9 @@ export const mockApi = {
         errors.push({ row, field: "price", message: "Price must be a number greater than or equal to 0." });
         return;
       }
-      db.products[store.id] = [product, ...(db.products[store.id] ?? [])];
+      const resolved = resolveMockProductCategory(db, store.id, product);
+      const importedProduct: StoreProduct = { ...product, ...resolved };
+      db.products[store.id] = [importedProduct, ...(db.products[store.id] ?? [])];
       imported++;
     });
 
@@ -616,7 +772,17 @@ export const mockApi = {
       throw { status: 404, message: "This storefront has not been published yet." };
     }
     const storefront = publishedStorefrontForStore(db, store.id) ?? synthesizeStorefront(store);
-    return { store: withPublishFields(db, store), storefront, generation_id: null };
+    const products = (db.products[store.id] ?? []).filter(
+      (product) => (product.status ?? "active") === "active",
+    );
+    return {
+      store: withPublishFields(db, store),
+      storefront: { ...storefront, products },
+      categories: (db.categories[store.id] ?? []).map((category) =>
+        formatCategory(db, store.id, category),
+      ),
+      generation_id: null,
+    };
   },
 
   async getPublicStorefrontByHost(host: string): Promise<PublicStorefront> {
@@ -636,7 +802,17 @@ export const mockApi = {
       throw { status: 404, message: "This storefront has not been published yet." };
     }
     const storefront = publishedStorefrontForStore(db, store.id) ?? synthesizeStorefront(store);
-    return { store: withPublishFields(db, store), storefront, generation_id: null };
+    const products = (db.products[store.id] ?? []).filter(
+      (product) => (product.status ?? "active") === "active",
+    );
+    return {
+      store: withPublishFields(db, store),
+      storefront: { ...storefront, products },
+      categories: (db.categories[store.id] ?? []).map((category) =>
+        formatCategory(db, store.id, category),
+      ),
+      generation_id: null,
+    };
   },
 
   async placeOrder(slug: string, body: CreateStoreOrderInput): Promise<{ order: StoreOrder }> {

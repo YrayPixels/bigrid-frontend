@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -43,7 +44,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api/client";
-import type { ProductImportReport, Store, StoreProduct } from "@/lib/api/types";
+import type { ProductImportReport, Store, StoreCategory, StoreProduct } from "@/lib/api/types";
 
 type ProductForm = {
   id?: string;
@@ -54,7 +55,7 @@ type ProductForm = {
   currency: string;
   image_url: string;
   sku: string;
-  category: string;
+  category_id: string;
   stock_quantity: string;
   status: "active" | "draft" | "archived";
   variants: { name: string; options: string }[];
@@ -88,7 +89,7 @@ const blankForm: ProductForm = {
   currency: "NGN",
   image_url: "",
   sku: "",
-  category: "",
+  category_id: "",
   stock_quantity: "",
   status: "active",
   variants: [{ name: "Size", options: "" }],
@@ -139,7 +140,7 @@ function formFromProduct(product?: StoreProduct): ProductForm {
     currency: product.currency || "NGN",
     image_url: product.image_url ?? "",
     sku: product.sku ?? "",
-    category: product.category ?? "",
+    category_id: product.category_id ?? "",
     stock_quantity:
       typeof product.stock_quantity === "number" ? String(product.stock_quantity) : "",
     status: product.status ?? "active",
@@ -178,7 +179,7 @@ function productFromForm(form: ProductForm, existing?: StoreProduct): StoreProdu
     currency: form.currency.trim().toUpperCase() || "NGN",
     image_url: form.image_url.trim() || null,
     sku: form.sku.trim() || undefined,
-    category: form.category.trim() || undefined,
+    category_id: form.category_id || null,
     stock_quantity: Number.isFinite(stock) ? stock : undefined,
     status: form.status,
     variants: variants.length ? variants : undefined,
@@ -254,13 +255,44 @@ function productsFromRows(rows: ImportRow[]): StoreProduct[] {
   });
 }
 
+function categoryLabel(category: StoreCategory) {
+  return category.parent_name ? `${category.parent_name} / ${category.name}` : category.name;
+}
+
+function productMatchesCategories(
+  product: StoreProduct,
+  selectedCategoryIds: string[],
+  categories: StoreCategory[],
+): boolean {
+  if (selectedCategoryIds.length === 0) return true;
+
+  if (product.category_id) {
+    return selectedCategoryIds.includes(product.category_id);
+  }
+
+  if (!product.category) return false;
+
+  return categories
+    .filter((category) => selectedCategoryIds.includes(category.id))
+    .some((category) => category.name.toLowerCase() === product.category!.toLowerCase());
+}
+
+function productCountForCategory(products: StoreProduct[], category: StoreCategory) {
+  return products.filter(
+    (product) =>
+      product.category_id === category.id ||
+      (!product.category_id &&
+        product.category?.toLowerCase() === category.name.toLowerCase()),
+  ).length;
+}
+
 export default function AdminProductsPage() {
   const router = useRouter();
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
   const [inStockOnly, setInStockOnly] = useState(false);
@@ -293,16 +325,14 @@ export default function AdminProductsPage() {
     enabled: !!store,
   });
 
+  const categoriesQuery = useQuery({
+    queryKey: ["categories", store?.id],
+    queryFn: () => api.getCategories(),
+    enabled: !!store,
+  });
+
   const products = useMemo(() => productsQuery.data ?? [], [productsQuery.data]);
-  const categoryOptions = useMemo(() => {
-    const categories = products
-      .map((product) => product.category)
-      .filter((category): category is string => Boolean(category));
-    const uniqueCategories = Array.from(new Set(categories));
-    return uniqueCategories.length
-      ? uniqueCategories
-      : ["Clothing", "Shoes", "Bags", "Accessories", "Jewelry"];
-  }, [products]);
+  const categories = useMemo(() => categoriesQuery.data ?? [], [categoriesQuery.data]);
   const variantOptions = useMemo(() => {
     const names = products.flatMap(
       (product) => product.variants?.map((variant) => variant.name) ?? [],
@@ -320,9 +350,7 @@ export default function AdminProductsPage() {
         .includes(term);
     const productStatus = product.status ?? "active";
     const matchesStatus = statusFilter === "all" || productStatus === statusFilter;
-    const matchesCategory =
-      selectedCategories.length === 0 ||
-      (product.category ? selectedCategories.includes(product.category) : false);
+    const matchesCategory = productMatchesCategories(product, selectedCategoryIds, categories);
     const min = minPrice ? Number(minPrice) : null;
     const max = maxPrice ? Number(maxPrice) : null;
     const matchesPrice =
@@ -353,6 +381,7 @@ export default function AdminProductsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["categories"] });
       queryClient.invalidateQueries({ queryKey: ["storefront"] });
       setLastUpdated(new Date());
     },
@@ -458,6 +487,7 @@ export default function AdminProductsPage() {
 
       const report = await api.importProducts(importedProducts);
       queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["categories"] });
       queryClient.invalidateQueries({ queryKey: ["storefront"] });
       setLastUpdated(new Date());
 
@@ -522,7 +552,7 @@ export default function AdminProductsPage() {
                 <button
                   type="button"
                   onClick={() => {
-                    setSelectedCategories([]);
+                    setSelectedCategoryIds([]);
                     setMinPrice("");
                     setMaxPrice("");
                     setInStockOnly(false);
@@ -537,71 +567,59 @@ export default function AdminProductsPage() {
               <div className="space-y-5 py-4">
                 <div>
                   <div className="mb-3 flex items-center justify-between text-sm font-semibold">
-                    <span>Type</span>
-                    <X className="h-3.5 w-3.5 text-ink-soft" />
+                    <span>Categories</span>
+                    <Link href="/admin/categories" className="text-xs font-medium text-primary">
+                      Manage
+                    </Link>
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    {categoryOptions.slice(0, 6).map((category) => {
-                      const checked = selectedCategories.includes(category);
-                      return (
-                        <label
-                          key={category}
-                          className="flex items-center gap-2 text-xs text-ink-soft"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() =>
-                              setSelectedCategories((current) =>
-                                checked
-                                  ? current.filter((item) => item !== category)
-                                  : [...current, category],
-                              )
-                            }
-                            className="h-3.5 w-3.5 accent-primary"
-                          />
-                          {category}
-                        </label>
-                      );
-                    })}
-                  </div>
+                  {categories.length ? (
+                    <div className="max-h-48 space-y-2 overflow-y-auto pr-2">
+                      {categories.map((category) => {
+                        const count = productCountForCategory(products, category);
+                        const checked = selectedCategoryIds.includes(category.id);
+                        return (
+                          <label
+                            key={category.id}
+                            className="flex items-center gap-2 text-xs text-ink-soft"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() =>
+                                setSelectedCategoryIds((current) =>
+                                  checked
+                                    ? current.filter((item) => item !== category.id)
+                                    : [...current, category.id],
+                                )
+                              }
+                              className="h-3.5 w-3.5 accent-primary"
+                            />
+                            <span className="truncate">
+                              {categoryLabel(category)} ({count})
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-ink-soft">
+                      No categories yet.{" "}
+                      <Link href="/admin/categories" className="font-medium text-primary">
+                        Create categories
+                      </Link>{" "}
+                      to filter your catalog.
+                    </p>
+                  )}
                 </div>
 
                 <div className="border-t border-border pt-4">
                   <div className="mb-3 flex items-center justify-between text-sm font-semibold">
                     <span>Brands</span>
-                    <X className="h-3.5 w-3.5 text-ink-soft" />
+                    <span className="text-[10px] font-medium uppercase tracking-wide text-ink-soft">
+                      Coming soon
+                    </span>
                   </div>
-                  <div className="max-h-36 space-y-2 overflow-y-auto pr-2">
-                    {categoryOptions.map((category) => {
-                      const count = products.filter(
-                        (product) => product.category === category,
-                      ).length;
-                      const checked = selectedCategories.includes(category);
-                      return (
-                        <label
-                          key={category}
-                          className="flex items-center gap-2 text-xs text-ink-soft"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() =>
-                              setSelectedCategories((current) =>
-                                checked
-                                  ? current.filter((item) => item !== category)
-                                  : [...current, category],
-                              )
-                            }
-                            className="h-3.5 w-3.5 accent-primary"
-                          />
-                          <span className="truncate">
-                            {category} ({count})
-                          </span>
-                        </label>
-                      );
-                    })}
-                  </div>
+                  <p className="text-xs text-ink-soft">Brand filters will use product metadata later.</p>
                 </div>
 
                 <div className="border-t border-border pt-4">
@@ -641,28 +659,12 @@ export default function AdminProductsPage() {
 
                 <div className="border-t border-border pt-4">
                   <div className="mb-3 flex items-center justify-between text-sm font-semibold">
-                    <span>Colors Options</span>
-                    <X className="h-3.5 w-3.5 text-ink-soft" />
+                    <span>Colors</span>
+                    <span className="text-[10px] font-medium uppercase tracking-wide text-ink-soft">
+                      Coming soon
+                    </span>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    {[
-                      "#e64d3c",
-                      "#f05a28",
-                      "#f5c542",
-                      "#4f8f63",
-                      "#517da3",
-                      "#5d54a4",
-                      "#292929",
-                      "#d7d7d7",
-                      "#02a83a",
-                    ].map((color) => (
-                      <span
-                        key={color}
-                        className="h-4 w-4 rounded-full border border-white shadow ring-1 ring-border"
-                        style={{ backgroundColor: color }}
-                      />
-                    ))}
-                  </div>
+                  <p className="text-xs text-ink-soft">Color swatches will tie into variant options later.</p>
                 </div>
 
                 <div className="border-t border-border pt-4">
@@ -1031,13 +1033,21 @@ export default function AdminProductsPage() {
             <div className="grid gap-4 md:grid-cols-3">
               <label className="space-y-2 text-sm font-medium">
                 Category
-                <Input
-                  value={form.category}
+                <select
+                  value={form.category_id}
                   onChange={(event) =>
-                    setForm((current) => ({ ...current, category: event.target.value }))
+                    setForm((current) => ({ ...current, category_id: event.target.value }))
                   }
-                  placeholder="Hoodies"
-                />
+                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                >
+                  <option value="">No category</option>
+                  {categories.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.parent_name ? `${category.parent_name} / ` : ""}
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
               </label>
               <label className="space-y-2 text-sm font-medium">
                 SKU

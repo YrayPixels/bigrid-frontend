@@ -32,7 +32,7 @@ This document has two layers:
 | **Products** | **Partial** | `/admin/products` | `GET/POST/PATCH/DELETE /storehause/products`, `POST /products/{id}/duplicate`, `POST /products/import` | CRUD, duplicate, archive, low-stock badges, stock check at checkout; CSV/XLSX import |
 | **Orders** | **Partial** | `/admin/orders`, `/admin/orders/[id]` | `GET /orders`, `GET /orders/{id}`, `PATCH /orders/{id}/status` | List, detail page, status updates; no payments yet |
 | **Settings** | **Partial** | `/admin/settings` | `PATCH /stores/me` (name, description, contact, brand color) | Billing, SMS, shipping, payments — placeholder with "Coming soon" |
-| **Categories** | **Planned** | — | — | Free-text `category` on product only |
+| **Categories** | **Built** | `/admin/categories` | `GET/POST/PATCH/DELETE /categories` | Hierarchical categories; products link via `category_id` |
 | **Collections** | **Planned** | — | — | — |
 | **Customers** | **Planned** | — | — | Customer data lives on orders only |
 | **Analytics (deep)** | **Partial** | Overview only | Visits + order aggregates | No product-view / cart / checkout funnel events |
@@ -51,6 +51,7 @@ Merchant dashboard (storehause)
 ├── Website Builder   /admin/builder
 ├── Website           /admin/website      ← draft edit + publish
 ├── Products          /admin/products
+├── Categories        /admin/categories
 ├── Orders            /admin/orders
 └── Settings          /admin/settings     ← mostly UI preview
 ```
@@ -64,6 +65,7 @@ Prefix: `/api/storehause` (Sanctum auth unless noted)
 | Store | `GET/PATCH /stores/me`, `POST /stores/{id}/publish`, `POST /stores/{id}/images` |
 | Storefront draft | `GET/PATCH /ai/storefront/{id}`, `POST /ai/storefront/generate` |
 | Products | `GET/POST /products`, `PATCH/DELETE /products/{id}`, `POST /products/import` |
+| Categories | `GET/POST /categories`, `PATCH/DELETE /categories/{id}` |
 | Orders | `GET /orders`, `PATCH /orders/{id}/status` |
 | Dashboard | `GET /dashboard` |
 | Builder | `/storefront-builder/sessions/*` |
@@ -90,7 +92,7 @@ Aligned with [arch.md — Phase A–D](./arch.md#prioritized-build-backlog).
 
 | # | Task | Unblocks |
 |---|------|----------|
-| M6 | **Categories** — `store_categories` table + admin CRUD | Catalog organization |
+| M6 | **Categories** — `store_categories` table + admin CRUD | Catalog organization | **Done** |
 | M7 | **Customers** — derive from orders; customer list + detail | CRM basics |
 | M8 | **Analytics events** — product viewed, add to cart, checkout started | Funnel metrics |
 | M9 | **Payments** — Paystack keys, webhooks, paid status (Phase C) | Revenue collection |
@@ -117,7 +119,7 @@ Aligned with [arch.md — Phase A–D](./arch.md#prioritized-build-backlog).
 | 3 | Merchant receives and updates orders | **Partial** (list + detail + status; no payments) |
 | 4 | Merchant edits website in draft and publishes to go live | **Done** |
 | 5 | Merchant configures payments and gets paid orders | **Deferred** |
-| 6 | Merchant organizes catalog with categories/collections | **Planned** |
+| 6 | Merchant organizes catalog with categories/collections | **Partial** (categories built; collections planned) |
 | 7 | Merchant views customer history and marketing tools | **Planned** |
 
 ---
@@ -246,7 +248,7 @@ enum ProductStatus {
 
 # Categories
 
-**Status:** Planned — use `category` string on product until `store_categories` exists.
+**Status:** Built — `store_categories` table with optional parent hierarchy; products use `category_id` with legacy `category` name kept in sync.
 
 ### Target
 
@@ -404,6 +406,7 @@ Email campaigns, discount codes, abandoned cart, customer segments.
 ```text
 stores                 (+ draft_json, published_json, published_at)
 store_products
+store_categories
 store_orders
 store_visits
 store_contact_inquiries

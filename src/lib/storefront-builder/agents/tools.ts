@@ -15,9 +15,16 @@ import {
 } from "@/lib/storefront-builder/local-ai";
 import {
   imageSourceSuggestedActions,
+  replaceScopedStorefrontImages,
   replaceTemplateImagesForStorefront,
   sourceAndApplyWebsiteImages,
 } from "@/lib/storefront-builder/image-sourcing";
+import {
+  describeImageScope,
+  inferImageReplaceScope,
+  isExplicitFullSiteImageRequest,
+  type ImageReplaceScope,
+} from "@/lib/storefront-builder/section-scope";
 import type { BuilderSession } from "@/lib/api/types";
 import type { WebsiteBuilderContext, WebsiteBuilderToolDef } from "./types";
 
@@ -320,7 +327,7 @@ export function websiteBuilderTools(): WebsiteBuilderToolDef[] {
     {
       name: "refine_website_copy",
       description:
-        "Refine existing website copy such as the hero headline, about section, FAQ answers, CTA label, or SEO text. Do not use for design switches or color-only requests.",
+        "Refine website copy or a specific page/section (Essentials/category showcase, hero, about, FAQ, CTA, SEO). Use for scoped copy and content updates — including section titles, category labels, and on-brand rewrites. Do not use for whole-site photo replacement or design switches.",
       parameters: {
         type: "object",
         properties: {
@@ -434,13 +441,19 @@ export function websiteBuilderTools(): WebsiteBuilderToolDef[] {
     {
       name: "replace_template_images",
       description:
-        "Find on-brand photos and replace them across the entire website template — homepage hero, promo banners, about section, about page, and product grid images. Use when generating or switching designs, or when the merchant wants all placeholder photos refreshed to match their brand.",
+        "Replace placeholder photos on the website. Use scope full_site ONLY when the merchant wants every photo refreshed. For Essentials/category showcase, homepage hero, about section, or product grid only, pass the matching scope — never refresh the whole site for a section request.",
       parameters: {
         type: "object",
         properties: {
           intent: {
             type: "string",
             description: "What the business sells and the photo mood they want",
+          },
+          scope: {
+            type: "string",
+            enum: ["full_site", "category_showcase", "hero", "about", "products"],
+            description:
+              "Where to apply images. Essentials / Shop the Essentials = category_showcase. Omit only when the merchant clearly asked to refresh all website photos.",
           },
         },
         additionalProperties: false,
@@ -455,8 +468,22 @@ export function websiteBuilderTools(): WebsiteBuilderToolDef[] {
             ? args.intent.trim()
             : `${ctx.profile.business_name ?? ""} ${ctx.profile.description ?? ""} ${ctx.message}`.trim();
 
-        const replaced = await replaceTemplateImagesForStorefront({
+        const combined = `${ctx.message} ${intent}`;
+        const inferredScope = inferImageReplaceScope(combined);
+        const explicitScope =
+          typeof args.scope === "string" && args.scope.trim()
+            ? (args.scope.trim() as ImageReplaceScope)
+            : null;
+        let scope: ImageReplaceScope =
+          explicitScope ?? inferredScope ?? (isExplicitFullSiteImageRequest(combined) ? "full_site" : "full_site");
+
+        if (scope === "full_site" && inferredScope && inferredScope !== "full_site") {
+          scope = inferredScope;
+        }
+
+        const replaced = await replaceScopedStorefrontImages({
           intent,
+          scope,
           storefront: ctx.storefront,
           context: {
             business_name: ctx.session.store.business_name,
@@ -468,7 +495,7 @@ export function websiteBuilderTools(): WebsiteBuilderToolDef[] {
 
         ctx.storefront = replaced.storefront;
         ctx.status = "review_ready";
-        ctx.assistantMessage = `${replaced.result.summary} I updated photos across your homepage, about section, and products — check the preview on the right.`;
+        ctx.assistantMessage = `${replaced.result.summary} I updated photos in your ${describeImageScope(scope)} — check the preview on the right.`;
         ctx.payload = {
           type: "stock_images_applied",
           image_recommendations: replaced.result.recommendations,
@@ -480,6 +507,7 @@ export function websiteBuilderTools(): WebsiteBuilderToolDef[] {
 
         return {
           ok: true,
+          scope,
           changed_paths: replaced.changed_paths,
           recommendations: replaced.result.recommendations,
         };
