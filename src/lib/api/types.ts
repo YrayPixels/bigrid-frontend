@@ -1,4 +1,19 @@
 import type { StorefrontBlock } from "@/lib/storefront/blocks/types";
+import type {
+  BusinessLocation,
+  PaymentCurrency,
+  PhysicalStoreCount,
+  StaffCountRange,
+  WeeklyOrderRange,
+} from "@/lib/business-profile";
+
+export type {
+  BusinessLocation,
+  PaymentCurrency,
+  PhysicalStoreCount,
+  StaffCountRange,
+  WeeklyOrderRange,
+} from "@/lib/business-profile";
 
 export type User = {
   id: string;
@@ -61,6 +76,11 @@ export type Store = {
   logo_url: string | null;
   contact_email?: string | null;
   contact_phone?: string | null;
+  business_location?: BusinessLocation | null;
+  weekly_orders?: WeeklyOrderRange | null;
+  payment_currencies?: PaymentCurrency[];
+  staff_count?: StaffCountRange | null;
+  physical_store_count?: PhysicalStoreCount | null;
   storefront_template_id: StorefrontTemplateChoice;
   subdomain?: string;
   subdomain_host?: string;
@@ -92,10 +112,16 @@ export type PublishStorefrontResponse = {
 
 export type CreateStoreInput = {
   business_name: string;
+  slug?: string;
   industry: Industry;
   description: string;
   brand_color: string;
   logo_url: string | null;
+  business_location: BusinessLocation;
+  weekly_orders: WeeklyOrderRange;
+  payment_currencies: PaymentCurrency[];
+  staff_count: StaffCountRange;
+  physical_store_count: PhysicalStoreCount;
   storefront_template_id?: StorefrontTemplateChoice;
 };
 
@@ -105,6 +131,11 @@ export type UpdateStoreInput = {
   contact_email?: string | null;
   contact_phone?: string | null;
   brand_color?: string;
+  business_location?: BusinessLocation;
+  weekly_orders?: WeeklyOrderRange;
+  payment_currencies?: PaymentCurrency[];
+  staff_count?: StaffCountRange;
+  physical_store_count?: PhysicalStoreCount;
 };
 
 export type ProductImportError = {

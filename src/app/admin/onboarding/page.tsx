@@ -4,11 +4,27 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ArrowLeft, ArrowRight, Check, Loader2, Store as StoreIcon } from "lucide-react";
 import { toast } from "sonner";
+import { BusinessProfileFields } from "@/components/admin/business-profile-fields";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api/client";
 import { INDUSTRY_OPTIONS, type Industry } from "@/lib/api/types";
+import {
+  isBusinessProfileComplete,
+  isValidStoreSlug,
+  slugifyStore,
+  type BusinessProfileInput,
+} from "@/lib/business-profile";
+import { STORE_PLATFORM_DOMAIN } from "@/lib/store-host";
 
 const DEFAULT_BRAND_COLOR = "#0E7C66";
+
+const EMPTY_PROFILE: BusinessProfileInput = {
+  business_location: null,
+  weekly_orders: null,
+  payment_currencies: [],
+  staff_count: null,
+  physical_store_count: null,
+};
 
 export default function AdminOnboardingPage() {
   const router = useRouter();
@@ -16,8 +32,11 @@ export default function AdminOnboardingPage() {
 
   const [step, setStep] = useState(0);
   const [businessName, setBusinessName] = useState("");
+  const [storeSlug, setStoreSlug] = useState("");
+  const [slugTouched, setSlugTouched] = useState(false);
   const [industry, setIndustry] = useState<Industry | null>(null);
   const [description, setDescription] = useState("");
+  const [businessProfile, setBusinessProfile] = useState<BusinessProfileInput>(EMPTY_PROFILE);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -25,11 +44,21 @@ export default function AdminOnboardingPage() {
     else if (!loading && user?.has_store) router.replace("/admin");
   }, [loading, user, router]);
 
-  const steps = ["Business", "Industry"];
+  useEffect(() => {
+    if (!slugTouched) {
+      setStoreSlug(slugifyStore(businessName));
+    }
+  }, [businessName, slugTouched]);
+
+  const steps = ["Business", "Operations", "Industry"];
   const onboardingShellWidth = "max-w-2xl";
   const canNext =
-    (step === 0 && businessName.trim().length > 1 && description.trim().length > 9) ||
-    (step === 1 && !!industry);
+    (step === 0 &&
+      businessName.trim().length > 1 &&
+      isValidStoreSlug(storeSlug) &&
+      description.trim().length > 9) ||
+    (step === 1 && isBusinessProfileComplete(businessProfile)) ||
+    (step === 2 && !!industry);
 
   async function submit(selectedIndustry: Industry | null = industry) {
     if (!selectedIndustry) {
@@ -37,14 +66,25 @@ export default function AdminOnboardingPage() {
       return;
     }
 
+    if (!isBusinessProfileComplete(businessProfile)) {
+      toast.error("Complete your business profile to continue");
+      return;
+    }
+
     setSubmitting(true);
     try {
       await api.createStore({
         business_name: businessName.trim(),
+        slug: storeSlug,
         industry: selectedIndustry,
         description: description.trim(),
         brand_color: DEFAULT_BRAND_COLOR,
         logo_url: null,
+        business_location: businessProfile.business_location!,
+        weekly_orders: businessProfile.weekly_orders!,
+        payment_currencies: businessProfile.payment_currencies,
+        staff_count: businessProfile.staff_count!,
+        physical_store_count: businessProfile.physical_store_count!,
       });
       await refresh();
       toast.success("Store created. Opening your dashboard...");
@@ -107,13 +147,13 @@ export default function AdminOnboardingPage() {
           {step === 0 && (
             <div className="space-y-5">
               <header>
-                <h1 className="font-display text-2xl font-bold">Tell us about your business</h1>
-                <p className="mt-1 text-sm text-ink-soft">
-                  This becomes the name and tone of your storefront.
-                </p>
+                <h1 className="font-display text-2xl font-bold">You&apos;re almost done!</h1>
+                <p className="mt-1 text-sm text-ink-soft">Tell us a little bit about your business.</p>
               </header>
               <label className="block">
-                <span className="mb-1.5 block text-sm font-medium">Business name</span>
+                <span className="mb-1.5 block text-sm font-medium">
+                  Business name <span className="text-destructive">*</span>
+                </span>
                 <input
                   value={businessName}
                   onChange={(e) => setBusinessName(e.target.value)}
@@ -122,7 +162,31 @@ export default function AdminOnboardingPage() {
                 />
               </label>
               <label className="block">
-                <span className="mb-1.5 block text-sm font-medium">Short description</span>
+                <span className="mb-1.5 block text-sm font-medium">
+                  Store URL <span className="text-destructive">*</span>
+                </span>
+                <div className="flex overflow-hidden rounded-md border border-border bg-background shadow-soft focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20">
+                  <input
+                    value={storeSlug}
+                    onChange={(e) => {
+                      setSlugTouched(true);
+                      setStoreSlug(slugifyStore(e.target.value));
+                    }}
+                    placeholder="your-store"
+                    className="min-w-0 flex-1 px-3 py-2 text-sm outline-none"
+                  />
+                  <span className="flex items-center border-l border-border bg-secondary/60 px-3 text-sm text-ink-soft">
+                    .{STORE_PLATFORM_DOMAIN}
+                  </span>
+                </div>
+                <span className="mt-1 block text-xs text-ink-soft">
+                  You can purchase or connect a custom domain later.
+                </span>
+              </label>
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-medium">
+                  Short description <span className="text-destructive">*</span>
+                </span>
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
@@ -138,6 +202,18 @@ export default function AdminOnboardingPage() {
           )}
 
           {step === 1 && (
+            <div className="space-y-5">
+              <header>
+                <h1 className="font-display text-2xl font-bold">How does your business operate?</h1>
+                <p className="mt-1 text-sm text-ink-soft">
+                  This helps us tailor checkout, payouts, and growth recommendations.
+                </p>
+              </header>
+              <BusinessProfileFields value={businessProfile} onChange={setBusinessProfile} />
+            </div>
+          )}
+
+          {step === 2 && (
             <div className="space-y-5">
               <header>
                 <h1 className="font-display text-2xl font-bold">What industry are you in?</h1>

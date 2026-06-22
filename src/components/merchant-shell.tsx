@@ -13,6 +13,7 @@ import {
   Sparkles,
   Store as StoreIcon,
 } from "lucide-react";
+import { LaunchChecklistReminder } from "@/components/admin/launch-checklist-reminder";
 import { useAuth } from "@/lib/auth-context";
 import {
   Sidebar,
@@ -108,6 +109,7 @@ export function MerchantShell({ children }: { children: React.ReactNode }) {
             <SidebarTrigger />
             <span className="text-sm font-medium text-ink-soft">Merchant dashboard</span>
           </header>
+          <LaunchChecklistReminder />
           <main className="flex-1">{children}</main>
         </div>
       </div>

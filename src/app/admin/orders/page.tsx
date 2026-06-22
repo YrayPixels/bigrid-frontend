@@ -1,10 +1,26 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, PackageSearch, RefreshCcw, Search, ShoppingBag } from "lucide-react";
+import {
+  CircleHelp,
+  Clock3,
+  Loader2,
+  PackageSearch,
+  RefreshCcw,
+  Search,
+  ShoppingBag,
+  TrendingUp,
+} from "lucide-react";
 import { toast } from "sonner";
+import { AdminStatCard } from "@/components/admin/stat-card";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { api } from "@/lib/api/client";
 import type { StoreOrderStatus } from "@/lib/api/types";
 
@@ -23,6 +39,19 @@ function formatMoney(value: number, currency = "NGN") {
     currency,
     maximumFractionDigits: 0,
   }).format(value);
+}
+
+function formatMoneyDetailed(value: number, currency = "NGN") {
+  return new Intl.NumberFormat("en-NG", {
+    style: "currency",
+    currency,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
+function formatNumber(value: number) {
+  return new Intl.NumberFormat("en-NG").format(value);
 }
 
 function formatDate(value: string | null) {
@@ -74,6 +103,24 @@ export default function AdminOrdersPage() {
       }),
   });
 
+  const dashboardQuery = useQuery({
+    queryKey: ["merchant-dashboard-overview"],
+    queryFn: () => api.getDashboardOverview(),
+    staleTime: 60 * 1000,
+  });
+
+  const metrics = dashboardQuery.data?.metrics;
+  const statsLoading = dashboardQuery.isLoading;
+  const statValues = useMemo(
+    () => ({
+      totalSales: formatMoneyDetailed(metrics?.total_sales ?? 0),
+      totalOrders: formatNumber(metrics?.total_orders ?? 0),
+      pendingOrders: formatNumber(metrics?.pending_orders ?? 0),
+      averageOrderValue: formatMoneyDetailed(metrics?.average_order_value ?? 0),
+    }),
+    [metrics],
+  );
+
   const updateStatus = useMutation({
     mutationFn: ({ orderId, nextStatus }: { orderId: string; nextStatus: StoreOrderStatus }) =>
       api.updateOrderStatus(orderId, { status: nextStatus }),
@@ -91,27 +138,90 @@ export default function AdminOrdersPage() {
   const meta = ordersQuery.data?.meta;
 
   return (
-    <div className="w-full px-6 py-10">
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <span className="text-xs font-medium uppercase tracking-wide text-ink-soft">Sales</span>
-          <h1 className="mt-1 font-display text-3xl font-bold tracking-tight">Orders</h1>
-          <p className="mt-2 w-full text-sm text-ink-soft">
-            Manage customer checkout orders, delivery details, payment state, and fulfillment
-            status.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => void ordersQuery.refetch()}
-          className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-4 py-2 text-sm font-semibold shadow-soft hover:bg-secondary"
-        >
-          <RefreshCcw className="h-4 w-4" />
-          Refresh
-        </button>
-      </header>
+    <TooltipProvider delayDuration={150}>
+      <div className="w-full bg-[#f7f7f5] px-4 py-6 text-[#171717] sm:px-6 lg:px-8">
+        <section className="overflow-hidden rounded-[28px] border border-border/70 bg-white shadow-[0_24px_80px_rgba(15,23,42,0.08)]">
+          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border/70 px-5 py-4 sm:px-6">
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="font-display text-xl font-bold tracking-tight sm:text-2xl">Orders</h1>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      className="text-ink-soft/60 transition hover:text-ink-soft"
+                      aria-label="About order metrics"
+                    >
+                      <CircleHelp className="h-4 w-4" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-56 bg-[#3f3f46] text-white">
+                    Revenue and fulfillment metrics across all storefront orders.
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+              <p className="mt-1 text-xs text-ink-soft sm:text-sm">
+                Manage customer checkout orders, delivery details, payment state, and fulfillment
+                status.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                void ordersQuery.refetch();
+                void dashboardQuery.refetch();
+              }}
+              className="inline-flex items-center gap-2 rounded-xl border border-border bg-white px-4 py-2 text-sm font-semibold shadow-sm hover:bg-secondary"
+            >
+              <RefreshCcw className="h-4 w-4" />
+              Refresh
+            </button>
+          </div>
 
-      <section className="mt-8 rounded-2xl border border-border bg-card p-5 shadow-soft">
+          <div className="grid gap-3 border-b border-border/70 px-4 py-4 sm:grid-cols-2 sm:px-6 xl:grid-cols-4">
+            {statsLoading ? (
+              Array.from({ length: 4 }).map((_, index) => (
+                <div
+                  key={index}
+                  className="h-[88px] animate-pulse rounded-2xl bg-secondary/60"
+                />
+              ))
+            ) : (
+              <>
+                <AdminStatCard
+                  value={statValues.totalSales}
+                  label="Total Sales"
+                  tooltip="Total revenue from orders that were not cancelled or refunded."
+                  backgroundClassName="bg-[#edf3ff]"
+                  icon={<span className="text-lg font-bold text-ink">₦</span>}
+                />
+                <AdminStatCard
+                  value={statValues.totalOrders}
+                  label="Total Orders"
+                  tooltip="The total number of orders placed through your storefront."
+                  backgroundClassName="bg-[#edf8f0]"
+                  icon={<ShoppingBag className="h-5 w-5 text-[#4f8a4a]" />}
+                />
+                <AdminStatCard
+                  value={statValues.pendingOrders}
+                  label="Pending Orders"
+                  tooltip="Orders still waiting to be processed or fulfilled."
+                  backgroundClassName="bg-[#fdf0f0]"
+                  icon={<Clock3 className="h-5 w-5 text-[#d14343]" />}
+                />
+                <AdminStatCard
+                  value={statValues.averageOrderValue}
+                  label="Average Order Value"
+                  tooltip="Average amount customers spend per order."
+                  backgroundClassName="bg-[#edf3ff]"
+                  icon={<TrendingUp className="h-5 w-5 text-[#3b6fd8]" />}
+                />
+              </>
+            )}
+          </div>
+
+          <div className="p-4 sm:p-6">
+            <section className="rounded-2xl border border-border/80 bg-[#fbfbfa] p-5 shadow-sm">
         <div className="grid gap-4 md:grid-cols-[1fr_220px]">
           <label className="space-y-2 text-sm">
             <span className="font-medium">Search orders</span>
@@ -142,7 +252,7 @@ export default function AdminOrdersPage() {
         </div>
       </section>
 
-      <section className="mt-6 overflow-hidden rounded-2xl border border-border bg-card shadow-soft">
+            <section className="mt-6 overflow-hidden rounded-2xl border border-border/80 bg-white shadow-sm">
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <div>
             <h2 className="font-display text-lg font-bold">Storefront orders</h2>
@@ -271,7 +381,10 @@ export default function AdminOrdersPage() {
             </div>
           </div>
         ) : null}
-      </section>
-    </div>
+            </section>
+          </div>
+        </section>
+      </div>
+    </TooltipProvider>
   );
 }

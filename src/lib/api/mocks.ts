@@ -318,7 +318,7 @@ export const mockApi = {
     const db = load();
     const userId = db.sessions[token];
     if (!userId) throw { status: 401, message: "Unauthenticated" };
-    const slug = slugify(body.business_name);
+    const slug = body.slug ? slugify(body.slug) : slugify(body.business_name);
     const store: Store = {
       id: uid(),
       slug,
@@ -736,6 +736,13 @@ export const mockApi = {
     if (body.contact_email !== undefined) store.contact_email = body.contact_email;
     if (body.contact_phone !== undefined) store.contact_phone = body.contact_phone;
     if (body.brand_color) store.brand_color = body.brand_color;
+    if (body.business_location !== undefined) store.business_location = body.business_location;
+    if (body.weekly_orders !== undefined) store.weekly_orders = body.weekly_orders;
+    if (body.payment_currencies !== undefined) store.payment_currencies = body.payment_currencies;
+    if (body.staff_count !== undefined) store.staff_count = body.staff_count;
+    if (body.physical_store_count !== undefined) {
+      store.physical_store_count = body.physical_store_count;
+    }
     save(db);
     return { store };
   },

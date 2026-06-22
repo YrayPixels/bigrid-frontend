@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Toaster } from "@/components/ui/sonner";
+import { ConfirmDialogProvider } from "@/components/ui/confirm-dialog";
 import { Providers } from "./providers";
 import "./globals.css";
 
@@ -14,8 +15,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body>
         <Providers>
-          {children}
-          <Toaster richColors position="top-right" />
+          <ConfirmDialogProvider>
+            {children}
+            <Toaster richColors position="bottom-right" />
+          </ConfirmDialogProvider>
         </Providers>
       </body>
     </html>

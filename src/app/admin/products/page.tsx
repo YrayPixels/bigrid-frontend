@@ -10,6 +10,7 @@ import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
+  CircleHelp,
   Copy,
   Filter,
   ImagePlus,
@@ -19,11 +20,14 @@ import {
   Plus,
   Search,
   Star,
+  Tag,
   Trash2,
   Upload,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import { AdminStatCard } from "@/components/admin/stat-card";
+import { confirm } from "@/components/ui/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -42,6 +46,12 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api/client";
 import type { ProductImportReport, Store, StoreCategory, StoreProduct } from "@/lib/api/types";
@@ -101,6 +111,15 @@ function formatMoney(value: number, currency = "NGN") {
     style: "currency",
     currency,
     maximumFractionDigits: 0,
+  }).format(value);
+}
+
+function formatMoneyDetailed(value: number, currency = "NGN") {
+  return new Intl.NumberFormat("en-NG", {
+    style: "currency",
+    currency,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(value);
 }
 
@@ -331,6 +350,12 @@ export default function AdminProductsPage() {
     enabled: !!store,
   });
 
+  const ordersQuery = useQuery({
+    queryKey: ["merchant-orders", "product-stats", store?.id],
+    queryFn: () => api.getOrders({ per_page: 100 }),
+    enabled: !!store,
+  });
+
   const products = useMemo(() => productsQuery.data ?? [], [productsQuery.data]);
   const categories = useMemo(() => categoriesQuery.data ?? [], [categoriesQuery.data]);
   const variantOptions = useMemo(() => {
@@ -369,6 +394,29 @@ export default function AdminProductsPage() {
       product.stock_quantity <= LOW_STOCK_THRESHOLD,
   ).length;
   const inventoryCount = products.reduce((sum, product) => sum + (product.stock_quantity ?? 0), 0);
+
+  const catalogProducts = useMemo(
+    () => products.filter((product) => (product.status ?? "active") !== "archived"),
+    [products],
+  );
+  const defaultCurrency = catalogProducts[0]?.currency ?? "NGN";
+  const totalRetailValue = catalogProducts.reduce((sum, product) => sum + product.price, 0);
+  const totalInventoryValue = catalogProducts.reduce(
+    (sum, product) => sum + product.price * (product.stock_quantity ?? 0),
+    0,
+  );
+  const productsSold = useMemo(() => {
+    const orders = ordersQuery.data?.data ?? [];
+    return orders
+      .filter((order) => !["cancelled", "refunded"].includes(order.status))
+      .reduce(
+        (sum, order) => sum + order.items.reduce((itemSum, item) => itemSum + item.quantity, 0),
+        0,
+      );
+  }, [ordersQuery.data]);
+  const outOfStockCount = catalogProducts.filter(
+    (product) => typeof product.stock_quantity === "number" && product.stock_quantity <= 0,
+  ).length;
 
   const saveProduct = useMutation({
     mutationFn: async (product: StoreProduct) => {
@@ -527,21 +575,67 @@ export default function AdminProductsPage() {
   if (!store) return null;
 
   return (
+    <TooltipProvider delayDuration={150}>
     <div className="w-full bg-[#f7f7f5] px-4 py-6 text-[#171717] sm:px-6 lg:px-8">
       <section className="overflow-hidden rounded-[28px] border border-border/70 bg-white shadow-[0_24px_80px_rgba(15,23,42,0.08)]">
         <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border/70 px-5 py-4 sm:px-6">
           <div>
-            <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-ink-soft">
-              Catalog
+            <div className="flex items-center gap-2">
+              <h1 className="font-display text-xl font-bold tracking-tight sm:text-2xl">Products</h1>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    className="text-ink-soft/60 transition hover:text-ink-soft"
+                    aria-label="About product metrics"
+                  >
+                    <CircleHelp className="h-4 w-4" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-56 bg-[#3f3f46] text-white">
+                  The total selling price of all your products.
+                </TooltipContent>
+              </Tooltip>
+            </div>
+            <span className="mt-1 block text-xs text-ink-soft">
+              Track catalog value, sales, and stock health at a glance.
             </span>
-            <h1 className="mt-1 font-display text-xl font-bold tracking-tight">
-              Product list page
-            </h1>
           </div>
           <div className="inline-flex items-center gap-2 rounded-xl border border-border bg-white px-3 py-2 text-xs font-medium text-ink-soft shadow-sm">
             <CalendarDays className="h-4 w-4" />
             Last updated: {formatUpdatedDate(lastUpdated)}
           </div>
+        </div>
+
+        <div className="grid gap-3 border-b border-border/70 px-4 py-4 sm:grid-cols-2 sm:px-6 xl:grid-cols-4">
+          <AdminStatCard
+            value={formatMoneyDetailed(totalRetailValue, defaultCurrency)}
+            label="Total Retail Value"
+            tooltip="The total selling price of all your products."
+            backgroundClassName="bg-[#edf3ff]"
+            icon={<span className="text-lg font-bold text-ink">₦</span>}
+          />
+          <AdminStatCard
+            value={formatMoneyDetailed(totalInventoryValue, defaultCurrency)}
+            label="Total Inventory Value"
+            tooltip="The retail value of all units currently in stock."
+            backgroundClassName="bg-[#edf8f0]"
+            icon={<span className="text-lg font-bold text-ink">₦</span>}
+          />
+          <AdminStatCard
+            value={String(productsSold)}
+            label="Products Sold"
+            tooltip="Total units sold across completed and active orders."
+            backgroundClassName="bg-[#fdf0f0]"
+            icon={<Tag className="h-5 w-5 text-[#d14343]" />}
+          />
+          <AdminStatCard
+            value={String(outOfStockCount)}
+            label="Out of Stock"
+            tooltip="Products with zero units left in inventory."
+            backgroundClassName="bg-[#edf3ff]"
+            icon={<Package className="h-5 w-5 text-[#3b6fd8]" />}
+          />
         </div>
 
         <div className="grid gap-0 lg:grid-cols-[260px_minmax(0,1fr)]">
@@ -823,8 +917,13 @@ export default function AdminProductsPage() {
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
                               className="text-destructive focus:text-destructive"
-                              onClick={() => {
-                                if (window.confirm(`Delete ${product.name}?`)) {
+                              onClick={async () => {
+                                const confirmed = await confirm(`Delete ${product.name}?`, {
+                                  description: "This action cannot be undone.",
+                                  confirmLabel: "Delete",
+                                  destructive: true,
+                                });
+                                if (confirmed) {
                                   deleteProduct.mutate(product.id);
                                 }
                               }}
@@ -1275,5 +1374,6 @@ export default function AdminProductsPage() {
         </DialogContent>
       </Dialog>
     </div>
+    </TooltipProvider>
   );
 }

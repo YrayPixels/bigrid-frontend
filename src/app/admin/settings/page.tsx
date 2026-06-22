@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import {
   Banknote,
@@ -28,6 +29,8 @@ import { toast } from "sonner";
 import { api } from "@/lib/api/client";
 import type { UpdateStoreInput } from "@/lib/api/types";
 import { INDUSTRY_OPTIONS } from "@/lib/api/types";
+import { BusinessProfileFields } from "@/components/admin/business-profile-fields";
+import type { BusinessProfileInput } from "@/lib/business-profile";
 import { getStorefrontUrl } from "@/lib/store-host";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -169,6 +172,7 @@ type StoreProfileForm = {
   contact_email: string;
   contact_phone: string;
   brand_color: string;
+  business_profile: BusinessProfileInput;
 };
 
 function storeProfileFromStore(store: NonNullable<Awaited<ReturnType<typeof api.getMyStore>>>): StoreProfileForm {
@@ -178,11 +182,29 @@ function storeProfileFromStore(store: NonNullable<Awaited<ReturnType<typeof api.
     contact_email: store.contact_email ?? "",
     contact_phone: store.contact_phone ?? "",
     brand_color: store.brand_color,
+    business_profile: {
+      business_location: store.business_location ?? null,
+      weekly_orders: store.weekly_orders ?? null,
+      payment_currencies: store.payment_currencies ?? [],
+      staff_count: store.staff_count ?? null,
+      physical_store_count: store.physical_store_count ?? null,
+    },
   };
 }
 
 export default function AdminSettingsPage() {
   const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
+  const requestedTab = searchParams.get("tab");
+  const settingsTab =
+    requestedTab === "billing" ||
+    requestedTab === "payouts" ||
+    requestedTab === "store" ||
+    requestedTab === "operations" ||
+    requestedTab === "notifications" ||
+    requestedTab === "policies"
+      ? requestedTab
+      : "store";
   const storeQuery = useQuery({
     queryKey: ["store", "me"],
     queryFn: () => api.getMyStore(),
@@ -222,6 +244,21 @@ export default function AdminSettingsPage() {
       contact_email: storeForm.contact_email.trim() || null,
       contact_phone: storeForm.contact_phone.trim() || null,
       brand_color: storeForm.brand_color,
+      ...(storeForm.business_profile.business_location
+        ? { business_location: storeForm.business_profile.business_location }
+        : {}),
+      ...(storeForm.business_profile.weekly_orders
+        ? { weekly_orders: storeForm.business_profile.weekly_orders }
+        : {}),
+      ...(storeForm.business_profile.payment_currencies.length
+        ? { payment_currencies: storeForm.business_profile.payment_currencies }
+        : {}),
+      ...(storeForm.business_profile.staff_count
+        ? { staff_count: storeForm.business_profile.staff_count }
+        : {}),
+      ...(storeForm.business_profile.physical_store_count
+        ? { physical_store_count: storeForm.business_profile.physical_store_count }
+        : {}),
     });
   }
 
@@ -288,7 +325,7 @@ export default function AdminSettingsPage() {
             />
           </section>
 
-          <Tabs defaultValue="store" className="mt-8">
+          <Tabs defaultValue={settingsTab} key={settingsTab} className="mt-8">
             <TabsList className="h-auto flex-wrap justify-start gap-1 bg-card p-1 shadow-soft">
               <TabsTrigger value="billing">Plan & SMS</TabsTrigger>
               <TabsTrigger value="payouts">Payouts</TabsTrigger>
@@ -611,6 +648,20 @@ export default function AdminSettingsPage() {
                             className="min-h-28"
                           />
                         </Field>
+                      </div>
+                      <div className="lg:col-span-2 rounded-2xl border border-border bg-background p-5">
+                        <div className="mb-5">
+                          <h3 className="font-display text-lg font-semibold">Business operations</h3>
+                          <p className="mt-1 text-sm text-ink-soft">
+                            Update where you sell, how you get paid, and the size of your team.
+                          </p>
+                        </div>
+                        <BusinessProfileFields
+                          value={storeForm.business_profile}
+                          onChange={(business_profile) =>
+                            setStoreForm((current) => (current ? { ...current, business_profile } : current))
+                          }
+                        />
                       </div>
                       <div className="lg:col-span-2 flex flex-wrap gap-3">
                         <Button type="submit" disabled={saveStoreProfile.isPending}>
