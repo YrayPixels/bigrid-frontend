@@ -23,7 +23,26 @@ type AgentToolResult = {
   changed_paths?: string[];
 };
 
-function publicToolLabel(name: string) {
+function publicToolLabel(name: string, changedPaths?: string[]) {
+  // Specific actions based on what actually changed
+  if (name === "refine_website_copy" && changedPaths?.length) {
+    if (changedPaths.includes("media.hero_image_url")) return "Updating header photo";
+    if (changedPaths.includes("media.about_image_url")) return "Updating about photo";
+    if (changedPaths.some((p) => p.startsWith("hero."))) return "Updating hero section";
+    if (changedPaths.some((p) => p.startsWith("about."))) return "Updating about section";
+    if (changedPaths.some((p) => p.startsWith("seo."))) return "Updating SEO";
+    if (changedPaths.some((p) => p.startsWith("pages.faq."))) return "Updating FAQ";
+    if (changedPaths.some((p) => p.startsWith("pages.contact."))) return "Updating contact page";
+    if (changedPaths.some((p) => p.startsWith("value_props."))) return "Updating value props";
+    if (changedPaths.some((p) => p.includes("blocks."))) return "Updating homepage section";
+    return "Refining website copy";
+  }
+  if (name === "apply_stock_images" && changedPaths?.length) {
+    if (changedPaths.includes("media.hero_image_url") && changedPaths.includes("media.about_image_url"))
+      return "Adding stock photos";
+    if (changedPaths.includes("media.hero_image_url")) return "Adding header photo";
+    if (changedPaths.includes("media.about_image_url")) return "Adding about photo";
+  }
   switch (name) {
     case "capture_business_details":
       return "Learning about your business";
@@ -43,6 +62,14 @@ function publicToolLabel(name: string) {
       return "Switching design";
     case "apply_brand_color":
       return "Updating colors";
+    case "change_font":
+      return "Updating font";
+    case "add_products":
+      return "Adding products";
+    case "generate_product_descriptions":
+      return "Generating product descriptions";
+    case "process_product_image":
+      return "Analyzing product image";
     case "ask_clarifying_question":
       return "Asking for details";
     default:
@@ -135,7 +162,7 @@ function AgentTurnWidget({ payload }: { payload: Record<string, unknown> }) {
                   <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-medium text-ink">{publicToolLabel(call.name ?? "action")}</span>
+                      <span className="font-medium text-ink">{publicToolLabel(call.name ?? "action", result?.changed_paths)}</span>
                       {result ? (
                         ok ? (
                           <Check className="h-3.5 w-3.5 text-primary" />
@@ -180,10 +207,55 @@ export function BuilderMessageWidgets({
   }
 
   if (type === "website_generated" || type === "draft_generated") {
+    const nextSteps = Array.isArray(payload.next_steps)
+      ? (payload.next_steps as Array<{ label: string; action: string; message?: string; target?: string; href?: string }>)
+      : [];
+
     return (
-      <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-        <Globe className="h-3.5 w-3.5" />
-        Website generated
+      <div className="mt-3 space-y-3">
+        <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+          <Globe className="h-3.5 w-3.5" />
+          Website generated
+        </div>
+        {nextSteps.length > 0 ? (
+          <div className="rounded-xl border border-border bg-background p-3">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-soft">Next steps</p>
+            <div className="space-y-1">
+              {nextSteps.map((step, i) => (
+                <button
+                  key={step.label}
+                  type="button"
+                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs text-ink transition hover:bg-secondary"
+                  onClick={() => {
+                    if (step.action === "prompt" && step.message) {
+                      const textarea = document.querySelector<HTMLTextAreaElement>("textarea[placeholder]");
+                      if (textarea) {
+                        textarea.value = step.message;
+                        textarea.focus();
+                        textarea.dispatchEvent(new Event("input", { bubbles: true }));
+                      }
+                    } else if (step.action === "upload" && step.target) {
+                      const fileInput = document.querySelector<HTMLInputElement>("input[type=file][accept*='image']");
+                      fileInput?.click();
+                    } else if (step.action === "add_products_prompt" && step.message) {
+                      const textarea = document.querySelector<HTMLTextAreaElement>("textarea[placeholder]");
+                      if (textarea) {
+                        textarea.value = step.message;
+                        textarea.focus();
+                        textarea.dispatchEvent(new Event("input", { bubbles: true }));
+                      }
+                    }
+                  }}
+                >
+                  <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full border-2 border-dashed border-border text-[10px] text-ink-soft">
+                    {i + 1}
+                  </span>
+                  <span>{step.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
       </div>
     );
   }

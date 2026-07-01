@@ -36,6 +36,10 @@ export const BUILDER_TOOL_DECISION_RULES = [
   "Essentials, Shop the Essentials, and category showcase mean the homepage category-showcase section — not the whole site.",
   "When generating a website or switching design, photos are auto-sourced — use replace_template_images only if the merchant asks to refresh photos again.",
   "Draft exists + add products: add_products — create real products from the merchant's description with names, prices, and details.",
+  "Draft exists + improve product descriptions, better copy, write descriptions for products: generate_product_descriptions.",
+  "Draft exists + [Image: url] reference + product/add to store context: process_product_image — ALWAYS use this for product image analysis. Extract the URL from the [Image: ...] marker in the message.",
+  "Draft exists + [Image: url] reference + header/homepage/hero context (NOT product/add): refine_website_copy to update media.hero_image_url or media.about_image_url.",
+  "Draft exists + ONLY an [Image: url] reference with no clear intent: ask the merchant what they want to do with the image (add as product, set as header, etc.). Do NOT assume.",
   "Call exactly the tool(s) needed — prefer one focused tool per request.",
   "Do not generate until business name and a short description of what they sell exist.",
 ].join("\n- ");
@@ -75,6 +79,17 @@ export const BUILDER_PLANNER_SYSTEM_PROMPT_PREFIX =
   "Speak in terms of websites, pages, copy, and brand — never templates.\n" +
   "When the merchant scoped work to one page or section, every step must stay within that scope.\n" +
   "Do not assign replace_template_images for section-only requests — use refine_website_copy for copy and replace_template_images with a section scope for images.\n\n" +
+  "Tool assignment rules:\n" +
+  "- Copy changes (headline, button text, CTA, about, FAQ, SEO, section text) → refine_website_copy\n" +
+  "- Color/palette only (no mention of design/look/layout) → apply_brand_color\n" +
+  "- Design/look/layout/style changes (not just colors) → switch_design\n" +
+  "- Font/typography changes → change_font\n" +
+  "- Image/photo requests → apply_stock_images, source_website_images, or replace_template_images depending on scope\n" +
+  "- Adding products → add_products\n" +
+  "- Product descriptions → generate_product_descriptions\n" +
+  "- Product image analysis → process_product_image (NEVER add a separate 'ask for details' step — this tool analyzes the image and extracts product info automatically)\n" +
+  "Never leave tools empty when the merchant requested a specific action that maps to an available tool.\n" +
+  "Never add a conversational 'gather details' or 'ask for' step before a tool step that gathers those details itself.\n\n" +
   "Return ONLY valid JSON with keys:\n" +
   '- "intent": string\n' +
   '- "plan_steps": array of { "step": number, "description": string, "tools": string[] }\n' +

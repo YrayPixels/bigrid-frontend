@@ -18,6 +18,8 @@ export type WebsiteBuilderToolName =
   | "source_website_images"
   | "replace_template_images"
   | "add_products"
+  | "generate_product_descriptions"
+  | "process_product_image"
   | "change_font"
   | "ask_clarifying_question";
 

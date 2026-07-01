@@ -29,7 +29,7 @@ import type { AgentActivityPayload, AgentThinkingLogEntry, WebsiteBuilderContext
 import { createThinkingLogEntry } from "./thinking-log";
 import { aiSuggestedActions, colorPresetActions } from "@/lib/storefront-builder/suggested-actions";
 import { formatBuilderHistorySnippet } from "@/lib/storefront-builder/chat-history";
-import { remainingPlannedTools, sectionScopeHint } from "@/lib/storefront-builder/section-scope";
+import { sectionScopeHint } from "@/lib/storefront-builder/section-scope";
 
 type AssistantToolCall = {
   id: string;
@@ -199,24 +199,35 @@ export class StorefrontBuilderManager {
     ];
 
     const openAiTools = toOpenAiTools(toolDefs);
+    const completedStepIndices = new Set<number>();
     let criticStatus: "CONTINUE" | "DONE" | "NEED_USER" = "CONTINUE";
 
+    // Execute one plan step per iteration. Steps without tools are conversational
+    // and handled by the final reply — only tool-bearing steps go through the loop.
+    const toolSteps = plan.plan_steps.filter((s) => s.tools.length > 0);
+
     for (let iteration = 0; iteration < 8 && criticStatus === "CONTINUE"; iteration++) {
-      const pendingPlanTools = remainingPlannedTools(plan.plan_steps, toolCallsLog.map((call) => call.name));
-      if (iteration > 0 && pendingPlanTools.length > 0) {
-        messages.push({
-          role: "user",
-          content:
-            `[internal] Continue the merchant plan. Still required: ${pendingPlanTools.join(", ")}. ` +
-            "Call the next planned tool now — do not repeat tools that already finished.",
-        });
+      // Find the next incomplete tool step
+      const nextStep = toolSteps.find((s) => !completedStepIndices.has(s.step));
+      if (!nextStep) {
+        criticStatus = "DONE";
+        break;
       }
+
+      // Build a focused message: execute THIS step only
+      const stepPrompt =
+        `[internal] Execute ONLY step ${nextStep.step} of the plan: "${nextStep.description}". ` +
+        `Use these tools: ${nextStep.tools.join(", ")}. ` +
+        "Do NOT do anything else — just this one step.";
+
+      messages.push({ role: "user", content: stepPrompt });
 
       this.log({
         agent: "Executor",
         phase: "start",
         title: iteration === 0 ? "Running executor" : `Executor iteration ${iteration + 1}`,
-        data: { iteration: iteration + 1 },
+        detail: `Step ${nextStep.step}: ${nextStep.description}`,
+        data: { iteration: iteration + 1, step: nextStep.step, tools: nextStep.tools },
       });
 
       const data = await postChat({
@@ -253,7 +264,8 @@ export class StorefrontBuilderManager {
           title: "Executor replied without tools",
           detail: assistantMessage.content?.trim().slice(0, 280) ?? undefined,
         });
-        criticStatus = "DONE";
+        // If the step has tools but Executor didn't call them, ask Critic
+        criticStatus = "NEED_USER";
         break;
       }
 
@@ -308,6 +320,37 @@ export class StorefrontBuilderManager {
         });
       }
 
+      // Check if any tool in this step failed — if so, stop and report
+      const stepResults = toolResultsLog.slice(-(assistantMessage.tool_calls?.length ?? 1));
+      const stepFailed = stepResults.some((r) => r.ok === false);
+
+      if (stepFailed && ctx.assistantMessage) {
+        criticStatus = "DONE";
+        this.log({
+          agent: "Executor",
+          phase: "error",
+          title: "Step failed — stopping",
+          detail: ctx.assistantMessage.slice(0, 280),
+        });
+        break;
+      }
+
+      // Mark this step as complete — tools ran for it
+      completedStepIndices.add(nextStep.step);
+
+      // Check if we have more steps to do (simple check before Critic)
+      const remaining = toolSteps.filter((s) => !completedStepIndices.has(s.step));
+      if (remaining.length === 0) {
+        criticStatus = "DONE";
+        this.log({
+          agent: "Critic",
+          phase: "complete",
+          title: "All plan steps complete",
+          detail: `${completedStepIndices.size} step(s) executed.`,
+        });
+        break;
+      }
+
       this.log({
         agent: "Critic",
         phase: "start",
@@ -321,13 +364,7 @@ export class StorefrontBuilderManager {
         memoryLines: memory,
         lastToolSummaries,
         completedToolNames: toolCallsLog.map((call) => call.name),
-      }).catch(() => {
-        const pending = remainingPlannedTools(plan.plan_steps, toolCallsLog.map((call) => call.name));
-        if (pending.length > 0) {
-          return { status: "CONTINUE" as const, reason: `Planned tools still pending: ${pending.join(", ")}` };
-        }
-        return { status: "DONE" as const, reason: "fallback" };
-      });
+      }).catch(() => ({ status: "CONTINUE" as const, reason: "Proceeding to next step." }));
 
       criticStatus = critic.status;
       memory = appendMemory(memory, `[critic] ${critic.status}: ${critic.reason}`);
@@ -337,12 +374,18 @@ export class StorefrontBuilderManager {
         phase: "complete",
         title: `Critic decision: ${critic.status}`,
         detail: critic.reason,
-        data: { status: critic.status, reason: critic.reason },
+        data: { status: critic.status, reason: critic.reason, completed_steps: [...completedStepIndices] },
       });
 
       if (criticStatus === "NEED_USER" && !ctx.assistantMessage) {
         ctx.assistantMessage = critic.reason;
         ctx.payload = { type: "requirements_request", profile: ctx.profile };
+        break;
+      }
+
+      // Critic says DONE but we still have steps? Override to CONTINUE
+      if (criticStatus === "DONE" && remaining.length > 0) {
+        criticStatus = "CONTINUE";
       }
     }
 
@@ -358,8 +401,11 @@ export class StorefrontBuilderManager {
           {
             role: "user",
             content:
-              "[internal] Respond to the merchant in 1-3 warm sentences. Do not mention templates. " +
-              "If a website was generated, invite them to preview it and ask for refinements.",
+              "[internal] Respond to the merchant in 1-3 warm sentences about what just happened. " +
+              "Do not mention templates, agents, or tools. " +
+              "Acknowledge the specific action that was just completed (check the tool results in the conversation). " +
+              "Never reply with a generic greeting or business-building prompt when an action was just taken. " +
+              "If a tool modified the website, tell the merchant what changed and invite them to check the preview.",
           },
         ],
         tool_choice: "none",
@@ -367,6 +413,25 @@ export class StorefrontBuilderManager {
       }).catch(() => null);
       ctx.assistantMessage =
         getAssistantMessageContent(finalData ?? {}) || fallback.assistant_message;
+
+      // Safety net: if the final reply is still empty or is the pre-build
+      // fallback, but tools just modified the website, provide a contextual reply.
+      const isFallbackReply = !ctx.assistantMessage || ctx.assistantMessage === fallback.assistant_message;
+      if (toolCallsLog.length > 0 && isFallbackReply && ctx.storefront) {
+        const lastTool = toolCallsLog[toolCallsLog.length - 1];
+        const toolMessages: Record<string, string> = {
+          refine_website_copy: "Done — I've updated the copy. Check the preview on the right!",
+          capture_business_details: "Got it! I've saved your business details. Ready to build your website — just say 'build my website' when you're ready.",
+          design_website: "I've picked the best design for your brand. Ready to build — just say 'build my website'!",
+          apply_brand_color: "Done — colors updated. Check the preview!",
+          change_font: "Done — font updated. Check the preview!",
+          add_products: "Products added! Check your Products page.",
+          generate_product_descriptions: "Product descriptions updated! Check your Products page.",
+        };
+        ctx.assistantMessage = lastTool
+          ? (toolMessages[lastTool.name] ?? "Done — your website has been updated. Check the preview!")
+          : "Done — your website has been updated. Check the preview!";
+      }
       this.log({
         agent: "System",
         phase: "complete",

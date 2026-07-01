@@ -55,28 +55,39 @@ export async function parseProductFile(file: File): Promise<ParsedProduct[]> {
     return mapped;
   });
 
-  return normalized
-    .map((row) => {
-      const name =
-        parseSingleValue(row.product_name || row.name || row.title || row.item);
-      const price = parseNumberValue(row.price || row.unit_price || row.cost || row.amount);
+  const result: ParsedProduct[] = [];
 
-      if (!name || !price || price <= 0) return null;
+  for (const row of normalized) {
+    const name =
+      parseSingleValue(row.product_name || row.name || row.title || row.item);
+    const price = parseNumberValue(row.price || row.unit_price || row.cost || row.amount);
 
-      return {
-        name,
-        price,
-        description: parseSingleValue(row.description || row.desc || row.details) || undefined,
-        category: parseSingleValue(row.category || row.type || row.group) || undefined,
-        stock_quantity: parseNumberValue(
-          row.stock_quantity || row.stock || row.quantity || row.qty || row.inventory,
-        ),
-        image_url: parseSingleValue(row.image_url || row.image || row.photo || row.picture) || undefined,
-        currency: parseSingleValue(row.currency) || undefined,
-        sku: parseSingleValue(row.sku || row.code || row.product_code) || undefined,
-      };
-    })
-    .filter((p): p is ParsedProduct => p !== null);
+    if (!name || !price || price <= 0) continue;
+
+    const product: ParsedProduct = { name, price };
+
+    const desc = parseSingleValue(row.description || row.desc || row.details);
+    if (desc) product.description = desc;
+
+    const cat = parseSingleValue(row.category || row.type || row.group);
+    if (cat) product.category = cat;
+
+    const stock = parseNumberValue(row.stock_quantity || row.stock || row.quantity || row.qty || row.inventory);
+    if (stock !== undefined) product.stock_quantity = stock;
+
+    const img = parseSingleValue(row.image_url || row.image || row.photo || row.picture);
+    if (img) product.image_url = img;
+
+    const cur = parseSingleValue(row.currency);
+    if (cur) product.currency = cur;
+
+    const code = parseSingleValue(row.sku || row.code || row.product_code);
+    if (code) product.sku = code;
+
+    result.push(product);
+  }
+
+  return result;
 }
 
 /**

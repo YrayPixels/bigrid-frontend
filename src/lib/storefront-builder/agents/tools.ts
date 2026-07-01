@@ -45,6 +45,8 @@ const DRAFT_TOOL_NAMES = new Set([
   "source_website_images",
   "replace_template_images",
   "add_products",
+  "generate_product_descriptions",
+  "process_product_image",
   "change_font",
   "ask_clarifying_question",
 ]);
@@ -108,6 +110,10 @@ export function websiteBuilderTools(): WebsiteBuilderToolDef[] {
         ctx.status = hasMinimumBusinessProfile(ctx.profile)
           ? "template_recommendation"
           : "collecting_requirements";
+        ctx.payload = {
+          type: "business_details_captured",
+          profile: ctx.profile,
+        };
         return { ok: true, profile: ctx.profile };
       },
     },
@@ -133,6 +139,11 @@ export function websiteBuilderTools(): WebsiteBuilderToolDef[] {
               : available[0] ?? null;
         ctx.selectedTemplateId = selected;
         ctx.status = "template_recommendation";
+        ctx.payload = {
+          type: "design_selected",
+          template_id: selected,
+          design_direction: (typeof args.design_direction === "string" ? args.design_direction : "best_fit"),
+        };
         return { ok: true, design_direction: args.design_direction ?? "best_fit", template_id: selected };
       },
     },
@@ -173,10 +184,17 @@ export function websiteBuilderTools(): WebsiteBuilderToolDef[] {
           type: "website_generated",
           changed_paths: images.changed_paths,
           image_summary: images.summary,
+          next_steps: [
+            { label: "Add your products", action: "add_products_prompt", message: "Help me add my products" },
+            { label: "Upload a header photo", action: "upload", target: "media.hero_image_url" },
+            { label: "Write product descriptions", action: "prompt", message: "Write compelling descriptions for my products" },
+            { label: "Improve SEO", action: "prompt", message: "Update my website SEO for better search visibility" },
+            { label: "Review & publish", action: "prompt", message: "I'm ready to publish my website" },
+          ],
         };
         if (!ctx.assistantMessage) {
           ctx.assistantMessage =
-            "Your website is ready. Preview it on the right, then tell me what to refine — headline, about section, colors, or design.";
+            "Your website is ready! Here's what to do next to get your store live:\n\n1. Add your products\n2. Upload a header photo\n3. Polish your product descriptions\n4. Improve your SEO\n5. Review and publish\n\nPick any step and I'll help you through it, or tell me what you want to refine.";
         }
         return { ok: true, template_id: selected };
       },
@@ -386,7 +404,7 @@ export function websiteBuilderTools(): WebsiteBuilderToolDef[] {
         });
         ctx.storefront = result.storefront;
         ctx.status = "review_ready";
-        ctx.assistantMessage = result.assistant_message;
+        ctx.assistantMessage = result.assistant_message || "Done — I've updated the copy. Check the preview on the right!";
         ctx.payload = {
           type: "website_refined",
           changed_paths: result.changed_paths,
@@ -629,6 +647,165 @@ export function websiteBuilderTools(): WebsiteBuilderToolDef[] {
           ],
         };
         return { ok: true, added, failed };
+      },
+    },
+    {
+      name: "generate_product_descriptions",
+      description:
+        "Generate compelling, SEO-friendly product descriptions for existing products. Use when the merchant wants better copy for their product catalog.",
+      parameters: {
+        type: "object",
+        properties: {
+          style: {
+            type: "string",
+            description: "Optional style direction — e.g. luxury, playful, minimal, technical",
+          },
+        },
+        additionalProperties: false,
+      },
+      handler: async (args, ctx) => {
+        const storefront = ctx.storefront;
+        const existingProducts = Array.isArray(storefront?.products) ? storefront.products : [];
+        if (!existingProducts.length) return { ok: false, error: "No products to describe. Add products first." };
+
+        const style = typeof args.style === "string" && args.style.trim()
+          ? args.style.trim()
+          : ctx.profile.tone?.join(", ") ?? "professional";
+
+        const productList = existingProducts
+          .map((p) => `- ${p.name} (${p.price} ${p.currency ?? "NGN"}): ${p.description ?? "(no description)"}`)
+          .join("\n");
+
+        // Generate descriptions via the AI model
+        const { postChat } = await import("@/lib/storefront-builder/agents/openaiChat");
+        const data = await postChat({
+          messages: [
+            {
+              role: "system",
+              content: [
+                "You write compelling product descriptions for an online store.",
+                `Brand tone: ${style}.`,
+                "For each product, write a short, punchy description (2-3 sentences max).",
+                "Focus on benefits and sensory details — not just features.",
+                "Return ONLY valid JSON: { \"descriptions\": [{ \"name\": string, \"description\": string }] }",
+              ].join("\n"),
+            },
+            {
+              role: "user",
+              content: `Write descriptions for these products:\n${productList}`,
+            },
+          ],
+          tool_choice: "none",
+          temperature: 0.7,
+          response_format: { type: "json_object" },
+        });
+
+        const content = data?.choices?.[0]?.message?.content;
+        const parsed = typeof content === "string" ? JSON.parse(content) : null;
+        const descriptions = Array.isArray(parsed?.descriptions) ? parsed.descriptions : [];
+
+        if (!descriptions.length) return { ok: false, error: "Description generation failed." };
+
+        let updated = 0;
+        for (const item of descriptions) {
+          const match = existingProducts.find(
+            (p) => p.name.toLowerCase() === (item.name as string)?.toLowerCase(),
+          );
+          if (!match) continue;
+          try {
+            await api.updateProduct(match.id, { description: String(item.description) });
+            match.description = String(item.description);
+            updated++;
+          } catch {
+            // skip failed updates
+          }
+        }
+
+        ctx.assistantMessage = updated > 0
+          ? `Done — I wrote fresh descriptions for ${updated} product(s) in a ${style} tone. Check your Products page!`
+          : "I generated descriptions but couldn't update the products. Try again.";
+        ctx.payload = {
+          type: "product_descriptions_generated",
+          updated,
+        };
+        return { ok: true, updated };
+      },
+    },
+    {
+      name: "process_product_image",
+      description:
+        "Analyze a product image that the merchant uploaded. Extracts the image URL from the message if not provided explicitly. Use when the merchant mentions an [Image: url] reference and wants to add the product to their store.",
+      parameters: {
+        type: "object",
+        properties: {
+          image_url: {
+            type: "string",
+            description: "The URL of the uploaded product image to analyze",
+          },
+        },
+        required: ["image_url"],
+        additionalProperties: false,
+      },
+      handler: async (args, ctx) => {
+        // Extract image URL from args, or from the message if not provided
+        let imageUrl = typeof args.image_url === "string" ? args.image_url.trim() : "";
+        if (!imageUrl) {
+          const match = ctx.message.match(/\[Image:\s*(https?:\/\/[^\s\]]+)\]/i);
+          imageUrl = match?.[1] ?? "";
+        }
+        if (!imageUrl) return { ok: false, error: "No image URL provided." };
+
+        try {
+          // Route through the Next.js proxy so the backend is always reachable
+          const endpoint = "/api/vision/analyze-product";
+
+          const res = await fetch(endpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              image_url: imageUrl,
+              business_name: ctx.profile.business_name ?? ctx.session.store?.business_name ?? "",
+              industry: ctx.profile.industry ?? ctx.session.store?.industry ?? "",
+              description: ctx.profile.description ?? ctx.session.store?.description ?? "",
+            }),
+          });
+
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            const detail = (err as { error?: string; detail?: string }).detail || (err as { error?: string }).error || "vision_failed";
+            ctx.assistantMessage = `I couldn't analyze that image (${detail}). Can you describe the product — what's it called and how much does it cost?`;
+            return { ok: false, error: detail };
+          }
+
+          const data = (await res.json()) as { product?: { name: string; price: number | null; description: string; category: string | null } };
+          const product = data.product;
+          if (!product?.name) {
+            ctx.assistantMessage = "I couldn't identify the product in that image. Can you tell me what it is and the price?";
+            return { ok: false, error: "no_product_detected" };
+          }
+
+          ctx.payload = {
+            type: "product_image_analyzed",
+            image_url: imageUrl,
+            product: {
+              name: product.name,
+              price: product.price,
+              description: product.description,
+              category: product.category,
+            },
+          };
+
+          const priceStr = product.price ? ` around ${product.price.toLocaleString()} NGN` : "";
+          ctx.assistantMessage =
+            `I can see this looks like **${product.name}**${priceStr}. ` +
+            `${product.description ? `\n\n> ${product.description}\n\n` : ""}` +
+            "Would you like me to add this to your store? Just confirm the name, price, and any other details!";
+
+          return { ok: true, product: product };
+        } catch {
+          ctx.assistantMessage = "Something went wrong analyzing the image. Can you describe the product for me?";
+          return { ok: false, error: "vision_error" };
+        }
       },
     },
     {

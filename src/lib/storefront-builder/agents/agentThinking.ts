@@ -251,6 +251,8 @@ export function summarizeToolResult(name: string, result: Record<string, unknown
     const added = Array.isArray(result.added) ? result.added.length : 0;
     return `[tool:add_products] ${added} product(s) created`;
   }
+  if (name === "generate_product_descriptions" && result.ok) return `[tool:generate_product_descriptions] ${result.updated ?? 0} description(s) updated`;
+  if (name === "process_product_image" && result.ok) return `[tool:process_product_image] product identified: ${(result.product as { name?: string })?.name ?? "unknown"}`;
   if (name === "design_website" && result.ok) return "[tool:design_website] website design selected";
   if (name === "capture_business_details" && result.ok) return "[tool:capture_business_details] profile updated";
   if (name === "refine_website_copy" && result.ok) return "[tool:refine_website_copy] copy refined";
@@ -287,9 +289,10 @@ export function formatThinkingContext(interpretation: InterpreterResult, plan: P
     (plan.notes ? `\n### Planner notes\n${plan.notes}\n` : "") +
     "\n### Execution rule\n" +
     "Call every planned tool that has not run yet. Do not ask 'shall I proceed?' or 'would you like me to?' — just call the tool(s) immediately. " +
-    "You may call multiple tools in one response if the plan requires it. " +
+    "If a plan step has no tools assigned but a later step does, SKIP the tool-less step and jump straight to the first step with tools. " +
+    "Never reply with only prose when any plan step has tools assigned. " +
     "If you are unsure about a detail, infer it from the plan and the merchant's business. " +
-    "Only reply without tools if no plan steps remain.\n" +
+    "Only reply without tools if no plan step has any tools remaining.\n" +
     BUILDER_EXECUTOR_CONTEXT_SUFFIX
   );
 }

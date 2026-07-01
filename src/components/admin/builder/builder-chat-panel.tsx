@@ -137,6 +137,33 @@ export function BuilderChatPanel({
 
     setParsingFile(true);
     try {
+      // Image files: upload to backend as a product image, then
+      // let the vision agent analyze it and create a product.
+      if (file.type.startsWith("image/")) {
+        if (!session.store?.id) {
+          setInput("Please create your store first before uploading product images.");
+          setParsingFile(false);
+          return;
+        }
+
+        try {
+          const { api } = await import("@/lib/api/client");
+          const { url } = await api.uploadStorefrontImage(session.store.id, file);
+          // Insert image reference — user adds context about what to do with it.
+          // The cursor is placed before the marker so they can type their intent.
+          const imageRef = ` [Image: ${url}]`;
+          setInput((prev) => {
+            const existing = prev.trim();
+            return existing ? `${existing}${imageRef}` : `Add this as a product ${imageRef}`;
+          });
+        } catch {
+          setInput("Failed to upload the product image. Please try again.");
+        }
+        setParsingFile(false);
+        return;
+      }
+
+      // CSV/XLSX files
       const products = await parseProductFile(file);
       if (!products.length) {
         setInput("Couldn't parse any products from the file. Please check the format and try again.");
@@ -145,7 +172,7 @@ export function BuilderChatPanel({
       const text = formatProductsForAi(products);
       setInput((prev) => (prev.trim() ? `${prev}\n\n${text}` : text));
     } catch {
-      setInput("Failed to read the product file. Please try a .csv or .xlsx file with Name and Price columns.");
+      setInput("Failed to read the product file. Please try a .csv, .xlsx, or image file.");
     } finally {
       setParsingFile(false);
     }
@@ -168,7 +195,7 @@ export function BuilderChatPanel({
       <input
         ref={productFileRef}
         type="file"
-        accept=".csv,.xlsx,.xls"
+        accept=".csv,.xlsx,.xls,image/*"
         className="hidden"
         onChange={handleProductFile}
       />
@@ -276,6 +303,20 @@ export function BuilderChatPanel({
             title="Upload a photo for your website"
           >
             <ImagePlus className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            disabled={!session.store || busy || parsingFile}
+            onClick={() => productFileRef.current?.click()}
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-border bg-background text-ink-soft hover:border-primary/40 hover:text-ink disabled:opacity-50"
+            aria-label="Upload product list"
+            title="Upload a CSV or Excel file with products"
+          >
+            {parsingFile ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <FileSpreadsheet className="h-4 w-4" />
+            )}
           </button>
           <textarea
             value={input}

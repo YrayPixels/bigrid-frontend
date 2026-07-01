@@ -323,6 +323,7 @@ export default function AdminProductsPage() {
   const [importReport, setImportReport] = useState<ProductImportReport | null>(null);
   const [importReportOpen, setImportReportOpen] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(() => new Date());
+  const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(new Set());
 
   const storeQuery = useQuery({
     queryKey: ["store", "me"],
@@ -466,6 +467,58 @@ export default function AdminProductsPage() {
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : "Could not delete product"),
   });
+
+  // Batch operations
+  function toggleProductSelection(productId: string) {
+    setSelectedProductIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(productId)) next.delete(productId);
+      else next.add(productId);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    setSelectedProductIds((prev) => {
+      if (prev.size === filteredProducts.length) return new Set();
+      return new Set(filteredProducts.map((p) => p.id));
+    });
+  }
+
+  function clearSelection() {
+    setSelectedProductIds(new Set());
+  }
+
+  const selectedCount = selectedProductIds.size;
+  const allSelected = selectedCount > 0 && selectedCount === filteredProducts.length;
+
+  async function batchDelete() {
+    const confirmed = await confirm(`Delete ${selectedCount} product(s)?`, {
+      description: "This action cannot be undone.",
+      confirmLabel: "Delete all",
+      destructive: true,
+    });
+    if (!confirmed) return;
+    const ids = [...selectedProductIds];
+    for (const id of ids) {
+      try { await api.deleteProduct(id); } catch { /* continue */ }
+    }
+    queryClient.invalidateQueries({ queryKey: ["products"] });
+    setLastUpdated(new Date());
+    clearSelection();
+    toast.success(`${ids.length} product(s) deleted.`);
+  }
+
+  async function batchArchive(archived: boolean) {
+    const ids = [...selectedProductIds];
+    for (const id of ids) {
+      try { await api.updateProduct(id, { status: archived ? "archived" : "active" }); } catch { /* continue */ }
+    }
+    queryClient.invalidateQueries({ queryKey: ["products"] });
+    setLastUpdated(new Date());
+    clearSelection();
+    toast.success(`${ids.length} product(s) ${archived ? "archived" : "restored"}.`);
+  }
 
   function openNewProduct() {
     setEditingProduct(undefined);
@@ -861,8 +914,45 @@ export default function AdminProductsPage() {
                 </div>
               </div>
 
+              {selectedCount > 0 ? (
+                <div className="mt-4 flex items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3">
+                  <span className="text-sm font-semibold text-ink">{selectedCount} selected</span>
+                  <div className="ml-auto flex items-center gap-2">
+                    <Button size="sm" variant="outline" onClick={() => batchArchive(true)}>
+                      <Archive className="mr-1 h-3.5 w-3.5" />
+                      Archive
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => batchArchive(false)}>
+                      <ArchiveRestore className="mr-1 h-3.5 w-3.5" />
+                      Restore
+                    </Button>
+                    <Button size="sm" variant="destructive" onClick={batchDelete}>
+                      <Trash2 className="mr-1 h-3.5 w-3.5" />
+                      Delete
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={clearSelection}>
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+
               {filteredProducts.length ? (
-                <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                <div className="mt-2 flex items-center gap-2">
+                  <label className="flex cursor-pointer items-center gap-2 text-xs text-ink-soft">
+                    <input
+                      type="checkbox"
+                      checked={allSelected}
+                      onChange={toggleSelectAll}
+                      className="h-4 w-4 rounded border-border accent-primary"
+                    />
+                    Select all
+                  </label>
+                </div>
+              ) : null}
+
+              {filteredProducts.length ? (
+                <div className="mt-3 grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                   {filteredProducts.map((product, index) => {
                     const rating = (4.4 + (index % 4) * 0.1).toFixed(1);
                     const inventory = stockBadge(product);
@@ -870,9 +960,16 @@ export default function AdminProductsPage() {
                     return (
                       <article
                         key={product.id}
-                        className="group relative overflow-hidden rounded-2xl border border-border/80 bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-soft"
+                        className={`group relative overflow-hidden rounded-2xl border bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-soft ${selectedProductIds.has(product.id) ? "border-primary ring-2 ring-primary/20" : "border-border/80"}`}
                       >
-                        <div className="absolute left-3 top-3 z-10 flex items-center gap-1">
+                        <div className="absolute left-3 top-3 z-10 flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={selectedProductIds.has(product.id)}
+                            onChange={() => toggleProductSelection(product.id)}
+                            className="h-4 w-4 rounded border-border accent-primary"
+                            onClick={(e) => e.stopPropagation()}
+                          />
                           <span className="h-1.5 w-4 rounded-full bg-primary" />
                           <span className="h-1.5 w-1.5 rounded-full bg-primary/30" />
                         </div>
