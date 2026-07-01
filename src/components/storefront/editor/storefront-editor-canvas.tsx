@@ -84,7 +84,7 @@ export function StorefrontEditorCanvas({
     [previewStore, draft, templateId, palette, categoriesQuery.data],
   );
 
-  const theme = getStorefrontTheme(templateId, brandColor, palette);
+  const theme = getStorefrontTheme(templateId, brandColor, palette, draft?.display_font);
 
   function handleFieldChange(path: string, value: string) {
     const next = cloneStorefrontContent(draft);

@@ -178,7 +178,9 @@ export async function runPlanner(args: {
     })
     .filter((row) => row.description.length > 0);
 
-  if (!intent || planSteps.length === 0) return fallbackPlanner(userText);
+  // Allow empty plan_steps when the AI explicitly returned them (greetings, small talk).
+  // Only fall back when the AI call failed to produce any usable output at all.
+  if (!intent) return fallbackPlanner(userText);
 
   const notes = typeof parsed.notes === "string" && parsed.notes.trim() ? parsed.notes.trim() : undefined;
   return { intent, plan_steps: planSteps, ...(notes ? { notes } : {}) };
@@ -249,6 +251,7 @@ export function summarizeToolResult(name: string, result: Record<string, unknown
   if (name === "design_website" && result.ok) return "[tool:design_website] website design selected";
   if (name === "capture_business_details" && result.ok) return "[tool:capture_business_details] profile updated";
   if (name === "refine_website_copy" && result.ok) return "[tool:refine_website_copy] copy refined";
+  if (name === "change_font" && result.ok) return `[tool:change_font] font changed to ${result.font_label ?? result.font}`;
   return `[tool:${name}] ${JSON.stringify(result).slice(0, 220)}`;
 }
 
@@ -276,9 +279,14 @@ export function formatThinkingContext(interpretation: InterpreterResult, plan: P
       : "\n") +
     "### Planner intent\n" +
     `${plan.intent}\n\n` +
-    "### Planner steps\n" +
+    "### Planner steps (you MUST execute these — never ask permission first)\n" +
     `${planLines || "(none)"}\n` +
     (plan.notes ? `\n### Planner notes\n${plan.notes}\n` : "") +
+    "\n### Execution rule\n" +
+    "Call every planned tool that has not run yet. Do not ask 'shall I proceed?' or 'would you like me to?' — just call the tool(s) immediately. " +
+    "You may call multiple tools in one response if the plan requires it. " +
+    "If you are unsure about a detail, infer it from the plan and the merchant's business. " +
+    "Only reply without tools if no plan steps remain.\n" +
     BUILDER_EXECUTOR_CONTEXT_SUFFIX
   );
 }

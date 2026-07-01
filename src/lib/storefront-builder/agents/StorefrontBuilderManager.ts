@@ -94,20 +94,7 @@ export class StorefrontBuilderManager {
       availableTemplateIds,
     });
 
-    if (!isSubstantiveBuilderMessage(message)) {
-      this.log({
-        agent: "System",
-        phase: "info",
-        title: "Skipped agent loop",
-        detail: "Message was not substantive enough to run the thinking pipeline.",
-      });
-      return {
-        business_profile: sanitizeBusinessProfile(session.business_profile ?? {}),
-        status: session.status,
-        assistant_message: fallback.assistant_message,
-        assistant_payload: { type: "conversation" },
-      };
-    }
+
 
     const toolDefs = websiteBuilderToolsForSession(session);
     const historySnippet = formatBuilderHistorySnippet(history ?? []);
@@ -200,7 +187,7 @@ export class StorefrontBuilderManager {
           formatThinkingContext(interpretation, plan) +
           (scopeHint ? `\n\n### Scope\n${scopeHint}\n` : "") +
           (session.storefront_snapshot
-            ? "\n\n### Session state\nA website draft already exists in the preview. Choose the single best tool for this message — do not guess or reply without calling a tool when an action is requested.\n" +
+            ? "\n\n### Session state\nA website draft already exists in the preview. Follow the plan above — call each planned tool in order. Never reply with only prose when a tool is assigned to you. Execute tools silently and report results after.\n" +
               `Enabled tools: ${toolDefs.map((tool) => tool.name).join(", ")}`
             : "\n\n### Session state\nNo website draft yet. Gather business details if needed, then design and generate when the merchant is ready."),
       },

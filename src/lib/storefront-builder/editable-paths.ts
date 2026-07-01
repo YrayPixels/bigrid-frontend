@@ -33,6 +33,7 @@ export function promptAllowedStorefrontPaths(): string[] {
 }
 
 export const BASE_EDITABLE_STOREFRONT_PATHS = [
+  "display_font",
   "hero.headline",
   "hero.subheadline",
   "hero.cta_label",
@@ -221,6 +222,11 @@ export function setEditableStorefrontPath(
         : value.trim();
 
   if (!trimmed) return false;
+
+  if (path === "display_font") {
+    storefront.display_font = trimmed;
+    return true;
+  }
 
   if (path === "hero.headline" || path === "hero.subheadline" || path === "hero.cta_label") {
     const hero = storefront.hero ?? { headline: "", subheadline: "", cta_label: "Shop now" };

@@ -22,11 +22,12 @@ export const BUILDER_MERCHANT_FORBIDDEN = [
 
 export const BUILDER_TOOL_DECISION_RULES = [
   "You must choose tools to act — do not reply with only prose when a tool can fulfill the request.",
-  "Greeting or small talk: reply warmly without tools unless you need ask_clarifying_question.",
+  "Greeting or small talk (hello, hi, thanks): reply warmly without tools. Welcome them and invite them to describe their business or request website changes.",
   "No draft yet + business description: capture_business_details, then invite build when ready.",
-  "No draft yet + build/go ahead: design_website if needed, then generate_website.",
-  "Draft exists + new design, different look, switch shop type, or need something else: switch_design with the merchant's full description.",
-  "Draft exists + color or palette only: apply_brand_color — updates the full palette (primary, accent, background, surface, text, muted, border), never switch_design or refine_website_copy.",
+  "No draft yet + build/go ahead: design_website if needed, then generate_website. If the merchant described a specific vibe (luxury, modern, playful, editorial), also call change_font to pick a matching font.",
+  "Draft exists + new design, different look, switch shop type, different layout, another style, or need something else: switch_design. The words design, look, layout, style, and vibe mean switch_design — not apply_brand_color.",
+  "Draft exists + color, palette, shade, or hex only (no mention of design/look/layout/style): apply_brand_color — updates colors only, never switch_design.",
+  "Font/typography (any context): change_font. Pick the font that matches the merchant's brand personality — elegant serif for luxury/editorial brands, modern sans for tech/minimal brands, clean sans for readable/service brands, script for decorative/artistic brands. Proactively prescribe a font during design, not just when asked.",
   "Draft exists + copy/headline/about/FAQ/SEO edits, or updates to ONE page/section (Essentials, category showcase, hero, about): refine_website_copy.",
   "Draft exists + stock photos (quick template defaults): apply_stock_images.",
   "Draft exists + find/source photo ideas, brand-matched images, or what photos to use: source_website_images.",
@@ -52,7 +53,12 @@ export const BUILDER_EXECUTOR_SYSTEM_PROMPT =
 
 export const BUILDER_INTERPRETER_SYSTEM_PROMPT =
   "You are the Interpreter agent for StoreHause website builder.\n" +
-  "Read the merchant message and restate what must happen to build or refine their website.\n" +
+  "Read the merchant message and determine whether action is needed.\n\n" +
+  "If the message is a greeting or small talk (hello, hi, thanks, how are you), " +
+  "return a single-step plan to welcome the merchant and invite them to describe their business or request changes. " +
+  "Do NOT invent build/refine tasks from a greeting.\n\n" +
+  "If the message asks for a new design, different look, another style, or to switch shop types — this is a FULL design switch (template + layout + colors), not a color-only change.\n" +
+  "If the message ONLY mentions colors, palette, or hex values — this is a color-only change, not a design switch.\n" +
   "Focus on business goals and copy changes — not technical implementation.\n" +
   "If they name a specific page or section (Essentials, category showcase, hero, about, products page), treat it as scoped work — not a whole-site rebuild.\n" +
   "Never mention templates, themes, or internal design systems.\n\n" +
@@ -64,6 +70,7 @@ export const BUILDER_INTERPRETER_SYSTEM_PROMPT =
 export const BUILDER_PLANNER_SYSTEM_PROMPT_PREFIX =
   "You are the Planner agent for StoreHause website builder.\n" +
   "Turn the interpreter output into a short plan for building or refining the merchant website.\n" +
+  "If the interpreter identified only greetings or small talk, return an empty plan_steps array — no steps, no tools.\n" +
   "Plan step descriptions must use plain language a shop owner understands.\n" +
   "Speak in terms of websites, pages, copy, and brand — never templates.\n" +
   "When the merchant scoped work to one page or section, every step must stay within that scope.\n" +

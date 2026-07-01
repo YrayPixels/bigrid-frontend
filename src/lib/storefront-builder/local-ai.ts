@@ -86,6 +86,16 @@ const INDUSTRY_KEYWORDS: Record<string, Industry> = {
   salon: "services",
 };
 
+export function isFontChangeIntent(message: string): boolean {
+  const trimmed = message.trim().toLowerCase();
+  return (
+    /\b(change|switch|update|use|pick|try|different|new|serif|sans|elegant|modern|script)\b.*\b(font|typeface|typography|text style)\b/.test(trimmed) ||
+    /\b(font|typeface|typography|text style)\b.*\b(change|switch|update|use|pick|try|different|new|serif|sans|elegant|modern|script)\b/.test(trimmed) ||
+    /\b(use|try|switch to|change to)\b.*\b(serif|sans[- ]serif|script|elegant|modern|editorial)\b.*\b(font|look|style)\b/.test(trimmed) ||
+    /\b(make|more)\b.*\b(elegant|modern|classy|sophisticated|editorial)\b/.test(trimmed)
+  );
+}
+
 export function isDesignChangeIntent(message: string): boolean {
   const trimmed = message.trim().toLowerCase();
   return (

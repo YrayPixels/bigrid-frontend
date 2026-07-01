@@ -51,6 +51,7 @@ export function StorefrontGate({ slug, children }: { slug: string; children: Rea
     templateId,
     query.data.store.brand_color,
     query.data.storefront.palette,
+    query.data.storefront.display_font,
   );
 
   return (

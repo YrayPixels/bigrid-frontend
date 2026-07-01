@@ -24,6 +24,7 @@ import {
   resolveCategoryShowcaseImageScope,
   type ImageReplaceScope,
 } from "@/lib/storefront-builder/section-scope";
+import { STOREFRONT_FONT_OPTIONS } from "@/lib/storefront/template";
 import type { BuilderSession } from "@/lib/api/types";
 import type { WebsiteBuilderContext, WebsiteBuilderToolDef } from "./types";
 
@@ -31,6 +32,7 @@ const PRE_DRAFT_TOOL_NAMES = new Set([
   "capture_business_details",
   "design_website",
   "generate_website",
+  "change_font",
   "ask_clarifying_question",
 ]);
 
@@ -42,6 +44,7 @@ const DRAFT_TOOL_NAMES = new Set([
   "source_website_images",
   "replace_template_images",
   "guide_add_products",
+  "change_font",
   "ask_clarifying_question",
 ]);
 
@@ -180,7 +183,7 @@ export function websiteBuilderTools(): WebsiteBuilderToolDef[] {
     {
       name: "switch_design",
       description:
-        "Switch the website to a new design that fits the merchant's description. Picks the best layout and a matching color palette using AI. Use when they want a different look, new style, cosmetic shop, fashion brand, minimal vibe, or say they need something else.",
+        "Switch to a COMPLETELY DIFFERENT website layout and design. Changes the entire template, layout, color palette, and images. Use when the merchant says 'new design', 'different look', 'another style', 'something else', or names a specific shop type (cosmetics, fashion, minimal). This is NOT for color-only changes — use apply_brand_color for palette-only requests.",
       parameters: {
         type: "object",
         properties: {
@@ -244,7 +247,7 @@ export function websiteBuilderTools(): WebsiteBuilderToolDef[] {
     {
       name: "apply_brand_color",
       description:
-        "Update the full brand color palette — primary, accent, background, surface, text, muted, and border. Never change layout or copy. Use for color names, palettes, hex codes, or mood colors like soft lavender or earthy brown.",
+        "Update ONLY the color palette (primary, accent, background, surface, text, muted, border). Does NOT change the layout, template, or design. Use ONLY when the merchant specifically asks about color/palette/hex — not for design or layout changes.",
       parameters: {
         type: "object",
         properties: {
@@ -321,6 +324,41 @@ export function websiteBuilderTools(): WebsiteBuilderToolDef[] {
           palette: result.storefront.palette,
         };
         return { ok: true, brand_color: result.store.brand_color, color_label: colorLabel };
+      },
+    },
+    {
+      name: "change_font",
+      description:
+        "Change the display font for headings and titles across the website. Pick from available fonts that match the merchant's desired vibe.",
+      parameters: {
+        type: "object",
+        properties: {
+          font: {
+            type: "string",
+            enum: Object.keys(STOREFRONT_FONT_OPTIONS),
+            description:
+              "Font key: modern-sans (clean modern), elegant-serif (sophisticated editorial), clean-sans (simple readable), script (decorative flowing).",
+          },
+        },
+        required: ["font"],
+        additionalProperties: false,
+      },
+      handler: async (args, ctx) => {
+        const fontKey = typeof args.font === "string" ? args.font : "";
+        const option = STOREFRONT_FONT_OPTIONS[fontKey];
+        if (!option) return { ok: false, error: `Unknown font: ${fontKey}` };
+        if (!ctx.storefront) return { ok: false, error: "No storefront to apply font to." };
+
+        ctx.storefront.display_font = option.css;
+        ctx.status = "review_ready";
+        ctx.assistantMessage = `Done — I switched your display font to ${option.label}. Check the preview!`;
+        ctx.payload = {
+          type: "font_changed",
+          changed_paths: ["display_font"],
+          font: fontKey,
+          font_label: option.label,
+        };
+        return { ok: true, font: fontKey, font_label: option.label };
       },
     },
     {

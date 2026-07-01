@@ -64,10 +64,34 @@ export function alignStorefrontTemplateToSelection(
   };
 }
 
+/**
+ * Available display fonts the AI can pick from.
+ * Key = machine ID used in prompts, value = CSS variable + human label.
+ */
+export const STOREFRONT_FONT_OPTIONS: Record<string, { css: string; label: string; description: string }> = {
+  "modern-sans": { css: "var(--font-display)", label: "Modern Sans", description: "Clean modern sans-serif — Space Grotesk" },
+  "elegant-serif": { css: "var(--font-editorial)", label: "Elegant Serif", description: "Sophisticated editorial serif — Playfair Display" },
+  "clean-sans": { css: "var(--font-sans)", label: "Clean Sans", description: "Simple readable sans-serif — Inter" },
+  "script": { css: "var(--font-script)", label: "Script", description: "Decorative flowing script — Allura" },
+};
+
+/**
+ * Resolve the display font from a storefront JSON font value.
+ * Accepts CSS variable strings (e.g. "var(--font-editorial)") or font option keys (e.g. "elegant-serif").
+ */
+export function resolveDisplayFont(fontValue: string | null | undefined, templateDefault: string): string {
+  if (!fontValue) return templateDefault;
+  // Direct CSS variable match
+  if (fontValue.startsWith("var(--")) return fontValue;
+  // Font option key lookup
+  return STOREFRONT_FONT_OPTIONS[fontValue]?.css ?? templateDefault;
+}
+
 export function getStorefrontTheme(
   templateId: StorefrontTemplateId,
   brandColor: string,
   palette?: StorefrontColorPalette,
+  displayFontOverride?: string | null,
 ): StorefrontTheme {
   const resolvedPalette = getStorefrontPalette(templateId, brandColor, palette);
   const base = {
@@ -78,9 +102,11 @@ export function getStorefrontTheme(
     pageMaxWidth: "max-w-7xl mx-auto",
   };
 
+  let result: StorefrontTheme;
+
   switch (templateId) {
     case "cosmetics":
-      return {
+      result = {
         ...base,
         shell: "cosmetics",
         displayFont: "var(--font-display)",
@@ -94,8 +120,9 @@ export function getStorefrontTheme(
         heroAlign: "left",
         productGridCols: "sm:grid-cols-2 lg:grid-cols-4",
       };
+      break;
     case "beauty":
-      return {
+      result = {
         ...base,
         shell: "beauty",
         displayFont: "var(--font-editorial)",
@@ -109,8 +136,9 @@ export function getStorefrontTheme(
         heroAlign: "center",
         productGridCols: "sm:grid-cols-2 lg:grid-cols-4",
       };
+      break;
     case "minimalistic":
-      return {
+      result = {
         ...base,
         shell: "minimalistic",
         displayFont: "var(--font-display)",
@@ -125,7 +153,7 @@ export function getStorefrontTheme(
         productGridCols: "sm:grid-cols-2 lg:grid-cols-3",
       };
     case "fashion_lookbook":
-      return {
+      result = {
         ...base,
         shell: "fashion",
         displayFont: "var(--font-editorial)",
@@ -139,8 +167,9 @@ export function getStorefrontTheme(
         heroAlign: "center",
         productGridCols: "sm:grid-cols-2 lg:grid-cols-4",
       };
+      break;
     case "editorial":
-      return {
+      result = {
         ...base,
         shell: "default",
         displayFont: "var(--font-display)",
@@ -154,8 +183,9 @@ export function getStorefrontTheme(
         heroAlign: "center",
         productGridCols: "sm:grid-cols-2 lg:grid-cols-3",
       };
+      break;
     case "bold_grid":
-      return {
+      result = {
         ...base,
         shell: "default",
         displayFont: "var(--font-display)",
@@ -169,8 +199,9 @@ export function getStorefrontTheme(
         heroAlign: "left",
         productGridCols: "sm:grid-cols-2 lg:grid-cols-3",
       };
+      break;
     default:
-      return {
+      result = {
         ...base,
         shell: "default",
         displayFont: "var(--font-display)",
@@ -184,7 +215,14 @@ export function getStorefrontTheme(
         heroAlign: "left",
         productGridCols: "sm:grid-cols-2 lg:grid-cols-3",
       };
+      break;
   }
+
+  if (displayFontOverride) {
+    result.displayFont = resolveDisplayFont(displayFontOverride, result.displayFont);
+  }
+
+  return result;
 }
 
 export function getDefaultStorefrontPalette(

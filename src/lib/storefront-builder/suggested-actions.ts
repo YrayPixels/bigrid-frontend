@@ -92,18 +92,50 @@ export function fallbackSuggestedActions(session: BuilderSession): BuilderSugges
   const industry = profile.industry ?? session.store?.industry ?? null;
 
   if (session.storefront_snapshot) {
+    const hasProducts =
+      Array.isArray(session.storefront_snapshot.products) &&
+      session.storefront_snapshot.products.length > 0;
+
     return [
       {
         type: "prompt",
-        label: "Redesign my shop",
-        message: "I want a fresh design that fits my brand — pick the best look and colors for me",
+        label: "Refine my headline",
+        message: "Make the homepage headline more compelling",
       },
-      { type: "prompt", label: "Try cosmetics look", message: "Switch to a clean cosmetics shop design with soft natural colors" },
-      { type: "prompt", label: "Try fashion look", message: "Switch to a bold fashion lookbook design with editorial colors" },
-      { type: "prompt", label: "Try minimal look", message: "Switch to a calm minimal design with warm neutral colors" },
-      { type: "prompt", label: "Make it more premium", message: "Make the homepage more premium" },
-      { type: "prompt", label: "Source brand photos", message: "Help me find photos that fit my brand for the homepage and about section" },
-      { type: "upload", label: "Upload header photo", target: "media.hero_image_url" },
+      {
+        type: "prompt",
+        label: "Improve SEO",
+        message: "Update my website SEO title and description",
+      },
+      {
+        type: "prompt",
+        label: "Rewrite about section",
+        message: "Rewrite the about section to better reflect my brand story",
+      },
+      {
+        type: "prompt",
+        label: "Change my colors",
+        message: "I want a different color palette for my website",
+      },
+      ...(hasProducts
+        ? []
+        : [
+            {
+              type: "link" as const,
+              label: "Add products",
+              href: "/admin/products",
+            },
+          ]),
+      {
+        type: "upload",
+        label: "Upload header photo",
+        target: "media.hero_image_url" as const,
+      },
+      {
+        type: "prompt",
+        label: "Source brand photos",
+        message: "Help me find photos that fit my brand",
+      },
       ...COLOR_PRESETS[industryKey(industry)].slice(0, 2).map(
         (preset): BuilderSuggestedAction => ({
           type: "color",
@@ -195,12 +227,8 @@ export async function aiSuggestedActions({
 
   const industry = profile.industry ?? store?.industry ?? null;
 
-  // Fallback immediately when server-side API key isn't configured.
-  const apiKey =
-    process.env.OPENAI_API_KEY ??
-    process.env.NEXT_OPENAI_API_KEY ??
-    process.env.NEXT_PUBLIC_OPENAI_API_KEY;
-  if (!apiKey) return fallbackSuggestedActions(session);
+  const hasStore = !!session.store;
+  const isPreBuild = !hasStorefront && !hasStore;
 
   const prompt = [
     "You generate suggested next-step chips for a merchant building their StoreHause website.",
@@ -214,11 +242,21 @@ export async function aiSuggestedActions({
     "",
     "Rules:",
     "- Actions must be specific to the merchant's situation, not generic templates.",
-    "- Prefer 4-6 actions. Keep labels short (2-5 words). Messages should be copy-pastable.",
+    "- Generate exactly 5-7 actions. Keep labels short (2-5 words). Messages should be copy-pastable.",
     "- Never mention templates, JSON, agents, tools, or internal system details.",
-    "- Use at least 2 prompt actions. Add upload actions only if the relevant image is missing.",
-    "- Add at most 2 color actions, and only with valid hex colors.",
-    "- Only include a link action if it is clearly the best next step (e.g. add products).",
+    ...(isPreBuild
+      ? [
+          "- This merchant hasn't described their business yet. Offer prompt chips with example business descriptions they can use (e.g. 'I sell handmade candles').",
+          "- Include at least 3 prompt actions with varied business examples across different industries.",
+          "- Add at most 2 color actions.",
+        ]
+      : [
+          "- This merchant has a website draft. Suggest refinement actions only: change headline, rewrite about section, improve SEO copy, update colors, upload photos, source brand images.",
+          "- Do NOT suggest switching designs, rebuilding, or changing templates — the site already exists.",
+          "- Use prompt actions for copy/SEO refinements and upload actions for missing images.",
+          "- Add at most 2 color actions, and only with valid hex colors.",
+          "- Include a link action to add products if the store has none.",
+        ]),
     "",
     "Context:",
     `- Merchant business name: ${profile.business_name ?? store?.business_name ?? "unknown"}`,
@@ -251,12 +289,12 @@ export async function aiSuggestedActions({
         : null;
 
     const normalized = normalizeSuggestedActions(rawActions);
-    if (normalized.length >= 3) return normalized.slice(0, 8);
+    if (normalized.length >= 2) return normalized.slice(0, 8);
   } catch {
-    // Ignore and fall back.
+    // AI unavailable — use fallback.
   }
 
-  // If generation fails, keep a sensible fallback that depends on the session state.
+  // AI completely failed — last-resort fallback.
   const base = fallbackSuggestedActions(session);
   if (!hasProducts && hasStorefront) {
     return [

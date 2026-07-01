@@ -240,6 +240,7 @@ export type StorefrontContent = {
     source: "merchant_selected" | "ai_selected";
   };
   palette?: StorefrontColorPalette;
+  display_font?: string;
   data_plugs?: {
     home_products_source?: "merchant_products" | "theme_products";
   };
