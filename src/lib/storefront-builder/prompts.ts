@@ -35,7 +35,7 @@ export const BUILDER_TOOL_DECISION_RULES = [
   "Draft exists + replace photos on ONE section only (Essentials/category showcase, homepage hero, about, product grid): replace_template_images with the matching scope — never full_site unless the merchant asked for the whole website.",
   "Essentials, Shop the Essentials, and category showcase mean the homepage category-showcase section — not the whole site.",
   "When generating a website or switching design, photos are auto-sourced — use replace_template_images only if the merchant asks to refresh photos again.",
-  "Draft exists + add products: guide_add_products.",
+  "Draft exists + add products: add_products — create real products from the merchant's description with names, prices, and details.",
   "Call exactly the tool(s) needed — prefer one focused tool per request.",
   "Do not generate until business name and a short description of what they sell exist.",
 ].join("\n- ");

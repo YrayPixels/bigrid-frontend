@@ -247,7 +247,10 @@ export function summarizeToolResult(name: string, result: Record<string, unknown
   if (name === "apply_stock_images" && result.ok) return "[tool:apply_stock_images] stock photos applied";
   if (name === "source_website_images" && result.ok) return "[tool:source_website_images] image recommendations ready";
   if (name === "replace_template_images" && result.ok) return "[tool:replace_template_images] template photos replaced";
-  if (name === "guide_add_products" && result.ok) return "[tool:guide_add_products] product guidance sent";
+  if (name === "add_products" && result.ok) {
+    const added = Array.isArray(result.added) ? result.added.length : 0;
+    return `[tool:add_products] ${added} product(s) created`;
+  }
   if (name === "design_website" && result.ok) return "[tool:design_website] website design selected";
   if (name === "capture_business_details" && result.ok) return "[tool:capture_business_details] profile updated";
   if (name === "refine_website_copy" && result.ok) return "[tool:refine_website_copy] copy refined";

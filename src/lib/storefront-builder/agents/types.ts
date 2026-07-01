@@ -17,7 +17,7 @@ export type WebsiteBuilderToolName =
   | "apply_stock_images"
   | "source_website_images"
   | "replace_template_images"
-  | "guide_add_products"
+  | "add_products"
   | "change_font"
   | "ask_clarifying_question";
 

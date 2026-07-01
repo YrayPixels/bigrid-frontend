@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ImagePlus, ListTree, Loader2, Send, Sparkles, Trash2 } from "lucide-react";
+import { FileSpreadsheet, ImagePlus, ListTree, Loader2, Send, Sparkles, Trash2 } from "lucide-react";
+import { formatProductsForAi, parseProductFile } from "@/lib/product-parser";
 import type {
   BuilderMediaTarget,
   BuilderMessage,
@@ -56,7 +57,9 @@ export function BuilderChatPanel({
   const [designPickerOpen, setDesignPickerOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const productFileRef = useRef<HTMLInputElement>(null);
   const [uploadTarget, setUploadTarget] = useState<BuilderMediaTarget>("media.hero_image_url");
+  const [parsingFile, setParsingFile] = useState(false);
   const brandColor = session.store?.brand_color ?? session.business_profile.brand_color ?? "#0E7C66";
   const suggestedActions = getLatestSuggestedActions(session);
   const busy = sending || generating || clearing || selectingTemplate;
@@ -127,6 +130,27 @@ export function BuilderChatPanel({
     onUploadMedia(uploadTarget, file);
   }
 
+  async function handleProductFile(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || busy) return;
+
+    setParsingFile(true);
+    try {
+      const products = await parseProductFile(file);
+      if (!products.length) {
+        setInput("Couldn't parse any products from the file. Please check the format and try again.");
+        return;
+      }
+      const text = formatProductsForAi(products);
+      setInput((prev) => (prev.trim() ? `${prev}\n\n${text}` : text));
+    } catch {
+      setInput("Failed to read the product file. Please try a .csv or .xlsx file with Name and Price columns.");
+    } finally {
+      setParsingFile(false);
+    }
+  }
+
   const canClear = session.messages.length > 0 && onClearChat && !busy;
   const inputPlaceholder = session.storefront_snapshot
     ? 'Try "Switch to a cozy candle shop with warm earthy colors" or pick a design below'
@@ -140,6 +164,13 @@ export function BuilderChatPanel({
         accept="image/*"
         className="hidden"
         onChange={handleFileChange}
+      />
+      <input
+        ref={productFileRef}
+        type="file"
+        accept=".csv,.xlsx,.xls"
+        className="hidden"
+        onChange={handleProductFile}
       />
 
       <div className="shrink-0 border-b border-border px-5 py-4">

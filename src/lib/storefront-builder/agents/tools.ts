@@ -25,6 +25,7 @@ import {
   type ImageReplaceScope,
 } from "@/lib/storefront-builder/section-scope";
 import { STOREFRONT_FONT_OPTIONS } from "@/lib/storefront/template";
+import { api } from "@/lib/api/client";
 import type { BuilderSession } from "@/lib/api/types";
 import type { WebsiteBuilderContext, WebsiteBuilderToolDef } from "./types";
 
@@ -43,7 +44,7 @@ const DRAFT_TOOL_NAMES = new Set([
   "apply_stock_images",
   "source_website_images",
   "replace_template_images",
-  "guide_add_products",
+  "add_products",
   "change_font",
   "ask_clarifying_question",
 ]);
@@ -549,21 +550,85 @@ export function websiteBuilderTools(): WebsiteBuilderToolDef[] {
       },
     },
     {
-      name: "guide_add_products",
+      name: "add_products",
       description:
-        "Guide the merchant to the Products page when they want to add or manage products. Do not try to add products in chat.",
-      parameters: { type: "object", properties: {}, additionalProperties: false },
-      handler: async (_args, ctx) => {
-        ctx.assistantMessage =
-          "Products live on your Products page — add names, prices, photos, and inventory there. They appear on your storefront automatically.";
+        "Add one or more products to the merchant's store. Creates real product entries with name, price, description, category, stock quantity, and variants. Use when the merchant describes products they want to sell.",
+      parameters: {
+        type: "object",
+        properties: {
+          products: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                name: { type: "string", description: "Product name" },
+                price: { type: "number", description: "Price in the merchant's currency" },
+                description: { type: "string", description: "Short product description" },
+                category: { type: "string", description: "Category name (e.g. Dresses, Serums)" },
+                stock_quantity: { type: "number", description: "How many in stock" },
+                image_url: { type: "string", description: "Product image URL (optional)" },
+              },
+              required: ["name", "price"],
+              additionalProperties: false,
+            },
+            description: "List of products to add",
+          },
+        },
+        required: ["products"],
+        additionalProperties: false,
+      },
+      handler: async (args, ctx) => {
+        const raw = Array.isArray(args.products) ? args.products : [];
+        if (!raw.length) return { ok: false, error: "No products provided." };
+        if (!ctx.session.store) return { ok: false, error: "No store to add products to." };
+
+        const added: string[] = [];
+        const failed: string[] = [];
+
+        for (const item of raw) {
+          try {
+            const name = typeof item.name === "string" ? item.name.trim() : "";
+            const price = typeof item.price === "number" ? item.price : parseFloat(item.price as string);
+            if (!name || isNaN(price) || price <= 0) {
+              failed.push(name || "(unnamed)");
+              continue;
+            }
+            await api.createProduct({
+              name,
+              price,
+              description: typeof item.description === "string" ? item.description : "",
+              currency: "NGN",
+              slug: "",
+              category: typeof item.category === "string" ? item.category : undefined,
+              stock_quantity: typeof item.stock_quantity === "number" ? item.stock_quantity : undefined,
+              image_url: typeof item.image_url === "string" ? item.image_url : null,
+            });
+            added.push(name);
+          } catch {
+            failed.push(typeof item.name === "string" ? item.name : "(unnamed)");
+          }
+        }
+
+        if (added.length === 0) {
+          ctx.assistantMessage = "I couldn't add those products. Please try again with product names and prices.";
+          return { ok: false, error: "all_failed" };
+        }
+
+        const summary = added.length === 1
+          ? `Added ${added[0]} to your store.`
+          : `Added ${added.length} products: ${added.slice(0, 3).join(", ")}${added.length > 3 ? ` and ${added.length - 3} more` : ""}.`;
+
+        ctx.assistantMessage = `${summary} They'll appear on your storefront. You can manage them on the Products page.`;
+        ctx.status = "review_ready";
         ctx.payload = {
-          type: "product_guidance",
+          type: "products_added",
+          added,
+          failed,
           suggested_actions: [
-            { type: "link", label: "Go to Products", href: "/admin/products" },
-            { type: "prompt", label: "Suggest stock photos", message: "Help me find photos that fit my brand for the homepage and about section" },
+            { type: "link", label: "Manage Products", href: "/admin/products" },
           ],
         };
-        return { ok: true };
+        return { ok: true, added, failed };
       },
     },
     {
