@@ -611,20 +611,21 @@ export function websiteBuilderTools(): WebsiteBuilderToolDef[] {
               failed.push(name || "(unnamed)");
               continue;
             }
-            await api.createProduct({
-              name,
-              price,
-              description: typeof item.description === "string" ? item.description : "",
-              currency: "NGN",
-              slug: "",
-              category: typeof item.category === "string" ? item.category : undefined,
-              stock_quantity: typeof item.stock_quantity === "number" ? item.stock_quantity : undefined,
-              image_url: typeof item.image_url === "string" ? item.image_url : null,
-            });
-            added.push(name);
-          } catch {
-            failed.push(typeof item.name === "string" ? item.name : "(unnamed)");
-          }
+             await api.createProduct({
+               name,
+               price,
+               description: typeof item.description === "string" ? item.description : "",
+               currency: "NGN",
+               slug: name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""),
+               category: typeof item.category === "string" ? item.category : undefined,
+               stock_quantity: typeof item.stock_quantity === "number" ? item.stock_quantity : undefined,
+               image_url: typeof item.image_url === "string" ? item.image_url : null,
+             });
+             added.push(name);
+           } catch (err) {
+             console.error(`add_products failed for "${typeof item.name === "string" ? item.name : "unknown"}":`, err);
+             failed.push(typeof item.name === "string" ? item.name : "(unnamed)");
+           }
         }
 
         if (added.length === 0) {
@@ -802,9 +803,10 @@ export function websiteBuilderTools(): WebsiteBuilderToolDef[] {
             "Would you like me to add this to your store? Just confirm the name, price, and any other details!";
 
           return { ok: true, product: product };
-        } catch {
+        } catch (err) {
+          console.error("process_product_image fetch failed:", err);
           ctx.assistantMessage = "Something went wrong analyzing the image. Can you describe the product for me?";
-          return { ok: false, error: "vision_error" };
+          return { ok: false, error: `vision_error: ${err instanceof Error ? err.message : "network error"}` };
         }
       },
     },

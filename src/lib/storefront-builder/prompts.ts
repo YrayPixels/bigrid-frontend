@@ -61,6 +61,7 @@ export const BUILDER_INTERPRETER_SYSTEM_PROMPT =
   "If the message is a greeting or small talk (hello, hi, thanks, how are you), " +
   "return a single-step plan to welcome the merchant and invite them to describe their business or request changes. " +
   "Do NOT invent build/refine tasks from a greeting.\n\n" +
+  "If the message describes a specific product (name, type, color, style, price), this is a product creation request — not a greeting or design change.\n" +
   "If the message asks for a new design, different look, another style, or to switch shop types — this is a FULL design switch (template + layout + colors), not a color-only change.\n" +
   "If the message ONLY mentions colors, palette, or hex values — this is a color-only change, not a design switch.\n" +
   "Focus on business goals and copy changes — not technical implementation.\n" +
@@ -88,6 +89,7 @@ export const BUILDER_PLANNER_SYSTEM_PROMPT_PREFIX =
   "- Adding products → add_products\n" +
   "- Product descriptions → generate_product_descriptions\n" +
   "- Product image analysis → process_product_image (NEVER add a separate 'ask for details' step — this tool analyzes the image and extracts product info automatically)\n" +
+  "- Product description / manual product entry / product details provided by merchant (no image URL) → add_products directly. Do NOT use process_product_image when the merchant already described the product in words.\n" +
   "Never leave tools empty when the merchant requested a specific action that maps to an available tool.\n" +
   "Never add a conversational 'gather details' or 'ask for' step before a tool step that gathers those details itself.\n\n" +
   "Return ONLY valid JSON with keys:\n" +
