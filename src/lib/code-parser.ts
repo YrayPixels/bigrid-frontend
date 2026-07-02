@@ -7,11 +7,12 @@
  * - It does NOT apply actions itself (use an ActionRunner for determinism/logging)
  */
 
-export type BoltActionType = "file" | "shell" | "start" | "build";
+export type BoltActionType = "file" | "shell" | "start" | "build" | "unsplash";
 
 export type BoltAction = {
   type: BoltActionType;
   filePath?: string;
+  attrs?: Record<string, string>;
   content: string;
 };
 
@@ -82,14 +83,21 @@ export function createCodeParser(handlers: BoltParserHandlers = {}) {
       if (!state.insideAction) {
         const artifactClose = state.buffer.match(/<\/boltArtifact>/i);
         const actionStart = state.buffer.match(
-          /<boltAction\s+type="(file|shell|start|build)"(?:\s+filePath="([^"]*)")?\s*>/i,
+          /<boltAction\s+type="(file|shell|start|build|unsplash)"([^>]*)>/i,
         );
 
         if (actionStart && (artifactClose == null || (actionStart.index ?? 0) < (artifactClose.index ?? 0))) {
+          const rawAttrs = actionStart[2] ?? "";
+          const attrs: Record<string, string> = {};
+          // Parse key="value" attributes (streaming-safe: this only runs on full open tags).
+          for (const match of rawAttrs.matchAll(/\s+([a-zA-Z_][\w-]*)="([^"]*)"/g)) {
+            attrs[match[1]] = match[2];
+          }
           state.insideAction = true;
           state.currentAction = {
             type: actionStart[1] as BoltActionType,
-            filePath: actionStart[2],
+            filePath: attrs.filePath,
+            attrs,
             content: "",
           };
           state.buffer = state.buffer.slice((actionStart.index ?? 0) + actionStart[0].length);

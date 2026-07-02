@@ -80,16 +80,13 @@ export function PreviewModeToggle({
       </button>
       <button
         type="button"
-        disabled={!hasCustomCode}
         onClick={() => onChange("custom")}
         className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition ${
           mode === "custom"
             ? "bg-primary text-primary-foreground shadow-sm"
-            : hasCustomCode
-              ? "text-ink-soft hover:text-ink"
-              : "cursor-not-allowed text-ink-soft/40"
+            : "text-ink-soft hover:text-ink"
         }`}
-        title={hasCustomCode ? "View custom code preview" : "Say 'build me a custom website' to generate one"}
+        title={hasCustomCode ? "View custom code preview" : "Switch to custom preview (generate code to see output)"}
       >
         <Code2 className="h-3.5 w-3.5" />
         Custom

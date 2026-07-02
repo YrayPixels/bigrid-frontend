@@ -13,6 +13,7 @@ import {
   CustomCodePreview,
   PreviewModeToggle,
 } from "@/components/admin/builder/custom-code-preview";
+import { WebContainerPreview } from "@/components/admin/builder/webcontainer-preview";
 import type { Store, StorefrontContent, StorefrontPublishState } from "@/lib/api/types";
 import { codeFs } from "@/lib/code-fs";
 import { getStorefrontUrl } from "@/lib/store-host";
@@ -45,7 +46,7 @@ export function BuilderPreviewPanel({
   const customCode = (storefront as Record<string, unknown> | null)?.custom_code as string | undefined;
   const hasCustomCode =
     (typeof customCode === "string" && customCode.length > 0) || codeFs.listFiles().length > 0;
-  const showCustom = hasCustomCode && previewMode === "custom";
+  const showCustom = previewMode === "custom";
 
   const showThinkingInsteadOfSkeleton =
     generating && !storefront && (thinkingStreaming || thinkingEntries.length > 0);
@@ -138,7 +139,7 @@ export function BuilderPreviewPanel({
       <div className="flex-1 overflow-auto bg-secondary/40 p-4">
         {showCustom ? (
           <div className="mx-auto max-w-5xl overflow-hidden rounded-xl border border-border bg-background shadow-soft">
-            <CustomCodePreview />
+            <WebContainerPreview />
           </div>
         ) : (
           <div className="mx-auto max-w-5xl overflow-hidden rounded-xl border border-border bg-background shadow-soft">

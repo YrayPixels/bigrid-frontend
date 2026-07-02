@@ -206,6 +206,53 @@ export class StorefrontBuilderManager {
     // and handled by the final reply — only tool-bearing steps go through the loop.
     const toolSteps = plan.plan_steps.filter((s) => s.tools.length > 0);
 
+    // Bolt-style fast path: if planner produced no tool steps but the merchant asked
+    // for a custom site, run the generator tool immediately.
+    const wantsCustomSite =
+      plan.intent.toLowerCase().includes("custom") ||
+      interpretation.task_summary.toLowerCase().includes("custom") ||
+      /\bcustom\b|\bfrom scratch\b|\bbuild a custom site\b/i.test(message);
+    const customTool = toolDefs.find((tool) => tool.name === "generate_custom_site");
+    if (toolSteps.length === 0 && wantsCustomSite && customTool) {
+      this.log({
+        agent: "Executor",
+        phase: "start",
+        title: "Generating custom site",
+        detail: "Running bolt-style generator (no planner steps returned).",
+        data: { tool: "generate_custom_site" },
+      });
+
+      const result = await customTool.handler({ style_note: "" }, ctx);
+      toolCallsLog.push({ name: "generate_custom_site", arguments: { style_note: "" } });
+      toolResultsLog.push({ name: "generate_custom_site", ...result });
+
+      this.log({
+        agent: "Executor",
+        phase: result.ok === false ? "error" : "complete",
+        title: "Custom site generation finished",
+        detail: summarizeToolResult("generate_custom_site", result),
+        data: { result },
+      });
+
+      // Ensure payload includes tool metadata for persistence.
+      const toolMetadata = {
+        plan: plan.plan_steps,
+        tool_calls: toolCallsLog,
+        tool_results: toolResultsLog,
+        profile: ctx.profile,
+      };
+      ctx.payload = { type: "agent_turn", ...toolMetadata };
+
+      return {
+        business_profile: ctx.profile,
+        status: ctx.status,
+        selected_template_id: ctx.selectedTemplateId,
+        storefront: ctx.storefront ?? undefined,
+        assistant_message: ctx.assistantMessage || fallback.assistant_message,
+        assistant_payload: ctx.payload,
+      };
+    }
+
     for (let iteration = 0; iteration < 8 && criticStatus === "CONTINUE"; iteration++) {
       // Find the next incomplete tool step
       const nextStep = toolSteps.find((s) => !completedStepIndices.has(s.step));

@@ -828,8 +828,19 @@ export function websiteBuilderTools(): WebsiteBuilderToolDef[] {
         additionalProperties: false,
       },
       handler: async (args, ctx) => {
+        // Bolt-style: allow generation even when the merchant says "just any".
+        // Fall back to sane defaults rather than blocking on requirements.
         if (!hasMinimumBusinessProfile(ctx.profile)) {
-          return { ok: false, error: "missing_business_details" };
+          ctx.profile = sanitizeBusinessProfile({
+            ...ctx.profile,
+            business_name: ctx.profile.business_name ?? ctx.session.store?.business_name ?? "My Store",
+            description:
+              ctx.profile.description ??
+              ctx.session.store?.description ??
+              "A modern online store with curated products and a smooth checkout experience.",
+            industry: ctx.profile.industry ?? ctx.session.store?.industry ?? "other",
+            brand_color: ctx.profile.brand_color ?? ctx.session.store?.brand_color ?? "#0E7C66",
+          });
         }
         const { postChatStream } = await import("@/lib/storefront-builder/agents/openaiChat");
         const styleNote = typeof args.style_note === "string" ? args.style_note : "";

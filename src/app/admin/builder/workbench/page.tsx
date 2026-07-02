@@ -8,7 +8,7 @@ import { api } from "@/lib/api/client";
 import { codeFs } from "@/lib/code-fs";
 import type { BuilderSession, StorefrontContent } from "@/lib/api/types";
 import { Textarea } from "@/components/ui/textarea";
-import { CustomCodePreview } from "@/components/admin/builder/custom-code-preview";
+import { WebContainerPreview } from "@/components/admin/builder/webcontainer-preview";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { cn } from "@/lib/utils";
 
@@ -305,7 +305,7 @@ export default function AdminBuilderWorkbenchPage() {
               </div>
               <div className="min-h-0 flex-1 overflow-auto p-3">
                 <div className="mx-auto max-w-5xl overflow-hidden rounded-xl border border-border bg-background shadow-soft">
-                  <CustomCodePreview />
+                  <WebContainerPreview />
                 </div>
               </div>
             </div>

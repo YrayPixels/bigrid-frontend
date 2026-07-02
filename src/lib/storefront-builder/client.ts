@@ -17,11 +17,14 @@ import {
   mergeSessionProfile,
   profileToStore,
   resolveSelectedTemplateId,
+  sanitizeBusinessProfile,
   synthesizeStorefront,
 } from "@/lib/storefront-builder/local-ai";
 import { streamBuilderThinkingTurn } from "@/lib/storefront-builder/thinking-stream";
 import { buildBuilderChatHistory } from "@/lib/storefront-builder/chat-history";
 import { alignStorefrontTemplateToSelection } from "@/lib/storefront/template";
+import { websiteBuilderToolsForSession } from "@/lib/storefront-builder/agents/tools";
+import { codeFs, type CodeFile } from "@/lib/code-fs";
 
 export function asConcreteTemplateId(value: string | null | undefined): StorefrontTemplateId | undefined {
   if (!value || value === "ai_pick") return undefined;
@@ -49,6 +52,105 @@ export function shouldStreamBuilderThinking(
   },
 ): boolean {
   return !extras?.brandColor && !extras?.mediaUpdates;
+}
+
+function isBoltCustomRequest(session: BuilderSession, message: string): boolean {
+  const snapshot = session.storefront_snapshot as Record<string, unknown> | null;
+  const hasCustom =
+    Array.isArray(snapshot?.custom_files) ||
+    (typeof snapshot?.custom_code === "string" && (snapshot.custom_code as string).trim().length > 0);
+  if (hasCustom) return true;
+  return /\bcustom\b|\bfrom scratch\b|\bcode\b|\bhtml\b|\bcss\b|\bjs\b/i.test(message);
+}
+
+async function runBoltCustomTurn(args: {
+  session: BuilderSession;
+  message: string;
+  templateOptions: StorefrontTemplateOption[];
+  recommendations: BuilderSession["recommendations"];
+}): Promise<BuilderAiTurn> {
+  const { session, message, templateOptions, recommendations } = args;
+  const toolDefs = websiteBuilderToolsForSession(session);
+  const generateTool = toolDefs.find((t) => t.name === "generate_custom_site");
+  const editTool = toolDefs.find((t) => t.name === "edit_custom_site_code");
+  if (!generateTool) {
+    return {
+      business_profile: session.business_profile,
+      status: session.status,
+      assistant_message: "Custom code tools are not enabled for this session.",
+      assistant_payload: { type: "conversation" },
+      storefront: session.storefront_snapshot ?? undefined,
+    };
+  }
+
+  const enrichedProfile = sanitizeBusinessProfile(session.business_profile ?? {});
+  const ctx = {
+    message,
+    planIntent: "bolt_custom",
+    session,
+    profile: enrichedProfile,
+    recommendations: recommendations as never,
+    templateOptions,
+    selectedTemplateId:
+      session.selected_template_id && session.selected_template_id !== "ai_pick"
+        ? (session.selected_template_id as StorefrontTemplateId)
+        : null,
+    storefront: session.storefront_snapshot,
+    assistantMessage: "",
+    status: session.status,
+    payload: { type: "agent_turn", plan: [], tool_calls: [], tool_results: [] },
+  };
+
+  const snapshot = session.storefront_snapshot as Record<string, unknown> | null;
+  const hasCustom =
+    Array.isArray(snapshot?.custom_files) ||
+    (typeof snapshot?.custom_code === "string" && (snapshot.custom_code as string).trim().length > 0);
+
+  // If this is the first bolt turn (no custom files yet), seed codeFs with build-it-up.
+  if (!hasCustom) {
+    const seeded = await fetch("/api/bolt/templates/build-it-up")
+      .then((res) => (res.ok ? res.json() : null))
+      .catch(() => null) as { files?: CodeFile[] } | null;
+
+    if (seeded?.files?.length) {
+      codeFs.loadFiles(seeded.files);
+      // Ensure the session snapshot persists the starter template immediately.
+      if (ctx.storefront) {
+        const storefrontRecord = ctx.storefront as Record<string, unknown>;
+        storefrontRecord.custom_files = seeded.files;
+        storefrontRecord.custom_code = codeFs.getMainHtml();
+      }
+    }
+  }
+
+  const tool = hasCustom && editTool ? editTool : generateTool;
+  const toolName = tool.name;
+  const toolArgs =
+    toolName === "generate_custom_site"
+      ? { style_note: message }
+      : { instruction: message };
+
+  const result = await tool.handler(toolArgs as never, ctx as never);
+
+  // Tool handlers mutate ctx.storefront / ctx.profile / ctx.payload / ctx.assistantMessage.
+  const next: BuilderAiTurn = {
+    business_profile: ctx.profile,
+    status: ctx.status,
+    selected_template_id: ctx.selectedTemplateId,
+    storefront: ctx.storefront ?? undefined,
+    assistant_message:
+      ctx.assistantMessage ||
+      (result.ok === false
+        ? "I couldn’t update the custom site. Try again with a more specific request."
+        : "Done — your custom site is updated. Check the preview."),
+    assistant_payload: {
+      ...(ctx.payload ?? {}),
+      tool_calls: [{ name: toolName, arguments: toolArgs }],
+      tool_results: [{ name: toolName, ...result }],
+    },
+  };
+
+  return next;
 }
 
 async function persistAgentTurn({
@@ -131,24 +233,20 @@ export async function streamAndPersistBuilderMessage({
 
   const thinkingLog: AgentThinkingLogEntry[] = [];
 
-  const turn = await streamBuilderThinkingTurn({
-    message,
+  // Bolt-first: always run the bolt-style streaming generator/editor.
+  // This bypasses Interpreter/Planner/Critic and avoids "plan_steps: []" no-op turns.
+  const turn = await runBoltCustomTurn({
     session: enrichedSession,
-    recommendations,
+    message,
     templateOptions,
-    history,
-    signal,
-    onLog: (entry) => {
-      thinkingLog.push(entry);
-      onLog?.(entry);
-    },
+    recommendations: recommendations as never,
   });
 
   return persistAgentTurn({
     session,
     message,
     turn,
-    thinkingLog,
+    thinkingLog: [],
   });
 }
 
