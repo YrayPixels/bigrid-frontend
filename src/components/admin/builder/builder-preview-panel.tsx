@@ -207,6 +207,22 @@ function PreviewHeader({
             Open full editor
           </Link>
         ) : null}
+        {hasCustomCode ? (
+          <Link
+            href="/admin/builder/custom"
+            className="inline-flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm font-medium text-ink hover:bg-secondary"
+          >
+            Open custom preview
+          </Link>
+        ) : null}
+        {hasCustomCode ? (
+          <Link
+            href="/admin/builder/workbench"
+            className="inline-flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm font-medium text-ink hover:bg-secondary"
+          >
+            Open workbench
+          </Link>
+        ) : null}
         {store ? (
           canViewLive ? (
             <a

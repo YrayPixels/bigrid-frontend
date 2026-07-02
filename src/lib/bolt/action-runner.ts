@@ -15,8 +15,14 @@ function normalizePath(path: string): string {
   return path.replace(/^\/+/, "").trim();
 }
 
-export function createBoltActionRunner(): BoltActionRunner {
+export function createBoltActionRunner(options?: {
+  lockedPaths?: string[] | Set<string>;
+}): BoltActionRunner {
   const log: BoltActionResult[] = [];
+  const locked =
+    options?.lockedPaths instanceof Set
+      ? options.lockedPaths
+      : new Set(Array.isArray(options?.lockedPaths) ? options!.lockedPaths.map(normalizePath) : []);
 
   function apply(action: BoltAction): BoltActionResult {
     if (action.type !== "file") {
@@ -37,6 +43,17 @@ export function createBoltActionRunner(): BoltActionRunner {
         applied: false,
         action,
         error: "Missing filePath for file action",
+      };
+      log.push(result);
+      return result;
+    }
+
+    if (locked.has(filePath)) {
+      const result: BoltActionResult = {
+        ok: false,
+        applied: false,
+        action,
+        error: `Path is locked: ${filePath}`,
       };
       log.push(result);
       return result;

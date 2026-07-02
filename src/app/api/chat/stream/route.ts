@@ -2,17 +2,22 @@ import { streamText, type CoreMessage } from "ai";
 import { NextResponse } from "next/server";
 import { getChatModel } from "@/lib/ai-sdk";
 
+type AllowedRole = "system" | "user" | "assistant";
+
 type Body = {
   model?: string;
-  messages?: Array<{ role?: string; content?: string }>;
+  messages?: Array<{ role?: AllowedRole; content?: string }>;
   temperature?: number;
 };
 
 function toCoreMessages(messages: Body["messages"]): CoreMessage[] {
-  return (Array.isArray(messages) ? messages : []).map((m) => ({
-    role: (m?.role as CoreMessage["role"]) ?? "user",
-    content: (m?.content as string) ?? "",
-  }));
+  return (Array.isArray(messages) ? messages : []).map((m) => {
+    const role: AllowedRole = m?.role ?? "user";
+    return {
+      role,
+      content: m?.content ?? "",
+    };
+  });
 }
 
 export async function POST(req: Request) {

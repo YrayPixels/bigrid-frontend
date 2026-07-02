@@ -152,6 +152,7 @@ export function getStorefrontTheme(
         heroAlign: "center",
         productGridCols: "sm:grid-cols-2 lg:grid-cols-3",
       };
+      break;
     case "fashion_lookbook":
       result = {
         ...base,

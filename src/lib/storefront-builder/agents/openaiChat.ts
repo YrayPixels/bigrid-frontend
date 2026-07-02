@@ -1,4 +1,4 @@
-import { generateText, type CoreMessage, type LanguageModelV1 } from "ai";
+import { generateText, streamText, type CoreMessage, type LanguageModelV1 } from "ai";
 import { getChatModel, getThinkingModel } from "@/lib/ai-sdk";
 
 export type PostChatBody = {
@@ -136,6 +136,23 @@ export async function postChatStream(args: {
   onDelta: (delta: string) => void;
   signal?: AbortSignal;
 }): Promise<{ text: string }> {
+  // Server-side: stream directly via AI SDK (relative fetch URLs break in Node).
+  if (typeof window === "undefined") {
+    const result = streamText({
+      model: getChatModel(),
+      messages: args.messages,
+      temperature: args.temperature,
+      abortSignal: args.signal,
+    });
+
+    let fullText = "";
+    for await (const delta of result.textStream) {
+      fullText += delta;
+      args.onDelta(delta);
+    }
+    return { text: fullText };
+  }
+
   const res = await fetch("/api/chat/stream", {
     method: "POST",
     headers: { "Content-Type": "application/json" },

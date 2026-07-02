@@ -21,6 +21,7 @@ export type WebsiteBuilderToolName =
   | "generate_product_descriptions"
   | "process_product_image"
   | "generate_custom_site"
+  | "edit_custom_site_code"
   | "change_font"
   | "ask_clarifying_question";
 

@@ -851,7 +851,9 @@ export function websiteBuilderTools(): WebsiteBuilderToolDef[] {
           }
 
           codeFs.clear();
-          const runner = createBoltActionRunner();
+          const storefrontRecord = ctx.storefront as Record<string, unknown>;
+          const lockedPaths = (storefrontRecord.edit_metadata as { locked_paths?: string[] } | undefined)?.locked_paths ?? [];
+          const runner = createBoltActionRunner({ lockedPaths });
           const parser = createCodeParser({
             onAction: (action) => {
               runner.apply(action);
@@ -975,7 +977,8 @@ export function websiteBuilderTools(): WebsiteBuilderToolDef[] {
           "- If adding a new section, update index.html and styles.css accordingly.",
         ].join("\n");
 
-        const runner = createBoltActionRunner();
+        const lockedPaths = (storefrontRecord.edit_metadata as { locked_paths?: string[] } | undefined)?.locked_paths ?? [];
+        const runner = createBoltActionRunner({ lockedPaths });
         const parser = createCodeParser({
           onAction: (action) => {
             runner.apply(action);
