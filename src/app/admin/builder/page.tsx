@@ -12,6 +12,7 @@ import { BuilderProgress } from "@/components/admin/builder/builder-progress";
 import { BuilderThinkingLogSheet } from "@/components/admin/builder/builder-thinking-log-sheet";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api/client";
+import { codeFs } from "@/lib/code-fs";
 import {
   applyBuilderBrandColor,
   applyBuilderMedia,
@@ -90,6 +91,11 @@ export default function AdminBuilderPage() {
   useEffect(() => {
     if (session?.storefront_snapshot) {
       setLocalStorefront(session.storefront_snapshot);
+      const snapshot = session.storefront_snapshot as Record<string, unknown>;
+      const customFiles = snapshot.custom_files as unknown;
+      if (Array.isArray(customFiles)) {
+        codeFs.loadFiles(customFiles as never);
+      }
     }
   }, [session?.storefront_snapshot]);
 

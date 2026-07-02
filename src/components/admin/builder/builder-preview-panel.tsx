@@ -2,13 +2,19 @@
 
 import Link from "next/link";
 import { ExternalLink, ListTree, Loader2, Sparkles } from "lucide-react";
+import { useRef, useState } from "react";
 import { BuilderThinkingLogCompact } from "@/components/admin/builder/builder-thinking-log-compact";
 import {
   PublishStorefrontButton,
   PublishStatusBadge,
 } from "@/components/admin/publish-storefront-button";
 import { StorefrontPreview } from "@/components/storefront/storefront-preview";
+import {
+  CustomCodePreview,
+  PreviewModeToggle,
+} from "@/components/admin/builder/custom-code-preview";
 import type { Store, StorefrontContent, StorefrontPublishState } from "@/lib/api/types";
+import { codeFs } from "@/lib/code-fs";
 import { getStorefrontUrl } from "@/lib/store-host";
 import type { AgentThinkingLogEntry } from "@/lib/storefront-builder/agents/types";
 
@@ -35,6 +41,12 @@ export function BuilderPreviewPanel({
   hasThinkingHistory?: boolean;
   onOpenThinkingLog?: () => void;
 }) {
+  const [previewMode, setPreviewMode] = useState<"template" | "custom">("template");
+  const customCode = (storefront as Record<string, unknown> | null)?.custom_code as string | undefined;
+  const hasCustomCode =
+    (typeof customCode === "string" && customCode.length > 0) || codeFs.listFiles().length > 0;
+  const showCustom = hasCustomCode && previewMode === "custom";
+
   const showThinkingInsteadOfSkeleton =
     generating && !storefront && (thinkingStreaming || thinkingEntries.length > 0);
 
@@ -119,11 +131,20 @@ export function BuilderPreviewPanel({
         onPublish={onPublish}
         hasThinkingHistory={hasThinkingHistory || thinkingStreaming}
         onOpenThinkingLog={onOpenThinkingLog}
+        previewMode={previewMode}
+        hasCustomCode={hasCustomCode}
+        onPreviewModeChange={setPreviewMode}
       />
       <div className="flex-1 overflow-auto bg-secondary/40 p-4">
-        <div className="mx-auto max-w-5xl overflow-hidden rounded-xl border border-border bg-background shadow-soft">
-          <StorefrontPreview store={store} content={storefront} />
-        </div>
+        {showCustom ? (
+          <div className="mx-auto max-w-5xl overflow-hidden rounded-xl border border-border bg-background shadow-soft">
+            <CustomCodePreview />
+          </div>
+        ) : (
+          <div className="mx-auto max-w-5xl overflow-hidden rounded-xl border border-border bg-background shadow-soft">
+            <StorefrontPreview store={store} content={storefront} />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -137,6 +158,9 @@ function PreviewHeader({
   onPublish,
   hasThinkingHistory = false,
   onOpenThinkingLog,
+  previewMode = "template",
+  hasCustomCode = false,
+  onPreviewModeChange,
 }: {
   store: Store | null;
   storefront: StorefrontContent | null;
@@ -145,6 +169,9 @@ function PreviewHeader({
   onPublish?: () => void;
   hasThinkingHistory?: boolean;
   onOpenThinkingLog?: () => void;
+  previewMode?: "template" | "custom";
+  hasCustomCode?: boolean;
+  onPreviewModeChange?: (mode: "template" | "custom") => void;
 }) {
   const canViewLive = publish?.is_published;
 
@@ -157,6 +184,11 @@ function PreviewHeader({
         </h3>
       </div>
       <div className="flex flex-wrap items-center gap-2">
+        <PreviewModeToggle
+          mode={previewMode}
+          hasCustomCode={hasCustomCode}
+          onChange={onPreviewModeChange ?? (() => {})}
+        />
         {hasThinkingHistory ? (
           <button
             type="button"

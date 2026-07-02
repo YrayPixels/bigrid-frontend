@@ -1,5 +1,8 @@
+import { generateText, type CoreMessage, type LanguageModelV1 } from "ai";
+import { getChatModel, getThinkingModel } from "@/lib/ai-sdk";
+
 export type PostChatBody = {
-  model?: string;
+  model?: string | LanguageModelV1;
   messages: unknown[];
   tools?: unknown[];
   tool_choice?: "auto" | "none" | "required" | Record<string, unknown>;
@@ -11,85 +14,82 @@ export type ChatCompletionResponse = {
   choices?: Array<{ message?: { role?: string; content?: string | null; tool_calls?: unknown[] } }>;
 };
 
-function defaultChatModel(): string {
-  const model = process.env.OPENAI_CHAT_MODEL ?? process.env.NEXT_PUBLIC_OPENAI_THINKING_MODEL;
-  return typeof model === "string" && model.trim() ? model.trim() : "gpt-4o-mini";
+export { getThinkingModel };
+
+function toCoreMessages(messages: unknown[]): CoreMessage[] {
+  return messages.map((msg) => {
+    const m = msg as Record<string, unknown>;
+    return {
+      role: (m.role as CoreMessage["role"]) ?? "user",
+      content: (m.content as string) ?? "",
+    } as CoreMessage;
+  });
 }
 
-function thinkingModel(): string {
-  const model = process.env.NEXT_PUBLIC_OPENAI_THINKING_MODEL ?? process.env.OPENAI_CHAT_MODEL;
-  return typeof model === "string" && model.trim() ? model.trim() : "gpt-4o-mini";
-}
+/** AI SDK path — for simple text/JSON calls (no tools) */
+async function aiSdkChat(body: PostChatBody): Promise<ChatCompletionResponse> {
+  const messages = toCoreMessages(body.messages);
+  const model = typeof body.model === "string" || !body.model
+    ? getChatModel()
+    : body.model;
 
-export function getThinkingModel(): string {
-  return thinkingModel();
-}
-
-/**
- * Single backend AI endpoint.
- * All OpenAI calls route through the Laravel backend so the API key
- * lives in one place and prompts are versioned in one place.
- */
-function backendAiUrl(): string {
-  const base = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ?? "";
-  if (base) return `${base}/storehause/ai/chat`;
-
-  // Fallback: use the frontend proxy route (which calls the backend)
-  return "/api/chat";
-}
-
-const BACKEND_AI_URL = backendAiUrl();
-
-export async function callOpenAiChat(body: PostChatBody): Promise<ChatCompletionResponse> {
-  const apiKey = process.env.OPENAI_API_KEY;
-
-  // If we have a backend URL, route through the backend
-  if (BACKEND_AI_URL !== "/api/chat") {
-    const payload = {
-      model: body.model ?? defaultChatModel(),
-      messages: body.messages,
-      ...(typeof body.temperature === "number" ? { temperature: body.temperature } : {}),
-      ...(body.response_format && typeof body.response_format === "object"
-        ? { response_format: body.response_format }
-        : {}),
-      ...(Array.isArray(body.tools) ? { tools: body.tools } : {}),
-      ...(body.tool_choice ? { tool_choice: body.tool_choice } : {}),
-    };
-
-    const response = await fetch(BACKEND_AI_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify(payload),
-    });
-
-    const text = await response.text();
-    if (!response.ok) {
-      throw new Error(text || `Backend chat failed (${response.status})`);
-    }
-
-    return JSON.parse(text) as ChatCompletionResponse;
-  }
-
-  // Legacy fallback: direct OpenAI call (requires OPENAI_API_KEY)
-  if (!apiKey) {
-    throw new Error("Missing OPENAI_API_KEY env var");
-  }
-
-  const payload = {
-    model: body.model ?? defaultChatModel(),
-    messages: body.messages,
-    ...(typeof body.temperature === "number" ? { temperature: body.temperature } : {}),
-    ...(body.response_format && typeof body.response_format === "object"
-      ? { response_format: body.response_format }
+  const result = await generateText({
+    model,
+    messages,
+    temperature: body.temperature,
+    ...(body.tool_choice === "none" ? { toolChoice: "none" as const } : {}),
+    ...(body.response_format?.type === "json_object"
+      ? {
+          providerOptions: {
+            openai: { responseFormat: { type: "json_object" as const } },
+          },
+        }
       : {}),
-    ...(Array.isArray(body.tools) ? { tools: body.tools } : {}),
-    ...(body.tool_choice ? { tool_choice: body.tool_choice } : {}),
+  });
+
+  return {
+    choices: [{
+      message: {
+        role: "assistant",
+        content: result.text,
+        tool_calls: result.toolCalls?.map((tc) => ({
+          id: tc.toolCallId,
+          type: "function" as const,
+          function: {
+            name: tc.toolName,
+            arguments: JSON.stringify(tc.args),
+          },
+        })),
+      },
+    }],
+  };
+}
+
+/** Raw fetch path — for tool-calling calls (OpenAI function format) */
+async function rawFetchChat(body: PostChatBody): Promise<ChatCompletionResponse> {
+  const apiKey = process.env.OPENAI_API_KEY ?? process.env.NEXT_PUBLIC_OPENAI_API_KEY;
+  if (!apiKey) throw new Error("Missing OPENAI_API_KEY");
+
+  const model = typeof body.model === "string" && body.model
+    ? body.model
+    : (process.env.OPENAI_CHAT_MODEL ?? "gpt-4o-mini");
+
+  const payload: Record<string, unknown> = {
+    model,
+    messages: body.messages,
+    temperature: body.temperature ?? 0.7,
   };
 
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+  if (Array.isArray(body.tools) && body.tools.length > 0) {
+    payload.tools = body.tools;
+    payload.tool_choice = body.tool_choice ?? "auto";
+  }
+
+  if (body.response_format?.type === "json_object") {
+    payload.response_format = { type: "json_object" };
+  }
+
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -98,12 +98,21 @@ export async function callOpenAiChat(body: PostChatBody): Promise<ChatCompletion
     body: JSON.stringify(payload),
   });
 
-  const text = await response.text();
-  if (!response.ok) {
-    throw new Error(text || `Chat failed (${response.status})`);
+  const text = await res.text();
+  if (!res.ok) throw new Error(text || `Chat failed (${res.status})`);
+  return JSON.parse(text) as ChatCompletionResponse;
+}
+
+export async function callOpenAiChat(body: PostChatBody): Promise<ChatCompletionResponse> {
+  const hasTools = Array.isArray(body.tools) && body.tools.length > 0;
+
+  // Use raw fetch for tool-calling calls (preserves OpenAI function format)
+  if (hasTools) {
+    return rawFetchChat(body);
   }
 
-  return JSON.parse(text) as ChatCompletionResponse;
+  // Use AI SDK for simple text/JSON calls
+  return aiSdkChat(body);
 }
 
 export async function postChat(body: PostChatBody): Promise<ChatCompletionResponse> {
@@ -111,7 +120,6 @@ export async function postChat(body: PostChatBody): Promise<ChatCompletionRespon
     return callOpenAiChat(body);
   }
 
-  // Browser-side: use the Next.js proxy route which routes to the backend
   const response = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -120,6 +128,65 @@ export async function postChat(body: PostChatBody): Promise<ChatCompletionRespon
   const text = await response.text();
   if (!response.ok) throw new Error(text || `Chat failed (${response.status})`);
   return JSON.parse(text) as ChatCompletionResponse;
+}
+
+export async function postChatStream(args: {
+  messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
+  temperature?: number;
+  onDelta: (delta: string) => void;
+  signal?: AbortSignal;
+}): Promise<{ text: string }> {
+  const res = await fetch("/api/chat/stream", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      messages: args.messages,
+      temperature: args.temperature,
+    }),
+    signal: args.signal,
+  });
+
+  if (!res.ok || !res.body) {
+    const text = await res.text().catch(() => "");
+    throw new Error(text || `Chat stream failed (${res.status})`);
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let fullText = "";
+
+  // AI SDK data stream protocol: lines that start with "0:" contain text deltas.
+  // Other lines (e.g. "e:", "d:") are metadata; ignore for now.
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    while (true) {
+      const newlineIdx = buffer.indexOf("\n");
+      if (newlineIdx === -1) break;
+      const line = buffer.slice(0, newlineIdx).trimEnd();
+      buffer = buffer.slice(newlineIdx + 1);
+
+      if (!line) continue;
+      if (!line.startsWith("0:")) continue;
+
+      const payload = line.slice(2);
+      try {
+        // Text deltas are JSON-string encoded.
+        const delta = JSON.parse(payload) as string;
+        if (typeof delta === "string" && delta.length > 0) {
+          fullText += delta;
+          args.onDelta(delta);
+        }
+      } catch {
+        // Ignore malformed lines; streaming must be resilient.
+      }
+    }
+  }
+
+  return { text: fullText };
 }
 
 export function getAssistantMessageContent(data: {

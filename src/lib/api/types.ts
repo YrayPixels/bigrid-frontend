@@ -1,4 +1,5 @@
 import type { StorefrontBlock } from "@/lib/storefront/blocks/types";
+import type { CodeFile } from "@/lib/code-fs";
 import type {
   BusinessLocation,
   PaymentCurrency,
@@ -241,6 +242,8 @@ export type StorefrontContent = {
   };
   palette?: StorefrontColorPalette;
   display_font?: string;
+  custom_code?: string;
+  custom_files?: CodeFile[];
   data_plugs?: {
     home_products_source?: "merchant_products" | "theme_products";
   };

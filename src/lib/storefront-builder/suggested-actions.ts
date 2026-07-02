@@ -99,6 +99,11 @@ export function fallbackSuggestedActions(session: BuilderSession): BuilderSugges
     return [
       {
         type: "prompt",
+        label: "Build custom site",
+        message: "Build me a completely custom website from scratch — unique design, not a template",
+      },
+      {
+        type: "prompt",
         label: "Refine my headline",
         message: "Make the homepage headline more compelling",
       },

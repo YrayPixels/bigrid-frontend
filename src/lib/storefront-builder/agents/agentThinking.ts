@@ -252,6 +252,7 @@ export function summarizeToolResult(name: string, result: Record<string, unknown
     return `[tool:add_products] ${added} product(s) created`;
   }
   if (name === "generate_product_descriptions" && result.ok) return `[tool:generate_product_descriptions] ${result.updated ?? 0} description(s) updated`;
+  if (name === "generate_custom_site" && result.ok) return `[tool:generate_custom_site] custom website generated (${(result.html_size as number) ?? 0} bytes)`;
   if (name === "process_product_image" && result.ok) return `[tool:process_product_image] product identified: ${(result.product as { name?: string })?.name ?? "unknown"}`;
   if (name === "design_website" && result.ok) return "[tool:design_website] website design selected";
   if (name === "capture_business_details" && result.ok) return "[tool:capture_business_details] profile updated";

@@ -26,6 +26,9 @@ import {
 } from "@/lib/storefront-builder/section-scope";
 import { STOREFRONT_FONT_OPTIONS } from "@/lib/storefront/template";
 import { api } from "@/lib/api/client";
+import { codeFs } from "@/lib/code-fs";
+import { createCodeParser } from "@/lib/code-parser";
+import { createBoltActionRunner } from "@/lib/bolt/action-runner";
 import type { BuilderSession } from "@/lib/api/types";
 import type { WebsiteBuilderContext, WebsiteBuilderToolDef } from "./types";
 
@@ -33,6 +36,7 @@ const PRE_DRAFT_TOOL_NAMES = new Set([
   "capture_business_details",
   "design_website",
   "generate_website",
+  "generate_custom_site",
   "change_font",
   "ask_clarifying_question",
 ]);
@@ -47,6 +51,8 @@ const DRAFT_TOOL_NAMES = new Set([
   "add_products",
   "generate_product_descriptions",
   "process_product_image",
+  "generate_custom_site",
+  "edit_custom_site_code",
   "change_font",
   "ask_clarifying_question",
 ]);
@@ -808,6 +814,214 @@ export function websiteBuilderTools(): WebsiteBuilderToolDef[] {
           ctx.assistantMessage = "Something went wrong analyzing the image. Can you describe the product for me?";
           return { ok: false, error: `vision_error: ${err instanceof Error ? err.message : "network error"}` };
         }
+      },
+    },
+    {
+      name: "generate_custom_site",
+      description:
+        "Generate a fully custom website with real HTML/CSS code instead of templates. The AI writes the complete storefront from scratch in bolt artifact format. Use when the merchant wants a unique handcrafted design or says 'custom site', 'build from scratch', 'unique design'.",
+      parameters: {
+        type: "object",
+        properties: {
+          style_note: { type: "string", description: "Style direction" },
+        },
+        additionalProperties: false,
+      },
+      handler: async (args, ctx) => {
+        if (!hasMinimumBusinessProfile(ctx.profile)) {
+          return { ok: false, error: "missing_business_details" };
+        }
+        const { postChatStream } = await import("@/lib/storefront-builder/agents/openaiChat");
+        const styleNote = typeof args.style_note === "string" ? args.style_note : "";
+        try {
+          // Ensure a baseline storefront exists so the snapshot can be persisted and previewed.
+          if (!ctx.storefront) {
+            const available = concreteTemplateIds(ctx.templateOptions);
+            const selected = resolveSelectedTemplateId(
+              {
+                ...ctx.session,
+                selected_template_id: ctx.selectedTemplateId ?? ctx.session.selected_template_id,
+              },
+              ctx.recommendations,
+              available,
+            );
+            ctx.selectedTemplateId = selected ?? (available[0] ?? null);
+            const store = ctx.session.store ?? profileToStore(ctx.profile, ctx.selectedTemplateId ?? undefined);
+            ctx.storefront = synthesizeStorefront(store, ctx.recommendations);
+          }
+
+          codeFs.clear();
+          const runner = createBoltActionRunner();
+          const parser = createCodeParser({
+            onAction: (action) => {
+              runner.apply(action);
+            },
+          });
+          const products = Array.isArray(ctx.storefront?.products) ? ctx.storefront.products : [];
+          const productLines = products.length > 0
+            ? products.map((p) => `- ${p.name} | ${p.price} ${p.currency ?? "NGN"}${p.description ? ` — ${p.description}` : ""}`).join("\n")
+            : "Generate 4-6 sample products for this industry with prices in NGN.";
+          const messages = [
+            {
+              role: "system" as const,
+              content: [
+                "You are StoreHause Code. Build a complete e-commerce storefront website.",
+                "Output ALL code in bolt artifact format:",
+                "<boltArtifact id=\"storefront\" title=\"Storefront\">",
+                "  <boltAction type=\"file\" filePath=\"index.html\">...complete HTML...</boltAction>",
+                "  <boltAction type=\"file\" filePath=\"styles.css\">...all CSS...</boltAction>",
+                "  <boltAction type=\"file\" filePath=\"script.js\">...all JS...</boltAction>",
+                "</boltArtifact>",
+                "RULES:",
+                "- index.html: Complete HTML5 with nav, hero, product grid, about, FAQ, contact, footer",
+                `- Brand color: ${ctx.profile.brand_color ?? ctx.session.store?.brand_color ?? "#0E7C66"}`,
+                `- Store: ${ctx.profile.business_name ?? ctx.session.store?.business_name ?? "My Store"}`,
+                `- Industry: ${ctx.profile.industry ?? ctx.session.store?.industry ?? "other"}`,
+                styleNote ? `- Style: ${styleNote}` : "",
+                "- NO external CSS/JS — vanilla only",
+                "- Responsive mobile-first, CSS variables with brand color",
+                "- Cart in localStorage, Unsplash product images",
+                "- No markdown fences inside boltAction tags",
+                `Products:\n${productLines}`,
+              ].filter(Boolean).join("\n"),
+            },
+            { role: "user" as const, content: "Generate the storefront now. Output in bolt artifact format only." },
+          ];
+
+          let fullText = "";
+          await postChatStream({
+            messages,
+            temperature: 0.7,
+            onDelta: (delta) => {
+              fullText += delta;
+              parser.feed(delta);
+            },
+          });
+          parser.flush();
+
+          if (codeFs.listFiles().length === 0 && fullText.trim()) codeFs.writeFile("index.html", fullText.trim());
+          (ctx.storefront as Record<string, unknown>).custom_code = codeFs.getMainHtml();
+          (ctx.storefront as Record<string, unknown>).custom_files = codeFs.exportFiles();
+          ctx.status = "content_generated";
+          ctx.assistantMessage = "Your custom website is ready! Switch to Custom mode in the preview.";
+          ctx.payload = {
+            type: "custom_site_generated",
+            custom_code: codeFs.getMainHtml(),
+            files: codeFs.listFiles(),
+            bolt_action_log: runner.getLog(),
+          };
+          return { ok: true, files: codeFs.listFiles(), html_size: fullText.length };
+        } catch (err) {
+          console.error("generate_custom_site failed:", err);
+          ctx.assistantMessage = "Something went wrong. Let me try the template approach.";
+          return { ok: false, error: `error: ${err instanceof Error ? err.message : "unknown"}` };
+        }
+      },
+    },
+    {
+      name: "edit_custom_site_code",
+      description:
+        "Edit an already-generated custom website's code (HTML/CSS/JS) using a natural-language instruction. Applies precise file updates in bolt artifact format.",
+      parameters: {
+        type: "object",
+        properties: {
+          instruction: { type: "string", description: "What to change in the custom code" },
+        },
+        required: ["instruction"],
+        additionalProperties: false,
+      },
+      handler: async (args, ctx) => {
+        if (!ctx.storefront) return { ok: false, error: "website_not_generated" };
+        if (!hasMinimumBusinessProfile(ctx.profile)) {
+          return { ok: false, error: "missing_business_details" };
+        }
+
+        const instruction =
+          typeof args.instruction === "string" && args.instruction.trim()
+            ? args.instruction.trim()
+            : ctx.message.trim();
+        if (!instruction) return { ok: false, error: "missing_instruction" };
+
+        // Load current files (prefer persisted snapshot) into the in-memory FS.
+        const storefrontRecord = ctx.storefront as Record<string, unknown>;
+        const customFiles = storefrontRecord.custom_files as unknown;
+        if (Array.isArray(customFiles)) {
+          codeFs.loadFiles(customFiles as never);
+        } else if (typeof storefrontRecord.custom_code === "string" && storefrontRecord.custom_code.trim()) {
+          codeFs.clear();
+          codeFs.writeFile("index.html", String(storefrontRecord.custom_code));
+        }
+
+        const files = codeFs.exportFiles();
+        if (files.length === 0) return { ok: false, error: "no_custom_site_files" };
+
+        const { postChatStream } = await import("@/lib/storefront-builder/agents/openaiChat");
+
+        const systemPrompt = [
+          "You are StoreHause Code Editor.",
+          "You will receive a set of existing website files (HTML/CSS/JS) and a change request.",
+          "Return ONLY a bolt artifact containing the file updates needed to satisfy the request.",
+          "",
+          "OUTPUT FORMAT (required):",
+          "<boltArtifact id=\"storefront-edit\" title=\"Storefront edit\">",
+          "  <boltAction type=\"file\" filePath=\"...\">...full new file contents...</boltAction>",
+          "</boltArtifact>",
+          "",
+          "RULES:",
+          "- Only include files that changed.",
+          "- When editing a file, output the COMPLETE updated file contents.",
+          "- Do not add new build tools, frameworks, or external dependencies.",
+          "- Keep it vanilla HTML/CSS/JS. Keep the site responsive.",
+          "- If adding a new section, update index.html and styles.css accordingly.",
+        ].join("\n");
+
+        const runner = createBoltActionRunner();
+        const parser = createCodeParser({
+          onAction: (action) => {
+            runner.apply(action);
+          },
+        });
+
+        const messages = [
+          { role: "system" as const, content: systemPrompt },
+          {
+            role: "user" as const,
+            content: JSON.stringify({
+              instruction,
+              business: {
+                name: ctx.profile.business_name ?? ctx.session.store?.business_name ?? null,
+                industry: ctx.profile.industry ?? ctx.session.store?.industry ?? null,
+                description: ctx.profile.description ?? ctx.session.store?.description ?? null,
+                brand_color: ctx.profile.brand_color ?? ctx.session.store?.brand_color ?? null,
+              },
+              files,
+            }),
+          },
+        ];
+
+        let fullText = "";
+        await postChatStream({
+          messages,
+          temperature: 0.4,
+          onDelta: (delta) => {
+            fullText += delta;
+            parser.feed(delta);
+          },
+        });
+        parser.flush();
+
+        // Persist updated result back to snapshot.
+        storefrontRecord.custom_files = codeFs.exportFiles();
+        storefrontRecord.custom_code = codeFs.getMainHtml();
+
+        ctx.status = "review_ready";
+        ctx.assistantMessage = "Done — I updated your custom website. Switch to Custom mode and check the preview.";
+        ctx.payload = {
+          type: "custom_site_edited",
+          files: codeFs.listFiles(),
+          bolt_action_log: runner.getLog(),
+        };
+        return { ok: true, files: codeFs.listFiles() };
       },
     },
     {
