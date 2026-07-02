@@ -14,6 +14,15 @@ import { BuilderMessageWidgets } from "@/components/admin/builder/builder-messag
 import { BuilderSuggestedActions } from "@/components/admin/builder/builder-suggested-actions";
 import { BuilderTemplateRecommendations } from "@/components/admin/builder/builder-template-recommendations";
 import { BuilderThinkingLogCompact } from "@/components/admin/builder/builder-thinking-log-compact";
+import {
+  WorkbenchLiveActions,
+  type LiveBoltAction,
+} from "@/components/admin/builder/workbench-live-actions";
+import { WorkbenchChangesPanel } from "@/components/admin/builder/workbench-changes-panel";
+import { WorkbenchChatInput } from "@/components/admin/builder/workbench-chat-input";
+import { WorkbenchErrorAlert } from "@/components/admin/builder/workbench-error-alert";
+import type { WorkbenchEditStep } from "@/lib/bolt/workbench-edit-agent";
+import type { FileDiffSummary, WorkbenchEditCheckpoint } from "@/lib/bolt/workbench-diff";
 import { BUILDER_CHAT_HEADER } from "@/lib/storefront-builder/copy";
 import { getLatestSuggestedActions } from "@/lib/storefront-builder/suggested-actions";
 import { cn } from "@/lib/utils";
@@ -38,6 +47,15 @@ export function BuilderChatPanel({
   onApplyImage,
   onSelectTemplate,
   onClearChat,
+  liveActions = [],
+  agentSteps = [],
+  aiStreaming = false,
+  lastCheckpoint = null,
+  lastDiffs = [],
+  onRevertEdit,
+  onSelectDiffFile,
+  onGoToPreviewError,
+  projectFilePaths = [],
 }: {
   session: BuilderSession;
   sending: boolean;
@@ -57,10 +75,20 @@ export function BuilderChatPanel({
   onApplyImage?: (target: BuilderMediaTarget, url: string, label: string) => void;
   onSelectTemplate?: (templateId: StorefrontTemplateId) => void;
   onClearChat?: () => void;
+  liveActions?: LiveBoltAction[];
+  agentSteps?: WorkbenchEditStep[];
+  aiStreaming?: boolean;
+  lastCheckpoint?: WorkbenchEditCheckpoint | null;
+  lastDiffs?: FileDiffSummary[];
+  onRevertEdit?: () => void;
+  onSelectDiffFile?: (path: string) => void;
+  onGoToPreviewError?: (filePath: string, line: number) => void;
+  projectFilePaths?: string[];
 }) {
   const [input, setInput] = useState("");
   const [designPickerOpen, setDesignPickerOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const endRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const productFileRef = useRef<HTMLInputElement>(null);
   const [uploadTarget, setUploadTarget] = useState<BuilderMediaTarget>("media.hero_image_url");
@@ -89,20 +117,24 @@ export function BuilderChatPanel({
     !isCodeVariant && !!session.storefront_snapshot && concreteTemplateOptions.length > 0 && onSelectTemplate;
   const showTemplatePicker = showInitialTemplatePicker || (showDesignSwitcher && designPickerOpen);
 
+  const showLiveWorkbench =
+    isCodeVariant &&
+    (aiStreaming || liveActions.length > 0 || agentSteps.length > 0 || lastDiffs.length > 0);
+
   useEffect(() => {
-    const container = scrollRef.current;
-    if (!container) return;
-
-    const scrollToBottom = () => {
-      container.scrollTop = container.scrollHeight;
-    };
-
-    scrollToBottom();
-
-    const observer = new ResizeObserver(scrollToBottom);
-    observer.observe(container);
-    return () => observer.disconnect();
-  }, [session.messages, sending, generating, thinkingEntries, thinkingStreaming]);
+    const instant = aiStreaming || sending || generating || thinkingStreaming;
+    endRef.current?.scrollIntoView({ behavior: instant ? "instant" : "smooth", block: "end" });
+  }, [
+    session.messages,
+    sending,
+    generating,
+    thinkingEntries,
+    thinkingStreaming,
+    liveActions,
+    agentSteps,
+    aiStreaming,
+    lastDiffs.length,
+  ]);
 
   const showLiveThinking = busy && (thinkingStreaming || thinkingEntries.length > 0);
 
@@ -187,7 +219,7 @@ export function BuilderChatPanel({
 
   const canClear = session.messages.length > 0 && onClearChat && !busy;
   const inputPlaceholder = isCodeVariant
-    ? 'Try "Make the hero darker" or "Add a product grid below the header"'
+    ? 'Use @ to tag a file or folder — e.g. "@src/routes/ fix the hero"'
     : session.storefront_snapshot
       ? 'Try "Switch to a cozy candle shop with warm earthy colors" or pick a design below'
       : "Tell me about your business — what you sell, who it's for, and the vibe you want...";
@@ -217,97 +249,146 @@ export function BuilderChatPanel({
         onChange={handleProductFile}
       />
 
-      <div className="shrink-0 border-b border-border px-5 py-4">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2 text-sm font-medium text-ink-soft">
-              <Sparkles className="h-4 w-4 text-primary" />
-              {BUILDER_CHAT_HEADER.title}
+      {!embedded ? (
+        <div className="shrink-0 border-b border-border px-5 py-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2 text-sm font-medium text-ink-soft">
+                <Sparkles className="h-4 w-4 text-primary" />
+                {BUILDER_CHAT_HEADER.title}
+              </div>
+              <p className="mt-1 text-sm text-ink-soft">{headerSubtitle}</p>
             </div>
-            <p className="mt-1 text-sm text-ink-soft">{headerSubtitle}</p>
+            {hasThinkingHistory || thinkingStreaming ? (
+              <button
+                type="button"
+                onClick={() => onOpenThinkingLog?.()}
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs text-ink-soft transition hover:border-primary/40 hover:text-ink"
+                aria-label="View AI process log"
+              >
+                <ListTree className="h-3.5 w-3.5" />
+                Log
+              </button>
+            ) : null}
+            {canClear ? (
+              <button
+                type="button"
+                onClick={onClearChat}
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs text-ink-soft transition hover:border-primary/40 hover:text-ink"
+                aria-label="Clear chat"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Clear chat
+              </button>
+            ) : null}
           </div>
-          {hasThinkingHistory || thinkingStreaming ? (
+        </div>
+      ) : canClear ? (
+        <div className="flex shrink-0 justify-end border-b border-border px-3 py-1.5">
+          <button
+            type="button"
+            onClick={onClearChat}
+            className="inline-flex items-center gap-1.5 rounded-md border border-border px-2 py-1 text-[11px] text-ink-soft transition hover:border-primary/40 hover:text-ink"
+            aria-label="Clear chat"
+          >
+            <Trash2 className="h-3 w-3" />
+            Clear
+          </button>
+        </div>
+      ) : null}
+
+      <div
+        ref={scrollRef}
+        className={cn(
+          "min-h-0 flex-1 overflow-y-auto overscroll-contain py-4",
+          embedded ? "px-3" : "px-5",
+        )}
+      >
+        <div className="flex flex-col gap-4">
+          {session.messages.map((message) => (
+            <ChatBubble key={message.id} message={message} brandColor={brandColor} />
+          ))}
+
+          {showLiveWorkbench ? (
+            <div className="flex justify-start">
+              <div className="w-full max-w-[92%] space-y-2 rounded-2xl bg-secondary px-3 py-3 text-sm">
+                <WorkbenchLiveActions
+                  actions={liveActions}
+                  agentSteps={agentSteps}
+                  streaming={aiStreaming}
+                />
+                <WorkbenchChangesPanel
+                  checkpoint={lastCheckpoint}
+                  diffs={lastDiffs}
+                  onRevert={onRevertEdit}
+                  onSelectFile={onSelectDiffFile}
+                />
+              </div>
+            </div>
+          ) : null}
+
+          {showLiveThinking ? (
+            <BuilderThinkingLogCompact entries={thinkingEntries} streaming={thinkingStreaming} />
+          ) : busy && !showLiveWorkbench ? (
+            <div className="inline-flex items-center gap-2 rounded-full bg-secondary px-3 py-1 text-xs text-ink-soft">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              {generating ? "Building your website..." : "Thinking..."}
+            </div>
+          ) : null}
+
+          {!busy && !isCodeVariant ? (
+            <BuilderSuggestedActions
+              actions={suggestedActions}
+              disabled={busy}
+              onPrompt={onSendMessage}
+              onColor={onApplyColor}
+              onUpload={openUploadPicker}
+              onApplyImage={onApplyImage}
+            />
+          ) : null}
+
+          {showDesignSwitcher ? (
             <button
               type="button"
-              onClick={() => onOpenThinkingLog?.()}
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs text-ink-soft transition hover:border-primary/40 hover:text-ink"
-              aria-label="View AI process log"
+              disabled={busy}
+              onClick={() => setDesignPickerOpen((open) => !open)}
+              className="w-full rounded-xl border border-dashed border-border bg-background px-4 py-3 text-left text-sm text-ink-soft transition hover:border-primary/40 hover:text-ink disabled:opacity-60"
             >
-              <ListTree className="h-3.5 w-3.5" />
-              Log
+              {designPickerOpen
+                ? "Hide design options"
+                : "Try a different design — pick another look and preview updates instantly"}
             </button>
           ) : null}
-          {canClear ? (
-            <button
-              type="button"
-              onClick={onClearChat}
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs text-ink-soft transition hover:border-primary/40 hover:text-ink"
-              aria-label="Clear chat"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-              Clear chat
-            </button>
+
+          {showTemplatePicker ? (
+            <BuilderTemplateRecommendations
+              brandColor={brandColor}
+              recommendations={session.recommendations}
+              templateOptions={concreteTemplateOptions}
+              selectedTemplateId={selectedTemplateId}
+              title={session.storefront_snapshot ? "Switch website design" : "Pick a website design"}
+              subtitle={
+                session.storefront_snapshot
+                  ? "Choose a look below. Your business details and brand color stay the same."
+                  : undefined
+              }
+              disabled={busy}
+              onSelect={(templateId) => {
+                onSelectTemplate?.(templateId);
+                if (session.storefront_snapshot) setDesignPickerOpen(false);
+              }}
+            />
           ) : null}
+
+          <div ref={endRef} className="h-px shrink-0" aria-hidden />
         </div>
       </div>
 
-      <div ref={scrollRef} className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
-        {session.messages.map((message) => (
-          <ChatBubble key={message.id} message={message} brandColor={brandColor} />
-        ))}
-        {showLiveThinking ? (
-          <BuilderThinkingLogCompact entries={thinkingEntries} streaming={thinkingStreaming} />
-        ) : busy ? (
-          <div className="inline-flex items-center gap-2 rounded-full bg-secondary px-3 py-1 text-xs text-ink-soft">
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            {generating ? "Building your website..." : "Thinking..."}
-          </div>
-        ) : null}
-
-        {!busy && !isCodeVariant ? (
-          <BuilderSuggestedActions
-            actions={suggestedActions}
-            disabled={busy}
-            onPrompt={onSendMessage}
-            onColor={onApplyColor}
-            onUpload={openUploadPicker}
-            onApplyImage={onApplyImage}
-          />
-        ) : null}
-
-        {showDesignSwitcher ? (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => setDesignPickerOpen((open) => !open)}
-            className="w-full rounded-xl border border-dashed border-border bg-background px-4 py-3 text-left text-sm text-ink-soft transition hover:border-primary/40 hover:text-ink disabled:opacity-60"
-          >
-            {designPickerOpen
-              ? "Hide design options"
-              : "Try a different design — pick another look and preview updates instantly"}
-          </button>
-        ) : null}
-
-        {showTemplatePicker ? (
-          <BuilderTemplateRecommendations
-            brandColor={brandColor}
-            recommendations={session.recommendations}
-            templateOptions={concreteTemplateOptions}
-            selectedTemplateId={selectedTemplateId}
-            title={session.storefront_snapshot ? "Switch website design" : "Pick a website design"}
-            subtitle={
-              session.storefront_snapshot
-                ? "Choose a look below. Your business details and brand color stay the same."
-                : undefined
-            }
-            disabled={busy}
-            onSelect={(templateId) => {
-              onSelectTemplate?.(templateId);
-              if (session.storefront_snapshot) setDesignPickerOpen(false);
-            }}
-          />
-        ) : null}
-      </div>
+      {isCodeVariant ? (
+        <div className="shrink-0 border-t border-border px-4 pt-3">
+          <WorkbenchErrorAlert onFixWithAi={onSendMessage} onGoToError={onGoToPreviewError} />
+        </div>
+      ) : null}
 
       <form onSubmit={handleSubmit} className="shrink-0 border-t border-border p-4">
         <div className="flex items-end gap-2">
@@ -335,14 +416,25 @@ export function BuilderChatPanel({
               <FileSpreadsheet className="h-4 w-4" />
             )}
           </button>
-          <textarea
-            value={input}
-            onChange={(event) => setInput(event.target.value)}
-            onKeyDown={handleKeyDown}
-            rows={2}
-            placeholder={inputPlaceholder}
-            className="min-h-[72px] flex-1 resize-none rounded-md border border-border bg-background px-3 py-2 text-sm shadow-soft outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-          />
+          {isCodeVariant && projectFilePaths.length > 0 ? (
+            <WorkbenchChatInput
+              value={input}
+              onChange={setInput}
+              onSubmit={sendMessage}
+              filePaths={projectFilePaths}
+              busy={busy}
+              placeholder={inputPlaceholder}
+            />
+          ) : (
+            <textarea
+              value={input}
+              onChange={(event) => setInput(event.target.value)}
+              onKeyDown={handleKeyDown}
+              rows={2}
+              placeholder={inputPlaceholder}
+              className="min-h-[72px] flex-1 resize-none rounded-md border border-border bg-background px-3 py-2 text-sm shadow-soft outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+            />
+          )}
           <button
             type="submit"
             disabled={!input.trim() || busy}

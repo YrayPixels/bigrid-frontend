@@ -66,9 +66,18 @@ export function WebContainerTerminalPanel({ className }: { className?: string })
     let cancelled = false;
     let resizeObserver: ResizeObserver | undefined;
 
-    (async () => {
+    const safeFit = () => {
+      if (cancelled || !container.isConnected) return;
       try {
         fitAddon.fit();
+      } catch {
+        // xterm can throw when the panel is hidden or mid-dispose (zero dimensions).
+      }
+    };
+
+    (async () => {
+      try {
+        safeFit();
         const shell = await attachWebContainerShell({
           terminal: xterm,
         });
@@ -79,7 +88,8 @@ export function WebContainerTerminalPanel({ className }: { className?: string })
         shellRef.current = shell;
 
         resizeObserver = new ResizeObserver(() => {
-          fitAddon.fit();
+          if (cancelled) return;
+          safeFit();
           shell.resize(xterm.cols, xterm.rows);
         });
         resizeObserver.observe(container);

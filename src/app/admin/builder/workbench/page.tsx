@@ -8,13 +8,9 @@ import { FileCode2, Loader2, Lock, PanelLeft, Save, Sparkles, Unlock } from "luc
 import { toast } from "sonner";
 import { BuilderChatPanel } from "@/components/admin/builder/builder-chat-panel";
 import { BuilderThinkingLogSheet } from "@/components/admin/builder/builder-thinking-log-sheet";
-import { WorkbenchChangesPanel } from "@/components/admin/builder/workbench-changes-panel";
 import { WorkbenchCodeEditor } from "@/components/admin/builder/workbench-code-editor";
 import { WorkbenchFileTree } from "@/components/admin/builder/workbench-file-tree";
-import {
-  WorkbenchLiveActions,
-  type LiveBoltAction,
-} from "@/components/admin/builder/workbench-live-actions";
+import type { LiveBoltAction } from "@/components/admin/builder/workbench-live-actions";
 import { CollapsedPanelRail, WorkbenchPanelHeader, useWorkbenchPanelCollapsed } from "@/components/admin/builder/workbench-panel-header";
 import { WebContainerPreview } from "@/components/admin/builder/webcontainer-preview";
 import { WebContainerTerminalPanel } from "@/components/admin/builder/webcontainer-terminal-panel";
@@ -29,7 +25,9 @@ import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api/client";
 import { codeFs } from "@/lib/code-fs";
 import { seedBuildItUpIfNeeded } from "@/lib/bolt/seed-template";
-import { needsBoltTemplateSeed } from "@/lib/bolt/project-utils";
+import { needsBoltTemplateSeed, preferredWorkbenchFilePath } from "@/lib/bolt/project-utils";
+import { extractTaggedPaths } from "@/lib/bolt/workbench-mentions";
+import { scrollWorkbenchEditorToLine } from "@/lib/bolt/workbench-editor-nav";
 import type { BuilderSession, StorefrontContent } from "@/lib/api/types";
 import { STOREFRONT_TEMPLATE_OPTIONS } from "@/lib/api/types";
 import {
@@ -40,10 +38,17 @@ import {
   type WorkbenchContextHints,
 } from "@/lib/storefront-builder/client";
 import { appendWebContainerOutput } from "@/lib/bolt/webcontainer-output";
+import { formatErrorsForAgent, getLatestWorkbenchErrors } from "@/lib/bolt/workbench-preview-errors";
+import { buildWorkbenchProjectPayload } from "@/lib/bolt/workbench-persist";
+import { useWorkbenchAutoSave } from "@/lib/bolt/use-workbench-autosave";
 import { lastWrittenPathsFromSession } from "@/lib/bolt/select-context";
 import type { WorkbenchEditStep } from "@/lib/bolt/workbench-edit-agent";
-import type { FileDiffSummary, WorkbenchEditCheckpoint } from "@/lib/bolt/workbench-diff";
-import { revertEditCheckpoint } from "@/lib/bolt/workbench-diff";
+import {
+  formatLineChangePreview,
+  revertEditCheckpoint,
+  type FileDiffSummary,
+  type WorkbenchEditCheckpoint,
+} from "@/lib/bolt/workbench-diff";
 import type { AgentThinkingLogEntry } from "@/lib/storefront-builder/agents/types";
 import {
   extractThinkingLogTurns,
@@ -83,6 +88,9 @@ function snapshotHasCustomFiles(storefront: StorefrontContent | null | undefined
   if (typeof snapshot?.custom_code === "string" && snapshot.custom_code.trim()) {
     return true;
   }
+  if (snapshot?.custom_project && typeof snapshot.custom_project === "object") {
+    return true;
+  }
   return false;
 }
 
@@ -108,23 +116,22 @@ function extractLastEditFromSession(session: BuilderSession | null): {
 }
 
 function loadSnapshotIntoCodeFs(storefront: StorefrontContent | null | undefined) {
+  // Live editor state is canonical — never clobber in-memory files from a stale snapshot.
+  const existing = codeFs.exportFiles();
+  if (existing.length > 0) return existing as FileEntry[];
+
   const snapshot = storefront as Record<string, unknown> | null | undefined;
   const customFiles = snapshot?.custom_files as unknown;
   const customCode = snapshot?.custom_code as unknown;
 
   if (Array.isArray(customFiles)) {
     codeFs.loadFiles(customFiles as never);
-    if (needsBoltTemplateSeed(customFiles as never)) {
-      void seedBuildItUpIfNeeded(customFiles as never);
-    }
-    return customFiles as FileEntry[];
+    return codeFs.exportFiles() as FileEntry[];
   }
 
   if (typeof customCode === "string" && customCode.trim()) {
-    const files = [{ path: "index.html", content: customCode }];
-    codeFs.clear();
     codeFs.writeFile("index.html", customCode);
-    return files;
+    return [{ path: "index.html", content: customCode }];
   }
 
   return [] as FileEntry[];
@@ -153,6 +160,7 @@ export default function AdminBuilderWorkbenchPage() {
   const thinkingRunRef = useRef<AgentThinkingLogEntry[]>([]);
   const baselineFilesRef = useRef<FileEntry[]>([]);
   const loadedSessionRef = useRef<string | null>(null);
+  const legacyMigrationRef = useRef<string | null>(null);
   const [lockedPaths, setLockedPaths] = useState<Set<string>>(new Set());
   const [aiStreaming, setAiStreaming] = useState(false);
   const [liveActions, setLiveActions] = useState<LiveBoltAction[]>([]);
@@ -213,23 +221,63 @@ export default function AdminBuilderWorkbenchPage() {
     setLockedPaths(new Set(locked.filter(Boolean)));
 
     const localCount = codeFs.listFiles().length;
+    // Never reload snapshot over live editor files (prevents losing prior AI edits).
+    if (localCount > 0) {
+      loadedSessionRef.current = session.id;
+      return;
+    }
+
+    const hasInlineFiles =
+      Array.isArray(snapshot?.custom_files) && (snapshot.custom_files as unknown[]).length > 0;
+    const hasProjectPointer = !!snapshot?.custom_project;
+
     const shouldLoadFromSnapshot =
       loadedSessionRef.current !== session.id ||
-      (localCount === 0 && snapshotHasCustomFiles(storefront));
+      (localCount === 0 && (hasInlineFiles || hasProjectPointer));
 
     if (!shouldLoadFromSnapshot) return;
 
     loadedSessionRef.current = session.id;
-    const loaded = loadSnapshotIntoCodeFs(storefront);
-    if (loaded.length > 0) {
-      baselineFilesRef.current = loaded;
+
+    if (hasInlineFiles || typeof snapshot?.custom_code === "string") {
+      const loaded = loadSnapshotIntoCodeFs(storefront);
+      if (loaded.length > 0) {
+        baselineFilesRef.current = loaded;
+      }
+      return;
+    }
+
+    if (hasProjectPointer) {
+      void api.getBuilderProject(session.id).then((project) => {
+        if (project.custom_files.length === 0) return;
+        const loaded = loadSnapshotIntoCodeFs({
+          custom_files: project.custom_files,
+        } as unknown as StorefrontContent);
+        if (loaded.length > 0) {
+          baselineFilesRef.current = loaded;
+        }
+      });
     }
   }, [session?.id, storefront]);
 
   const { files, tick: codeFsTick } = useCodeFsFiles();
-  const [selectedPath, setSelectedPath] = useState<string>("index.html");
-  const [draft, setDraft] = useState<string>("");
+  const [selectedPath, setSelectedPath] = useState<string>(() =>
+    preferredWorkbenchFilePath(codeFs.listFiles()),
+  );
+  const [draft, setDraft] = useState<string>(() => codeFs.readFile(selectedPath) ?? "");
   const [dirty, setDirty] = useState(false);
+
+  const selectFile = useCallback(
+    (path: string) => {
+      if (dirty && selectedPath) {
+        codeFs.writeFile(selectedPath, draft);
+      }
+      setDirty(false);
+      setSelectedPath(path);
+      setDraft(codeFs.readFile(path) ?? "");
+    },
+    [dirty, selectedPath, draft],
+  );
   const [view, setView] = useState<"code" | "diff">("code");
   const chatPanelRef = usePanelRef();
   const filesPanelRef = usePanelRef();
@@ -312,9 +360,31 @@ export default function AdminBuilderWorkbenchPage() {
   const baselineMap = useMemo(() => toFileMap(baselineFilesRef.current), [storefront, files.length]);
 
   useEffect(() => {
+    if (!session) return;
+    if (legacyMigrationRef.current === session.id) return;
+    if (files.length === 0 || !needsBoltTemplateSeed(files)) return;
+
+    legacyMigrationRef.current = session.id;
+    void seedBuildItUpIfNeeded(files).then((didSeed) => {
+      if (!didSeed) return;
+      const seeded = codeFs.exportFiles();
+      baselineFilesRef.current = seeded.map((file) => ({
+        path: file.path,
+        content: file.content,
+      }));
+      const nextPath = preferredWorkbenchFilePath(seeded.map((file) => file.path));
+      setDirty(false);
+      setSelectedPath(nextPath);
+      setDraft(codeFs.readFile(nextPath) ?? "");
+    });
+  }, [session?.id, files]);
+
+  useEffect(() => {
     if (files.length === 0) return;
     if (files.some((f) => f.path === selectedPath)) return;
-    setSelectedPath(files[0]!.path);
+    const nextPath = preferredWorkbenchFilePath(files.map((file) => file.path));
+    setSelectedPath(nextPath);
+    setDraft(codeFs.readFile(nextPath) ?? "");
   }, [files, selectedPath]);
 
   useEffect(() => {
@@ -355,9 +425,13 @@ export default function AdminBuilderWorkbenchPage() {
           status: "streaming",
         });
         if (action.type === "file" && action.filePath) {
+          const fallback = preferredWorkbenchFilePath(files.map((file) => file.path));
           setSelectedPath((prev) =>
-            prev === "index.html" && files.length > 1 ? action.filePath! : prev || action.filePath!,
+            (prev === fallback || prev === "index.html") && files.length > 1
+              ? action.filePath!
+              : prev || action.filePath!,
           );
+          setDraft(codeFs.readFile(action.filePath) ?? "");
         }
       },
       onActionStream: (action) => {
@@ -391,7 +465,9 @@ export default function AdminBuilderWorkbenchPage() {
           return [...prev, step];
         });
         if (step.type === "patch" && step.status === "complete" && step.path) {
-          setSelectedPath((prev) => prev || step.path!);
+          const path = step.path!;
+          setSelectedPath((prev) => prev || path);
+          setDraft(codeFs.readFile(path) ?? "");
         }
       },
     }),
@@ -405,6 +481,52 @@ export default function AdminBuilderWorkbenchPage() {
     setDirty(false);
   };
 
+  const applySessionResponse = useCallback(
+    (data: Awaited<ReturnType<typeof streamAndPersistBuilderMessage>>) => {
+      const live = codeFs.exportFiles();
+      const mergedSession =
+        live.length > 0 && data.session?.storefront_snapshot
+          ? {
+              ...data.session,
+              storefront_snapshot: {
+                ...data.session.storefront_snapshot,
+                custom_files: live as never,
+                custom_code: codeFs.getMainHtml(),
+              },
+            }
+          : data.session;
+
+      queryClient.setQueryData(["builder-session"], {
+        ...data,
+        session: mergedSession,
+        storefront: mergedSession?.storefront_snapshot ?? data.storefront,
+      });
+
+      const { checkpoint, diffs } = extractLastEditFromSession(mergedSession ?? null);
+      if (checkpoint) {
+        setLastCheckpoint(checkpoint);
+        setLastDiffs(diffs);
+      }
+
+      if (live.length > 0) {
+        baselineFilesRef.current = live.map((file) => ({
+          path: file.path,
+          content: file.content,
+        }));
+        return;
+      }
+
+      const nextStorefront = data.storefront ?? mergedSession?.storefront_snapshot ?? null;
+      if (nextStorefront && snapshotHasCustomFiles(nextStorefront)) {
+        const loaded = loadSnapshotIntoCodeFs(nextStorefront);
+        if (loaded.length > 0) {
+          baselineFilesRef.current = loaded;
+        }
+      }
+    },
+    [queryClient],
+  );
+
   const toggleLock = () => {
     setLockedPaths((prev) => {
       const next = new Set(prev);
@@ -414,34 +536,12 @@ export default function AdminBuilderWorkbenchPage() {
     });
   };
 
-  const handleSessionResponse = (
-    data: Awaited<ReturnType<typeof streamAndPersistBuilderMessage>>,
-  ) => {
-    queryClient.setQueryData(["builder-session"], data);
-
-    const { checkpoint, diffs } = extractLastEditFromSession(data.session ?? null);
-    if (checkpoint) {
-      setLastCheckpoint(checkpoint);
-      setLastDiffs(diffs);
-    }
-
-    const live = codeFs.exportFiles();
-    if (live.length > 0) {
-      baselineFilesRef.current = live.map((file) => ({
-        path: file.path,
-        content: file.content,
-      }));
-      return;
-    }
-
-    const nextStorefront = data.storefront ?? data.session?.storefront_snapshot ?? null;
-    if (nextStorefront && snapshotHasCustomFiles(nextStorefront)) {
-      const loaded = loadSnapshotIntoCodeFs(nextStorefront);
-      if (loaded.length > 0) {
-        baselineFilesRef.current = loaded;
-      }
-    }
-  };
+  const handleSessionResponse = useCallback(
+    (data: Awaited<ReturnType<typeof streamAndPersistBuilderMessage>>) => {
+      applySessionResponse(data);
+    },
+    [applySessionResponse],
+  );
 
   const revertLastEdit = () => {
     if (!lastCheckpoint) return;
@@ -456,6 +556,44 @@ export default function AdminBuilderWorkbenchPage() {
     setDirty(false);
     toast.success(`Reverted AI changes in ${paths.length} file${paths.length === 1 ? "" : "s"}`);
   };
+
+  const prepareWorkbenchSave = useCallback(() => {
+    if (dirty && selectedPath) {
+      codeFs.writeFile(selectedPath, draft);
+      setDirty(false);
+    }
+  }, [dirty, selectedPath, draft]);
+
+  const persistSnapshot = useCallback(async () => {
+    if (!session) throw new Error("No builder session");
+    prepareWorkbenchSave();
+    const payload = buildWorkbenchProjectPayload(lockedPaths);
+    return api.saveBuilderProject(session.id, payload);
+  }, [session, lockedPaths, prepareWorkbenchSave]);
+
+  const { saveState, markSaved } = useWorkbenchAutoSave({
+    session,
+    lockedPaths,
+    enabled: files.length > 0 && !aiStreaming,
+    codeRevision: codeFsTick + (dirty ? 1 : 0),
+    prepareForSave: prepareWorkbenchSave,
+    onSaved: applySessionResponse,
+  });
+
+  const initialLoadMarkedRef = useRef(false);
+
+  useEffect(() => {
+    initialLoadMarkedRef.current = false;
+    legacyMigrationRef.current = null;
+  }, [session?.id]);
+
+  useEffect(() => {
+    if (!session || files.length === 0 || initialLoadMarkedRef.current) return;
+    if (loadedSessionRef.current !== session.id) return;
+    if (aiStreaming) return;
+    initialLoadMarkedRef.current = true;
+    markSaved();
+  }, [session?.id, files.length, aiStreaming, markSaved]);
 
   const sendMessage = useMutation({
     mutationFn: async (message: string) => {
@@ -478,16 +616,28 @@ export default function AdminBuilderWorkbenchPage() {
         }
 
         const currentFiles = codeFs.exportFiles();
+        const filePathList = currentFiles.map((file) => file.path);
+        const taggedPaths = extractTaggedPaths(message, filePathList);
+        const previewErrorText = formatErrorsForAgent(getLatestWorkbenchErrors());
         const contextHints: WorkbenchContextHints = {
           selectedPath,
+          taggedPaths,
           modifiedPaths: computeModifiedPaths(baselineFilesRef.current, currentFiles),
           lastWrittenPaths: lastWrittenPathsFromSession(activeSession.messages),
+          ...(taggedPaths.length > 0 ? { searchPaths: taggedPaths } : {}),
+          ...(previewErrorText ? { previewErrors: previewErrorText } : {}),
         };
 
         const sessionWithLocks: BuilderSession = {
           ...(activeSession as BuilderSession),
           storefront_snapshot: {
             ...((activeSession as BuilderSession).storefront_snapshot ?? ({} as StorefrontContent)),
+            ...(codeFs.exportFiles().length > 0
+              ? {
+                  custom_files: codeFs.exportFiles() as never,
+                  custom_code: codeFs.getMainHtml(),
+                }
+              : {}),
             edit_metadata: {
               ...(((activeSession as BuilderSession).storefront_snapshot?.edit_metadata ?? {}) as Record<
                 string,
@@ -518,7 +668,13 @@ export default function AdminBuilderWorkbenchPage() {
         thinkingRunRef.current = [];
       }
     },
-    onSuccess: handleSessionResponse,
+    onSuccess: (data) => {
+      handleSessionResponse(data);
+      markSaved();
+      setAgentSteps([]);
+      liveActionsRef.current = new Map();
+      setLiveActions([]);
+    },
     onError: (error) => toast.error(error instanceof Error ? error.message : "Could not send message"),
   });
 
@@ -554,25 +710,10 @@ export default function AdminBuilderWorkbenchPage() {
   });
 
   const persist = useMutation({
-    mutationFn: async () => {
-      if (!session) throw new Error("No builder session");
-      const next: StorefrontContent = {
-        ...(session.storefront_snapshot ?? ({} as StorefrontContent)),
-        custom_files: codeFs.exportFiles() as never,
-        edit_metadata: {
-          ...((session.storefront_snapshot?.edit_metadata ?? {}) as Record<string, unknown>),
-          locked_paths: [...lockedPaths],
-        } as never,
-      };
-      return api.sendBuilderMessage(session.id, "Saved custom code changes", {
-        storefront_snapshot: next,
-        status: session.status,
-      });
-    },
+    mutationFn: persistSnapshot,
     onSuccess: (data) => {
-      queryClient.setQueryData(["builder-session"], data);
-      const loaded = loadSnapshotIntoCodeFs(data.storefront ?? data.session?.storefront_snapshot);
-      if (loaded.length > 0) baselineFilesRef.current = loaded;
+      applySessionResponse(data);
+      markSaved();
       toast.success("Saved to session");
     },
     onError: (error) => toast.error(error instanceof Error ? error.message : "Could not save"),
@@ -641,13 +782,26 @@ export default function AdminBuilderWorkbenchPage() {
           <button
             type="button"
             onClick={() => persist.mutate()}
-            disabled={!hasFiles || persist.isPending}
+            disabled={!hasFiles || persist.isPending || saveState === "saving"}
             className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-40"
             title="Persist current file tree to your builder session"
           >
             <FileCode2 className="h-4 w-4" />
-            {persist.isPending ? "Saving…" : "Save to session"}
+            {persist.isPending || saveState === "saving" ? "Saving…" : "Save to session"}
           </button>
+          {hasFiles ? (
+            <span className="text-xs text-ink-soft">
+              {saveState === "pending"
+                ? "Unsaved changes"
+                : saveState === "saving"
+                  ? "Auto-saving…"
+                  : saveState === "error"
+                    ? "Save failed — retrying on next edit"
+                    : saveState === "saved"
+                      ? "Saved to session"
+                      : null}
+            </span>
+          ) : null}
         </div>
       </div>
 
@@ -678,24 +832,6 @@ export default function AdminBuilderWorkbenchPage() {
               ) : (
                 <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
                   <WorkbenchPanelHeader title="AI Chat" panelRef={chatPanelRef} collapseSide="left" />
-                  {(aiStreaming || liveActions.length > 0 || agentSteps.length > 0 || lastDiffs.length > 0) ? (
-                    <div className="shrink-0 space-y-2 border-b border-border px-3 py-2">
-                      <WorkbenchLiveActions
-                        actions={liveActions}
-                        agentSteps={agentSteps}
-                        streaming={aiStreaming}
-                      />
-                      <WorkbenchChangesPanel
-                        checkpoint={lastCheckpoint}
-                        diffs={lastDiffs}
-                        onRevert={revertLastEdit}
-                        onSelectFile={(path) => {
-                          setSelectedPath(path);
-                          setView("diff");
-                        }}
-                      />
-                    </div>
-                  ) : null}
                   <BuilderChatPanel
                     embedded
                     session={session as BuilderSession}
@@ -711,6 +847,22 @@ export default function AdminBuilderWorkbenchPage() {
                     onApplyColor={(color, label) => applyColor.mutate({ color, label })}
                     onUploadMedia={(target, file) => uploadMedia.mutate({ target, file })}
                     onClearChat={() => clearChat.mutate()}
+                    liveActions={liveActions}
+                    agentSteps={agentSteps}
+                    aiStreaming={aiStreaming}
+                    lastCheckpoint={lastCheckpoint}
+                    lastDiffs={lastDiffs}
+                    onRevertEdit={revertLastEdit}
+                    onSelectDiffFile={(path) => {
+                      selectFile(path);
+                      setView("diff");
+                    }}
+                    onGoToPreviewError={(filePath, line) => {
+                      selectFile(filePath);
+                      setView("code");
+                      requestAnimationFrame(() => scrollWorkbenchEditorToLine(line));
+                    }}
+                    projectFilePaths={files.map((file) => file.path)}
                   />
                 </div>
               )}
@@ -753,7 +905,7 @@ export default function AdminBuilderWorkbenchPage() {
                           dirtyPath={dirty ? selectedPath : null}
                           modifiedPaths={modifiedPaths}
                           streamingPaths={streamingPaths}
-                          onSelect={setSelectedPath}
+                          onSelect={selectFile}
                         />
                       </div>
                     </div>
@@ -853,13 +1005,7 @@ export default function AdminBuilderWorkbenchPage() {
                               <span className="font-medium text-destructive">-{selectedDiff.deletions}</span>
                               {selectedDiff.preview.length > 0 ? (
                                 <pre className="mt-2 max-h-24 overflow-auto font-mono text-[10px] leading-4 text-ink">
-                                  {selectedDiff.preview.map((change) => {
-                                    if (change.before !== undefined && change.after !== undefined) {
-                                      return `L${change.line}: ${change.before.trim()} → ${change.after.trim()}\n`;
-                                    }
-                                    if (change.after !== undefined) return `L${change.line}: + ${change.after.trim()}\n`;
-                                    return `L${change.line}: - ${change.before?.trim() ?? ""}\n`;
-                                  })}
+                                  {selectedDiff.preview.map((change) => `${formatLineChangePreview(change)}\n`)}
                                 </pre>
                               ) : null}
                             </div>
@@ -869,7 +1015,7 @@ export default function AdminBuilderWorkbenchPage() {
                             <div className="border-b border-border bg-secondary/50 px-3 py-1.5 text-[11px] font-semibold text-ink-soft">
                               {lastCheckpoint?.files[selectedPath] ? "Before last AI edit" : "Baseline (last saved)"}
                             </div>
-                            <pre className="min-h-0 flex-1 overflow-auto p-3 font-mono text-[12px] leading-5 text-ink-soft">
+                            <pre className="min-h-0 flex-1 select-text overflow-auto p-3 font-mono text-[12px] leading-5 text-ink-soft">
                               {(lastCheckpoint?.files[selectedPath]?.before ?? baselineContent) || "(empty)"}
                             </pre>
                           </div>
@@ -877,7 +1023,7 @@ export default function AdminBuilderWorkbenchPage() {
                             <div className="border-b border-border bg-secondary/50 px-3 py-1.5 text-[11px] font-semibold text-ink-soft">
                               Current (live)
                             </div>
-                            <pre className="min-h-0 flex-1 overflow-auto p-3 font-mono text-[12px] leading-5 text-ink">
+                            <pre className="min-h-0 flex-1 select-text overflow-auto p-3 font-mono text-[12px] leading-5 text-ink">
                               {currentContent || "(empty)"}
                             </pre>
                           </div>

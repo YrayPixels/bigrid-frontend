@@ -2,7 +2,11 @@
 
 import { useState } from "react";
 import { ChevronDown, ChevronRight, GitCompare, RotateCcw } from "lucide-react";
-import type { FileDiffSummary, WorkbenchEditCheckpoint } from "@/lib/bolt/workbench-diff";
+import {
+  formatLineChangePreview,
+  type FileDiffSummary,
+  type WorkbenchEditCheckpoint,
+} from "@/lib/bolt/workbench-diff";
 import { cn } from "@/lib/utils";
 
 export function WorkbenchChangesPanel({
@@ -67,13 +71,7 @@ export function WorkbenchChangesPanel({
               </button>
               {diff.preview.length > 0 ? (
                 <pre className="mt-1.5 overflow-x-auto font-mono text-[10px] leading-4 text-ink-soft">
-                  {diff.preview.map((change) => {
-                    if (change.before !== undefined && change.after !== undefined) {
-                      return `L${change.line}: ${change.before.trim()} → ${change.after.trim()}\n`;
-                    }
-                    if (change.after !== undefined) return `L${change.line}: + ${change.after.trim()}\n`;
-                    return `L${change.line}: - ${change.before?.trim() ?? ""}\n`;
-                  })}
+                  {diff.preview.map((change) => `${formatLineChangePreview(change)}\n`)}
                 </pre>
               ) : null}
             </li>

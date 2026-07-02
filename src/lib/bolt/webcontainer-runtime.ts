@@ -12,6 +12,7 @@ import {
   saveNodeModulesCache,
 } from "@/lib/bolt/webcontainer-deps-cache";
 import { sanitizeTerminalOutput } from "@/lib/bolt/terminal-output";
+import { recordWorkbenchPreviewRuntimeError } from "@/lib/bolt/workbench-preview-errors";
 import { workdirRelative } from "@/lib/bolt/workdir-path";
 
 type PreviewInfo = { port: number; url: string };
@@ -77,6 +78,24 @@ function setupPreviewListeners(wc: WebContainer) {
       state.devUrl = null;
       notifyPreviewUrl(null);
     }
+  });
+
+  wc.on("preview-message", (message) => {
+    if (
+      message.type !== "PREVIEW_UNCAUGHT_EXCEPTION" &&
+      message.type !== "PREVIEW_UNHANDLED_REJECTION"
+    ) {
+      return;
+    }
+
+    const isPromise = message.type === "PREVIEW_UNHANDLED_REJECTION";
+    recordWorkbenchPreviewRuntimeError({
+      title: isPromise ? "Unhandled Promise Rejection" : "Uncaught Exception",
+      message: "message" in message && typeof message.message === "string" ? message.message : "Unknown error",
+      stack: "stack" in message && typeof message.stack === "string" ? message.stack : undefined,
+      pathname: "pathname" in message && typeof message.pathname === "string" ? message.pathname : undefined,
+      port: "port" in message && typeof message.port === "number" ? message.port : undefined,
+    });
   });
 }
 
@@ -247,6 +266,7 @@ export async function getWebContainer(): Promise<WebContainer> {
     const wc = await WebContainer.boot({
       coep: "credentialless",
       workdirName: WORK_DIR_NAME,
+      forwardPreviewErrors: true,
     });
     state.container = wc;
     state.booting = null;

@@ -4,9 +4,21 @@ import { mirrorCodeFileToWebContainer } from "@/lib/bolt/wc-file-sync";
 
 export type FileLineChange = {
   line: number;
-  before?: string;
-  after?: string;
+  before?: string | null;
+  after?: string | null;
 };
+
+function lineText(value: string | null | undefined): string {
+  return (value ?? "").trim();
+}
+
+export function formatLineChangePreview(change: FileLineChange): string {
+  if (change.before != null && change.after != null) {
+    return `L${change.line}: ${lineText(change.before)} → ${lineText(change.after)}`;
+  }
+  if (change.after != null) return `L${change.line}: + ${lineText(change.after)}`;
+  return `L${change.line}: - ${lineText(change.before)}`;
+}
 
 export type FileDiffSummary = {
   path: string;
@@ -158,6 +170,20 @@ export function revertEditCheckpoint(checkpoint: WorkbenchEditCheckpoint): strin
   return restored;
 }
 
+export function slimCheckpointForPersistence(
+  checkpoint: WorkbenchEditCheckpoint,
+): WorkbenchEditCheckpoint {
+  return {
+    ...checkpoint,
+    files: Object.fromEntries(
+      Object.entries(checkpoint.files).map(([path, entry]) => [
+        path,
+        { before: entry.before, after: "" },
+      ]),
+    ),
+  };
+}
+
 export function formatDiffSummaryForChat(diffs: FileDiffSummary[]): string {
   if (diffs.length === 0) return "No file changes detected.";
 
@@ -165,13 +191,7 @@ export function formatDiffSummaryForChat(diffs: FileDiffSummary[]): string {
     .map((diff) => {
       const preview = diff.preview
         .slice(0, 3)
-        .map((change) => {
-          if (change.before !== undefined && change.after !== undefined) {
-            return `  L${change.line}: ${change.before.trim()} → ${change.after.trim()}`;
-          }
-          if (change.after !== undefined) return `  L${change.line}: + ${change.after.trim()}`;
-          return `  L${change.line}: - ${change.before?.trim() ?? ""}`;
-        })
+        .map((change) => `  ${formatLineChangePreview(change)}`)
         .join("\n");
       return `${diff.path} (+${diff.additions}/-${diff.deletions})\n${preview}`;
     })

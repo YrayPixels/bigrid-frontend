@@ -34,3 +34,23 @@ export async function syncFileToWebContainer(filePath: string, content?: string 
 export function mirrorCodeFileToWebContainer(file: CodeFile): void {
   void syncFileToWebContainer(file.path, codeFileToWebContainerData(file));
 }
+
+/** Best-effort remove of a file or folder from WebContainer. */
+export async function removePathFromWebContainer(filePath: string): Promise<void> {
+  if (typeof window === "undefined") return;
+
+  try {
+    const wc = await getWebContainer();
+    const rel = workdirRelative(wc, filePath);
+    if (!rel || rel === ".") return;
+    await wc.fs.rm(rel, { recursive: true });
+  } catch {
+    // WebContainer may not be booted yet.
+  }
+}
+
+export function mirrorDeleteFromWebContainer(paths: string[]): void {
+  for (const path of paths) {
+    void removePathFromWebContainer(path);
+  }
+}

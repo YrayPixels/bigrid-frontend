@@ -1,3 +1,5 @@
+import { ingestWebContainerOutput } from "@/lib/bolt/workbench-preview-errors";
+
 type OutputListener = (chunk: string) => void;
 
 const listeners = new Set<OutputListener>();
@@ -8,6 +10,7 @@ const MAX_BUFFER = 120_000;
 export function appendWebContainerOutput(chunk: string): void {
   if (!chunk) return;
   buffer = (buffer + chunk).slice(-MAX_BUFFER);
+  ingestWebContainerOutput(chunk);
   for (const listener of listeners) {
     listener(chunk);
   }

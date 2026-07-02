@@ -20,6 +20,7 @@ import { getStorefrontUrl } from "@/lib/store-host";
 import {
   dismissLaunchChecklist,
   getLaunchChecklistProgress,
+  isLaunchChecklistSnoozed,
   shouldRemindLaunchChecklist,
 } from "@/lib/launch-checklist";
 import { cn } from "@/lib/utils";
@@ -176,13 +177,15 @@ export function LaunchChecklistReminder() {
       return;
     }
 
-    const shouldOpen = shouldRemindLaunchChecklist(store.id, {
-      store,
-      metrics: dashboardQuery.data?.metrics,
-    });
+    const context = { store, metrics: dashboardQuery.data?.metrics };
+    const shouldOpen = shouldRemindLaunchChecklist(store.id, context);
+    const snoozed = isLaunchChecklistSnoozed(store.id, context);
 
     setOpen(shouldOpen);
-    setBannerVisible(!shouldOpen);
+    setBannerVisible(false);
+    if (!shouldOpen && !snoozed) {
+      setBannerVisible(true);
+    }
   }, [store, dashboardQuery.data?.metrics, progress.essentialsComplete]);
 
   useEffect(() => {
@@ -192,7 +195,7 @@ export function LaunchChecklistReminder() {
   const handleDismiss = useCallback(() => {
     if (!store?.id) return;
     dismissLaunchChecklist(store.id);
-    setBannerVisible(true);
+    setBannerVisible(false);
     setOpen(false);
   }, [store?.id]);
 
@@ -220,7 +223,10 @@ export function LaunchChecklistReminder() {
         open={open}
         onOpenChange={(next) => {
           setOpen(next);
-          if (!next) setBannerVisible(true);
+          if (!next && store?.id) {
+            const context = { store, metrics: dashboardQuery.data?.metrics };
+            setBannerVisible(!isLaunchChecklistSnoozed(store.id, context));
+          }
         }}
         onDismiss={handleDismiss}
       />

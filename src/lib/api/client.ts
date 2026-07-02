@@ -1,4 +1,5 @@
 import { mockApi } from "./mocks";
+import { truncateBuilderUserMessage } from "@/lib/storefront-builder/builder-message-limits";
 import { STOREFRONT_TEMPLATE_OPTIONS } from "./types";
 import type {
   AuthResponse,
@@ -348,19 +349,72 @@ export const api = {
     state?: PersistBuilderMessageInput,
   ): Promise<BuilderSessionResponse> {
     const token = requireToken();
-    if (USE_MOCKS) return mockApi.sendBuilderMessage(token, sessionId, message, state);
+    const persistedMessage = truncateBuilderUserMessage(message);
+    if (USE_MOCKS) return mockApi.sendBuilderMessage(token, sessionId, persistedMessage, state);
     return http<BuilderSessionResponse>(
       `${STOREHAUSE_API_PREFIX}/storefront-builder/sessions/${sessionId}/messages`,
       {
         method: "POST",
         body: JSON.stringify({
-          message,
+          message: persistedMessage,
           ...(state?.brand_color ? { brand_color: state.brand_color } : {}),
           ...(state?.media_updates ? { media_updates: state.media_updates } : {}),
           ...(state ?? {}),
         }),
       },
     );
+  },
+
+  async saveBuilderSnapshot(
+    sessionId: string,
+    storefrontSnapshot: StorefrontContent,
+    status?: BuilderSessionStatus,
+  ): Promise<BuilderSessionResponse> {
+    const token = requireToken();
+    if (USE_MOCKS) return mockApi.saveBuilderSnapshot(token, sessionId, storefrontSnapshot, status);
+    return http<BuilderSessionResponse>(
+      `${STOREHAUSE_API_PREFIX}/storefront-builder/sessions/${sessionId}/snapshot`,
+      {
+        method: "PUT",
+        body: JSON.stringify({
+          storefront_snapshot: storefrontSnapshot,
+          ...(status ? { status } : {}),
+        }),
+      },
+    );
+  },
+
+  async saveBuilderProject(
+    sessionId: string,
+    payload: {
+      custom_files: Array<{ path: string; content: string; encoding?: "base64" }>;
+      edit_metadata?: { locked_paths?: string[] };
+    },
+  ): Promise<BuilderSessionResponse> {
+    const token = requireToken();
+    if (USE_MOCKS) return mockApi.saveBuilderProject(token, sessionId, payload);
+    return http<BuilderSessionResponse>(
+      `${STOREHAUSE_API_PREFIX}/storefront-builder/sessions/${sessionId}/project`,
+      {
+        method: "PUT",
+        body: JSON.stringify(payload),
+      },
+    );
+  },
+
+  async getBuilderProject(sessionId: string): Promise<{
+    custom_files: Array<{ path: string; content: string; encoding?: "base64" }>;
+    edit_metadata: { locked_paths: string[] };
+    custom_project: {
+      storage_key: string;
+      revision: number;
+      file_count: number;
+      updated_at: string;
+    } | null;
+  }> {
+    const token = requireToken();
+    if (USE_MOCKS) return mockApi.getBuilderProject(token, sessionId);
+    return http(`${STOREHAUSE_API_PREFIX}/storefront-builder/sessions/${sessionId}/project`);
   },
 
   async clearBuilderChat(sessionId: string): Promise<BuilderSessionResponse> {

@@ -2,9 +2,11 @@ import type { CodeFile } from "@/lib/code-fs";
 
 export type WorkbenchContextHints = {
   selectedPath?: string | null;
+  taggedPaths?: string[];
   modifiedPaths?: string[];
   lastWrittenPaths?: string[];
   searchPaths?: string[];
+  previewErrors?: string;
 };
 
 export type ContextSelectionResult = {
@@ -153,6 +155,7 @@ function scoreFile(
 
   if (alwaysIncludePaths(allPaths, instruction).includes(path)) score += 120;
   if (hints.selectedPath && normalizePath(hints.selectedPath) === path) score += 100;
+  if (hints.taggedPaths?.some((p) => normalizePath(p) === path)) score += 220;
   if (hints.modifiedPaths?.some((p) => normalizePath(p) === path)) score += 85;
   if (hints.lastWrittenPaths?.some((p) => normalizePath(p) === path)) score += 75;
   if (hints.searchPaths?.some((p) => normalizePath(p) === path)) score += 95;
@@ -256,6 +259,11 @@ export function selectContextFiles(
   }
 
   for (const path of hints.searchPaths ?? []) {
+    const file = eligible.find((f) => normalizePath(f.path) === normalizePath(path));
+    if (file) tryAdd(file);
+  }
+
+  for (const path of hints.taggedPaths ?? []) {
     const file = eligible.find((f) => normalizePath(f.path) === normalizePath(path));
     if (file) tryAdd(file);
   }

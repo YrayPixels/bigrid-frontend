@@ -45,6 +45,39 @@ class CodeFs {
     return this.files.get(path.replace(/^\/+/, ""))?.content;
   }
 
+  deleteFile(path: string): boolean {
+    const normalized = path.replace(/^\/+/, "");
+    const deleted = this.files.delete(normalized);
+    if (deleted) this.notify();
+    return deleted;
+  }
+
+  /** Delete a file or every file under a folder prefix (e.g. `.lovable/`). */
+  deletePath(target: string): string[] {
+    const normalized = target.replace(/^\/+/, "").replace(/\/+$/, "");
+    if (!normalized) return [];
+
+    const paths = [...this.files.keys()];
+    const exact = paths.filter((path) => path === normalized);
+    const caseInsensitiveFile = paths.filter(
+      (path) => !normalized.includes("/") && path.toLowerCase() === normalized.toLowerCase(),
+    );
+    const underFolder = paths.filter(
+      (path) =>
+        path.startsWith(`${normalized}/`) ||
+        path.toLowerCase().startsWith(`${normalized.toLowerCase()}/`),
+    );
+    const toDelete = [...new Set([...exact, ...caseInsensitiveFile, ...underFolder])];
+
+    if (toDelete.length === 0) return [];
+
+    for (const path of toDelete) {
+      this.files.delete(path);
+    }
+    this.notify();
+    return toDelete;
+  }
+
   listFiles(): string[] {
     return [...this.files.keys()];
   }

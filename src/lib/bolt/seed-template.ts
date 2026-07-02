@@ -16,6 +16,9 @@ export async function seedBoltTemplateIfNeeded(
   templateId: BoltTemplateId = DEFAULT_BOLT_TEMPLATE_ID,
 ): Promise<boolean> {
   const current = existing ?? codeFs.exportFiles();
+  if (codeFs.listFiles().length > 0 && !needsBoltTemplateSeed(codeFs.exportFiles())) {
+    return false;
+  }
   if (!needsBoltTemplateSeed(current)) return false;
 
   const files = await fetchBoltTemplate(templateId);

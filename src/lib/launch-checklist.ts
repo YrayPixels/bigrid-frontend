@@ -86,7 +86,7 @@ export type LaunchChecklistContext = {
 };
 
 const STORAGE_PREFIX = "storehaus-launch-checklist";
-export const LAUNCH_CHECKLIST_REMIND_AFTER_MS = 3 * 24 * 60 * 60 * 1000;
+export const LAUNCH_CHECKLIST_REMIND_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
 
 function storageKey(storeId: string, suffix: string) {
   return `${STORAGE_PREFIX}:${storeId}:${suffix}`;
@@ -191,4 +191,15 @@ export function shouldShowLaunchChecklist(
 
 export function dismissLaunchChecklist(storeId: string) {
   writeDismissState(storeId, { dismissedAt: new Date().toISOString() });
+}
+
+export function isLaunchChecklistSnoozed(
+  storeId: string,
+  context: LaunchChecklistContext,
+  now = Date.now(),
+): boolean {
+  const progress = getLaunchChecklistProgress(context);
+  if (progress.essentialsComplete || progress.isComplete) return false;
+
+  return !shouldShowLaunchChecklist(storeId, context, now);
 }

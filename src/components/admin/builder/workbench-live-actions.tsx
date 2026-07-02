@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, FileCode2, FileSearch, Loader2, Lock, Pencil, Terminal, X } from "lucide-react";
+import { Check, FileCode2, FileSearch, Loader2, Lock, Pencil, Terminal, Trash2, X } from "lucide-react";
 import type { WorkbenchEditStep } from "@/lib/bolt/workbench-edit-agent";
 import type { BoltAction } from "@/lib/code-parser";
 import type { BoltActionResult } from "@/lib/bolt/action-runner";
@@ -21,6 +21,8 @@ function stepIcon(type: WorkbenchEditStep["type"]) {
       return FileCode2;
     case "patch":
       return Pencil;
+    case "delete":
+      return Trash2;
     case "list":
       return FileCode2;
     case "done":

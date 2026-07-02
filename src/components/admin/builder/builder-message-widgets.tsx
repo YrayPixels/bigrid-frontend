@@ -2,6 +2,8 @@
 
 import { Check, Circle, FileCode2, Globe, Sparkles, Wand2 } from "lucide-react";
 import type { BuilderMessage } from "@/lib/api/types";
+import { WorkbenchLiveActions } from "@/components/admin/builder/workbench-live-actions";
+import type { WorkbenchEditStep } from "@/lib/bolt/workbench-edit-agent";
 import { isTechnicalEditMessage } from "@/lib/storefront-builder/edit-summary";
 import { BuilderColorFeedback } from "@/components/admin/builder/builder-suggested-actions";
 import { normalizeSuggestedActions } from "@/lib/storefront-builder/suggested-actions";
@@ -289,6 +291,9 @@ export function BuilderMessageWidgets({
           deletions: number;
         }>)
       : [];
+    const agentSteps = Array.isArray(payload.agent_steps)
+      ? (payload.agent_steps as WorkbenchEditStep[])
+      : [];
 
     return (
       <div className="mt-3 space-y-2 rounded-xl border border-border bg-background p-3">
@@ -296,6 +301,9 @@ export function BuilderMessageWidgets({
           <FileCode2 className="h-3.5 w-3.5" />
           {type === "custom_site_generated" ? "Custom site generated" : "Code updated"}
         </div>
+        {agentSteps.length > 0 ? (
+          <WorkbenchLiveActions actions={[]} agentSteps={agentSteps} streaming={false} />
+        ) : null}
         {files.length > 0 ? (
           <ul className="space-y-1 text-[12px] text-ink-soft">
             {files.map((path) => (

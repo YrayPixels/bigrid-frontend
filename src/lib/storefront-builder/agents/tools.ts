@@ -28,18 +28,17 @@ import { STOREFRONT_FONT_OPTIONS } from "@/lib/storefront/template";
 import { api } from "@/lib/api/client";
 import { codeFs } from "@/lib/code-fs";
 import { createBoltStreamPipeline, lockedPathsFromStorefront } from "@/lib/bolt/bolt-stream";
-import { buildSearchQueries, searchCodeFiles, topPathsFromMatches } from "@/lib/bolt/code-search";
-import { buildEditGuidance, selectContextFiles } from "@/lib/bolt/select-context";
 import {
   createEditCheckpoint,
   formatDiffSummaryForChat,
+  slimCheckpointForPersistence,
   snapshotFileContents,
 } from "@/lib/bolt/workbench-diff";
 import { runWorkbenchEditAgent } from "@/lib/bolt/workbench-edit-agent";
+import { isWorkbenchEditRequest } from "@/lib/bolt/workbench-intent";
+import { respondWorkbenchChat } from "@/lib/bolt/workbench-chat";
 import {
   appendHistoryToMessages,
-  buildBoltCodeEditMessages,
-  buildLastBoltActionSummary,
   resolveLiveWorkbenchFiles,
 } from "@/lib/bolt/workbench-context";
 import type { BuilderSession } from "@/lib/api/types";
@@ -957,7 +956,7 @@ export function websiteBuilderTools(): WebsiteBuilderToolDef[] {
     {
       name: "edit_custom_site_code",
       description:
-        "Edit an already-generated custom website's code (HTML/CSS/JS) using a natural-language instruction. Applies precise file updates in bolt artifact format.",
+        "Edit an already-generated custom website using a natural-language instruction. Uses grep → read → search_replace for surgical file patches.",
       parameters: {
         type: "object",
         properties: {
@@ -988,9 +987,26 @@ export function websiteBuilderTools(): WebsiteBuilderToolDef[] {
             : ctx.message.trim();
         if (!instruction) return { ok: false, error: "missing_instruction" };
 
+        if (!isWorkbenchEditRequest(instruction)) {
+          const reply = await respondWorkbenchChat({
+            message: instruction,
+            chatHistory: ctx.chatHistory,
+            focusedPath: ctx.contextHints?.selectedPath,
+          });
+          ctx.assistantMessage = reply;
+          ctx.payload = { type: "conversation", workbench_chat: true };
+          return { ok: true, mode: "chat" };
+        }
+
         // Prefer live editor state; fall back to persisted snapshot files.
         const storefrontRecord = ctx.storefront as Record<string, unknown>;
-        const files = resolveLiveWorkbenchFiles(storefrontRecord);
+        const liveBeforeEdit = codeFs.exportFiles();
+        if (liveBeforeEdit.length > 0) {
+          storefrontRecord.custom_files = liveBeforeEdit;
+          storefrontRecord.custom_code = codeFs.getMainHtml();
+        }
+        const files =
+          liveBeforeEdit.length > 0 ? liveBeforeEdit : resolveLiveWorkbenchFiles(storefrontRecord);
         if (files.length === 0) return { ok: false, error: "no_custom_site_files" };
 
         const filePaths = files.map((f) => f.path);
@@ -1005,140 +1021,29 @@ export function websiteBuilderTools(): WebsiteBuilderToolDef[] {
           chatHistory: ctx.chatHistory,
           isNodeProject,
           focusedPath: ctx.contextHints?.selectedPath,
+          taggedPaths: ctx.contextHints?.taggedPaths,
+          previewErrors: ctx.contextHints?.previewErrors,
           onStep: ctx.boltStream?.onAgentStep,
         });
 
-        if (agentResult.patchesApplied > 0) {
-          const afterFiles = codeFs.exportFiles();
-          const { checkpoint, diffs } = createEditCheckpoint({
-            instruction,
-            beforeByPath: beforeSnapshot,
-            afterFiles,
-          });
-
-          storefrontRecord.custom_files = afterFiles;
-          storefrontRecord.custom_code = codeFs.getMainHtml();
-
-          const diffSummary = formatDiffSummaryForChat(diffs);
+        if (agentResult.patchesApplied === 0) {
           ctx.status = "review_ready";
           ctx.assistantMessage =
-            diffs.length > 0
-              ? `${agentResult.summary}\n\n${diffSummary}`
-              : agentResult.summary;
+            agentResult.summary ||
+            "I couldn't find a place to apply that change. Try naming the section (e.g. header, hero) or the file you want edited.";
           ctx.payload = {
             type: "custom_site_edited",
             files: codeFs.listFiles(),
             edit_mode: "agent",
             agent_steps: agentResult.steps,
-            bolt_action_log: agentResult.editedPaths.map((path) => ({
-              ok: true,
-              action: { type: "file", filePath: path },
-            })),
+            no_changes: true,
             context_selection: {
               search_match_count: agentResult.steps.filter((s) => s.type === "grep").length,
-              patches_applied: agentResult.patchesApplied,
+              patches_applied: 0,
             },
-            edit_checkpoint: checkpoint,
-            file_diffs: diffs,
           };
-          return { ok: true, files: codeFs.listFiles(), mode: "agent" };
+          return { ok: false, error: "no_patches_applied", mode: "agent", steps: agentResult.steps };
         }
-
-        // Fallback: bolt artifact stream for large structural changes the agent could not patch.
-        const { postChatStream } = await import("@/lib/storefront-builder/agents/openaiChat");
-        const editGuidance = buildEditGuidance(instruction, filePaths);
-        const searchQueries = buildSearchQueries(instruction);
-        const searchMatches = searchCodeFiles(files, searchQueries);
-        const searchPaths = topPathsFromMatches(searchMatches);
-        const contextHints = {
-          ...(ctx.contextHints ?? {}),
-          searchPaths,
-        };
-        const contextSelection = selectContextFiles(files, instruction, contextHints);
-        const contextFilePaths = contextSelection.included.map((f) => f.path);
-
-        const systemPrompt = [
-          "You are StoreHause Code Editor.",
-          "You will receive conversation history, selected project file contents, and a change request.",
-          "Return ONLY a bolt artifact containing the file updates needed to satisfy the request.",
-          "",
-          "OUTPUT FORMAT (required):",
-          "<boltArtifact id=\"storefront-edit\" title=\"Storefront edit\">",
-          "  <boltAction type=\"file\" filePath=\"...\">...full new file contents...</boltAction>",
-          "  <boltAction type=\"shell\">pnpm install</boltAction>",
-          "  <boltAction type=\"start\">pnpm run dev</boltAction>",
-          "</boltArtifact>",
-          "",
-          "RULES:",
-          "- Use the conversation history to resolve follow-up requests (e.g. \"make it darker\" refers to the prior change).",
-          "- SURGICAL EDITS ONLY: boltAction requires the full file body, but you must START from the provided file contents and change ONLY the lines needed. Preserve imports, structure, comments, and unrelated code exactly.",
-          "- Do NOT rewrite, simplify, or regenerate files from scratch.",
-          "- Use code_search_results to locate the exact file and line before editing.",
-          "- Prefer editing files and lines surfaced by code_search_results over guessing.",
-          "- Do NOT output files listed in edit_guidance.avoid_editing.",
-          "- If edit_guidance.output_only is set, your artifact must contain ONLY those file paths.",
-          "- Only include files that actually changed.",
-          "- When editing a file, output the complete file — but it must be the original file plus your minimal diff, not a new version.",
-          "- Do not add new build tools, frameworks, or external dependencies.",
-          "- Use shell actions only when dependencies or setup commands are required.",
-          "- Use start only when the dev server must be started; do not re-run start for file-only edits.",
-          isNodeProject
-            ? [
-                "- This is a Vite + React + TanStack Router project. Do NOT create index.html, styles.css, or script.js at the project root.",
-                "- Header/nav colors and backgrounds: edit src/routes/index.tsx Nav() <header> — use Tailwind classes (e.g. bg-slate-900) or a style prop. Do NOT rewrite src/styles.css for header changes.",
-                "- Hero/footer section colors: edit the matching component in src/routes/index.tsx, not global CSS.",
-                "- Global theme / brand tokens only: edit src/styles.css variables, preserving @theme and @import blocks.",
-                "- Root layout and HTML head: src/routes/__root.tsx.",
-                "- Follow edit_guidance in the user payload when present.",
-                "- Only edit files that exist in project_file_paths.",
-              ].join("\n")
-            : "- Keep the existing stack and patterns from the provided files.",
-          "- If you need to add images, prefer Unsplash URLs.",
-          contextSelection.usedSmartContext
-            ? `- Smart context: full contents for ${contextSelection.included.length} of ${contextSelection.allPaths.length} files. All paths are listed in project_file_paths.`
-            : `- Project files (${filePaths.length}): ${filePaths.slice(0, 40).join(", ")}${filePaths.length > 40 ? "…" : ""}`,
-          ...(contextSelection.usedSmartContext
-            ? [`- Files with full contents: ${contextFilePaths.join(", ")}`]
-            : []),
-          ...(lockedPaths.length > 0
-            ? [`- Do NOT modify locked paths: ${lockedPaths.join(", ")}`]
-            : []),
-        ].join("\n");
-
-        const { parser, runner } = createBoltStreamPipeline({
-          lockedPaths,
-          callbacks: ctx.boltStream,
-          onShellOutput: ctx.boltStream?.onShellOutput,
-        });
-
-        const messages = buildBoltCodeEditMessages({
-          systemPrompt,
-          history: ctx.chatHistory ?? [],
-          instruction,
-          business: {
-            name: ctx.profile.business_name ?? ctx.session.store?.business_name ?? null,
-            industry: ctx.profile.industry ?? ctx.session.store?.industry ?? null,
-            description: ctx.profile.description ?? ctx.session.store?.description ?? null,
-            brand_color: ctx.profile.brand_color ?? ctx.session.store?.brand_color ?? null,
-          },
-          files,
-          contextSelection,
-          lastActionSummary: buildLastBoltActionSummary(ctx.session),
-          lockedPaths,
-          contextHints,
-          searchMatches,
-        });
-
-        let fullText = "";
-        await postChatStream({
-          messages,
-          temperature: 0.3,
-          onDelta: (delta) => {
-            fullText += delta;
-            parser.feed(delta);
-          },
-        });
-        parser.flush();
 
         const afterFiles = codeFs.exportFiles();
         const { checkpoint, diffs } = createEditCheckpoint({
@@ -1147,7 +1052,6 @@ export function websiteBuilderTools(): WebsiteBuilderToolDef[] {
           afterFiles,
         });
 
-        // Persist updated result back to snapshot.
         storefrontRecord.custom_files = afterFiles;
         storefrontRecord.custom_code = codeFs.getMainHtml();
 
@@ -1155,25 +1059,25 @@ export function websiteBuilderTools(): WebsiteBuilderToolDef[] {
         ctx.status = "review_ready";
         ctx.assistantMessage =
           diffs.length > 0
-            ? `Updated ${diffs.length} file${diffs.length === 1 ? "" : "s"}:\n${diffSummary}`
-            : "Done — I updated your custom website. Check the preview.";
+            ? `${agentResult.summary}\n\n${diffSummary}`
+            : agentResult.summary;
         ctx.payload = {
           type: "custom_site_edited",
           files: codeFs.listFiles(),
-          edit_mode: "bolt_fallback",
+          edit_mode: "agent",
           agent_steps: agentResult.steps,
-          bolt_action_log: runner.getLog(),
+          bolt_action_log: agentResult.editedPaths.map((path) => ({
+            ok: true,
+            action: { type: "file", filePath: path },
+          })),
           context_selection: {
-            included: contextSelection.included.map((f) => f.path),
-            omitted: contextSelection.omittedPaths,
-            used_smart_context: contextSelection.usedSmartContext,
-            search_paths: searchPaths,
-            search_match_count: searchMatches.length,
+            search_match_count: agentResult.steps.filter((s) => s.type === "grep").length,
+            patches_applied: agentResult.patchesApplied,
           },
-          edit_checkpoint: checkpoint,
+          edit_checkpoint: slimCheckpointForPersistence(checkpoint),
           file_diffs: diffs,
         };
-        return { ok: true, files: codeFs.listFiles() };
+        return { ok: true, files: codeFs.listFiles(), mode: "agent" };
       },
     },
     {

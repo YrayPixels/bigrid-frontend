@@ -28,3 +28,19 @@ export function isLegacyStaticSite(files: Array<{ path: string }>): boolean {
 export function needsBoltTemplateSeed(files: CodeFile[]): boolean {
   return files.length === 0 || isLegacyStaticSite(files);
 }
+
+const PREFERRED_WORKBENCH_PATHS = [
+  "src/routes/index.tsx",
+  "src/App.tsx",
+  "src/main.tsx",
+  "index.html",
+] as const;
+
+export function preferredWorkbenchFilePath(paths: string[]): string {
+  const normalized = new Set(paths.map((path) => path.replace(/^\/+/, "")));
+  for (const candidate of PREFERRED_WORKBENCH_PATHS) {
+    if (normalized.has(candidate)) return candidate;
+  }
+  const sorted = [...normalized].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  return sorted[0] ?? "index.html";
+}

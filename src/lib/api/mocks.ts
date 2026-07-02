@@ -1072,10 +1072,113 @@ export const mockApi = {
       };
     }
 
+    if (state?.storefront_snapshot) {
+      session.storefront_snapshot = state.storefront_snapshot;
+      if (state.status) session.status = state.status;
+      if (session.store) db.storefronts[session.store.id] = state.storefront_snapshot;
+      session.updated_at = new Date().toISOString();
+      db.builderSessions[userId] = session;
+      save(db);
+      return {
+        session: hydrateBuilderSession(db, session),
+        storefront: state.storefront_snapshot,
+      };
+    }
+
     const next = processBuilderMessage(db, userId, session, message);
     db.builderSessions[userId] = next;
     save(db);
     return { session: hydrateBuilderSession(db, next) };
+  },
+
+  async saveBuilderSnapshot(
+    token: string,
+    sessionId: string,
+    storefrontSnapshot: StorefrontContent,
+    status?: BuilderSessionStatus,
+  ): Promise<BuilderSessionResponse> {
+    await delay(150);
+    const db = load();
+    const userId = db.sessions[token];
+    if (!userId) throw { status: 401, message: "Unauthenticated" };
+    const session = db.builderSessions[userId];
+    if (!session || session.id !== sessionId) throw { status: 404, message: "Builder session not found" };
+
+    session.storefront_snapshot = storefrontSnapshot;
+    if (status) session.status = status;
+    if (session.store) db.storefronts[session.store.id] = storefrontSnapshot;
+    session.updated_at = new Date().toISOString();
+    db.builderSessions[userId] = session;
+    save(db);
+
+    return {
+      session: hydrateBuilderSession(db, session),
+      storefront: storefrontSnapshot,
+    };
+  },
+
+  async saveBuilderProject(
+    token: string,
+    sessionId: string,
+    payload: {
+      custom_files: Array<{ path: string; content: string; encoding?: "base64" }>;
+      edit_metadata?: { locked_paths?: string[] };
+    },
+  ): Promise<BuilderSessionResponse> {
+    await delay(150);
+    const db = load();
+    const userId = db.sessions[token];
+    if (!userId) throw { status: 401, message: "Unauthenticated" };
+    const session = db.builderSessions[userId];
+    if (!session || session.id !== sessionId) throw { status: 404, message: "Builder session not found" };
+
+    const snapshot = {
+      ...(session.storefront_snapshot ?? ({} as StorefrontContent)),
+      custom_files: payload.custom_files as never,
+      edit_metadata: {
+        ...(((session.storefront_snapshot?.edit_metadata ?? {}) as Record<string, unknown>)),
+        ...(payload.edit_metadata ?? {}),
+      } as never,
+    };
+    delete (snapshot as Record<string, unknown>).custom_code;
+
+    session.storefront_snapshot = snapshot;
+    session.updated_at = new Date().toISOString();
+    db.builderSessions[userId] = session;
+    save(db);
+
+    return {
+      session: hydrateBuilderSession(db, session),
+      storefront: snapshot,
+    };
+  },
+
+  async getBuilderProject(
+    token: string,
+    sessionId: string,
+  ): Promise<{
+    custom_files: Array<{ path: string; content: string; encoding?: "base64" }>;
+    edit_metadata: { locked_paths: string[] };
+    custom_project: null;
+  }> {
+    await delay(50);
+    const db = load();
+    const userId = db.sessions[token];
+    if (!userId) throw { status: 401, message: "Unauthenticated" };
+    const session = db.builderSessions[userId];
+    if (!session || session.id !== sessionId) throw { status: 404, message: "Builder session not found" };
+
+    const snapshot = session.storefront_snapshot as Record<string, unknown> | null;
+    const customFiles = Array.isArray(snapshot?.custom_files)
+      ? (snapshot.custom_files as Array<{ path: string; content: string; encoding?: "base64" }>)
+      : [];
+    const editMetadata = snapshot?.edit_metadata as { locked_paths?: string[] } | undefined;
+
+    return {
+      custom_files: customFiles,
+      edit_metadata: { locked_paths: editMetadata?.locked_paths ?? [] },
+      custom_project: null,
+    };
   },
 
   async clearBuilderChat(token: string, sessionId: string): Promise<BuilderSessionResponse> {

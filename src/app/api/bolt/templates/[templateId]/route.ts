@@ -7,6 +7,7 @@ type CodeFile = { path: string; content: string; encoding?: "base64" };
 
 const IGNORE_DIRS = new Set([
   ".git",
+  ".lovable",
   "node_modules",
   "dist",
   "build",

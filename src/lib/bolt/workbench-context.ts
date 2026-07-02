@@ -1,4 +1,4 @@
-import type { BuilderSession } from "@/lib/api/types";
+import type { BuilderSession, StorefrontContent } from "@/lib/api/types";
 import type { CodeFile } from "@/lib/code-fs";
 import { codeFs } from "@/lib/code-fs";
 import type { ContextSelectionResult, WorkbenchContextHints } from "@/lib/bolt/select-context";
@@ -12,7 +12,22 @@ export type BoltChatMessage = {
   content: string;
 };
 
-/** Prefer in-memory editor state; fall back to the persisted session snapshot. */
+/** Merge live in-memory editor files into a storefront snapshot (codeFs is canonical). */
+export function mergeLiveCodeFsIntoStorefront(
+  storefront: StorefrontContent | Record<string, unknown> | null | undefined,
+): StorefrontContent | Record<string, unknown> | null | undefined {
+  const live = codeFs.exportFiles();
+  if (live.length === 0) return storefront ?? null;
+
+  const base = (storefront ?? {}) as Record<string, unknown>;
+  return {
+    ...base,
+    custom_files: live,
+    custom_code: codeFs.getMainHtml(),
+  };
+}
+
+/** Prefer in-memory editor state; fall back to the persisted session snapshot only when codeFs is empty. */
 export function resolveLiveWorkbenchFiles(
   storefront: Record<string, unknown> | null | undefined,
 ): CodeFile[] {
@@ -20,19 +35,28 @@ export function resolveLiveWorkbenchFiles(
   if (live.length > 0) return live;
 
   const customFiles = storefront?.custom_files;
-  if (Array.isArray(customFiles) && customFiles.length > 0) {
-    codeFs.loadFiles(customFiles as CodeFile[]);
-    return codeFs.exportFiles();
+  if (!Array.isArray(customFiles) || customFiles.length === 0) {
+    const customCode = storefront?.custom_code;
+    if (typeof customCode === "string" && customCode.trim()) {
+      codeFs.writeFile("index.html", customCode);
+      return codeFs.exportFiles();
+    }
+    return [];
   }
 
-  const customCode = storefront?.custom_code;
-  if (typeof customCode === "string" && customCode.trim()) {
-    codeFs.clear();
-    codeFs.writeFile("index.html", customCode);
-    return codeFs.exportFiles();
-  }
+  codeFs.loadFiles(customFiles as CodeFile[]);
+  return codeFs.exportFiles();
+}
 
-  return [];
+/** Attach live codeFs files to a builder session before an AI turn. */
+export function mergeLiveCodeFsIntoSession(session: BuilderSession): BuilderSession {
+  const live = codeFs.exportFiles();
+  if (live.length === 0 || !session.storefront_snapshot) return session;
+
+  return {
+    ...session,
+    storefront_snapshot: mergeLiveCodeFsIntoStorefront(session.storefront_snapshot) as StorefrontContent,
+  };
 }
 
 export function buildLastBoltActionSummary(session: BuilderSession): string | null {
@@ -108,6 +132,9 @@ export function buildBoltCodeEditMessages(args: {
   const focusedFile = args.contextHints?.selectedPath
     ? args.contextHints.selectedPath.replace(/^\/+/, "")
     : null;
+  const taggedFiles = (args.contextHints?.taggedPaths ?? [])
+    .map((path) => path.replace(/^\/+/, ""))
+    .filter(Boolean);
   const likelyEditTargets = inferEditTargetPaths(args.instruction, allPaths);
   const editGuidance = buildEditGuidance(args.instruction, allPaths);
   const isVite = isViteReactProject(allPaths);
@@ -120,6 +147,7 @@ export function buildBoltCodeEditMessages(args: {
       files: contextFiles,
       project_file_paths: allPaths,
       ...(focusedFile ? { focused_file: focusedFile } : {}),
+      ...(taggedFiles.length > 0 ? { tagged_files: taggedFiles } : {}),
       ...(likelyEditTargets.length > 0 ? { likely_edit_targets: likelyEditTargets } : {}),
       ...(editGuidance
         ? {

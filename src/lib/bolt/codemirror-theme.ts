@@ -9,19 +9,25 @@ export function workbenchCodeMirrorTheme(): Extension[] {
       height: "100%",
       fontSize: "13px",
       fontFamily: 'var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace)',
+      userSelect: "text",
+    },
+    ".cm-editor": {
+      height: "100%",
     },
     ".cm-scroller": {
       overflow: "auto",
       lineHeight: "1.4",
     },
     ".cm-content": {
-      caretColor: "hsl(var(--primary))",
+      caretColor: "var(--primary)",
       padding: "12px 0",
+      userSelect: "text",
     },
     ".cm-gutters": {
       backgroundColor: "hsl(var(--secondary) / 0.35)",
       color: "hsl(var(--ink-soft))",
       borderRight: "1px solid hsl(var(--border))",
+      userSelect: "none",
     },
     ".cm-activeLineGutter": {
       backgroundColor: "hsl(var(--secondary) / 0.55)",
@@ -29,11 +35,35 @@ export function workbenchCodeMirrorTheme(): Extension[] {
     ".cm-activeLine": {
       backgroundColor: "hsl(var(--secondary) / 0.25)",
     },
-    "&.cm-focused .cm-selectionBackground, .cm-selectionBackground, ::selection": {
-      backgroundColor: "hsl(var(--primary) / 0.15) !important",
+    "&.cm-focused .cm-selectionBackground, .cm-selectionBackground": {
+      backgroundColor: "color-mix(in oklab, var(--primary) 20%, transparent) !important",
+    },
+    ".cm-content ::selection": {
+      backgroundColor: "color-mix(in oklab, var(--primary) 20%, transparent)",
     },
     ".cm-cursor": {
-      borderLeftColor: "hsl(var(--primary))",
+      borderLeftColor: "var(--primary)",
+    },
+    ".cm-gutter-lint": {
+      width: "1.1rem",
+    },
+    ".cm-gutter-lint .cm-gutterElement": {
+      paddingInline: "0.1rem",
+    },
+    ".cm-lintRange-error": {
+      backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='6' height='3'%3E%3Cpath d='m0 3 l3 -3 l3 3' fill='%23dc2626'/%3E%3C/svg%3E\")",
+      backgroundRepeat: "repeat-x",
+      backgroundPosition: "left bottom",
+    },
+    ".cm-lintRange-warning": {
+      backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='6' height='3'%3E%3Cpath d='m0 3 l3 -3 l3 3' fill='%23d97706'/%3E%3C/svg%3E\")",
+      backgroundRepeat: "repeat-x",
+      backgroundPosition: "left bottom",
+    },
+    ".cm-tooltip.cm-tooltip-lint": {
+      maxWidth: "min(28rem, 90vw)",
+      fontSize: "12px",
+      lineHeight: "1.4",
     },
   });
 

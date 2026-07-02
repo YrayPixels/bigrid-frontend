@@ -28,6 +28,9 @@ import { seedBuildItUpIfNeeded } from "@/lib/bolt/seed-template";
 import { needsBoltTemplateSeed } from "@/lib/bolt/project-utils";
 import type { BoltStreamCallbacks } from "@/lib/bolt/bolt-stream";
 import type { WorkbenchContextHints } from "@/lib/bolt/select-context";
+import { isWorkbenchEditRequest } from "@/lib/bolt/workbench-intent";
+import { respondWorkbenchChat } from "@/lib/bolt/workbench-chat";
+import { mergeLiveCodeFsIntoSession, mergeLiveCodeFsIntoStorefront } from "@/lib/bolt/workbench-context";
 import { codeFs, type CodeFile } from "@/lib/code-fs";
 
 export function asConcreteTemplateId(value: string | null | undefined): StorefrontTemplateId | undefined {
@@ -93,10 +96,14 @@ async function runBoltCustomTurn(args: {
   }
 
   const enrichedProfile = sanitizeBusinessProfile(session.business_profile ?? {});
+  const storefrontWithLive = mergeLiveCodeFsIntoStorefront(session.storefront_snapshot) as
+    | StorefrontContent
+    | null
+    | undefined;
   const ctx = {
     message,
     planIntent: "bolt_custom",
-    session,
+    session: { ...session, storefront_snapshot: storefrontWithLive ?? session.storefront_snapshot },
     profile: enrichedProfile,
     recommendations: recommendations as never,
     templateOptions,
@@ -104,7 +111,7 @@ async function runBoltCustomTurn(args: {
       session.selected_template_id && session.selected_template_id !== "ai_pick"
         ? (session.selected_template_id as StorefrontTemplateId)
         : null,
-    storefront: session.storefront_snapshot,
+    storefront: storefrontWithLive ?? session.storefront_snapshot,
     assistantMessage: "",
     status: session.status,
     payload: { type: "agent_turn", plan: [], tool_calls: [], tool_results: [] },
@@ -114,17 +121,24 @@ async function runBoltCustomTurn(args: {
     contextHints,
   };
 
-  const snapshot = session.storefront_snapshot as Record<string, unknown> | null;
+  const snapshot = (storefrontWithLive ?? session.storefront_snapshot) as Record<string, unknown> | null;
+  const liveFiles = codeFs.exportFiles();
+
   let hasCustom =
+    liveFiles.length > 0 ||
     Array.isArray(snapshot?.custom_files) ||
     (typeof snapshot?.custom_code === "string" && (snapshot.custom_code as string).trim().length > 0);
 
-  // Seed codeFs with the default bolt starter template when there is no node project yet.
-  const snapshotFiles = Array.isArray(snapshot?.custom_files)
-    ? (snapshot.custom_files as CodeFile[])
-    : codeFs.exportFiles();
-  if (!hasCustom || needsBoltTemplateSeed(snapshotFiles)) {
-    const didSeed = await seedBuildItUpIfNeeded(snapshotFiles);
+  // Only seed when the live editor is empty — never clobber in-memory edits.
+  const filesForSeedCheck =
+    liveFiles.length > 0
+      ? liveFiles
+      : Array.isArray(snapshot?.custom_files)
+        ? (snapshot.custom_files as CodeFile[])
+        : [];
+
+  if (liveFiles.length === 0 && (!hasCustom || needsBoltTemplateSeed(filesForSeedCheck))) {
+    const didSeed = await seedBuildItUpIfNeeded(filesForSeedCheck);
 
     if (didSeed) {
       const seededFiles = codeFs.exportFiles();
@@ -148,7 +162,31 @@ async function runBoltCustomTurn(args: {
     }
   }
 
-  // If we have a seeded template, always edit it (don't generate 3-file static site).
+  // If we have a seeded template, route chat vs code edits.
+  if (hasCustom && editTool && !isWorkbenchEditRequest(message)) {
+    const reply = await respondWorkbenchChat({
+      message,
+      chatHistory,
+      focusedPath: contextHints?.selectedPath,
+    });
+
+    return {
+      business_profile: enrichedProfile,
+      status: session.status,
+      selected_template_id: ctx.selectedTemplateId,
+      storefront: (mergeLiveCodeFsIntoStorefront(session.storefront_snapshot) ??
+        session.storefront_snapshot ??
+        undefined) as StorefrontContent | undefined,
+      assistant_message: reply,
+      assistant_payload: {
+        type: "conversation",
+        workbench_chat: true,
+        tool_calls: [],
+        tool_results: [],
+      },
+    };
+  }
+
   const tool = hasCustom && editTool ? editTool : generateTool;
   const toolName = tool.name;
   const toolArgs =
@@ -173,7 +211,7 @@ async function runBoltCustomTurn(args: {
     business_profile: ctx.profile,
     status: ctx.status,
     selected_template_id: ctx.selectedTemplateId,
-    storefront: ctx.storefront ?? undefined,
+    storefront: mergeLiveCodeFsIntoStorefront(ctx.storefront) as StorefrontContent | undefined,
     assistant_message:
       ctx.assistantMessage ||
       (result.ok === false
@@ -202,7 +240,9 @@ async function persistAgentTurn({
 }): Promise<BuilderSessionResponse> {
   const rawTemplateId = turn.selected_template_id ?? session.selected_template_id;
   const selectedTemplateId = asConcreteTemplateId(rawTemplateId ?? undefined);
-  const snapshot = turn.storefront ?? session.storefront_snapshot ?? undefined;
+  const snapshot = mergeLiveCodeFsIntoStorefront(
+    turn.storefront ?? session.storefront_snapshot,
+  ) as StorefrontContent | undefined;
   const templateId =
     asConcreteTemplateId(snapshot?.template?.id) ?? selectedTemplateId ?? null;
 
@@ -263,10 +303,10 @@ export async function streamAndPersistBuilderMessage({
   contextHints?: WorkbenchContextHints;
   signal?: AbortSignal;
 }): Promise<BuilderSessionResponse> {
-  const enrichedSession: BuilderSession = {
+  const enrichedSession = mergeLiveCodeFsIntoSession({
     ...session,
     business_profile: mergeSessionProfile(session),
-  };
+  });
 
   const recommendations = await loadRecommendations(enrichedSession);
   const chatHistory = buildBuilderChatHistory(enrichedSession.messages);
