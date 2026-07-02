@@ -4,10 +4,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { FileCode2, Loader2, Lock, PanelLeft, Save, Sparkles, Terminal, Unlock } from "lucide-react";
+import { FileCode2, Loader2, Lock, PanelLeft, Save, Sparkles, Unlock } from "lucide-react";
 import { toast } from "sonner";
 import { BuilderChatPanel } from "@/components/admin/builder/builder-chat-panel";
 import { BuilderThinkingLogSheet } from "@/components/admin/builder/builder-thinking-log-sheet";
+import { WorkbenchChangesPanel } from "@/components/admin/builder/workbench-changes-panel";
 import { WorkbenchCodeEditor } from "@/components/admin/builder/workbench-code-editor";
 import { WorkbenchFileTree } from "@/components/admin/builder/workbench-file-tree";
 import {
@@ -38,7 +39,11 @@ import {
   type BoltStreamCallbacks,
   type WorkbenchContextHints,
 } from "@/lib/storefront-builder/client";
+import { appendWebContainerOutput } from "@/lib/bolt/webcontainer-output";
 import { lastWrittenPathsFromSession } from "@/lib/bolt/select-context";
+import type { WorkbenchEditStep } from "@/lib/bolt/workbench-edit-agent";
+import type { FileDiffSummary, WorkbenchEditCheckpoint } from "@/lib/bolt/workbench-diff";
+import { revertEditCheckpoint } from "@/lib/bolt/workbench-diff";
 import type { AgentThinkingLogEntry } from "@/lib/storefront-builder/agents/types";
 import {
   extractThinkingLogTurns,
@@ -79,6 +84,27 @@ function snapshotHasCustomFiles(storefront: StorefrontContent | null | undefined
     return true;
   }
   return false;
+}
+
+function extractLastEditFromSession(session: BuilderSession | null): {
+  checkpoint: WorkbenchEditCheckpoint | null;
+  diffs: FileDiffSummary[];
+} {
+  if (!session) return { checkpoint: null, diffs: [] };
+
+  for (let i = session.messages.length - 1; i >= 0; i--) {
+    const msg = session.messages[i];
+    if (msg.role !== "assistant" || !msg.payload || typeof msg.payload !== "object") continue;
+    const payload = msg.payload as Record<string, unknown>;
+    if (payload.type !== "custom_site_edited" || !payload.edit_checkpoint) continue;
+
+    return {
+      checkpoint: payload.edit_checkpoint as WorkbenchEditCheckpoint,
+      diffs: Array.isArray(payload.file_diffs) ? (payload.file_diffs as FileDiffSummary[]) : [],
+    };
+  }
+
+  return { checkpoint: null, diffs: [] };
 }
 
 function loadSnapshotIntoCodeFs(storefront: StorefrontContent | null | undefined) {
@@ -126,11 +152,14 @@ export default function AdminBuilderWorkbenchPage() {
   const [pendingUserMessage, setPendingUserMessage] = useState("");
   const thinkingRunRef = useRef<AgentThinkingLogEntry[]>([]);
   const baselineFilesRef = useRef<FileEntry[]>([]);
+  const loadedSessionRef = useRef<string | null>(null);
   const [lockedPaths, setLockedPaths] = useState<Set<string>>(new Set());
   const [aiStreaming, setAiStreaming] = useState(false);
   const [liveActions, setLiveActions] = useState<LiveBoltAction[]>([]);
   const liveActionsRef = useRef<Map<string, LiveBoltAction>>(new Map());
-  const [shellLog, setShellLog] = useState("");
+  const [lastCheckpoint, setLastCheckpoint] = useState<WorkbenchEditCheckpoint | null>(null);
+  const [lastDiffs, setLastDiffs] = useState<FileDiffSummary[]>([]);
+  const [agentSteps, setAgentSteps] = useState<WorkbenchEditStep[]>([]);
 
   const sessionQuery = useQuery({
     queryKey: ["builder-session"],
@@ -168,22 +197,40 @@ export default function AdminBuilderWorkbenchPage() {
   }, [loading, user, router]);
 
   useEffect(() => {
+    if (!session) return;
+    const { checkpoint, diffs } = extractLastEditFromSession(session as BuilderSession);
+    if (checkpoint) {
+      setLastCheckpoint(checkpoint);
+      setLastDiffs(diffs);
+    }
+  }, [session?.id, session?.messages.length]);
+
+  useEffect(() => {
+    if (!session || !storefront) return;
+
     const snapshot = storefront as Record<string, unknown> | null;
     const locked = (snapshot?.edit_metadata as { locked_paths?: string[] } | undefined)?.locked_paths ?? [];
     setLockedPaths(new Set(locked.filter(Boolean)));
 
+    const localCount = codeFs.listFiles().length;
+    const shouldLoadFromSnapshot =
+      loadedSessionRef.current !== session.id ||
+      (localCount === 0 && snapshotHasCustomFiles(storefront));
+
+    if (!shouldLoadFromSnapshot) return;
+
+    loadedSessionRef.current = session.id;
     const loaded = loadSnapshotIntoCodeFs(storefront);
     if (loaded.length > 0) {
       baselineFilesRef.current = loaded;
     }
-  }, [storefront]);
+  }, [session?.id, storefront]);
 
   const { files, tick: codeFsTick } = useCodeFsFiles();
   const [selectedPath, setSelectedPath] = useState<string>("index.html");
   const [draft, setDraft] = useState<string>("");
   const [dirty, setDirty] = useState(false);
   const [view, setView] = useState<"code" | "diff">("code");
-  const [showTerminal, setShowTerminal] = useState(false);
   const chatPanelRef = usePanelRef();
   const filesPanelRef = usePanelRef();
   const editorPanelRef = usePanelRef();
@@ -331,7 +378,21 @@ export default function AdminBuilderWorkbenchPage() {
         });
       },
       onShellOutput: (chunk) => {
-        setShellLog((prev) => (prev + chunk).slice(-12_000));
+        appendWebContainerOutput(chunk);
+      },
+      onAgentStep: (step) => {
+        setAgentSteps((prev) => {
+          const existing = prev.findIndex((s) => s.id === step.id);
+          if (existing >= 0) {
+            const next = [...prev];
+            next[existing] = step;
+            return next;
+          }
+          return [...prev, step];
+        });
+        if (step.type === "patch" && step.status === "complete" && step.path) {
+          setSelectedPath((prev) => prev || step.path!);
+        }
       },
     }),
     [files.length, upsertLiveAction],
@@ -357,14 +418,43 @@ export default function AdminBuilderWorkbenchPage() {
     data: Awaited<ReturnType<typeof streamAndPersistBuilderMessage>>,
   ) => {
     queryClient.setQueryData(["builder-session"], data);
+
+    const { checkpoint, diffs } = extractLastEditFromSession(data.session ?? null);
+    if (checkpoint) {
+      setLastCheckpoint(checkpoint);
+      setLastDiffs(diffs);
+    }
+
+    const live = codeFs.exportFiles();
+    if (live.length > 0) {
+      baselineFilesRef.current = live.map((file) => ({
+        path: file.path,
+        content: file.content,
+      }));
+      return;
+    }
+
     const nextStorefront = data.storefront ?? data.session?.storefront_snapshot ?? null;
-    const localHasFiles = codeFs.listFiles().length > 0;
-    if (nextStorefront && (snapshotHasCustomFiles(nextStorefront) || !localHasFiles)) {
+    if (nextStorefront && snapshotHasCustomFiles(nextStorefront)) {
       const loaded = loadSnapshotIntoCodeFs(nextStorefront);
       if (loaded.length > 0) {
         baselineFilesRef.current = loaded;
       }
     }
+  };
+
+  const revertLastEdit = () => {
+    if (!lastCheckpoint) return;
+    const paths = Object.keys(lastCheckpoint.files);
+    revertEditCheckpoint(lastCheckpoint);
+    baselineFilesRef.current = codeFs.exportFiles().map((file) => ({
+      path: file.path,
+      content: file.content,
+    }));
+    setLastCheckpoint(null);
+    setLastDiffs([]);
+    setDirty(false);
+    toast.success(`Reverted AI changes in ${paths.length} file${paths.length === 1 ? "" : "s"}`);
   };
 
   const sendMessage = useMutation({
@@ -379,9 +469,14 @@ export default function AdminBuilderWorkbenchPage() {
       setAiStreaming(true);
       liveActionsRef.current = new Map();
       setLiveActions([]);
-      setShellLog("");
+      setAgentSteps([]);
 
       try {
+        if (dirty && selectedPath) {
+          codeFs.writeFile(selectedPath, draft);
+          setDirty(false);
+        }
+
         const currentFiles = codeFs.exportFiles();
         const contextHints: WorkbenchContextHints = {
           selectedPath,
@@ -505,6 +600,7 @@ export default function AdminBuilderWorkbenchPage() {
   const title = session.store?.business_name ?? "StoreHause";
   const currentContent = codeFs.readFile(selectedPath) ?? "";
   const baselineContent = baselineMap.get(selectedPath) ?? "";
+  const selectedDiff = lastDiffs.find((diff) => diff.path === selectedPath) ?? null;
   const hasDiff = baselineContent !== currentContent;
 
   return (
@@ -552,15 +648,6 @@ export default function AdminBuilderWorkbenchPage() {
             <FileCode2 className="h-4 w-4" />
             {persist.isPending ? "Saving…" : "Save to session"}
           </button>
-          <button
-            type="button"
-            onClick={() => setShowTerminal((v) => !v)}
-            className="inline-flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm font-medium text-ink hover:bg-secondary"
-            title="Toggle WebContainer terminal"
-          >
-            <Terminal className="h-4 w-4" />
-            Terminal
-          </button>
         </div>
       </div>
 
@@ -591,9 +678,22 @@ export default function AdminBuilderWorkbenchPage() {
               ) : (
                 <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
                   <WorkbenchPanelHeader title="AI Chat" panelRef={chatPanelRef} collapseSide="left" />
-                  {(aiStreaming || liveActions.length > 0 || shellLog) ? (
-                    <div className="shrink-0 border-b border-border px-3 py-2">
-                      <WorkbenchLiveActions actions={liveActions} streaming={aiStreaming} shellLog={shellLog} />
+                  {(aiStreaming || liveActions.length > 0 || agentSteps.length > 0 || lastDiffs.length > 0) ? (
+                    <div className="shrink-0 space-y-2 border-b border-border px-3 py-2">
+                      <WorkbenchLiveActions
+                        actions={liveActions}
+                        agentSteps={agentSteps}
+                        streaming={aiStreaming}
+                      />
+                      <WorkbenchChangesPanel
+                        checkpoint={lastCheckpoint}
+                        diffs={lastDiffs}
+                        onRevert={revertLastEdit}
+                        onSelectFile={(path) => {
+                          setSelectedPath(path);
+                          setView("diff");
+                        }}
+                      />
                     </div>
                   ) : null}
                   <BuilderChatPanel
@@ -744,13 +844,33 @@ export default function AdminBuilderWorkbenchPage() {
                           className="h-full"
                         />
                       ) : (
-                        <div className="grid h-full min-h-0 grid-cols-2 gap-2">
+                        <div className="flex h-full min-h-0 flex-col gap-2">
+                          {selectedDiff ? (
+                            <div className="shrink-0 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-[11px] text-ink-soft">
+                              Last AI edit:{" "}
+                              <span className="font-medium text-primary">+{selectedDiff.additions}</span>
+                              {" / "}
+                              <span className="font-medium text-destructive">-{selectedDiff.deletions}</span>
+                              {selectedDiff.preview.length > 0 ? (
+                                <pre className="mt-2 max-h-24 overflow-auto font-mono text-[10px] leading-4 text-ink">
+                                  {selectedDiff.preview.map((change) => {
+                                    if (change.before !== undefined && change.after !== undefined) {
+                                      return `L${change.line}: ${change.before.trim()} → ${change.after.trim()}\n`;
+                                    }
+                                    if (change.after !== undefined) return `L${change.line}: + ${change.after.trim()}\n`;
+                                    return `L${change.line}: - ${change.before?.trim() ?? ""}\n`;
+                                  })}
+                                </pre>
+                              ) : null}
+                            </div>
+                          ) : null}
+                          <div className="grid min-h-0 flex-1 grid-cols-2 gap-2">
                           <div className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-background shadow-soft">
                             <div className="border-b border-border bg-secondary/50 px-3 py-1.5 text-[11px] font-semibold text-ink-soft">
-                              Baseline (last saved)
+                              {lastCheckpoint?.files[selectedPath] ? "Before last AI edit" : "Baseline (last saved)"}
                             </div>
                             <pre className="min-h-0 flex-1 overflow-auto p-3 font-mono text-[12px] leading-5 text-ink-soft">
-                              {baselineContent || "(empty)"}
+                              {(lastCheckpoint?.files[selectedPath]?.before ?? baselineContent) || "(empty)"}
                             </pre>
                           </div>
                           <div className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-background shadow-soft">
@@ -760,6 +880,7 @@ export default function AdminBuilderWorkbenchPage() {
                             <pre className="min-h-0 flex-1 overflow-auto p-3 font-mono text-[12px] leading-5 text-ink">
                               {currentContent || "(empty)"}
                             </pre>
+                          </div>
                           </div>
                         </div>
                       )}
@@ -795,13 +916,22 @@ export default function AdminBuilderWorkbenchPage() {
                         panelRef={previewPanelRef}
                         collapseSide="right"
                       />
-                      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-3">
-                        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-background shadow-soft">
-                          <WebContainerPreview className="min-h-0 flex-1" />
-                        </div>
-                        {showTerminal ? (
-                          <WebContainerTerminalPanel className="h-[220px] shrink-0" />
-                        ) : null}
+                      <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-3">
+                        <ResizablePanelGroup
+                          id="workbench-preview-terminal"
+                          orientation="vertical"
+                          className="min-h-0 flex-1"
+                        >
+                          <ResizablePanel id="workbench-preview-frame" defaultSize={72} minSize={30}>
+                            <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-background shadow-soft">
+                              <WebContainerPreview className="min-h-0 flex-1" />
+                            </div>
+                          </ResizablePanel>
+                          <ResizableHandle withHandle />
+                          <ResizablePanel id="workbench-preview-terminal-panel" defaultSize={28} minSize={14}>
+                            <WebContainerTerminalPanel className="h-full" />
+                          </ResizablePanel>
+                        </ResizablePanelGroup>
                       </div>
                     </div>
                   )}

@@ -1,5 +1,5 @@
 import type { WebContainerProcess } from "@webcontainer/api";
-import { getWebContainer } from "@/lib/bolt/webcontainer-runtime";
+import { ensureDependenciesInstalled, getWebContainer } from "@/lib/bolt/webcontainer-runtime";
 import { sanitizeTerminalOutput } from "@/lib/bolt/terminal-output";
 
 export type TerminalAdapter = {
@@ -75,6 +75,16 @@ export async function runWebContainerCommand(args: {
   cwd?: string;
   onOutput?: (chunk: string) => void;
 }) {
+  const command = args.command.trim();
+  if (/^(pnpm|npm)\s+install\b/.test(command)) {
+    try {
+      await ensureDependenciesInstalled({ onOutput: args.onOutput });
+      return { exitCode: 0 };
+    } catch {
+      return { exitCode: 1 };
+    }
+  }
+
   const wc = await getWebContainer();
 
   const proc = await wc.spawn("sh", ["-lc", args.command], {

@@ -57,7 +57,7 @@ async function walk(rootAbs: string, dirAbs: string, out: CodeFile[], budget: { 
     }
 
     // Only include common text/code assets.
-    if (!/\.(ts|tsx|js|jsx|json|css|md|txt|html|svg)$/.test(entry.name) && !/^(package\.json|pnpm-lock\.yaml|tsconfig\.json|vite\.config\.ts|components\.json|eslint\.config\.js|bunfig\.toml|\.prettierrc|\.prettierignore|\.gitignore)$/.test(entry.name)) {
+    if (!/\.(ts|tsx|js|jsx|json|css|md|txt|html|svg)$/.test(entry.name) && !/^(package\.json|pnpm-lock\.yaml|\.npmrc|tsconfig\.json|vite\.config\.ts|components\.json|eslint\.config\.js|bunfig\.toml|\.prettierrc|\.prettierignore|\.gitignore)$/.test(entry.name)) {
       continue;
     }
 

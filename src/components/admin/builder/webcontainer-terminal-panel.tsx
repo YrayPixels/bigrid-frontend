@@ -6,6 +6,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { Terminal as XTerm } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
+import { subscribeWebContainerOutput } from "@/lib/bolt/webcontainer-output";
 import { attachWebContainerShell } from "@/lib/bolt/webcontainer-terminal";
 import { cn } from "@/lib/utils";
 
@@ -50,13 +51,17 @@ export function WebContainerTerminalPanel({ className }: { className?: string })
       fontSize: 12,
       fontFamily: 'var(--font-mono), "JetBrains Mono", ui-monospace, monospace',
       theme: getTerminalTheme(),
-      scrollback: 1000,
+      scrollback: 5000,
       rightClickSelectsWord: true,
     });
 
     xterm.loadAddon(fitAddon);
     xterm.loadAddon(new WebLinksAddon());
     xterm.open(container);
+
+    const unsubscribeOutput = subscribeWebContainerOutput((chunk) => {
+      xterm.write(chunk);
+    });
 
     let cancelled = false;
     let resizeObserver: ResizeObserver | undefined;
@@ -78,7 +83,6 @@ export function WebContainerTerminalPanel({ className }: { className?: string })
           shell.resize(xterm.cols, xterm.rows);
         });
         resizeObserver.observe(container);
-        xterm.focus();
       } catch (e) {
         if (!cancelled) {
           const message = e instanceof Error ? e.message : "unknown error";
@@ -89,6 +93,7 @@ export function WebContainerTerminalPanel({ className }: { className?: string })
 
     return () => {
       cancelled = true;
+      unsubscribeOutput();
       resizeObserver?.disconnect();
       shellRef.current?.kill();
       shellRef.current = null;
@@ -97,8 +102,8 @@ export function WebContainerTerminalPanel({ className }: { className?: string })
   }, []);
 
   return (
-    <div className={cn("flex h-full flex-col overflow-hidden rounded-xl border border-border bg-[#0d1117]", className)}>
-      <div className="flex items-center gap-2 border-b border-border/40 px-3 py-2">
+    <div className={cn("flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-[#0d1117]", className)}>
+      <div className="flex shrink-0 items-center gap-2 border-b border-border/40 px-3 py-2">
         <Terminal className="h-3.5 w-3.5 text-ink-soft" />
         <span className="text-xs font-semibold uppercase tracking-wide text-ink-soft">Terminal</span>
       </div>

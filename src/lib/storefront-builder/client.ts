@@ -156,6 +156,16 @@ async function runBoltCustomTurn(args: {
       ? { style_note: message }
       : { instruction: message };
 
+  // Keep the session snapshot aligned with live editor state before the edit tool runs.
+  if (ctx.storefront && toolName === "edit_custom_site_code") {
+    const storefrontRecord = ctx.storefront as Record<string, unknown>;
+    const liveFiles = codeFs.exportFiles();
+    if (liveFiles.length > 0) {
+      storefrontRecord.custom_files = liveFiles;
+      storefrontRecord.custom_code = codeFs.getMainHtml();
+    }
+  }
+
   const result = await tool.handler(toolArgs as never, ctx as never);
 
   // Tool handlers mutate ctx.storefront / ctx.profile / ctx.payload / ctx.assistantMessage.

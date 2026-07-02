@@ -274,8 +274,21 @@ export function BuilderMessageWidgets({
       : [];
     const files = Array.isArray(payload.files) ? (payload.files as string[]) : [];
     const contextSelection = payload.context_selection as
-      | { included?: string[]; omitted?: string[]; used_smart_context?: boolean }
+      | {
+          included?: string[];
+          omitted?: string[];
+          used_smart_context?: boolean;
+          search_paths?: string[];
+          search_match_count?: number;
+        }
       | undefined;
+    const fileDiffs = Array.isArray(payload.file_diffs)
+      ? (payload.file_diffs as Array<{
+          path: string;
+          additions: number;
+          deletions: number;
+        }>)
+      : [];
 
     return (
       <div className="mt-3 space-y-2 rounded-xl border border-border bg-background p-3">
@@ -288,6 +301,19 @@ export function BuilderMessageWidgets({
             {files.map((path) => (
               <li key={path} className="truncate font-mono text-ink">
                 {path}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        {fileDiffs.length > 0 ? (
+          <ul className="space-y-1 text-[11px] text-ink-soft">
+            {fileDiffs.map((diff) => (
+              <li key={diff.path} className="flex items-center justify-between gap-2 font-mono text-ink">
+                <span className="truncate">{diff.path}</span>
+                <span className="shrink-0">
+                  <span className="text-primary">+{diff.additions}</span> /{" "}
+                  <span className="text-destructive">-{diff.deletions}</span>
+                </span>
               </li>
             ))}
           </ul>
@@ -313,6 +339,9 @@ export function BuilderMessageWidgets({
           <p className="text-[10px] text-ink-soft">
             Context: {contextSelection.included.length} file
             {contextSelection.included.length === 1 ? "" : "s"} sent to AI
+            {typeof contextSelection.search_match_count === "number" && contextSelection.search_match_count > 0
+              ? ` · ${contextSelection.search_match_count} grep matches`
+              : null}
             {contextSelection.omitted?.length
               ? ` (${contextSelection.omitted.length} omitted from ${files.length || contextSelection.included.length + contextSelection.omitted.length})`
               : null}

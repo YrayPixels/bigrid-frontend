@@ -1,6 +1,8 @@
 import type { BoltAction, BoltArtifactInfo } from "@/lib/code-parser";
-import { createCodeParser } from "@/lib/code-parser";
 import { createBoltActionRunner, type BoltActionResult } from "@/lib/bolt/action-runner";
+import { createEnhancedCodeParser } from "@/lib/bolt/enhanced-code-parser";
+
+import type { WorkbenchEditStep } from "@/lib/bolt/workbench-edit-agent";
 
 export type BoltStreamCallbacks = {
   onArtifactStart?: (info: BoltArtifactInfo) => void;
@@ -9,6 +11,7 @@ export type BoltStreamCallbacks = {
   onActionStream?: (action: BoltAction) => void;
   onActionComplete?: (action: BoltAction, result: BoltActionResult) => void;
   onShellOutput?: (chunk: string) => void;
+  onAgentStep?: (step: WorkbenchEditStep) => void;
 };
 
 export function createBoltStreamPipeline(options?: {
@@ -22,7 +25,7 @@ export function createBoltStreamPipeline(options?: {
   });
   const callbacks = options?.callbacks;
 
-  const parser = createCodeParser({
+  const parser = createEnhancedCodeParser({
     onArtifactStart: (info) => {
       callbacks?.onArtifactStart?.(info);
     },

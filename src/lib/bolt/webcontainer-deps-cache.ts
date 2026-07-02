@@ -3,7 +3,7 @@ import { joinWorkdirRelative } from "@/lib/bolt/workdir-path";
 
 const DB_NAME = "storehause-webcontainer";
 const STORE_NAME = "node-modules-cache";
-const CACHE_VERSION = 3;
+const CACHE_VERSION = 5;
 /** Skip caching absurdly large trees; typical hoisted Vite apps are ~150–350 MB. */
 const MAX_UNCOMPRESSED_BYTES = 450_000_000;
 /** IndexedDB single-value limits vary by browser — chunk compressed payloads. */

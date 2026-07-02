@@ -8,6 +8,10 @@ import { WORK_DIR } from "@/lib/bolt/constants";
 import { hasPackageJson } from "@/lib/bolt/project-utils";
 import { seedBuildItUpIfNeeded } from "@/lib/bolt/seed-template";
 import {
+  appendWebContainerOutput,
+  clearWebContainerOutput,
+} from "@/lib/bolt/webcontainer-output";
+import {
   ensureDependenciesInstalled,
   getWebContainer,
   mountCodeFsToWebContainer,
@@ -32,11 +36,31 @@ type WebContainerPreviewProps = {
   className?: string;
 };
 
+function statusLabel(status: PreviewStatus, fileCount: number): string {
+  switch (status) {
+    case "seeding":
+      return "Loading template…";
+    case "booting":
+      return "Booting WebContainer…";
+    case "mounting":
+      return `Mounting project… (${fileCount} files)`;
+    case "restoring":
+      return "Restoring dependencies…";
+    case "installing":
+      return "Installing dependencies…";
+    case "starting":
+      return "Starting dev server…";
+    case "error":
+      return "Preview failed";
+    default:
+      return "Preparing preview…";
+  }
+}
+
 export function WebContainerPreview({ className }: WebContainerPreviewProps) {
   const [status, setStatus] = useState<PreviewStatus>("idle");
   const [url, setUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [logs, setLogs] = useState("");
   const [templateReady, setTemplateReady] = useState(false);
   const bootedRef = useRef(false);
   const [fileCount, setFileCount] = useState(0);
@@ -78,7 +102,7 @@ export function WebContainerPreview({ className }: WebContainerPreviewProps) {
     let cancelled = false;
     setStatus("seeding");
     setError(null);
-    setLogs("");
+    clearWebContainerOutput();
 
     (async () => {
       const didSeed = await seedBuildItUpIfNeeded(files);
@@ -102,13 +126,13 @@ export function WebContainerPreview({ className }: WebContainerPreviewProps) {
 
     let cancelled = false;
     setError(null);
-    setLogs("");
+    clearWebContainerOutput();
     setUrl(null);
 
     const log = (line: string) => {
       if (cancelled) return;
       const stamp = new Date().toLocaleTimeString();
-      setLogs((prev) => (`${prev}[${stamp}] ${line}\n`).slice(-20_000));
+      appendWebContainerOutput(`[${stamp}] ${line}\n`);
     };
 
     (async () => {
@@ -138,7 +162,7 @@ export function WebContainerPreview({ className }: WebContainerPreviewProps) {
         await ensureDependenciesInstalled({
           onOutput: (text) => {
             if (cancelled) return;
-            setLogs((prev) => (prev + text).slice(-20_000));
+            appendWebContainerOutput(text);
           },
           onRestoreProgress: ({ written, total, source }) => {
             if (cancelled) return;
@@ -157,11 +181,11 @@ export function WebContainerPreview({ className }: WebContainerPreviewProps) {
 
         if (cancelled) return;
         setStatus("starting");
-        log("Running: pnpm run dev --host 0.0.0.0");
+        log("Running: node vite dev --host 0.0.0.0 --port 5173");
         await startDevServer({
           onOutput: (text) => {
             if (cancelled) return;
-            setLogs((prev) => (prev + text).slice(-20_000));
+            appendWebContainerOutput(text);
           },
           onServerReady: ({ url: readyUrl }) => {
             if (cancelled) return;
@@ -172,7 +196,9 @@ export function WebContainerPreview({ className }: WebContainerPreviewProps) {
         });
       } catch (e) {
         if (cancelled) return;
-        setError(e instanceof Error ? e.message : "WebContainer failed");
+        const message = e instanceof Error ? e.message : "WebContainer failed";
+        setError(message);
+        appendWebContainerOutput(`\r\n\x1b[31m${message}\x1b[0m\r\n`);
         setStatus("error");
         bootedRef.current = false;
       }
@@ -184,6 +210,8 @@ export function WebContainerPreview({ className }: WebContainerPreviewProps) {
   }, [hasProject, templateReady, isNodeProject]);
 
   const shell = cn("flex min-h-0 w-full flex-1 flex-col", className);
+  const isLoading = status !== "ready" && status !== "static" && status !== "idle";
+  const showIframe = Boolean(url) && status === "ready";
 
   if (!hasProject) {
     return (
@@ -202,47 +230,40 @@ export function WebContainerPreview({ className }: WebContainerPreviewProps) {
     );
   }
 
-  if (status !== "ready" || !url) {
-    const count = codeFs.listFiles().length;
-    return (
-      <div className={cn(shell, "items-center justify-center gap-3 px-6 py-10 text-center")}>
-        <div className="inline-flex items-center gap-2 rounded-full bg-secondary px-4 py-2 text-sm text-ink-soft">
-          <Loader2 className="h-4 w-4 animate-spin text-primary" />
-          {status === "seeding"
-            ? "Loading template…"
-            : status === "booting"
-              ? "Booting WebContainer…"
-              : status === "mounting"
-                ? `Mounting project… (${count} files)`
-                : status === "restoring"
-                  ? "Restoring dependencies…"
-                  : status === "installing"
-                    ? "Installing dependencies…"
-                    : status === "starting"
-                      ? "Starting dev server…"
-                      : "Preparing…"}
-        </div>
-        {error ? <div className="max-w-lg text-sm text-destructive">{error}</div> : null}
-        {logs ? (
-          <pre className="mt-3 max-h-52 w-full max-w-3xl overflow-auto rounded-lg border border-border bg-background p-3 text-left font-mono text-[11px] leading-5 text-ink-soft">
-            {logs}
-          </pre>
-        ) : null}
-        <div className="max-w-md text-xs text-ink-soft">
-          First run installs dependencies. File edits hot-reload via WebContainer HMR.
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className={shell}>
-      <iframe
-        title="WebContainer preview"
-        src={url}
-        className="min-h-0 w-full flex-1 border-0"
-        sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-      />
+      <div className="relative min-h-0 flex-1 overflow-hidden bg-secondary/20">
+        {showIframe ? (
+          <iframe
+            title="WebContainer preview"
+            src={url!}
+            className="h-full w-full border-0"
+            sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+          />
+        ) : (
+          <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
+            {isLoading ? (
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            ) : null}
+            <p className="text-sm text-ink-soft">{statusLabel(status, fileCount)}</p>
+          </div>
+        )}
+
+        {isLoading && showIframe ? (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-background/60 backdrop-blur-[1px]">
+            <div className="inline-flex items-center gap-2 rounded-full bg-background/90 px-4 py-2 text-sm text-ink-soft shadow-soft">
+              <Loader2 className="h-4 w-4 animate-spin text-primary" />
+              {statusLabel(status, fileCount)}
+            </div>
+          </div>
+        ) : null}
+      </div>
+
+      {error ? (
+        <div className="shrink-0 border-t border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+          {error}
+        </div>
+      ) : null}
     </div>
   );
 }

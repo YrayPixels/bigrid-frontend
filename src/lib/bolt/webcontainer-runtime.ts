@@ -95,16 +95,10 @@ export function onPreviewUrl(listener: (info: PreviewInfo | null) => void) {
 }
 
 async function hasInstalledDependencies(wc: WebContainer): Promise<boolean> {
-  if (!(await isUsablePnpmNodeModules(wc))) return false;
-  try {
-    await wc.fs.readFile("node_modules/.bin/vite", "utf-8");
-    return true;
-  } catch {
-    return false;
-  }
+  return isUsablePnpmNodeModules(wc);
 }
 
-/** True when node_modules looks like a completed pnpm hoisted install, not npm/bun leftovers. */
+/** True when node_modules looks like a completed install, not npm/bun leftovers. */
 async function isUsablePnpmNodeModules(wc: WebContainer): Promise<boolean> {
   try {
     const entries = await wc.fs.readdir("node_modules");
@@ -114,16 +108,49 @@ async function isUsablePnpmNodeModules(wc: WebContainer): Promise<boolean> {
     return false;
   }
 
-  try {
-    await wc.fs.readFile("node_modules/.modules.yaml", "utf-8");
-    return true;
-  } catch {
-    // Hoisted installs may only write .modules.yaml at project root.
+  for (const marker of ["node_modules/.modules.yaml", ".modules.yaml"]) {
+    try {
+      await wc.fs.readFile(marker, "utf-8");
+      return true;
+    } catch {
+      // try next marker
+    }
   }
 
+  for (const bin of ["node_modules/.bin/vite", "node_modules/vite/bin/vite.js"]) {
+    try {
+      await wc.fs.readFile(bin, "utf-8");
+      return true;
+    } catch {
+      // try next path
+    }
+  }
+
+  return false;
+}
+
+async function resolveViteEntry(wc: WebContainer): Promise<string> {
+  for (const entry of ["node_modules/vite/bin/vite.js", "node_modules/vite/dist/node/cli.js"]) {
+    try {
+      await wc.fs.readFile(entry, "utf-8");
+      return entry;
+    } catch {
+      // try next entrypoint
+    }
+  }
+
+  throw new Error("vite not found in node_modules — try reinstalling dependencies");
+}
+
+async function verifyDevToolchain(wc: WebContainer): Promise<boolean> {
+  await fixRestoredNodeModulesPermissions(wc);
+
   try {
-    await wc.fs.readFile(".modules.yaml", "utf-8");
-    return true;
+    const entry = await resolveViteEntry(wc);
+    const proc = await wc.spawn("node", [entry, "--version"], {
+      env: { FORCE_COLOR: "0" },
+    });
+    return (await proc.exit) === 0;
   } catch {
     return false;
   }
@@ -296,20 +323,75 @@ function pipeProcessOutput(
 }
 
 async function ensureHoistedPnpm(wc: WebContainer): Promise<void> {
-  const desired = "node-linker=hoisted\n";
+  const desired = [
+    "node-linker=hoisted",
+    "supportedArchitectures.cpu=x64",
+    "supportedArchitectures.cpu=wasm32",
+    "supportedArchitectures.os=linux",
+    "supportedArchitectures.os=wasi",
+  ].join("\n");
+  const withNewline = `${desired}\n`;
   try {
     const existing = String(await wc.fs.readFile(".npmrc", "utf-8"));
-    if (existing.includes("node-linker=hoisted")) return;
-    if (!existing.endsWith("\n")) {
-      await wc.fs.writeFile(".npmrc", `${existing}\n${desired}`);
-      return;
-    }
-    await wc.fs.writeFile(".npmrc", `${existing}${desired}`);
+    if (existing.includes("node-linker=hoisted") && existing.includes("wasm32")) return;
+    const merged = existing.trimEnd().endsWith("\n") ? `${existing.trimEnd()}\n` : `${existing}\n`;
+    await wc.fs.writeFile(".npmrc", `${merged}${withNewline}`);
     return;
   } catch {
     // No .npmrc yet.
   }
-  await wc.fs.writeFile(".npmrc", desired);
+  await wc.fs.writeFile(".npmrc", withNewline);
+}
+
+async function readInstalledRolldownVersion(wc: WebContainer): Promise<string> {
+  try {
+    const pkg = JSON.parse(String(await wc.fs.readFile("node_modules/rolldown/package.json", "utf-8"))) as {
+      version?: string;
+    };
+    if (typeof pkg.version === "string" && pkg.version.length > 0) return pkg.version;
+  } catch {
+    // fall through
+  }
+  return "1.1.4";
+}
+
+async function hasRolldownWasmBinding(wc: WebContainer): Promise<boolean> {
+  try {
+    await wc.fs.readFile("node_modules/@rolldown/binding-wasm32-wasi/package.json", "utf-8");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Vite 8 / Rolldown needs the wasm binding in WebContainer; install once so dev doesn't re-fetch. */
+async function ensureRolldownWasmBinding(
+  wc: WebContainer,
+  onOutput?: (chunk: string) => void,
+): Promise<void> {
+  if (await hasRolldownWasmBinding(wc)) return;
+
+  const version = await readInstalledRolldownVersion(wc);
+  onOutput?.(`Installing @rolldown/binding-wasm32-wasi@${version} for WebContainer…\n`);
+  const proc = await wc.spawn("pnpm", ["add", "-D", `@rolldown/binding-wasm32-wasi@${version}`], {
+    env: { CI: "true", FORCE_COLOR: "0" },
+  });
+  pipeProcessOutput(proc, onOutput);
+  const exitCode = await proc.exit;
+  if (exitCode !== 0 || !(await hasRolldownWasmBinding(wc))) {
+    throw new Error(`Failed to install @rolldown/binding-wasm32-wasi@${version}`);
+  }
+}
+
+async function finalizeDependencyInstall(
+  wc: WebContainer,
+  onOutput?: (chunk: string) => void,
+): Promise<void> {
+  await fixRestoredNodeModulesPermissions(wc);
+  await ensureRolldownWasmBinding(wc, onOutput);
+  if (!(await verifyDevToolchain(wc))) {
+    throw new Error("Installed dependencies failed toolchain verification");
+  }
 }
 
 async function spawnDependencyInstall(
@@ -350,7 +432,10 @@ async function spawnDependencyInstall(
     args?.onOutput?.(`Running ${attempt.label}…\n`);
     pipeProcessOutput(install, args?.onOutput);
     const exitCode = await install.exit;
-    if (exitCode === 0 && (await isUsablePnpmNodeModules(wc))) return;
+    if (exitCode === 0 && (await isUsablePnpmNodeModules(wc))) {
+      await finalizeDependencyInstall(wc, args?.onOutput);
+      return;
+    }
 
     lastError = new Error(`${attempt.label} failed (exit ${exitCode})`);
 
@@ -368,7 +453,10 @@ async function spawnDependencyInstall(
       });
       args?.onOutput?.("Running pnpm install (after lockfile reset)…\n");
       pipeProcessOutput(retry, args?.onOutput);
-      if ((await retry.exit) === 0 && (await isUsablePnpmNodeModules(wc))) return;
+      if ((await retry.exit) === 0 && (await isUsablePnpmNodeModules(wc))) {
+        await finalizeDependencyInstall(wc, args?.onOutput);
+        return;
+      }
       lastError = new Error("pnpm install failed after lockfile reset");
     }
   }
@@ -386,31 +474,49 @@ export async function ensureDependenciesInstalled(args?: {
   if (state.installed) return wc;
 
   if (await hasInstalledDependencies(wc)) {
-    await fixRestoredNodeModulesPermissions(wc);
-    state.installed = true;
-    return wc;
+    try {
+      await finalizeDependencyInstall(wc, args?.onOutput);
+      state.installed = true;
+      return wc;
+    } catch {
+      // Toolchain check failed; fall through to reinstall.
+    }
   }
 
   const depsKey = await readDepsKeyFromWebContainer(wc);
   if (depsKey) {
     const mountedSnapshot = await mountPrebuiltNodeModulesSnapshot({ wc, depsKey });
     if (mountedSnapshot && (await hasInstalledDependencies(wc))) {
-      await fixRestoredNodeModulesPermissions(wc);
-      args?.onRestored?.("snapshot");
-      state.installed = true;
-      return wc;
+      try {
+        await finalizeDependencyInstall(wc, args?.onOutput);
+        args?.onRestored?.("snapshot");
+        state.installed = true;
+        return wc;
+      } catch {
+        args?.onOutput?.("Prebuilt node_modules failed toolchain check; reinstalling…\n");
+        await clearNodeModules(wc);
+      }
     }
 
     const restoredCache = await restoreNodeModulesCache(wc, depsKey, ({ written, total }) => {
       args?.onRestoreProgress?.({ written, total, source: "cache" });
     });
     if (restoredCache && (await hasInstalledDependencies(wc))) {
-      args?.onRestored?.("cache");
-      state.installed = true;
-      return wc;
-    }
-
-    if (restoredCache && !(await hasInstalledDependencies(wc))) {
+      try {
+        await finalizeDependencyInstall(wc, args?.onOutput);
+        args?.onRestored?.("cache");
+        state.installed = true;
+        return wc;
+      } catch {
+        args?.onOutput?.("Cached node_modules failed toolchain check; reinstalling…\n");
+        await clearNodeModules(wc);
+        await clearNodeModulesCache(depsKey);
+      }
+    } else if (restoredCache) {
+      args?.onOutput?.("Cached node_modules failed toolchain check; reinstalling…\n");
+      await clearNodeModules(wc);
+      await clearNodeModulesCache(depsKey);
+    } else if (!(await hasInstalledDependencies(wc))) {
       args?.onOutput?.("Cached node_modules were incomplete or from another package manager; reinstalling…\n");
       await clearNodeModules(wc);
       await clearNodeModulesCache(depsKey);
@@ -428,6 +534,42 @@ export async function ensureDependenciesInstalled(args?: {
   return wc;
 }
 
+const DEV_SERVER_READY_TIMEOUT_MS = 180_000;
+
+function waitForPreviewUrl(
+  timeoutMs = DEV_SERVER_READY_TIMEOUT_MS,
+  onServerReady?: (info: PreviewInfo) => void,
+): Promise<PreviewInfo> {
+  const existing = getPreviewUrl();
+  if (existing) {
+    onServerReady?.(existing);
+    return Promise.resolve(existing);
+  }
+
+  return new Promise((resolve, reject) => {
+    const timeout = window.setTimeout(() => {
+      cleanup();
+      reject(
+        new Error(
+          "Dev server did not become ready in time. Check the terminal for Vite errors, or try clearing site data and reloading.",
+        ),
+      );
+    }, timeoutMs);
+
+    const unsubscribe = onPreviewUrl((info) => {
+      if (!info) return;
+      cleanup();
+      onServerReady?.(info);
+      resolve(info);
+    });
+
+    function cleanup() {
+      window.clearTimeout(timeout);
+      unsubscribe();
+    }
+  });
+}
+
 export async function startDevServer(args?: {
   preferredPort?: number;
   onOutput?: (line: string) => void;
@@ -437,28 +579,57 @@ export async function startDevServer(args?: {
   setupPreviewListeners(wc);
 
   const current = getPreviewUrl();
-  if (current) args?.onServerReady?.(current);
+  if (current) {
+    args?.onServerReady?.(current);
+    return state.devProc;
+  }
 
   if (state.devProc) {
+    await waitForPreviewUrl(DEV_SERVER_READY_TIMEOUT_MS, args?.onServerReady);
     return state.devProc;
   }
 
   await fixRestoredNodeModulesPermissions(wc);
 
-  const proc = await wc.spawn("pnpm", ["exec", "vite", "dev", "--host", "0.0.0.0"], {
-    env: {
-      FORCE_COLOR: "0",
+  const viteEntry = await resolveViteEntry(wc);
+  const port = args?.preferredPort ?? 5173;
+  const proc = await wc.spawn(
+    "node",
+    [viteEntry, "dev", "--host", "0.0.0.0", "--port", String(port), "--strictPort"],
+    {
+      env: {
+        FORCE_COLOR: "0",
+        CI: "true",
+        NODE_ENV: "development",
+      },
     },
-  });
+  );
 
   state.devProc = proc;
   pipeProcessOutput(proc, args?.onOutput);
 
-  void proc.exit.then(() => {
+  const exitPromise = proc.exit.then((exitCode) => {
     if (state.devProc === proc) {
       state.devProc = null;
     }
+    if (!getPreviewUrl()) {
+      throw new Error(
+        exitCode === 0
+          ? "Dev server exited before becoming ready"
+          : `Dev server exited with code ${exitCode}`,
+      );
+    }
   });
+
+  try {
+    await Promise.race([waitForPreviewUrl(DEV_SERVER_READY_TIMEOUT_MS, args?.onServerReady), exitPromise]);
+  } catch (error) {
+    proc.kill();
+    if (state.devProc === proc) {
+      state.devProc = null;
+    }
+    throw error;
+  }
 
   return proc;
 }
