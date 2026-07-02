@@ -278,6 +278,11 @@ export default function AdminBuilderWorkbenchPage() {
     }
   }, [selectedPath, codeFsTick, dirty, aiStreaming]);
 
+  const modifiedPaths = useMemo(
+    () => new Set(computeModifiedPaths(baselineFilesRef.current, files)),
+    [files, codeFsTick],
+  );
+
   const streamingPaths = useMemo(
     () =>
       new Set(
@@ -459,7 +464,6 @@ export default function AdminBuilderWorkbenchPage() {
       const next: StorefrontContent = {
         ...(session.storefront_snapshot ?? ({} as StorefrontContent)),
         custom_files: codeFs.exportFiles() as never,
-        custom_code: codeFs.getMainHtml(),
         edit_metadata: {
           ...((session.storefront_snapshot?.edit_metadata ?? {}) as Record<string, unknown>),
           locked_paths: [...lockedPaths],
@@ -647,6 +651,7 @@ export default function AdminBuilderWorkbenchPage() {
                           paths={files.map((f) => f.path)}
                           selectedPath={selectedPath}
                           dirtyPath={dirty ? selectedPath : null}
+                          modifiedPaths={modifiedPaths}
                           streamingPaths={streamingPaths}
                           onSelect={setSelectedPath}
                         />
@@ -735,6 +740,7 @@ export default function AdminBuilderWorkbenchPage() {
                             setDirty(true);
                           }}
                           readOnly={isLocked}
+                          streaming={aiStreaming}
                           className="h-full"
                         />
                       ) : (

@@ -115,6 +115,7 @@ type WorkbenchFileTreeProps = {
   paths: string[];
   selectedPath: string;
   dirtyPath?: string | null;
+  modifiedPaths?: Set<string>;
   streamingPaths?: Set<string>;
   onSelect: (path: string) => void;
   className?: string;
@@ -124,6 +125,7 @@ export function WorkbenchFileTree({
   paths,
   selectedPath,
   dirtyPath,
+  modifiedPaths,
   streamingPaths,
   onSelect,
   className,
@@ -201,6 +203,7 @@ export function WorkbenchFileTree({
         const paddingLeft = 6 + node.depth * NODE_PADDING;
         const isSelected = selectedPath === node.fullPath;
         const isDirty = dirtyPath === node.fullPath;
+        const isModified = modifiedPaths?.has(node.fullPath) ?? false;
         const isStreaming = streamingPaths?.has(node.fullPath) ?? false;
 
         if (node.kind === "folder") {
@@ -244,8 +247,14 @@ export function WorkbenchFileTree({
           >
             <File className="h-3.5 w-3.5 shrink-0 opacity-50" />
             <span className="truncate">{node.name}</span>
-            {isDirty ? (
-              <span className="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-primary" title="Unsaved changes" />
+            {isDirty || isModified ? (
+              <span
+                className={cn(
+                  "ml-auto h-1.5 w-1.5 shrink-0 rounded-full",
+                  isDirty ? "bg-primary" : "bg-amber-500",
+                )}
+                title={isDirty ? "Unsaved in editor" : "Modified vs last saved"}
+              />
             ) : isStreaming ? (
               <span className="ml-auto h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-primary" title="AI writing" />
             ) : null}

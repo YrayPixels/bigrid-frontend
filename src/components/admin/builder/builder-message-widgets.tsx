@@ -273,6 +273,9 @@ export function BuilderMessageWidgets({
         }>)
       : [];
     const files = Array.isArray(payload.files) ? (payload.files as string[]) : [];
+    const contextSelection = payload.context_selection as
+      | { included?: string[]; omitted?: string[]; used_smart_context?: boolean }
+      | undefined;
 
     return (
       <div className="mt-3 space-y-2 rounded-xl border border-border bg-background p-3">
@@ -305,6 +308,15 @@ export function BuilderMessageWidgets({
               </li>
             ))}
           </ul>
+        ) : null}
+        {contextSelection?.used_smart_context && contextSelection.included?.length ? (
+          <p className="text-[10px] text-ink-soft">
+            Context: {contextSelection.included.length} file
+            {contextSelection.included.length === 1 ? "" : "s"} sent to AI
+            {contextSelection.omitted?.length
+              ? ` (${contextSelection.omitted.length} omitted from ${files.length || contextSelection.included.length + contextSelection.omitted.length})`
+              : null}
+          </p>
         ) : null}
       </div>
     );

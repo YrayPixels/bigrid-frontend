@@ -12,7 +12,6 @@ import {
   getWebContainer,
   mountCodeFsToWebContainer,
   onPreviewUrl,
-  syncCodeFsToWebContainer,
   startDevServer,
 } from "@/lib/bolt/webcontainer-runtime";
 import { cn } from "@/lib/utils";
@@ -40,9 +39,13 @@ export function WebContainerPreview({ className }: WebContainerPreviewProps) {
   const [logs, setLogs] = useState("");
   const [templateReady, setTemplateReady] = useState(false);
   const bootedRef = useRef(false);
+  const [fileCount, setFileCount] = useState(0);
 
-  const [tick, setTick] = useState(0);
-  useEffect(() => codeFs.onUpdate(() => setTick((t) => t + 1)), []);
+  useEffect(() => {
+    return codeFs.onUpdate(() => {
+      setFileCount(codeFs.listFiles().length);
+    });
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -57,8 +60,8 @@ export function WebContainerPreview({ className }: WebContainerPreviewProps) {
     };
   }, []);
 
+  const hasProject = fileCount > 0;
   const files = codeFs.exportFiles();
-  const hasProject = files.length > 0;
   const isNodeProject = hasPackageJson(files);
 
   useEffect(() => {
@@ -90,7 +93,7 @@ export function WebContainerPreview({ className }: WebContainerPreviewProps) {
     return () => {
       cancelled = true;
     };
-  }, [hasProject, isNodeProject, tick, files.length]);
+  }, [hasProject, isNodeProject, fileCount]);
 
   useEffect(() => {
     if (!hasProject || !templateReady || !isNodeProject) return;
@@ -116,9 +119,9 @@ export function WebContainerPreview({ className }: WebContainerPreviewProps) {
         if (cancelled) return;
         log("WebContainer ready.");
 
-        const fileCount = codeFs.listFiles().length;
+        const count = codeFs.listFiles().length;
         setStatus("mounting");
-        log(`Mounting project into ${WORK_DIR}… (${fileCount} files)`);
+        log(`Mounting project into ${WORK_DIR}… (${count} files)`);
         await mountCodeFsToWebContainer({
           force: true,
           onProgress: ({ written, total, path }) => {
@@ -154,7 +157,7 @@ export function WebContainerPreview({ className }: WebContainerPreviewProps) {
 
         if (cancelled) return;
         setStatus("starting");
-        log("Running: pnpm run dev -- --host 0.0.0.0");
+        log("Running: pnpm run dev --host 0.0.0.0");
         await startDevServer({
           onOutput: (text) => {
             if (cancelled) return;
@@ -171,30 +174,14 @@ export function WebContainerPreview({ className }: WebContainerPreviewProps) {
         if (cancelled) return;
         setError(e instanceof Error ? e.message : "WebContainer failed");
         setStatus("error");
+        bootedRef.current = false;
       }
     })();
 
     return () => {
       cancelled = true;
-      bootedRef.current = false;
     };
-  }, [hasProject, templateReady, isNodeProject, tick]);
-
-  useEffect(() => {
-    if (status !== "ready" || !url) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        await syncCodeFsToWebContainer();
-      } catch (e) {
-        if (cancelled) return;
-        setError(e instanceof Error ? e.message : "File sync failed");
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [status, tick, url]);
+  }, [hasProject, templateReady, isNodeProject]);
 
   const shell = cn("flex min-h-0 w-full flex-1 flex-col", className);
 
@@ -242,7 +229,7 @@ export function WebContainerPreview({ className }: WebContainerPreviewProps) {
           </pre>
         ) : null}
         <div className="max-w-md text-xs text-ink-soft">
-          First run installs dependencies. Refresh reuses a cached snapshot when available.
+          First run installs dependencies. File edits hot-reload via WebContainer HMR.
         </div>
       </div>
     );

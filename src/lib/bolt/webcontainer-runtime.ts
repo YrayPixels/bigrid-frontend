@@ -6,6 +6,8 @@ import { mountPrebuiltNodeModulesSnapshot } from "@/lib/bolt/prebuilt-snapshot";
 import { codeFileToWebContainerData } from "@/lib/bolt/project-utils";
 import {
   type NodeModulesCacheResult,
+  clearNodeModulesCache,
+  fixRestoredNodeModulesPermissions,
   restoreNodeModulesCache,
   saveNodeModulesCache,
 } from "@/lib/bolt/webcontainer-deps-cache";
@@ -93,9 +95,97 @@ export function onPreviewUrl(listener: (info: PreviewInfo | null) => void) {
 }
 
 async function hasInstalledDependencies(wc: WebContainer): Promise<boolean> {
+  if (!(await isUsablePnpmNodeModules(wc))) return false;
+  try {
+    await wc.fs.readFile("node_modules/.bin/vite", "utf-8");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** True when node_modules looks like a completed pnpm hoisted install, not npm/bun leftovers. */
+async function isUsablePnpmNodeModules(wc: WebContainer): Promise<boolean> {
   try {
     const entries = await wc.fs.readdir("node_modules");
-    return entries.length > 0;
+    if (entries.length === 0) return false;
+    if (entries.includes(".ignored")) return false;
+  } catch {
+    return false;
+  }
+
+  try {
+    await wc.fs.readFile("node_modules/.modules.yaml", "utf-8");
+    return true;
+  } catch {
+    // Hoisted installs may only write .modules.yaml at project root.
+  }
+
+  try {
+    await wc.fs.readFile(".modules.yaml", "utf-8");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function clearNodeModules(wc: WebContainer): Promise<void> {
+  const proc = await wc.spawn("sh", ["-lc", "rm -rf node_modules"], {
+    env: { FORCE_COLOR: "0" },
+  });
+  await proc.exit;
+}
+
+async function readLockfileMajorVersion(wc: WebContainer): Promise<number | null> {
+  try {
+    const lock = String(await wc.fs.readFile("pnpm-lock.yaml", "utf-8"));
+    const match = lock.match(/lockfileVersion:\s*['"]?(\d+)/);
+    return match ? Number.parseInt(match[1] ?? "", 10) : null;
+  } catch {
+    return null;
+  }
+}
+
+async function preparePnpmForWebContainer(
+  wc: WebContainer,
+  onOutput?: (chunk: string) => void,
+): Promise<void> {
+  const lockMajor = await readLockfileMajorVersion(wc);
+  const targetPnpm = lockMajor != null && lockMajor >= 9 ? "9.15.9" : "8.15.9";
+
+  onOutput?.(`Preparing pnpm@${targetPnpm} for WebContainer…\n`);
+  const proc = await wc.spawn(
+    "sh",
+    ["-lc", `corepack enable 2>/dev/null; corepack prepare pnpm@${targetPnpm} --activate`],
+    { env: { FORCE_COLOR: "0" } },
+  );
+  pipeProcessOutput(proc, onOutput);
+  await proc.exit;
+}
+
+async function removeIncompatibleLockfile(wc: WebContainer): Promise<boolean> {
+  const lockMajor = await readLockfileMajorVersion(wc);
+  if (lockMajor == null || lockMajor < 9) return false;
+
+  const versionProc = await wc.spawn("sh", ["-lc", "pnpm --version"], {
+    env: { FORCE_COLOR: "0" },
+  });
+  let versionText = "";
+  void versionProc.output.pipeTo(
+    new WritableStream({
+      write(chunk) {
+        versionText += String(chunk);
+      },
+    }),
+  );
+  await versionProc.exit;
+
+  const pnpmMajor = Number.parseInt(versionText.trim().split(".")[0] ?? "", 10);
+  if (!Number.isFinite(pnpmMajor) || pnpmMajor >= 9) return false;
+
+  try {
+    await wc.fs.rm("pnpm-lock.yaml");
+    return true;
   } catch {
     return false;
   }
@@ -226,9 +316,16 @@ async function spawnDependencyInstall(
   wc: WebContainer,
   args?: { onOutput?: (chunk: string) => void },
 ) {
+  await preparePnpmForWebContainer(wc, args?.onOutput);
   await ensureHoistedPnpm(wc);
 
-  const installAttempts: Array<{ args: string[]; label: string }> = [{ args: ["install"], label: "pnpm install" }];
+  if (!(await isUsablePnpmNodeModules(wc))) {
+    await clearNodeModules(wc);
+  }
+
+  const installAttempts: Array<{ args: string[]; label: string }> = [
+    { args: ["install"], label: "pnpm install" },
+  ];
 
   try {
     await wc.fs.readFile("pnpm-lock.yaml", "utf-8");
@@ -241,6 +338,8 @@ async function spawnDependencyInstall(
   }
 
   let lastError: Error | null = null;
+  let droppedLockfile = false;
+
   for (const attempt of installAttempts) {
     const install = await wc.spawn("pnpm", attempt.args, {
       env: {
@@ -251,10 +350,26 @@ async function spawnDependencyInstall(
     args?.onOutput?.(`Running ${attempt.label}…\n`);
     pipeProcessOutput(install, args?.onOutput);
     const exitCode = await install.exit;
-    if (exitCode === 0) return;
+    if (exitCode === 0 && (await isUsablePnpmNodeModules(wc))) return;
+
     lastError = new Error(`${attempt.label} failed (exit ${exitCode})`);
+
     if (attempt.args.includes("--frozen-lockfile")) {
       args?.onOutput?.("Frozen lockfile install failed; retrying without --frozen-lockfile…\n");
+      continue;
+    }
+
+    if (!droppedLockfile && (await removeIncompatibleLockfile(wc))) {
+      droppedLockfile = true;
+      args?.onOutput?.("Removed incompatible pnpm-lock.yaml; retrying install…\n");
+      await clearNodeModules(wc);
+      const retry = await wc.spawn("pnpm", ["install"], {
+        env: { CI: "true", FORCE_COLOR: "0" },
+      });
+      args?.onOutput?.("Running pnpm install (after lockfile reset)…\n");
+      pipeProcessOutput(retry, args?.onOutput);
+      if ((await retry.exit) === 0 && (await isUsablePnpmNodeModules(wc))) return;
+      lastError = new Error("pnpm install failed after lockfile reset");
     }
   }
 
@@ -271,6 +386,7 @@ export async function ensureDependenciesInstalled(args?: {
   if (state.installed) return wc;
 
   if (await hasInstalledDependencies(wc)) {
+    await fixRestoredNodeModulesPermissions(wc);
     state.installed = true;
     return wc;
   }
@@ -279,6 +395,7 @@ export async function ensureDependenciesInstalled(args?: {
   if (depsKey) {
     const mountedSnapshot = await mountPrebuiltNodeModulesSnapshot({ wc, depsKey });
     if (mountedSnapshot && (await hasInstalledDependencies(wc))) {
+      await fixRestoredNodeModulesPermissions(wc);
       args?.onRestored?.("snapshot");
       state.installed = true;
       return wc;
@@ -291,6 +408,12 @@ export async function ensureDependenciesInstalled(args?: {
       args?.onRestored?.("cache");
       state.installed = true;
       return wc;
+    }
+
+    if (restoredCache && !(await hasInstalledDependencies(wc))) {
+      args?.onOutput?.("Cached node_modules were incomplete or from another package manager; reinstalling…\n");
+      await clearNodeModules(wc);
+      await clearNodeModulesCache(depsKey);
     }
   }
 
@@ -320,7 +443,9 @@ export async function startDevServer(args?: {
     return state.devProc;
   }
 
-  const proc = await wc.spawn("pnpm", ["run", "dev", "--", "--host", "0.0.0.0"], {
+  await fixRestoredNodeModulesPermissions(wc);
+
+  const proc = await wc.spawn("pnpm", ["exec", "vite", "dev", "--host", "0.0.0.0"], {
     env: {
       FORCE_COLOR: "0",
     },

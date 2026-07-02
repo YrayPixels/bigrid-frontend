@@ -3,7 +3,7 @@ import { joinWorkdirRelative } from "@/lib/bolt/workdir-path";
 
 const DB_NAME = "storehause-webcontainer";
 const STORE_NAME = "node-modules-cache";
-const CACHE_VERSION = 2;
+const CACHE_VERSION = 3;
 /** Skip caching absurdly large trees; typical hoisted Vite apps are ~150–350 MB. */
 const MAX_UNCOMPRESSED_BYTES = 450_000_000;
 /** IndexedDB single-value limits vary by browser — chunk compressed payloads. */
@@ -287,7 +287,25 @@ export async function restoreNodeModulesCache(
     return false;
   }
 
+  await fixRestoredNodeModulesPermissions(wc);
   return true;
+}
+
+/** Restored cache files are written without executable bits; fix .bin shims and native binaries. */
+export async function fixRestoredNodeModulesPermissions(wc: WebContainer): Promise<void> {
+  const proc = await wc.spawn(
+    "sh",
+    [
+      "-lc",
+      [
+        "chmod -R +x node_modules/.bin 2>/dev/null || true",
+        "find node_modules -type f -path '*/.bin/*' -exec chmod +x {} + 2>/dev/null || true",
+        "find node_modules -type f -path '*/bin/*' ! -name '*.js' ! -name '*.cjs' ! -name '*.mjs' ! -name '*.ts' ! -name '*.json' ! -name '*.txt' ! -name '*.md' -exec chmod +x {} + 2>/dev/null || true",
+      ].join("; "),
+    ],
+    { env: { FORCE_COLOR: "0" } },
+  );
+  await proc.exit;
 }
 
 export async function saveNodeModulesCache(
@@ -345,6 +363,17 @@ export async function saveNodeModulesCache(
     uncompressedBytes,
     compressedBytes: compressed.length,
   };
+}
+
+export async function clearNodeModulesCache(depsKey: string): Promise<void> {
+  if (typeof indexedDB === "undefined") return;
+  try {
+    const db = await openDb();
+    await clearCompressedCache(db, depsKey);
+    db.close();
+  } catch {
+    // ignore
+  }
 }
 
 async function hasNodeModules(wc: WebContainer): Promise<boolean> {
