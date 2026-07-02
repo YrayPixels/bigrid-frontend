@@ -21,10 +21,10 @@ export function depsKeyFromContents(packageJson: string, pnpmLock = ""): string 
 
 export async function readDepsKeyFromWebContainer(wc: WebContainer): Promise<string | null> {
   try {
-    const packageJson = String(await wc.fs.readFile("/project/package.json", "utf-8"));
+    const packageJson = String(await wc.fs.readFile("package.json", "utf-8"));
     let pnpmLock = "";
     try {
-      pnpmLock = String(await wc.fs.readFile("/project/pnpm-lock.yaml", "utf-8"));
+      pnpmLock = String(await wc.fs.readFile("pnpm-lock.yaml", "utf-8"));
     } catch {
       // lockfile optional
     }

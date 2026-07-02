@@ -66,7 +66,6 @@ export function WebContainerTerminalPanel({ className }: { className?: string })
         fitAddon.fit();
         const shell = await attachWebContainerShell({
           terminal: xterm,
-          cwd: "/project",
         });
         if (cancelled) {
           shell.kill();

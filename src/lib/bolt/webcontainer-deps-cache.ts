@@ -1,12 +1,21 @@
 import type { WebContainer } from "@webcontainer/api";
+import { joinWorkdirRelative } from "@/lib/bolt/workdir-path";
 
 const DB_NAME = "storehause-webcontainer";
 const STORE_NAME = "node-modules-cache";
-const CACHE_VERSION = 1;
-const MAX_CACHE_BYTES = 220_000_000;
+const CACHE_VERSION = 2;
+/** Skip caching absurdly large trees; typical hoisted Vite apps are ~150–350 MB. */
+const MAX_UNCOMPRESSED_BYTES = 450_000_000;
+/** IndexedDB single-value limits vary by browser — chunk compressed payloads. */
+const CHUNK_BYTES = 32 * 1024 * 1024;
 
-type CachedFile = { p: string; b: string };
-type CachePayload = { v: number; files: CachedFile[] };
+const MAGIC = new Uint8Array([0x53, 0x48, 0x57, 0x43]); // SHWC
+
+type CachedFile = { path: string; bytes: Uint8Array };
+
+export type NodeModulesCacheResult =
+  | { ok: true; fileCount: number; uncompressedBytes: number; compressedBytes: number }
+  | { ok: false; reason: string };
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -22,32 +31,86 @@ function openDb(): Promise<IDBDatabase> {
   });
 }
 
-async function gzipText(text: string): Promise<Uint8Array> {
-  const stream = new Blob([text]).stream().pipeThrough(new CompressionStream("gzip"));
+async function gzipBytes(data: Uint8Array): Promise<Uint8Array> {
+  const stream = new Blob([data as BlobPart]).stream().pipeThrough(new CompressionStream("gzip"));
   const buffer = await new Response(stream).arrayBuffer();
   return new Uint8Array(buffer);
 }
 
-async function gunzipText(data: Uint8Array): Promise<string> {
+async function gunzipBytes(data: Uint8Array): Promise<Uint8Array> {
   const stream = new Blob([data as BlobPart]).stream().pipeThrough(new DecompressionStream("gzip"));
-  return new Response(stream).text();
+  const buffer = await new Response(stream).arrayBuffer();
+  return new Uint8Array(buffer);
 }
 
-function toBase64(bytes: Uint8Array): string {
-  let binary = "";
-  for (let i = 0; i < bytes.length; i++) {
-    binary += String.fromCharCode(bytes[i]!);
-  }
-  return btoa(binary);
+function metaKey(depsKey: string): string {
+  return `v${CACHE_VERSION}:${depsKey}:meta`;
 }
 
-function fromBase64(encoded: string): Uint8Array {
-  const binary = atob(encoded);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
+function chunkKey(depsKey: string, index: number): string {
+  return `v${CACHE_VERSION}:${depsKey}:chunk:${index}`;
+}
+
+function encodePayload(files: CachedFile[]): Uint8Array {
+  let totalBytes = 8;
+  for (const file of files) {
+    const pathBytes = new TextEncoder().encode(file.path);
+    if (pathBytes.length > 0xffff) {
+      throw new Error(`Cache path too long: ${file.path}`);
+    }
+    totalBytes += 2 + pathBytes.length + 4 + file.bytes.length;
   }
-  return bytes;
+
+  const out = new Uint8Array(totalBytes);
+  const view = new DataView(out.buffer);
+  out.set(MAGIC, 0);
+  view.setUint32(4, files.length, true);
+
+  let offset = 8;
+  for (const file of files) {
+    const pathBytes = new TextEncoder().encode(file.path);
+    view.setUint16(offset, pathBytes.length, true);
+    offset += 2;
+    out.set(pathBytes, offset);
+    offset += pathBytes.length;
+    view.setUint32(offset, file.bytes.length, true);
+    offset += 4;
+    out.set(file.bytes, offset);
+    offset += file.bytes.length;
+  }
+
+  return out;
+}
+
+function decodePayload(data: Uint8Array): CachedFile[] {
+  if (data.length < 8) throw new Error("Cache payload too small");
+  if (data[0] !== MAGIC[0] || data[1] !== MAGIC[1] || data[2] !== MAGIC[2] || data[3] !== MAGIC[3]) {
+    throw new Error("Cache payload has invalid magic");
+  }
+
+  const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  const fileCount = view.getUint32(4, true);
+  const files: CachedFile[] = [];
+  let offset = 8;
+
+  for (let i = 0; i < fileCount; i++) {
+    if (offset + 2 > data.length) throw new Error("Cache payload truncated (path length)");
+    const pathLen = view.getUint16(offset, true);
+    offset += 2;
+
+    if (offset + pathLen + 4 > data.length) throw new Error("Cache payload truncated (path)");
+    const path = new TextDecoder().decode(data.subarray(offset, offset + pathLen));
+    offset += pathLen;
+
+    const contentLen = view.getUint32(offset, true);
+    offset += 4;
+
+    if (offset + contentLen > data.length) throw new Error("Cache payload truncated (content)");
+    files.push({ path, bytes: data.subarray(offset, offset + contentLen) });
+    offset += contentLen;
+  }
+
+  return files;
 }
 
 async function isDirectory(wc: WebContainer, path: string): Promise<boolean> {
@@ -59,28 +122,119 @@ async function isDirectory(wc: WebContainer, path: string): Promise<boolean> {
   }
 }
 
-async function walkNodeModules(
-  wc: WebContainer,
-  dir: string,
-  files: CachedFile[],
-  budget: { bytes: number },
-): Promise<void> {
+async function walkNodeModules(wc: WebContainer, dir: string, files: CachedFile[]): Promise<number> {
   const entries = await wc.fs.readdir(dir);
+  let totalBytes = 0;
+
   for (const name of entries) {
-    if (budget.bytes > MAX_CACHE_BYTES) return;
     const fullPath = `${dir}/${name}`;
     if (await isDirectory(wc, fullPath)) {
-      await walkNodeModules(wc, fullPath, files, budget);
+      totalBytes += await walkNodeModules(wc, fullPath, files);
+      if (totalBytes > MAX_UNCOMPRESSED_BYTES) {
+        throw new Error(`node_modules exceeds ${MAX_UNCOMPRESSED_BYTES} byte cache limit`);
+      }
       continue;
     }
+
     const raw = await wc.fs.readFile(fullPath);
     const bytes = raw instanceof Uint8Array ? raw : new TextEncoder().encode(String(raw));
-    budget.bytes += bytes.length;
+    totalBytes += bytes.length;
+    if (totalBytes > MAX_UNCOMPRESSED_BYTES) {
+      throw new Error(`node_modules exceeds ${MAX_UNCOMPRESSED_BYTES} byte cache limit`);
+    }
+
     files.push({
-      p: fullPath.replace(/^\/project\/node_modules\//, ""),
-      b: toBase64(bytes),
+      path: fullPath.replace(/^node_modules\//, ""),
+      bytes,
     });
   }
+
+  return totalBytes;
+}
+
+async function idbGet(db: IDBDatabase, key: string): Promise<Uint8Array | undefined> {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readonly");
+    const req = tx.objectStore(STORE_NAME).get(key);
+    req.onsuccess = () => {
+      const value = req.result;
+      if (value instanceof Uint8Array) resolve(value);
+      else if (value instanceof ArrayBuffer) resolve(new Uint8Array(value));
+      else resolve(undefined);
+    };
+    req.onerror = () => reject(req.error ?? new Error("IndexedDB read failed"));
+  });
+}
+
+async function idbPut(db: IDBDatabase, key: string, value: Uint8Array): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    const req = tx.objectStore(STORE_NAME).put(value, key);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error ?? new Error("IndexedDB write failed"));
+  });
+}
+
+async function idbDelete(db: IDBDatabase, key: string): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    const req = tx.objectStore(STORE_NAME).delete(key);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error ?? new Error("IndexedDB delete failed"));
+  });
+}
+
+async function readCompressedCache(db: IDBDatabase, depsKey: string): Promise<Uint8Array | undefined> {
+  const metaRaw = await idbGet(db, metaKey(depsKey));
+  if (!metaRaw?.length) return undefined;
+
+  const meta = JSON.parse(new TextDecoder().decode(metaRaw)) as { chunks?: number };
+  if (!meta.chunks || meta.chunks < 1) return undefined;
+
+  const parts: Uint8Array[] = [];
+  for (let i = 0; i < meta.chunks; i++) {
+    const part = await idbGet(db, chunkKey(depsKey, i));
+    if (!part?.length) return undefined;
+    parts.push(part);
+  }
+
+  const merged = new Uint8Array(parts.reduce((sum, part) => sum + part.length, 0));
+  let offset = 0;
+  for (const part of parts) {
+    merged.set(part, offset);
+    offset += part.length;
+  }
+  return merged;
+}
+
+async function writeCompressedCache(db: IDBDatabase, depsKey: string, compressed: Uint8Array): Promise<void> {
+  const chunks = Math.ceil(compressed.length / CHUNK_BYTES) || 1;
+  const meta = JSON.stringify({ chunks, bytes: compressed.length, v: CACHE_VERSION });
+
+  await idbPut(db, metaKey(depsKey), new TextEncoder().encode(meta));
+  for (let i = 0; i < chunks; i++) {
+    const start = i * CHUNK_BYTES;
+    const end = Math.min(start + CHUNK_BYTES, compressed.length);
+    await idbPut(db, chunkKey(depsKey, i), compressed.subarray(start, end));
+  }
+}
+
+async function clearCompressedCache(db: IDBDatabase, depsKey: string): Promise<void> {
+  const metaRaw = await idbGet(db, metaKey(depsKey));
+  if (!metaRaw?.length) return;
+
+  try {
+    const meta = JSON.parse(new TextDecoder().decode(metaRaw)) as { chunks?: number };
+    if (meta.chunks) {
+      for (let i = 0; i < meta.chunks; i++) {
+        await idbDelete(db, chunkKey(depsKey, i));
+      }
+    }
+  } catch {
+    // ignore malformed meta
+  }
+
+  await idbDelete(db, metaKey(depsKey));
 }
 
 export async function restoreNodeModulesCache(
@@ -93,17 +247,7 @@ export async function restoreNodeModulesCache(
   let compressed: Uint8Array | undefined;
   try {
     const db = await openDb();
-    compressed = await new Promise<Uint8Array | undefined>((resolve, reject) => {
-      const tx = db.transaction(STORE_NAME, "readonly");
-      const req = tx.objectStore(STORE_NAME).get(depsKey);
-      req.onsuccess = () => {
-        const value = req.result;
-        if (value instanceof Uint8Array) resolve(value);
-        else if (value instanceof ArrayBuffer) resolve(new Uint8Array(value));
-        else resolve(undefined);
-      };
-      req.onerror = () => reject(req.error ?? new Error("IndexedDB read failed"));
-    });
+    compressed = await readCompressedCache(db, depsKey);
     db.close();
   } catch {
     return false;
@@ -111,78 +255,101 @@ export async function restoreNodeModulesCache(
 
   if (!compressed?.length) return false;
 
-  let payload: CachePayload;
+  let files: CachedFile[];
   try {
-    const json = await gunzipText(compressed);
-    payload = JSON.parse(json) as CachePayload;
-    if (payload.v !== CACHE_VERSION || !Array.isArray(payload.files) || payload.files.length === 0) {
-      return false;
+    const payload = await gunzipBytes(compressed);
+    files = decodePayload(payload);
+    if (files.length === 0) return false;
+  } catch {
+    return false;
+  }
+
+  await wc.fs.mkdir("node_modules", { recursive: true });
+  const total = files.length;
+  let written = 0;
+  const createdDirs = new Set<string>();
+
+  try {
+    for (const file of files) {
+      const fullPath = joinWorkdirRelative("node_modules", file.path);
+      const dir = fullPath.split("/").slice(0, -1).join("/");
+      if (dir && !createdDirs.has(dir)) {
+        await wc.fs.mkdir(dir, { recursive: true });
+        createdDirs.add(dir);
+      }
+      await wc.fs.writeFile(fullPath, file.bytes);
+      written += 1;
+      if (written === 1 || written === total || written % 250 === 0) {
+        onProgress?.({ written, total });
+      }
     }
   } catch {
     return false;
   }
 
-  await wc.fs.mkdir("/project/node_modules", { recursive: true });
-  const total = payload.files.length;
-  let written = 0;
-  const createdDirs = new Set<string>();
-
-  for (const file of payload.files) {
-    const fullPath = `/project/node_modules/${file.p}`;
-    const dir = fullPath.split("/").slice(0, -1).join("/");
-    if (!createdDirs.has(dir)) {
-      await wc.fs.mkdir(dir, { recursive: true });
-      createdDirs.add(dir);
-    }
-    await wc.fs.writeFile(fullPath, fromBase64(file.b));
-    written += 1;
-    if (written === 1 || written === total || written % 250 === 0) {
-      onProgress?.({ written, total });
-    }
-  }
-
   return true;
 }
 
-export async function saveNodeModulesCache(wc: WebContainer, depsKey: string): Promise<void> {
-  if (typeof indexedDB === "undefined") return;
-  if (!(await hasNodeModules(wc))) return;
-
-  const files: CachedFile[] = [];
-  const budget = { bytes: 0 };
-  try {
-    await walkNodeModules(wc, "/project/node_modules", files, budget);
-  } catch {
-    return;
+export async function saveNodeModulesCache(
+  wc: WebContainer,
+  depsKey: string,
+): Promise<NodeModulesCacheResult> {
+  if (typeof indexedDB === "undefined") {
+    return { ok: false, reason: "IndexedDB unavailable" };
+  }
+  if (!(await hasNodeModules(wc))) {
+    return { ok: false, reason: "node_modules is empty" };
   }
 
-  if (files.length === 0 || budget.bytes > MAX_CACHE_BYTES) return;
+  const files: CachedFile[] = [];
+  let uncompressedBytes = 0;
+  try {
+    uncompressedBytes = await walkNodeModules(wc, "node_modules", files);
+  } catch (error) {
+    return {
+      ok: false,
+      reason: error instanceof Error ? error.message : "Failed to read node_modules",
+    };
+  }
 
-  const payload: CachePayload = { v: CACHE_VERSION, files };
+  if (files.length === 0) {
+    return { ok: false, reason: "No files found in node_modules" };
+  }
+
   let compressed: Uint8Array;
   try {
-    compressed = await gzipText(JSON.stringify(payload));
-  } catch {
-    return;
+    const payload = encodePayload(files);
+    compressed = await gzipBytes(payload);
+  } catch (error) {
+    return {
+      ok: false,
+      reason: error instanceof Error ? error.message : "Failed to encode cache payload",
+    };
   }
 
   try {
     const db = await openDb();
-    await new Promise<void>((resolve, reject) => {
-      const tx = db.transaction(STORE_NAME, "readwrite");
-      const req = tx.objectStore(STORE_NAME).put(compressed, depsKey);
-      req.onsuccess = () => resolve();
-      req.onerror = () => reject(req.error ?? new Error("IndexedDB write failed"));
-    });
+    await clearCompressedCache(db, depsKey);
+    await writeCompressedCache(db, depsKey, compressed);
     db.close();
-  } catch {
-    // Best-effort cache — ignore write failures (quota, private mode, etc.)
+  } catch (error) {
+    return {
+      ok: false,
+      reason: error instanceof Error ? error.message : "IndexedDB write failed",
+    };
   }
+
+  return {
+    ok: true,
+    fileCount: files.length,
+    uncompressedBytes,
+    compressedBytes: compressed.length,
+  };
 }
 
 async function hasNodeModules(wc: WebContainer): Promise<boolean> {
   try {
-    const entries = await wc.fs.readdir("/project/node_modules");
+    const entries = await wc.fs.readdir("node_modules");
     return entries.length > 0;
   } catch {
     return false;

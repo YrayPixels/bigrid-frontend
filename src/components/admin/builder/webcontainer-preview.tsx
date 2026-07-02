@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { CustomCodePreview } from "@/components/admin/builder/custom-code-preview";
 import { codeFs } from "@/lib/code-fs";
+import { WORK_DIR } from "@/lib/bolt/constants";
 import { hasPackageJson } from "@/lib/bolt/project-utils";
 import { seedBuildItUpIfNeeded } from "@/lib/bolt/seed-template";
 import {
@@ -14,6 +15,7 @@ import {
   syncCodeFsToWebContainer,
   startDevServer,
 } from "@/lib/bolt/webcontainer-runtime";
+import { cn } from "@/lib/utils";
 
 type PreviewStatus =
   | "idle"
@@ -27,7 +29,11 @@ type PreviewStatus =
   | "static"
   | "error";
 
-export function WebContainerPreview() {
+type WebContainerPreviewProps = {
+  className?: string;
+};
+
+export function WebContainerPreview({ className }: WebContainerPreviewProps) {
   const [status, setStatus] = useState<PreviewStatus>("idle");
   const [url, setUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -112,7 +118,7 @@ export function WebContainerPreview() {
 
         const fileCount = codeFs.listFiles().length;
         setStatus("mounting");
-        log(`Mounting project into /project… (${fileCount} files)`);
+        log(`Mounting project into ${WORK_DIR}… (${fileCount} files)`);
         await mountCodeFsToWebContainer({
           force: true,
           onProgress: ({ written, total, path }) => {
@@ -190,9 +196,11 @@ export function WebContainerPreview() {
     };
   }, [status, tick, url]);
 
+  const shell = cn("flex min-h-0 w-full flex-1 flex-col", className);
+
   if (!hasProject) {
     return (
-      <div className="flex min-h-[420px] flex-col items-center justify-center gap-2 px-6 py-10 text-center">
+      <div className={cn(shell, "items-center justify-center gap-2 px-6 py-10 text-center")}>
         <div className="text-sm font-semibold text-ink">WebContainer preview</div>
         <div className="max-w-sm text-sm text-ink-soft">No project files yet. Generate code to start.</div>
       </div>
@@ -201,8 +209,8 @@ export function WebContainerPreview() {
 
   if (status === "static") {
     return (
-      <div className="h-full min-h-[520px] w-full">
-        <CustomCodePreview />
+      <div className={shell}>
+        <CustomCodePreview className="min-h-0 flex-1" />
       </div>
     );
   }
@@ -210,22 +218,22 @@ export function WebContainerPreview() {
   if (status !== "ready" || !url) {
     const count = codeFs.listFiles().length;
     return (
-      <div className="flex min-h-[520px] flex-col items-center justify-center gap-3 px-6 py-10 text-center">
+      <div className={cn(shell, "items-center justify-center gap-3 px-6 py-10 text-center")}>
         <div className="inline-flex items-center gap-2 rounded-full bg-secondary px-4 py-2 text-sm text-ink-soft">
           <Loader2 className="h-4 w-4 animate-spin text-primary" />
           {status === "seeding"
             ? "Loading template…"
             : status === "booting"
               ? "Booting WebContainer…"
-                : status === "mounting"
+              : status === "mounting"
                 ? `Mounting project… (${count} files)`
                 : status === "restoring"
                   ? "Restoring dependencies…"
                   : status === "installing"
                     ? "Installing dependencies…"
-                  : status === "starting"
-                    ? "Starting dev server…"
-                    : "Preparing…"}
+                    : status === "starting"
+                      ? "Starting dev server…"
+                      : "Preparing…"}
         </div>
         {error ? <div className="max-w-lg text-sm text-destructive">{error}</div> : null}
         {logs ? (
@@ -241,11 +249,11 @@ export function WebContainerPreview() {
   }
 
   return (
-    <div className="h-full min-h-[520px] w-full">
+    <div className={shell}>
       <iframe
         title="WebContainer preview"
         src={url}
-        className="h-full w-full border-0"
+        className="min-h-0 w-full flex-1 border-0"
         sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
       />
     </div>

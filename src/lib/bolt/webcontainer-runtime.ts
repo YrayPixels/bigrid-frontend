@@ -1,10 +1,16 @@
 import type { WebContainer } from "@webcontainer/api";
 import { codeFs } from "@/lib/code-fs";
+import { WORK_DIR_NAME } from "@/lib/bolt/constants";
 import { readDepsKeyFromWebContainer, stableHash } from "@/lib/bolt/deps-key";
 import { mountPrebuiltNodeModulesSnapshot } from "@/lib/bolt/prebuilt-snapshot";
 import { codeFileToWebContainerData } from "@/lib/bolt/project-utils";
-import { restoreNodeModulesCache, saveNodeModulesCache } from "@/lib/bolt/webcontainer-deps-cache";
+import {
+  type NodeModulesCacheResult,
+  restoreNodeModulesCache,
+  saveNodeModulesCache,
+} from "@/lib/bolt/webcontainer-deps-cache";
 import { sanitizeTerminalOutput } from "@/lib/bolt/terminal-output";
+import { workdirRelative } from "@/lib/bolt/workdir-path";
 
 type PreviewInfo = { port: number; url: string };
 
@@ -88,7 +94,7 @@ export function onPreviewUrl(listener: (info: PreviewInfo | null) => void) {
 
 async function hasInstalledDependencies(wc: WebContainer): Promise<boolean> {
   try {
-    const entries = await wc.fs.readdir("/project/node_modules");
+    const entries = await wc.fs.readdir("node_modules");
     return entries.length > 0;
   } catch {
     return false;
@@ -123,7 +129,7 @@ export async function getWebContainer(): Promise<WebContainer> {
     const { WebContainer } = await import("@webcontainer/api");
     const wc = await WebContainer.boot({
       coep: "credentialless",
-      workdirName: "project",
+      workdirName: WORK_DIR_NAME,
     });
     state.container = wc;
     state.booting = null;
@@ -143,24 +149,20 @@ export async function mountCodeFsToWebContainer(opts?: {
   const hash = stableHash(files);
   if (!opts?.force && state.mountedHash === hash) return wc;
 
-  // Always mount into /project (bolt convention).
-  // WebContainer.mount can stall on larger trees; we use incremental writes
-  // for reliability and to allow progress logging.
-  await wc.fs.mkdir("/project", { recursive: true });
+  // WebContainer fs paths are relative to wc.workdir (/home/project).
   const createdDirs = new Set<string>();
   const total = files.length;
   let written = 0;
 
   for (const f of files) {
-    const rel = f.path.replace(/^\/+/, "");
-    if (!rel) continue;
-    const fullPath = `/project/${rel}`;
-    const dir = fullPath.split("/").slice(0, -1).join("/") || "/project";
-    if (!createdDirs.has(dir)) {
+    const rel = workdirRelative(wc, f.path);
+    if (!rel || rel === ".") continue;
+    const dir = rel.split("/").slice(0, -1).join("/");
+    if (dir && !createdDirs.has(dir)) {
       await wc.fs.mkdir(dir, { recursive: true });
       createdDirs.add(dir);
     }
-    await wc.fs.writeFile(fullPath, codeFileToWebContainerData(f));
+    await wc.fs.writeFile(rel, codeFileToWebContainerData(f));
     written += 1;
     opts?.onProgress?.({ written, total, path: rel });
   }
@@ -179,8 +181,9 @@ export async function syncCodeFsToWebContainer() {
   const files = codeFs.exportFiles();
   await Promise.all(
     files.map(async (f) => {
-      const p = `/project/${f.path.replace(/^\/+/, "")}`;
-      await wc.fs.writeFile(p, codeFileToWebContainerData(f));
+      const rel = workdirRelative(wc, f.path);
+      if (!rel || rel === ".") return;
+      await wc.fs.writeFile(rel, codeFileToWebContainerData(f));
     }),
   );
   state.mountedHash = stableHash(files);
@@ -202,39 +205,67 @@ function pipeProcessOutput(
   );
 }
 
+async function ensureHoistedPnpm(wc: WebContainer): Promise<void> {
+  const desired = "node-linker=hoisted\n";
+  try {
+    const existing = String(await wc.fs.readFile(".npmrc", "utf-8"));
+    if (existing.includes("node-linker=hoisted")) return;
+    if (!existing.endsWith("\n")) {
+      await wc.fs.writeFile(".npmrc", `${existing}\n${desired}`);
+      return;
+    }
+    await wc.fs.writeFile(".npmrc", `${existing}${desired}`);
+    return;
+  } catch {
+    // No .npmrc yet.
+  }
+  await wc.fs.writeFile(".npmrc", desired);
+}
+
 async function spawnDependencyInstall(
   wc: WebContainer,
   args?: { onOutput?: (chunk: string) => void },
 ) {
-  let installArgs = ["install"];
-  let label = "pnpm install";
+  await ensureHoistedPnpm(wc);
+
+  const installAttempts: Array<{ args: string[]; label: string }> = [{ args: ["install"], label: "pnpm install" }];
+
   try {
-    await wc.fs.readFile("/project/pnpm-lock.yaml", "utf-8");
-    installArgs = ["install", "--frozen-lockfile"];
-    label = "pnpm install --frozen-lockfile";
+    await wc.fs.readFile("pnpm-lock.yaml", "utf-8");
+    installAttempts.unshift({
+      args: ["install", "--frozen-lockfile"],
+      label: "pnpm install --frozen-lockfile",
+    });
   } catch {
     // No pnpm lockfile — fall back to a fresh install.
   }
 
-  const install = await wc.spawn("pnpm", installArgs, {
-    cwd: "/project",
-    env: {
-      CI: "true",
-      FORCE_COLOR: "0",
-    },
-  });
-  args?.onOutput?.(`Running ${label}…\n`);
-  pipeProcessOutput(install, args?.onOutput);
-  const exitCode = await install.exit;
-  if (exitCode !== 0) {
-    throw new Error(`${label} failed (exit ${exitCode})`);
+  let lastError: Error | null = null;
+  for (const attempt of installAttempts) {
+    const install = await wc.spawn("pnpm", attempt.args, {
+      env: {
+        CI: "true",
+        FORCE_COLOR: "0",
+      },
+    });
+    args?.onOutput?.(`Running ${attempt.label}…\n`);
+    pipeProcessOutput(install, args?.onOutput);
+    const exitCode = await install.exit;
+    if (exitCode === 0) return;
+    lastError = new Error(`${attempt.label} failed (exit ${exitCode})`);
+    if (attempt.args.includes("--frozen-lockfile")) {
+      args?.onOutput?.("Frozen lockfile install failed; retrying without --frozen-lockfile…\n");
+    }
   }
+
+  throw lastError ?? new Error("pnpm install failed");
 }
 
 export async function ensureDependenciesInstalled(args?: {
   onOutput?: (chunk: string) => void;
   onRestoreProgress?: (info: { written: number; total: number; source: "snapshot" | "cache" }) => void;
   onRestored?: (source: "snapshot" | "cache") => void;
+  onCacheSaved?: (result: NodeModulesCacheResult) => void;
 }) {
   const wc = await getWebContainer();
   if (state.installed) return wc;
@@ -267,7 +298,8 @@ export async function ensureDependenciesInstalled(args?: {
   state.installed = true;
 
   if (depsKey) {
-    void saveNodeModulesCache(wc, depsKey);
+    const cacheResult = await saveNodeModulesCache(wc, depsKey);
+    args?.onCacheSaved?.(cacheResult);
   }
 
   return wc;
@@ -289,7 +321,6 @@ export async function startDevServer(args?: {
   }
 
   const proc = await wc.spawn("pnpm", ["run", "dev", "--", "--host", "0.0.0.0"], {
-    cwd: "/project",
     env: {
       FORCE_COLOR: "0",
     },

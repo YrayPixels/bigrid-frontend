@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "build:wc-snapshot": "node scripts/build-wc-snapshot.mjs"
+    "build:wc-snapshot": "NODE_OPTIONS='--max-old-space-size=12288' node scripts/build-wc-snapshot.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.1.2",

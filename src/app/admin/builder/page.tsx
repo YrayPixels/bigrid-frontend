@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Sparkles } from "lucide-react";
+import { Code2, Loader2, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { BuilderChatPanel } from "@/components/admin/builder/builder-chat-panel";
@@ -12,14 +12,11 @@ import { BuilderProgress } from "@/components/admin/builder/builder-progress";
 import { BuilderThinkingLogSheet } from "@/components/admin/builder/builder-thinking-log-sheet";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api/client";
-import { codeFs } from "@/lib/code-fs";
-import { seedBuildItUpIfNeeded } from "@/lib/bolt/seed-template";
-import { needsBoltTemplateSeed } from "@/lib/bolt/project-utils";
 import {
   applyBuilderBrandColor,
   applyBuilderMedia,
   asConcreteTemplateId,
-  streamAndPersistBuilderMessage,
+  processBuilderMessage,
 } from "@/lib/storefront-builder/client";
 import {
   STOREFRONT_TEMPLATE_OPTIONS,
@@ -93,19 +90,11 @@ export default function AdminBuilderPage() {
   useEffect(() => {
     if (session?.storefront_snapshot) {
       setLocalStorefront(session.storefront_snapshot);
-      const snapshot = session.storefront_snapshot as Record<string, unknown>;
-      const customFiles = snapshot.custom_files as unknown;
-      if (Array.isArray(customFiles)) {
-        codeFs.loadFiles(customFiles as never);
-        if (needsBoltTemplateSeed(customFiles as never)) {
-          void seedBuildItUpIfNeeded(customFiles as never);
-        }
-      }
     }
   }, [session?.storefront_snapshot]);
 
   const handleSessionResponse = async (
-    data: Awaited<ReturnType<typeof streamAndPersistBuilderMessage>>,
+    data: Awaited<ReturnType<typeof processBuilderMessage>>,
   ) => {
     queryClient.setQueryData(["builder-session"], data);
     const nextStorefront = data.storefront ?? data.session?.storefront_snapshot ?? null;
@@ -138,14 +127,10 @@ export default function AdminBuilderPage() {
       setThinkingStreaming(true);
 
       try {
-        return await streamAndPersistBuilderMessage({
+        return await processBuilderMessage({
           session: activeSession as BuilderSession,
           message,
           templateOptions,
-          onLog: (entry) => {
-            thinkingRunRef.current = [...thinkingRunRef.current, entry];
-            setThinkingEntries(thinkingRunRef.current);
-          },
         });
       } finally {
         setThinkingEntries([]);
@@ -270,15 +255,27 @@ export default function AdminBuilderPage() {
           <div>
             <p className="text-xs font-medium uppercase tracking-wide text-ink-soft">{BUILDER_PAGE.eyebrow}</p>
             <h1 className="mt-1 font-display text-3xl font-bold tracking-tight">{BUILDER_PAGE.title}</h1>
-            <p className="mt-1 text-sm text-ink-soft">{BUILDER_PAGE.subtitle}</p>
+            <p className="mt-1 text-sm text-ink-soft">
+              Pick a template design and refine your storefront layout. Use the code workbench for custom
+              site code and AI edits.
+            </p>
           </div>
-          <Link
-            href="/admin/builder/thinking"
-            className="inline-flex items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2 text-xs font-medium text-ink-soft hover:text-ink"
-          >
-            <Sparkles className="h-3.5 w-3.5" />
-            AI thinking log
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href="/admin/builder/workbench"
+              className="inline-flex items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2 text-xs font-medium text-ink-soft hover:text-ink"
+            >
+              <Code2 className="h-3.5 w-3.5" />
+              Code workbench
+            </Link>
+            <Link
+              href="/admin/builder/thinking"
+              className="inline-flex items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2 text-xs font-medium text-ink-soft hover:text-ink"
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              AI thinking log
+            </Link>
+          </div>
         </div>
         <BuilderProgress status={session.status} />
       </div>

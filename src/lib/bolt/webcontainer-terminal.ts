@@ -20,10 +20,9 @@ export async function attachWebContainerShell(args: {
   cwd?: string;
 }): Promise<WebContainerShell> {
   const wc = await getWebContainer();
-  const cwd = args.cwd ?? "/project";
 
   const process = await wc.spawn("/bin/jsh", ["--osc"], {
-    cwd,
+    ...(args.cwd ? { cwd: args.cwd } : {}),
     terminal: {
       cols: args.terminal.cols ?? 80,
       rows: args.terminal.rows ?? 15,
@@ -77,9 +76,10 @@ export async function runWebContainerCommand(args: {
   onOutput?: (chunk: string) => void;
 }) {
   const wc = await getWebContainer();
-  const cwd = args.cwd ?? "/project";
 
-  const proc = await wc.spawn("sh", ["-lc", args.command], { cwd });
+  const proc = await wc.spawn("sh", ["-lc", args.command], {
+    ...(args.cwd ? { cwd: args.cwd } : {}),
+  });
 
   proc.output.pipeTo(
     new WritableStream({

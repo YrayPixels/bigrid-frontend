@@ -16,6 +16,7 @@ import { BuilderTemplateRecommendations } from "@/components/admin/builder/build
 import { BuilderThinkingLogCompact } from "@/components/admin/builder/builder-thinking-log-compact";
 import { BUILDER_CHAT_HEADER } from "@/lib/storefront-builder/copy";
 import { getLatestSuggestedActions } from "@/lib/storefront-builder/suggested-actions";
+import { cn } from "@/lib/utils";
 import type { AgentThinkingLogEntry } from "@/lib/storefront-builder/agents/types";
 
 export function BuilderChatPanel({
@@ -28,6 +29,8 @@ export function BuilderChatPanel({
   hasThinkingHistory = false,
   templateOptions = [],
   selectingTemplate = false,
+  variant = "template",
+  embedded = false,
   onOpenThinkingLog,
   onSendMessage,
   onApplyColor,
@@ -45,6 +48,8 @@ export function BuilderChatPanel({
   hasThinkingHistory?: boolean;
   templateOptions?: StorefrontTemplateOption[];
   selectingTemplate?: boolean;
+  variant?: "template" | "code";
+  embedded?: boolean;
   onOpenThinkingLog?: () => void;
   onSendMessage: (message: string) => void;
   onApplyColor: (color: string, label: string) => void;
@@ -73,13 +78,15 @@ export function BuilderChatPanel({
     (option): option is StorefrontTemplateOption & { value: StorefrontTemplateId } =>
       option.value !== "ai_pick",
   );
+  const isCodeVariant = variant === "code";
   const showInitialTemplatePicker =
+    !isCodeVariant &&
     !session.storefront_snapshot &&
     session.recommendations.length > 0 &&
     concreteTemplateOptions.length > 0 &&
     onSelectTemplate;
   const showDesignSwitcher =
-    !!session.storefront_snapshot && concreteTemplateOptions.length > 0 && onSelectTemplate;
+    !isCodeVariant && !!session.storefront_snapshot && concreteTemplateOptions.length > 0 && onSelectTemplate;
   const showTemplatePicker = showInitialTemplatePicker || (showDesignSwitcher && designPickerOpen);
 
   useEffect(() => {
@@ -179,12 +186,22 @@ export function BuilderChatPanel({
   }
 
   const canClear = session.messages.length > 0 && onClearChat && !busy;
-  const inputPlaceholder = session.storefront_snapshot
-    ? 'Try "Switch to a cozy candle shop with warm earthy colors" or pick a design below'
-    : "Tell me about your business — what you sell, who it's for, and the vibe you want...";
+  const inputPlaceholder = isCodeVariant
+    ? 'Try "Make the hero darker" or "Add a product grid below the header"'
+    : session.storefront_snapshot
+      ? 'Try "Switch to a cozy candle shop with warm earthy colors" or pick a design below'
+      : "Tell me about your business — what you sell, who it's for, and the vibe you want...";
+  const headerSubtitle = isCodeVariant
+    ? "Prompt the AI to edit your site code. Changes show in the editor and preview."
+    : BUILDER_CHAT_HEADER.subtitle;
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-soft">
+    <div
+      className={cn(
+        "flex h-full min-h-0 min-w-0 flex-col overflow-hidden",
+        embedded ? "bg-background" : "rounded-2xl border border-border bg-card shadow-soft",
+      )}
+    >
       <input
         ref={fileInputRef}
         type="file"
@@ -207,7 +224,7 @@ export function BuilderChatPanel({
               <Sparkles className="h-4 w-4 text-primary" />
               {BUILDER_CHAT_HEADER.title}
             </div>
-            <p className="mt-1 text-sm text-ink-soft">{BUILDER_CHAT_HEADER.subtitle}</p>
+            <p className="mt-1 text-sm text-ink-soft">{headerSubtitle}</p>
           </div>
           {hasThinkingHistory || thinkingStreaming ? (
             <button
@@ -247,7 +264,7 @@ export function BuilderChatPanel({
           </div>
         ) : null}
 
-        {!busy ? (
+        {!busy && !isCodeVariant ? (
           <BuilderSuggestedActions
             actions={suggestedActions}
             disabled={busy}

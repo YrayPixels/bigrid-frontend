@@ -3,10 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import { Code2, LayoutTemplate, Loader2 } from "lucide-react";
 import { codeFs } from "@/lib/code-fs";
+import { cn } from "@/lib/utils";
 
 type PreviewMode = "template" | "custom";
 
-export function CustomCodePreview({ html }: { html?: string }) {
+export function CustomCodePreview({ html, className }: { html?: string; className?: string }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [loaded, setLoaded] = useState(false);
   const [key, setKey] = useState(0);
@@ -38,7 +39,7 @@ export function CustomCodePreview({ html }: { html?: string }) {
   if (!html && codeFs.listFiles().length === 0) return null;
 
   return (
-    <div className="relative h-full min-h-[500px] w-full">
+    <div className={cn("relative flex min-h-0 w-full flex-1 flex-col", className)}>
       {!loaded ? (
         <div className="absolute inset-0 flex items-center justify-center bg-background">
           <Loader2 className="h-5 w-5 animate-spin text-primary" />
@@ -47,7 +48,7 @@ export function CustomCodePreview({ html }: { html?: string }) {
       <iframe
         ref={iframeRef}
         title="Custom storefront preview"
-        className="h-full w-full border-0"
+        className="min-h-0 w-full flex-1 border-0"
         sandbox="allow-scripts allow-same-origin"
         style={{ opacity: loaded ? 1 : 0 }}
       />
