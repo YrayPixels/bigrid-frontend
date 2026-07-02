@@ -40,5 +40,5 @@ const ResizableHandle = ({
 );
 
 export { ResizablePanelGroup, ResizablePanel, ResizableHandle };
-export { usePanelRef } from "react-resizable-panels";
-export type { PanelImperativeHandle } from "react-resizable-panels";
+export { useGroupRef, usePanelRef } from "react-resizable-panels";
+export type { GroupImperativeHandle, PanelImperativeHandle } from "react-resizable-panels";

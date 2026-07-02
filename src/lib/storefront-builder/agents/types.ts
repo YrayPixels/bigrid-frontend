@@ -6,6 +6,9 @@ import type {
   StorefrontTemplateOption,
   StorefrontTemplateRecommendation,
 } from "@/lib/api/types";
+import type { BoltStreamCallbacks } from "@/lib/bolt/bolt-stream";
+import type { WorkbenchContextHints } from "@/lib/bolt/select-context";
+import type { BuilderChatHistoryEntry } from "@/lib/storefront-builder/chat-history";
 
 export type WebsiteBuilderToolName =
   | "capture_business_details"
@@ -44,6 +47,10 @@ export type WebsiteBuilderContext = {
   assistantMessage: string;
   status: BuilderSession["status"];
   payload: Record<string, unknown>;
+  lockedPaths?: string[];
+  boltStream?: BoltStreamCallbacks;
+  chatHistory?: BuilderChatHistoryEntry[];
+  contextHints?: WorkbenchContextHints;
 };
 
 export type AgentActivityPayload = {

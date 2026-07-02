@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Circle, Globe, Sparkles, Wand2 } from "lucide-react";
+import { Check, Circle, FileCode2, Globe, Sparkles, Wand2 } from "lucide-react";
 import type { BuilderMessage } from "@/lib/api/types";
 import { isTechnicalEditMessage } from "@/lib/storefront-builder/edit-summary";
 import { BuilderColorFeedback } from "@/components/admin/builder/builder-suggested-actions";
@@ -72,6 +72,10 @@ function publicToolLabel(name: string, changedPaths?: string[]) {
       return "Analyzing product image";
     case "ask_clarifying_question":
       return "Asking for details";
+    case "edit_custom_site_code":
+      return "Editing site code";
+    case "generate_custom_site":
+      return "Generating custom site";
     default:
       return "Working on your website";
   }
@@ -255,6 +259,52 @@ export function BuilderMessageWidgets({
               ))}
             </div>
           </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  if (type === "custom_site_edited" || type === "custom_site_generated") {
+    const boltLog = Array.isArray(payload.bolt_action_log)
+      ? (payload.bolt_action_log as Array<{
+          ok?: boolean;
+          error?: string;
+          action?: { type?: string; filePath?: string };
+        }>)
+      : [];
+    const files = Array.isArray(payload.files) ? (payload.files as string[]) : [];
+
+    return (
+      <div className="mt-3 space-y-2 rounded-xl border border-border bg-background p-3">
+        <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+          <FileCode2 className="h-3.5 w-3.5" />
+          {type === "custom_site_generated" ? "Custom site generated" : "Code updated"}
+        </div>
+        {files.length > 0 ? (
+          <ul className="space-y-1 text-[12px] text-ink-soft">
+            {files.map((path) => (
+              <li key={path} className="truncate font-mono text-ink">
+                {path}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        {boltLog.length > 0 ? (
+          <ul className="space-y-1 text-[11px] text-ink-soft">
+            {boltLog.map((entry, index) => (
+              <li key={`${entry.action?.filePath ?? index}`} className="flex items-center gap-2">
+                {entry.ok ? (
+                  <Check className="h-3.5 w-3.5 shrink-0 text-primary" />
+                ) : (
+                  <Circle className="h-3.5 w-3.5 shrink-0 text-destructive" />
+                )}
+                <span className="truncate font-mono">
+                  {entry.action?.filePath ?? entry.action?.type ?? "action"}
+                  {entry.error ? ` — ${entry.error}` : ""}
+                </span>
+              </li>
+            ))}
+          </ul>
         ) : null}
       </div>
     );

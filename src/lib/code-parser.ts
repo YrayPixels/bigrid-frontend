@@ -32,6 +32,8 @@ type ParserState = {
 export type BoltParserHandlers = {
   onArtifactStart?: (info: BoltArtifactInfo) => void;
   onArtifactEnd?: () => void;
+  onActionOpen?: (action: BoltAction) => void;
+  onActionStream?: (action: BoltAction) => void;
   onAction?: (action: BoltAction) => void;
 };
 
@@ -58,6 +60,17 @@ export function createCodeParser(handlers: BoltParserHandlers = {}) {
     currentAction: null,
     buffer: "",
   };
+
+  function emitActionStream() {
+    if (!state.insideAction || !state.currentAction?.type) return;
+    const streamingAction: BoltAction = {
+      type: state.currentAction.type as BoltActionType,
+      filePath: state.currentAction.filePath,
+      attrs: state.currentAction.attrs,
+      content: (state.currentAction.content ?? "") + state.buffer,
+    };
+    handlers.onActionStream?.(streamingAction);
+  }
 
   function feed(chunk: string) {
     state.buffer += chunk;
@@ -100,6 +113,12 @@ export function createCodeParser(handlers: BoltParserHandlers = {}) {
             attrs,
             content: "",
           };
+          handlers.onActionOpen?.({
+            type: actionStart[1] as BoltActionType,
+            filePath: attrs.filePath,
+            attrs,
+            content: "",
+          });
           state.buffer = state.buffer.slice((actionStart.index ?? 0) + actionStart[0].length);
           continue;
         }
@@ -123,11 +142,13 @@ export function createCodeParser(handlers: BoltParserHandlers = {}) {
       // Inside an action, wait for a full close tag.
       const actionClose = state.buffer.match(/<\/boltAction>/i);
       if (!actionClose) {
+        emitActionStream();
         // Prevent unbounded memory growth; move through buffer gradually.
         if (state.buffer.length > 4096) {
           const take = state.buffer.slice(0, 2048);
           state.currentAction!.content = (state.currentAction!.content ?? "") + take;
           state.buffer = state.buffer.slice(2048);
+          emitActionStream();
         }
         break;
       }

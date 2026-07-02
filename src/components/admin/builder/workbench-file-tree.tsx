@@ -115,11 +115,19 @@ type WorkbenchFileTreeProps = {
   paths: string[];
   selectedPath: string;
   dirtyPath?: string | null;
+  streamingPaths?: Set<string>;
   onSelect: (path: string) => void;
   className?: string;
 };
 
-export function WorkbenchFileTree({ paths, selectedPath, dirtyPath, onSelect, className }: WorkbenchFileTreeProps) {
+export function WorkbenchFileTree({
+  paths,
+  selectedPath,
+  dirtyPath,
+  streamingPaths,
+  onSelect,
+  className,
+}: WorkbenchFileTreeProps) {
   const fileList = useMemo(() => buildFileTree(paths), [paths]);
 
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(() => new Set());
@@ -193,6 +201,7 @@ export function WorkbenchFileTree({ paths, selectedPath, dirtyPath, onSelect, cl
         const paddingLeft = 6 + node.depth * NODE_PADDING;
         const isSelected = selectedPath === node.fullPath;
         const isDirty = dirtyPath === node.fullPath;
+        const isStreaming = streamingPaths?.has(node.fullPath) ?? false;
 
         if (node.kind === "folder") {
           const collapsed = collapsedFolders.has(node.fullPath);
@@ -229,6 +238,7 @@ export function WorkbenchFileTree({ paths, selectedPath, dirtyPath, onSelect, cl
             className={cn(
               "flex w-full items-center gap-1.5 rounded-sm py-0.5 pr-2 text-left",
               isSelected ? "bg-primary/10 font-medium text-ink" : "text-ink-soft hover:bg-secondary/80 hover:text-ink",
+              isStreaming ? "ring-1 ring-primary/30" : null,
             )}
             style={{ paddingLeft: paddingLeft + CHEVRON_WIDTH }}
           >
@@ -236,6 +246,8 @@ export function WorkbenchFileTree({ paths, selectedPath, dirtyPath, onSelect, cl
             <span className="truncate">{node.name}</span>
             {isDirty ? (
               <span className="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-primary" title="Unsaved changes" />
+            ) : isStreaming ? (
+              <span className="ml-auto h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-primary" title="AI writing" />
             ) : null}
           </button>
         );

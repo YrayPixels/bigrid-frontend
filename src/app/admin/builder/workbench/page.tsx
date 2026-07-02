@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FileCode2, Loader2, Lock, PanelLeft, Save, Sparkles, Terminal, Unlock } from "lucide-react";
 import { toast } from "sonner";
@@ -10,6 +10,10 @@ import { BuilderChatPanel } from "@/components/admin/builder/builder-chat-panel"
 import { BuilderThinkingLogSheet } from "@/components/admin/builder/builder-thinking-log-sheet";
 import { WorkbenchCodeEditor } from "@/components/admin/builder/workbench-code-editor";
 import { WorkbenchFileTree } from "@/components/admin/builder/workbench-file-tree";
+import {
+  WorkbenchLiveActions,
+  type LiveBoltAction,
+} from "@/components/admin/builder/workbench-live-actions";
 import { CollapsedPanelRail, WorkbenchPanelHeader, useWorkbenchPanelCollapsed } from "@/components/admin/builder/workbench-panel-header";
 import { WebContainerPreview } from "@/components/admin/builder/webcontainer-preview";
 import { WebContainerTerminalPanel } from "@/components/admin/builder/webcontainer-terminal-panel";
@@ -17,6 +21,7 @@ import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
+  useGroupRef,
   usePanelRef,
 } from "@/components/ui/resizable";
 import { useAuth } from "@/lib/auth-context";
@@ -30,7 +35,10 @@ import {
   applyBuilderBrandColor,
   applyBuilderMedia,
   streamAndPersistBuilderMessage,
+  type BoltStreamCallbacks,
+  type WorkbenchContextHints,
 } from "@/lib/storefront-builder/client";
+import { lastWrittenPathsFromSession } from "@/lib/bolt/select-context";
 import type { AgentThinkingLogEntry } from "@/lib/storefront-builder/agents/types";
 import {
   extractThinkingLogTurns,
@@ -44,6 +52,33 @@ function toFileMap(files: FileEntry[]) {
   const map = new Map<string, string>();
   for (const file of files) map.set(file.path, file.content);
   return map;
+}
+
+function computeModifiedPaths(baseline: FileEntry[], current: FileEntry[]): string[] {
+  const baseMap = toFileMap(baseline);
+  const modified = new Set<string>();
+  for (const file of current) {
+    if (baseMap.get(file.path) !== file.content) modified.add(file.path);
+  }
+  for (const path of baseMap.keys()) {
+    if (!current.some((file) => file.path === path)) modified.add(path);
+  }
+  return [...modified];
+}
+
+function actionLiveId(action: { type: string; filePath?: string; content: string }): string {
+  return action.filePath ?? `${action.type}:${action.content.slice(0, 48)}`;
+}
+
+function snapshotHasCustomFiles(storefront: StorefrontContent | null | undefined): boolean {
+  const snapshot = storefront as Record<string, unknown> | null | undefined;
+  if (Array.isArray(snapshot?.custom_files) && (snapshot.custom_files as unknown[]).length > 0) {
+    return true;
+  }
+  if (typeof snapshot?.custom_code === "string" && snapshot.custom_code.trim()) {
+    return true;
+  }
+  return false;
 }
 
 function loadSnapshotIntoCodeFs(storefront: StorefrontContent | null | undefined) {
@@ -72,12 +107,13 @@ function loadSnapshotIntoCodeFs(storefront: StorefrontContent | null | undefined
 function useCodeFsFiles() {
   const [tick, setTick] = useState(0);
   useEffect(() => codeFs.onUpdate(() => setTick((v) => v + 1)), []);
-  return useMemo(() => {
+  const files = useMemo(() => {
     void tick;
-    const files = codeFs.exportFiles();
-    files.sort((a, b) => a.path.localeCompare(b.path));
-    return files;
+    const exported = codeFs.exportFiles();
+    exported.sort((a, b) => a.path.localeCompare(b.path));
+    return exported;
   }, [tick]);
+  return { files, tick };
 }
 
 export default function AdminBuilderWorkbenchPage() {
@@ -91,6 +127,10 @@ export default function AdminBuilderWorkbenchPage() {
   const thinkingRunRef = useRef<AgentThinkingLogEntry[]>([]);
   const baselineFilesRef = useRef<FileEntry[]>([]);
   const [lockedPaths, setLockedPaths] = useState<Set<string>>(new Set());
+  const [aiStreaming, setAiStreaming] = useState(false);
+  const [liveActions, setLiveActions] = useState<LiveBoltAction[]>([]);
+  const liveActionsRef = useRef<Map<string, LiveBoltAction>>(new Map());
+  const [shellLog, setShellLog] = useState("");
 
   const sessionQuery = useQuery({
     queryKey: ["builder-session"],
@@ -138,7 +178,7 @@ export default function AdminBuilderWorkbenchPage() {
     }
   }, [storefront]);
 
-  const files = useCodeFsFiles();
+  const { files, tick: codeFsTick } = useCodeFsFiles();
   const [selectedPath, setSelectedPath] = useState<string>("index.html");
   const [draft, setDraft] = useState<string>("");
   const [dirty, setDirty] = useState(false);
@@ -148,10 +188,80 @@ export default function AdminBuilderWorkbenchPage() {
   const filesPanelRef = usePanelRef();
   const editorPanelRef = usePanelRef();
   const previewPanelRef = usePanelRef();
+  const outerGroupRef = useGroupRef();
+  const innerGroupRef = useGroupRef();
   const chatPanel = useWorkbenchPanelCollapsed();
   const filesPanel = useWorkbenchPanelCollapsed();
   const editorPanel = useWorkbenchPanelCollapsed();
   const previewPanel = useWorkbenchPanelCollapsed();
+
+  const allWorkspaceCollapsed =
+    filesPanel.collapsed && editorPanel.collapsed && previewPanel.collapsed;
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      const outer = outerGroupRef.current;
+      if (!outer) return;
+      if (allWorkspaceCollapsed) {
+        outer.setLayout({
+          "workbench-chat": 90,
+          "workbench-workspace": 10,
+        });
+        return;
+      }
+      const layout = outer.getLayout();
+      if (layout["workbench-chat"] > 50) {
+        outer.setLayout({
+          "workbench-chat": 22,
+          "workbench-workspace": 78,
+        });
+      }
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [allWorkspaceCollapsed, outerGroupRef]);
+
+  useEffect(() => {
+    if (allWorkspaceCollapsed) return;
+    const frame = requestAnimationFrame(() => {
+      const inner = innerGroupRef.current;
+      if (!inner) return;
+
+      const collapsed = {
+        "workbench-files": filesPanel.collapsed,
+        "workbench-editor": editorPanel.collapsed,
+        "workbench-preview": previewPanel.collapsed,
+      };
+      const collapsedCount = Object.values(collapsed).filter(Boolean).length;
+      if (collapsedCount === 0) return;
+
+      const remaining = 100 - collapsedCount * 5;
+      const weights = {
+        "workbench-files": 18,
+        "workbench-editor": 34,
+        "workbench-preview": 48,
+      };
+      const openIds = (["workbench-files", "workbench-editor", "workbench-preview"] as const).filter(
+        (id) => !collapsed[id],
+      );
+      const weightSum = openIds.reduce((sum, id) => sum + weights[id], 0);
+      const layout: Record<string, number> = {};
+      for (const [id, isCollapsed] of Object.entries(collapsed)) {
+        if (isCollapsed) layout[id] = 5;
+      }
+      for (const id of openIds) {
+        layout[id] = (weights[id] / weightSum) * remaining;
+      }
+      inner.setLayout(layout);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [
+    allWorkspaceCollapsed,
+    filesPanel.collapsed,
+    editorPanel.collapsed,
+    previewPanel.collapsed,
+    innerGroupRef,
+  ]);
+
   const baselineMap = useMemo(() => toFileMap(baselineFilesRef.current), [storefront, files.length]);
 
   useEffect(() => {
@@ -162,9 +272,65 @@ export default function AdminBuilderWorkbenchPage() {
 
   useEffect(() => {
     const content = codeFs.readFile(selectedPath) ?? "";
-    setDraft(content);
-    setDirty(false);
-  }, [selectedPath, files.length]);
+    if (!dirty || aiStreaming) {
+      setDraft(content);
+      if (aiStreaming) setDirty(false);
+    }
+  }, [selectedPath, codeFsTick, dirty, aiStreaming]);
+
+  const streamingPaths = useMemo(
+    () =>
+      new Set(
+        liveActions
+          .filter((entry) => entry.status === "streaming" && entry.action.filePath)
+          .map((entry) => entry.action.filePath!),
+      ),
+    [liveActions],
+  );
+
+  const upsertLiveAction = useCallback((entry: LiveBoltAction) => {
+    liveActionsRef.current.set(entry.id, entry);
+    setLiveActions([...liveActionsRef.current.values()]);
+  }, []);
+
+  const boltStream = useMemo<BoltStreamCallbacks>(
+    () => ({
+      onActionOpen: (action) => {
+        const id = actionLiveId(action);
+        upsertLiveAction({
+          id,
+          action,
+          status: "streaming",
+        });
+        if (action.type === "file" && action.filePath) {
+          setSelectedPath((prev) =>
+            prev === "index.html" && files.length > 1 ? action.filePath! : prev || action.filePath!,
+          );
+        }
+      },
+      onActionStream: (action) => {
+        if (action.type !== "file" || !action.filePath) return;
+        upsertLiveAction({
+          id: action.filePath,
+          action,
+          status: "streaming",
+        });
+      },
+      onActionComplete: (action, result) => {
+        const id = actionLiveId(action);
+        upsertLiveAction({
+          id,
+          action,
+          status: result.ok ? "complete" : "failed",
+          error: result.ok ? undefined : result.error,
+        });
+      },
+      onShellOutput: (chunk) => {
+        setShellLog((prev) => (prev + chunk).slice(-12_000));
+      },
+    }),
+    [files.length, upsertLiveAction],
+  );
 
   const isLocked = lockedPaths.has(selectedPath);
 
@@ -187,7 +353,8 @@ export default function AdminBuilderWorkbenchPage() {
   ) => {
     queryClient.setQueryData(["builder-session"], data);
     const nextStorefront = data.storefront ?? data.session?.storefront_snapshot ?? null;
-    if (nextStorefront) {
+    const localHasFiles = codeFs.listFiles().length > 0;
+    if (nextStorefront && (snapshotHasCustomFiles(nextStorefront) || !localHasFiles)) {
       const loaded = loadSnapshotIntoCodeFs(nextStorefront);
       if (loaded.length > 0) {
         baselineFilesRef.current = loaded;
@@ -204,18 +371,47 @@ export default function AdminBuilderWorkbenchPage() {
       setPendingUserMessage(message);
       setThinkingEntries([]);
       setThinkingStreaming(true);
+      setAiStreaming(true);
+      liveActionsRef.current = new Map();
+      setLiveActions([]);
+      setShellLog("");
 
       try {
+        const currentFiles = codeFs.exportFiles();
+        const contextHints: WorkbenchContextHints = {
+          selectedPath,
+          modifiedPaths: computeModifiedPaths(baselineFilesRef.current, currentFiles),
+          lastWrittenPaths: lastWrittenPathsFromSession(activeSession.messages),
+        };
+
+        const sessionWithLocks: BuilderSession = {
+          ...(activeSession as BuilderSession),
+          storefront_snapshot: {
+            ...((activeSession as BuilderSession).storefront_snapshot ?? ({} as StorefrontContent)),
+            edit_metadata: {
+              ...(((activeSession as BuilderSession).storefront_snapshot?.edit_metadata ?? {}) as Record<
+                string,
+                unknown
+              >),
+              locked_paths: [...lockedPaths],
+            } as never,
+          },
+        };
+
         return await streamAndPersistBuilderMessage({
-          session: activeSession as BuilderSession,
+          session: sessionWithLocks,
           message,
           templateOptions,
+          lockedPaths: [...lockedPaths],
+          boltStream,
+          contextHints,
           onLog: (entry) => {
             thinkingRunRef.current = [...thinkingRunRef.current, entry];
             setThinkingEntries(thinkingRunRef.current);
           },
         });
       } finally {
+        setAiStreaming(false);
         setThinkingEntries([]);
         setThinkingStreaming(false);
         setPendingUserMessage("");
@@ -365,13 +561,17 @@ export default function AdminBuilderWorkbenchPage() {
       </div>
 
       <div className="min-h-0 min-w-0 flex-1 overflow-hidden rounded-2xl border border-border bg-card shadow-soft">
-        <ResizablePanelGroup id="workbench-main" orientation="horizontal" className="h-full min-h-0">
+        <ResizablePanelGroup
+          id="workbench-main"
+          groupRef={outerGroupRef}
+          orientation="horizontal"
+          className="h-full min-h-0"
+        >
           <ResizablePanel
             id="workbench-chat"
             panelRef={chatPanelRef}
             defaultSize={22}
             minSize={16}
-            maxSize={36}
             collapsible
             collapsedSize={5}
             onResize={chatPanel.onResize}
@@ -387,6 +587,11 @@ export default function AdminBuilderWorkbenchPage() {
               ) : (
                 <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
                   <WorkbenchPanelHeader title="AI Chat" panelRef={chatPanelRef} collapseSide="left" />
+                  {(aiStreaming || liveActions.length > 0 || shellLog) ? (
+                    <div className="shrink-0 border-b border-border px-3 py-2">
+                      <WorkbenchLiveActions actions={liveActions} streaming={aiStreaming} shellLog={shellLog} />
+                    </div>
+                  ) : null}
                   <BuilderChatPanel
                     embedded
                     session={session as BuilderSession}
@@ -410,14 +615,18 @@ export default function AdminBuilderWorkbenchPage() {
 
           <ResizableHandle withHandle />
 
-          <ResizablePanel id="workbench-workspace" defaultSize={78} minSize={40} className="min-h-0 min-w-0">
-            <ResizablePanelGroup id="workbench-workspace" orientation="horizontal" className="h-full min-h-0">
+          <ResizablePanel id="workbench-workspace" defaultSize={78} minSize={24} className="min-h-0 min-w-0">
+            <ResizablePanelGroup
+              id="workbench-workspace-inner"
+              groupRef={innerGroupRef}
+              orientation="horizontal"
+              className="h-full min-h-0"
+            >
               <ResizablePanel
                 id="workbench-files"
                 panelRef={filesPanelRef}
                 defaultSize={18}
                 minSize={12}
-                maxSize={30}
                 collapsible
                 collapsedSize={5}
                 onResize={filesPanel.onResize}
@@ -438,6 +647,7 @@ export default function AdminBuilderWorkbenchPage() {
                           paths={files.map((f) => f.path)}
                           selectedPath={selectedPath}
                           dirtyPath={dirty ? selectedPath : null}
+                          streamingPaths={streamingPaths}
                           onSelect={setSelectedPath}
                         />
                       </div>

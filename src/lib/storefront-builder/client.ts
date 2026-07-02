@@ -21,11 +21,13 @@ import {
   synthesizeStorefront,
 } from "@/lib/storefront-builder/local-ai";
 import { streamBuilderThinkingTurn } from "@/lib/storefront-builder/thinking-stream";
-import { buildBuilderChatHistory } from "@/lib/storefront-builder/chat-history";
+import { buildBuilderChatHistory, type BuilderChatHistoryEntry } from "@/lib/storefront-builder/chat-history";
 import { alignStorefrontTemplateToSelection } from "@/lib/storefront/template";
 import { websiteBuilderToolsForSession } from "@/lib/storefront-builder/agents/tools";
 import { seedBuildItUpIfNeeded } from "@/lib/bolt/seed-template";
 import { needsBoltTemplateSeed } from "@/lib/bolt/project-utils";
+import type { BoltStreamCallbacks } from "@/lib/bolt/bolt-stream";
+import type { WorkbenchContextHints } from "@/lib/bolt/select-context";
 import { codeFs, type CodeFile } from "@/lib/code-fs";
 
 export function asConcreteTemplateId(value: string | null | undefined): StorefrontTemplateId | undefined {
@@ -70,8 +72,13 @@ async function runBoltCustomTurn(args: {
   message: string;
   templateOptions: StorefrontTemplateOption[];
   recommendations: BuilderSession["recommendations"];
+  lockedPaths?: string[];
+  boltStream?: BoltStreamCallbacks;
+  chatHistory?: BuilderChatHistoryEntry[];
+  contextHints?: WorkbenchContextHints;
 }): Promise<BuilderAiTurn> {
-  const { session, message, templateOptions, recommendations } = args;
+  const { session, message, templateOptions, recommendations, lockedPaths, boltStream, chatHistory, contextHints } =
+    args;
   const toolDefs = websiteBuilderToolsForSession(session);
   const generateTool = toolDefs.find((t) => t.name === "generate_custom_site");
   const editTool = toolDefs.find((t) => t.name === "edit_custom_site_code");
@@ -101,6 +108,10 @@ async function runBoltCustomTurn(args: {
     assistantMessage: "",
     status: session.status,
     payload: { type: "agent_turn", plan: [], tool_calls: [], tool_results: [] },
+    lockedPaths,
+    boltStream,
+    chatHistory,
+    contextHints,
   };
 
   const snapshot = session.storefront_snapshot as Record<string, unknown> | null;
@@ -229,13 +240,17 @@ export async function streamAndPersistBuilderMessage({
   session,
   message,
   templateOptions,
-  onLog,
-  signal,
+  boltStream,
+  lockedPaths,
+  contextHints,
 }: {
   session: BuilderSession;
   message: string;
   templateOptions: StorefrontTemplateOption[];
   onLog?: (entry: AgentThinkingLogEntry) => void;
+  boltStream?: BoltStreamCallbacks;
+  lockedPaths?: string[];
+  contextHints?: WorkbenchContextHints;
   signal?: AbortSignal;
 }): Promise<BuilderSessionResponse> {
   const enrichedSession: BuilderSession = {
@@ -244,17 +259,17 @@ export async function streamAndPersistBuilderMessage({
   };
 
   const recommendations = await loadRecommendations(enrichedSession);
-  const history = buildBuilderChatHistory(session.messages);
+  const chatHistory = buildBuilderChatHistory(enrichedSession.messages);
 
-  const thinkingLog: AgentThinkingLogEntry[] = [];
-
-  // Bolt-first: always run the bolt-style streaming generator/editor.
-  // This bypasses Interpreter/Planner/Critic and avoids "plan_steps: []" no-op turns.
   const turn = await runBoltCustomTurn({
     session: enrichedSession,
     message,
     templateOptions,
     recommendations: recommendations as never,
+    lockedPaths,
+    boltStream,
+    chatHistory,
+    contextHints,
   });
 
   return persistAgentTurn({
@@ -436,6 +451,8 @@ export async function applyBuilderMedia({
 }
 
 export { fallbackSuggestedActions, getLatestSuggestedActions } from "@/lib/storefront-builder/suggested-actions";
+export type { BoltStreamCallbacks } from "@/lib/bolt/bolt-stream";
+export type { WorkbenchContextHints } from "@/lib/bolt/select-context";
 
 export async function generateStorefrontForStore({
   storeId,

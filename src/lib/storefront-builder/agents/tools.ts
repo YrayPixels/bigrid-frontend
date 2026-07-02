@@ -27,8 +27,14 @@ import {
 import { STOREFRONT_FONT_OPTIONS } from "@/lib/storefront/template";
 import { api } from "@/lib/api/client";
 import { codeFs } from "@/lib/code-fs";
-import { createCodeParser } from "@/lib/code-parser";
-import { createBoltActionRunner } from "@/lib/bolt/action-runner";
+import { createBoltStreamPipeline, lockedPathsFromStorefront } from "@/lib/bolt/bolt-stream";
+import {
+  appendHistoryToMessages,
+  buildBoltCodeEditMessages,
+  buildLastBoltActionSummary,
+  resolveLiveWorkbenchFiles,
+} from "@/lib/bolt/workbench-context";
+import { selectContextFiles } from "@/lib/bolt/select-context";
 import type { BuilderSession } from "@/lib/api/types";
 import type { WebsiteBuilderContext, WebsiteBuilderToolDef } from "./types";
 
@@ -865,43 +871,49 @@ export function websiteBuilderTools(): WebsiteBuilderToolDef[] {
 
           codeFs.clear();
           const storefrontRecord = ctx.storefront as Record<string, unknown>;
-          const lockedPaths = (storefrontRecord.edit_metadata as { locked_paths?: string[] } | undefined)?.locked_paths ?? [];
-          const runner = createBoltActionRunner({ lockedPaths });
-          const parser = createCodeParser({
-            onAction: (action) => {
-              runner.apply(action);
-            },
+          const lockedPaths = lockedPathsFromStorefront(storefrontRecord, ctx.lockedPaths);
+          const { parser, runner } = createBoltStreamPipeline({
+            lockedPaths,
+            callbacks: ctx.boltStream,
           });
           const products = Array.isArray(ctx.storefront?.products) ? ctx.storefront.products : [];
           const productLines = products.length > 0
             ? products.map((p) => `- ${p.name} | ${p.price} ${p.currency ?? "NGN"}${p.description ? ` — ${p.description}` : ""}`).join("\n")
             : "Generate 4-6 sample products for this industry with prices in NGN.";
-          const messages = [
-            {
-              role: "system" as const,
-              content: [
-                "You are StoreHause Code. Build a complete e-commerce storefront website.",
-                "Output ALL code in bolt artifact format:",
-                "<boltArtifact id=\"storefront\" title=\"Storefront\">",
-                "  <boltAction type=\"file\" filePath=\"index.html\">...complete HTML...</boltAction>",
-                "  <boltAction type=\"file\" filePath=\"styles.css\">...all CSS...</boltAction>",
-                "  <boltAction type=\"file\" filePath=\"script.js\">...all JS...</boltAction>",
-                "</boltArtifact>",
-                "RULES:",
-                "- index.html: Complete HTML5 with nav, hero, product grid, about, FAQ, contact, footer",
-                `- Brand color: ${ctx.profile.brand_color ?? ctx.session.store?.brand_color ?? "#0E7C66"}`,
-                `- Store: ${ctx.profile.business_name ?? ctx.session.store?.business_name ?? "My Store"}`,
-                `- Industry: ${ctx.profile.industry ?? ctx.session.store?.industry ?? "other"}`,
-                styleNote ? `- Style: ${styleNote}` : "",
-                "- NO external CSS/JS — vanilla only",
-                "- Responsive mobile-first, CSS variables with brand color",
-                "- Cart in localStorage, Unsplash product images",
-                "- No markdown fences inside boltAction tags",
-                `Products:\n${productLines}`,
-              ].filter(Boolean).join("\n"),
-            },
-            { role: "user" as const, content: "Generate the storefront now. Output in bolt artifact format only." },
-          ];
+          const messages = appendHistoryToMessages(
+            [
+              {
+                role: "system" as const,
+                content: [
+                  "You are StoreHause Code. Build a complete e-commerce storefront website.",
+                  "Output ALL code in bolt artifact format:",
+                  "<boltArtifact id=\"storefront\" title=\"Storefront\">",
+                  "  <boltAction type=\"file\" filePath=\"index.html\">...complete HTML...</boltAction>",
+                  "  <boltAction type=\"file\" filePath=\"styles.css\">...all CSS...</boltAction>",
+                  "  <boltAction type=\"file\" filePath=\"script.js\">...all JS...</boltAction>",
+                  "</boltArtifact>",
+                  "RULES:",
+                  "- index.html: Complete HTML5 with nav, hero, product grid, about, FAQ, contact, footer",
+                  `- Brand color: ${ctx.profile.brand_color ?? ctx.session.store?.brand_color ?? "#0E7C66"}`,
+                  `- Store: ${ctx.profile.business_name ?? ctx.session.store?.business_name ?? "My Store"}`,
+                  `- Industry: ${ctx.profile.industry ?? ctx.session.store?.industry ?? "other"}`,
+                  styleNote ? `- Style: ${styleNote}` : "",
+                  "- NO external CSS/JS — vanilla only",
+                  "- Responsive mobile-first, CSS variables with brand color",
+                  "- Cart in localStorage, Unsplash product images",
+                  "- No markdown fences inside boltAction tags",
+                  `Products:\n${productLines}`,
+                ].filter(Boolean).join("\n"),
+              },
+            ],
+            ctx.chatHistory ?? [],
+          );
+          messages.push({
+            role: "user",
+            content: styleNote.trim()
+              ? `Generate the storefront with this direction: ${styleNote}. Output in bolt artifact format only.`
+              : "Generate the storefront now. Output in bolt artifact format only.",
+          });
 
           let fullText = "";
           await postChatStream({
@@ -967,64 +979,74 @@ export function websiteBuilderTools(): WebsiteBuilderToolDef[] {
             : ctx.message.trim();
         if (!instruction) return { ok: false, error: "missing_instruction" };
 
-        // Load current files (prefer persisted snapshot) into the in-memory FS.
+        // Prefer live editor state; fall back to persisted snapshot files.
         const storefrontRecord = ctx.storefront as Record<string, unknown>;
-        const customFiles = storefrontRecord.custom_files as unknown;
-        if (Array.isArray(customFiles)) {
-          codeFs.loadFiles(customFiles as never);
-        } else if (typeof storefrontRecord.custom_code === "string" && storefrontRecord.custom_code.trim()) {
-          codeFs.clear();
-          codeFs.writeFile("index.html", String(storefrontRecord.custom_code));
-        }
-
-        const files = codeFs.exportFiles();
+        const files = resolveLiveWorkbenchFiles(storefrontRecord);
         if (files.length === 0) return { ok: false, error: "no_custom_site_files" };
 
         const { postChatStream } = await import("@/lib/storefront-builder/agents/openaiChat");
 
+        const filePaths = files.map((f) => f.path);
+        const contextSelection = selectContextFiles(files, instruction, ctx.contextHints ?? {});
+        const contextFilePaths = contextSelection.included.map((f) => f.path);
+        const isNodeProject = filePaths.includes("package.json");
+        const lockedPaths = lockedPathsFromStorefront(storefrontRecord, ctx.lockedPaths);
+
         const systemPrompt = [
           "You are StoreHause Code Editor.",
-          "You will receive a set of existing website files (HTML/CSS/JS) and a change request.",
+          "You will receive conversation history, selected project file contents, and a change request.",
           "Return ONLY a bolt artifact containing the file updates needed to satisfy the request.",
           "",
           "OUTPUT FORMAT (required):",
           "<boltArtifact id=\"storefront-edit\" title=\"Storefront edit\">",
           "  <boltAction type=\"file\" filePath=\"...\">...full new file contents...</boltAction>",
+          "  <boltAction type=\"shell\">pnpm install</boltAction>",
+          "  <boltAction type=\"start\">pnpm run dev</boltAction>",
           "</boltArtifact>",
           "",
           "RULES:",
+          "- Use the conversation history to resolve follow-up requests (e.g. \"make it darker\" refers to the prior change).",
           "- Only include files that changed.",
           "- When editing a file, output the COMPLETE updated file contents.",
           "- Do not add new build tools, frameworks, or external dependencies.",
-          "- Keep the existing stack and patterns. If this project uses Vite/React/TanStack, keep using them.",
+          "- Use shell actions only when dependencies or setup commands are required.",
+          "- Use start only when the dev server must be started; do not re-run start for file-only edits.",
+          isNodeProject
+            ? "- This is a Vite + React + TanStack Router project. Edit files under src/ (e.g. src/routes/index.tsx, src/styles.css). Do NOT create a standalone index.html site."
+            : "- Keep the existing stack and patterns from the provided files.",
           "- If you need to add images, prefer Unsplash URLs.",
-          "- If adding a new section, update index.html and styles.css accordingly.",
+          contextSelection.usedSmartContext
+            ? `- Smart context: full contents for ${contextSelection.included.length} of ${contextSelection.allPaths.length} files. All paths are listed in project_file_paths.`
+            : `- Project files (${filePaths.length}): ${filePaths.slice(0, 40).join(", ")}${filePaths.length > 40 ? "…" : ""}`,
+          ...(contextSelection.usedSmartContext
+            ? [`- Files with full contents: ${contextFilePaths.join(", ")}`]
+            : []),
+          ...(lockedPaths.length > 0
+            ? [`- Do NOT modify locked paths: ${lockedPaths.join(", ")}`]
+            : []),
         ].join("\n");
 
-        const lockedPaths = (storefrontRecord.edit_metadata as { locked_paths?: string[] } | undefined)?.locked_paths ?? [];
-        const runner = createBoltActionRunner({ lockedPaths });
-        const parser = createCodeParser({
-          onAction: (action) => {
-            runner.apply(action);
-          },
+        const { parser, runner } = createBoltStreamPipeline({
+          lockedPaths,
+          callbacks: ctx.boltStream,
+          onShellOutput: ctx.boltStream?.onShellOutput,
         });
 
-        const messages = [
-          { role: "system" as const, content: systemPrompt },
-          {
-            role: "user" as const,
-            content: JSON.stringify({
-              instruction,
-              business: {
-                name: ctx.profile.business_name ?? ctx.session.store?.business_name ?? null,
-                industry: ctx.profile.industry ?? ctx.session.store?.industry ?? null,
-                description: ctx.profile.description ?? ctx.session.store?.description ?? null,
-                brand_color: ctx.profile.brand_color ?? ctx.session.store?.brand_color ?? null,
-              },
-              files,
-            }),
+        const messages = buildBoltCodeEditMessages({
+          systemPrompt,
+          history: ctx.chatHistory ?? [],
+          instruction,
+          business: {
+            name: ctx.profile.business_name ?? ctx.session.store?.business_name ?? null,
+            industry: ctx.profile.industry ?? ctx.session.store?.industry ?? null,
+            description: ctx.profile.description ?? ctx.session.store?.description ?? null,
+            brand_color: ctx.profile.brand_color ?? ctx.session.store?.brand_color ?? null,
           },
-        ];
+          files,
+          contextSelection,
+          lastActionSummary: buildLastBoltActionSummary(ctx.session),
+          lockedPaths,
+        });
 
         let fullText = "";
         await postChatStream({
@@ -1047,6 +1069,11 @@ export function websiteBuilderTools(): WebsiteBuilderToolDef[] {
           type: "custom_site_edited",
           files: codeFs.listFiles(),
           bolt_action_log: runner.getLog(),
+          context_selection: {
+            included: contextSelection.included.map((f) => f.path),
+            omitted: contextSelection.omittedPaths,
+            used_smart_context: contextSelection.usedSmartContext,
+          },
         };
         return { ok: true, files: codeFs.listFiles() };
       },
