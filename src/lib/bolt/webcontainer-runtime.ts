@@ -95,6 +95,22 @@ async function hasInstalledDependencies(wc: WebContainer): Promise<boolean> {
   }
 }
 
+const COI_RELOAD_KEY = "storehause:coi-reload";
+
+function ensureCrossOriginIsolated(): void {
+  if (typeof crossOriginIsolated === "undefined" || crossOriginIsolated) return;
+
+  if (typeof sessionStorage !== "undefined" && !sessionStorage.getItem(COI_RELOAD_KEY)) {
+    sessionStorage.setItem(COI_RELOAD_KEY, "1");
+    window.location.reload();
+    throw new Error("Reloading to enable WebContainer isolation headers…");
+  }
+
+  throw new Error(
+    "WebContainer requires a cross-origin isolated page. Hard-refresh the browser or open the builder in a new tab.",
+  );
+}
+
 export async function getWebContainer(): Promise<WebContainer> {
   if (state.container) {
     setupPreviewListeners(state.container);
@@ -103,6 +119,7 @@ export async function getWebContainer(): Promise<WebContainer> {
   if (state.booting) return state.booting;
 
   state.booting = (async () => {
+    ensureCrossOriginIsolated();
     const { WebContainer } = await import("@webcontainer/api");
     const wc = await WebContainer.boot({
       coep: "credentialless",

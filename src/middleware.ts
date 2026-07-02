@@ -2,14 +2,15 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { parseStoreSlugFromHost } from "@/lib/store-host";
 
+function applyWebContainerIsolation(res: NextResponse) {
+  // WebContainer needs SharedArrayBuffer, which requires crossOriginIsolated.
+  res.headers.set("Cross-Origin-Opener-Policy", "same-origin");
+  res.headers.set("Cross-Origin-Embedder-Policy", "credentialless");
+  return res;
+}
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-
-  // WebContainer requires SharedArrayBuffer which requires crossOriginIsolated.
-  // Scope this to builder/workbench routes to avoid affecting storefront embeds.
-  const needsIsolation =
-    pathname.startsWith("/admin/builder") ||
-    pathname.startsWith("/admin/website");
 
   if (
     pathname.startsWith("/_next") ||
@@ -17,36 +18,23 @@ export function middleware(request: NextRequest) {
     pathname.startsWith("/api") ||
     pathname.includes(".")
   ) {
-    const res = NextResponse.next();
-    if (needsIsolation) {
-      res.headers.set("Cross-Origin-Opener-Policy", "same-origin");
-      res.headers.set("Cross-Origin-Embedder-Policy", "credentialless");
-    }
-    return res;
+    return NextResponse.next();
   }
 
   const host = request.headers.get("host");
   const slug = parseStoreSlugFromHost(host);
 
   if (!slug) {
-    const res = NextResponse.next();
-    if (needsIsolation) {
-      res.headers.set("Cross-Origin-Opener-Policy", "same-origin");
-      res.headers.set("Cross-Origin-Embedder-Policy", "credentialless");
-    }
-    return res;
+    // Apply on every main-app document route so client-side navigation from
+    // /login or /admin does not leave the page without isolation headers.
+    return applyWebContainerIsolation(NextResponse.next());
   }
 
   const url = request.nextUrl.clone();
   const suffix = pathname === "/" ? "" : pathname;
   url.pathname = `/s/${slug}${suffix}`;
 
-  const res = NextResponse.rewrite(url);
-  if (needsIsolation) {
-    res.headers.set("Cross-Origin-Opener-Policy", "same-origin");
-    res.headers.set("Cross-Origin-Embedder-Policy", "credentialless");
-  }
-  return res;
+  return NextResponse.rewrite(url);
 }
 
 export const config = {
