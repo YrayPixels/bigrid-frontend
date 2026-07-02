@@ -20,7 +20,7 @@ export function middleware(request: NextRequest) {
     const res = NextResponse.next();
     if (needsIsolation) {
       res.headers.set("Cross-Origin-Opener-Policy", "same-origin");
-      res.headers.set("Cross-Origin-Embedder-Policy", "require-corp");
+      res.headers.set("Cross-Origin-Embedder-Policy", "credentialless");
     }
     return res;
   }
@@ -32,7 +32,7 @@ export function middleware(request: NextRequest) {
     const res = NextResponse.next();
     if (needsIsolation) {
       res.headers.set("Cross-Origin-Opener-Policy", "same-origin");
-      res.headers.set("Cross-Origin-Embedder-Policy", "require-corp");
+      res.headers.set("Cross-Origin-Embedder-Policy", "credentialless");
     }
     return res;
   }
@@ -44,7 +44,7 @@ export function middleware(request: NextRequest) {
   const res = NextResponse.rewrite(url);
   if (needsIsolation) {
     res.headers.set("Cross-Origin-Opener-Policy", "same-origin");
-    res.headers.set("Cross-Origin-Embedder-Policy", "require-corp");
+    res.headers.set("Cross-Origin-Embedder-Policy", "credentialless");
   }
   return res;
 }

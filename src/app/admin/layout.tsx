@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { Loader2 } from "lucide-react";
 import { MerchantShell } from "@/components/merchant-shell";
@@ -8,9 +8,7 @@ import { useAuth } from "@/lib/auth-context";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const pathname = usePathname();
   const { user, loading } = useAuth();
-  const isOnboarding = pathname === "/admin/onboarding";
 
   useEffect(() => {
     if (!loading && !user) router.replace("/login");
@@ -23,8 +21,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </div>
     );
   }
-
-  if (isOnboarding) return <>{children}</>;
 
   return <MerchantShell>{children}</MerchantShell>;
 }

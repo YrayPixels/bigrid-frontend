@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ArrowLeft, ArrowRight, Check, Loader2, Store as StoreIcon } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { BusinessProfileFields } from "@/components/admin/business-profile-fields";
 import { useAuth } from "@/lib/auth-context";
@@ -105,18 +105,9 @@ export default function AdminOnboardingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-canvas">
+    <div className="relative min-h-full bg-canvas">
       <div className="absolute inset-x-0 top-0 h-72 bg-gradient-mesh opacity-60" />
-      <div className="relative w-full px-6 py-12 lg:py-16">
-        <div className={`mx-auto mb-8 flex w-full items-center gap-2 ${onboardingShellWidth}`}>
-          <div className="flex items-center gap-2">
-            <div className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-hero text-primary-foreground">
-              <StoreIcon className="h-4 w-4" />
-            </div>
-            <span className="font-display text-lg font-bold tracking-tight">Storehaus</span>
-          </div>
-        </div>
-
+      <div className="relative w-full px-6 py-8 lg:py-12">
         <ol
           className={`mx-auto mb-8 flex w-full items-center gap-3 overflow-x-auto pb-1 text-sm ${onboardingShellWidth}`}
         >

@@ -17,6 +17,12 @@ dist-ssr
 .nitro
 *.local
 
+# WebContainer prebuilt dependency snapshots (large binaries)
+public/bolt-snapshots/*.snapshot
+
+# Nested git repos inside vendored bolt templates
+bolt-templates/**/.git
+
 # Wrangler / Cloudflare
 .wrangler/
 .dev.vars

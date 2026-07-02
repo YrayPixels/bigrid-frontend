@@ -6,12 +6,14 @@
 export type CodeFile = {
   path: string;
   content: string;
+  /** When set, `content` is base64-encoded binary data. */
+  encoding?: "base64";
 };
 
 type FsListener = () => void;
 
 class CodeFs {
-  private files = new Map<string, string>();
+  private files = new Map<string, CodeFile>();
   private listeners = new Set<FsListener>();
 
   loadFiles(files: CodeFile[] | null | undefined) {
@@ -20,22 +22,27 @@ class CodeFs {
       if (!file || typeof file.path !== "string") continue;
       const path = file.path.replace(/^\/+/, "");
       if (!path) continue;
-      this.files.set(path, typeof file.content === "string" ? file.content : "");
+      this.files.set(path, {
+        path,
+        content: typeof file.content === "string" ? file.content : "",
+        encoding: file.encoding,
+      });
     }
     this.notify();
   }
 
   exportFiles(): CodeFile[] {
-    return [...this.files.entries()].map(([path, content]) => ({ path, content }));
+    return [...this.files.values()];
   }
 
-  writeFile(path: string, content: string) {
-    this.files.set(path, content);
+  writeFile(path: string, content: string, encoding?: CodeFile["encoding"]) {
+    const normalized = path.replace(/^\/+/, "");
+    this.files.set(normalized, { path: normalized, content, encoding });
     this.notify();
   }
 
   readFile(path: string): string | undefined {
-    return this.files.get(path);
+    return this.files.get(path.replace(/^\/+/, ""))?.content;
   }
 
   listFiles(): string[] {
@@ -43,23 +50,27 @@ class CodeFs {
   }
 
   getMainHtml(): string {
-    const indexHtml = this.files.get("index.html");
+    const indexHtml = this.files.get("index.html")?.content;
     if (indexHtml) {
       // Inline CSS and JS files
       let html = indexHtml;
-      for (const [path, content] of this.files) {
+      for (const [path, file] of this.files) {
         if (path === "index.html") continue;
+        if (file.encoding === "base64") continue;
         if (path.endsWith(".css")) {
-          html = html.replace("</head>", `<style>${content}</style></head>`);
+          html = html.replace("</head>", `<style>${file.content}</style></head>`);
         } else if (path.endsWith(".js")) {
-          html = html.replace("</body>", `<script>${content}</script></body>`);
+          html = html.replace("</body>", `<script>${file.content}</script></body>`);
         }
       }
       return html;
     }
 
-    // Fallback: concatenate all files
-    return [...this.files.values()].join("\n");
+    // Fallback: concatenate text files only
+    return [...this.files.values()]
+      .filter((file) => file.encoding !== "base64")
+      .map((file) => file.content)
+      .join("\n");
   }
 
   clear() {

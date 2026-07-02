@@ -3,12 +3,15 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { FileCode2, Lock, PanelLeft, Save, Unlock } from "lucide-react";
+import { FileCode2, Lock, PanelLeft, Save, Terminal, Unlock } from "lucide-react";
 import { api } from "@/lib/api/client";
 import { codeFs } from "@/lib/code-fs";
+import { seedBuildItUpIfNeeded } from "@/lib/bolt/seed-template";
+import { needsBoltTemplateSeed } from "@/lib/bolt/project-utils";
 import type { BuilderSession, StorefrontContent } from "@/lib/api/types";
 import { Textarea } from "@/components/ui/textarea";
 import { WebContainerPreview } from "@/components/admin/builder/webcontainer-preview";
+import { WebContainerTerminalPanel } from "@/components/admin/builder/webcontainer-terminal-panel";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { cn } from "@/lib/utils";
 
@@ -58,6 +61,9 @@ export default function AdminBuilderWorkbenchPage() {
     if (Array.isArray(customFiles)) {
       baselineFilesRef.current = customFiles as never;
       codeFs.loadFiles(customFiles as never);
+      if (needsBoltTemplateSeed(customFiles as never)) {
+        void seedBuildItUpIfNeeded(customFiles as never);
+      }
       return;
     }
     if (typeof customCode === "string" && customCode.trim()) {
@@ -73,6 +79,7 @@ export default function AdminBuilderWorkbenchPage() {
   const [dirty, setDirty] = useState(false);
   const draftPathRef = useRef<string>(selectedPath);
   const [view, setView] = useState<"code" | "diff">("code");
+  const [showTerminal, setShowTerminal] = useState(false);
 
   // Keep selection valid
   useEffect(() => {
@@ -169,6 +176,15 @@ export default function AdminBuilderWorkbenchPage() {
           >
             <FileCode2 className="h-4 w-4" />
             {persist.isPending ? "Saving…" : "Save to session"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowTerminal((v) => !v)}
+            className="inline-flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm font-medium text-ink hover:bg-secondary"
+            title="Toggle WebContainer terminal"
+          >
+            <Terminal className="h-4 w-4" />
+            Terminal
           </button>
         </div>
       </div>
@@ -304,8 +320,13 @@ export default function AdminBuilderWorkbenchPage() {
                 Preview
               </div>
               <div className="min-h-0 flex-1 overflow-auto p-3">
-                <div className="mx-auto max-w-5xl overflow-hidden rounded-xl border border-border bg-background shadow-soft">
-                  <WebContainerPreview />
+                <div className="mx-auto max-w-5xl space-y-3">
+                  <div className="overflow-hidden rounded-xl border border-border bg-background shadow-soft">
+                    <WebContainerPreview />
+                  </div>
+                  {showTerminal ? (
+                    <WebContainerTerminalPanel className="h-[320px]" />
+                  ) : null}
                 </div>
               </div>
             </div>

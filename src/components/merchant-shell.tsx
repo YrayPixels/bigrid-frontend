@@ -23,10 +23,12 @@ import {
   SidebarGroupContent,
   SidebarGroupLabel,
   SidebarHeader,
+  SidebarInset,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarProvider,
+  SidebarRail,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 
@@ -45,20 +47,26 @@ export function MerchantShell({ children }: { children: React.ReactNode }) {
   const { user, signOut } = useAuth();
 
   return (
-    <SidebarProvider>
-      <div className="flex min-h-screen w-full bg-canvas">
+    <SidebarProvider className="bg-canvas">
         <Sidebar collapsible="icon">
           <SidebarHeader className="border-b border-border/60 px-4 py-4 group-data-[collapsible=icon]:px-2">
-            <Link href="/admin" className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
-              <div className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-hero text-primary-foreground">
-                <StoreIcon className="h-4 w-4" />
-              </div>
-              <div className="group-data-[collapsible=icon]:hidden">
-                <div className="font-display text-sm font-bold tracking-tight">Storehaus</div>
-                <div className="text-xs text-ink-soft">Merchant dashboard</div>
-              </div>
-            </Link>
+            <div className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
+              <Link
+                href="/admin"
+                className="flex min-w-0 flex-1 items-center gap-2 group-data-[collapsible=icon]:flex-none group-data-[collapsible=icon]:justify-center"
+              >
+                <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gradient-hero text-primary-foreground">
+                  <StoreIcon className="h-4 w-4" />
+                </div>
+                <div className="min-w-0 group-data-[collapsible=icon]:hidden">
+                  <div className="font-display text-sm font-bold tracking-tight">Storehaus</div>
+                  <div className="text-xs text-ink-soft">Merchant dashboard</div>
+                </div>
+              </Link>
+              <SidebarTrigger className="shrink-0 group-data-[collapsible=icon]:hidden" />
+            </div>
           </SidebarHeader>
+          <SidebarRail />
 
           <SidebarContent>
             <SidebarGroup>
@@ -106,15 +114,14 @@ export function MerchantShell({ children }: { children: React.ReactNode }) {
           </SidebarFooter>
         </Sidebar>
 
-        <div className="flex min-w-0 flex-1 flex-col">
-          <header className="flex h-14 items-center gap-3 border-b border-border/60 bg-canvas-raised px-4 lg:px-6">
+        <SidebarInset className="flex min-w-0 flex-col">
+          <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center gap-3 border-b border-border/60 bg-canvas-raised px-4 lg:px-6">
             <SidebarTrigger />
             <span className="text-sm font-medium text-ink-soft">Merchant dashboard</span>
           </header>
           <LaunchChecklistReminder />
-          <main className="flex-1">{children}</main>
-        </div>
-      </div>
+          <div className="min-w-0 flex-1">{children}</div>
+        </SidebarInset>
     </SidebarProvider>
   );
 }

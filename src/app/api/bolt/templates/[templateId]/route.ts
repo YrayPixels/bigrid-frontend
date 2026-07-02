@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import path from "node:path";
 import fs from "node:fs/promises";
+import { isBoltTemplateId } from "@/lib/bolt/templates";
 
-type CodeFile = { path: string; content: string };
+type CodeFile = { path: string; content: string; encoding?: "base64" };
 
 const IGNORE_DIRS = new Set([
   ".git",
@@ -17,15 +18,17 @@ const IGNORE_DIRS = new Set([
 ]);
 
 const IGNORE_FILES = new Set([
+  // Bun/npm/yarn lockfiles are for Lovable/local dev; WebContainer installs with pnpm + pnpm-lock.yaml.
   "bun.lock",
   "package-lock.json",
-  "pnpm-lock.yaml",
   "yarn.lock",
   ".DS_Store",
 ]);
 
-const MAX_FILES = 600;
-const MAX_TOTAL_BYTES = 3_500_000; // ~3.5MB
+const MAX_FILES = 700;
+const MAX_TOTAL_BYTES = 5_000_000; // ~5MB (includes image assets)
+
+const BINARY_EXT = /\.(jpg|jpeg|png|webp|gif|ico|woff2?|ttf|eot)$/i;
 
 async function walk(rootAbs: string, dirAbs: string, out: CodeFile[], budget: { bytes: number }) {
   const entries = await fs.readdir(dirAbs, { withFileTypes: true });
@@ -44,8 +47,17 @@ async function walk(rootAbs: string, dirAbs: string, out: CodeFile[], budget: { 
     if (!entry.isFile()) continue;
     if (IGNORE_FILES.has(entry.name)) continue;
 
+    if (BINARY_EXT.test(entry.name)) {
+      const raw = await fs.readFile(abs);
+      const bytes = raw.byteLength;
+      if (budget.bytes + bytes > MAX_TOTAL_BYTES) return;
+      budget.bytes += bytes;
+      out.push({ path: rel, content: raw.toString("base64"), encoding: "base64" });
+      continue;
+    }
+
     // Only include common text/code assets.
-    if (!/\.(ts|tsx|js|jsx|json|css|md|txt|html|svg)$/.test(entry.name) && !/^(package\.json|tsconfig\.json|vite\.config\.ts|components\.json|eslint\.config\.js|bunfig\.toml|\.prettierrc|\.prettierignore|\.gitignore)$/.test(entry.name)) {
+    if (!/\.(ts|tsx|js|jsx|json|css|md|txt|html|svg)$/.test(entry.name) && !/^(package\.json|pnpm-lock\.yaml|tsconfig\.json|vite\.config\.ts|components\.json|eslint\.config\.js|bunfig\.toml|\.prettierrc|\.prettierignore|\.gitignore)$/.test(entry.name)) {
       continue;
     }
 
@@ -59,25 +71,32 @@ async function walk(rootAbs: string, dirAbs: string, out: CodeFile[], budget: { 
   }
 }
 
-export async function GET() {
+export async function GET(
+  _request: Request,
+  { params }: { params: Promise<{ templateId: string }> },
+) {
+  const { templateId } = await params;
+
+  if (!isBoltTemplateId(templateId)) {
+    return NextResponse.json({ error: `Unknown template: ${templateId}` }, { status: 404 });
+  }
+
   try {
-    // Vendored template lives inside this repo so prod always has it.
-    const rootAbs = path.resolve(process.cwd(), "bolt-templates", "build-it-up");
+    const rootAbs = path.resolve(process.cwd(), "bolt-templates", templateId);
     const stat = await fs.stat(rootAbs).catch(() => null);
     if (!stat || !stat.isDirectory()) {
-      return NextResponse.json({ error: "build-it-up template folder not found" }, { status: 404 });
+      return NextResponse.json({ error: `${templateId} template folder not found` }, { status: 404 });
     }
 
     const files: CodeFile[] = [];
     const budget = { bytes: 0 };
     await walk(rootAbs, rootAbs, files, budget);
 
-    // Sort to keep deterministic output.
     files.sort((a, b) => a.path.localeCompare(b.path));
 
     return NextResponse.json({
-      template: "build-it-up",
-      root: "build-it-up",
+      template: templateId,
+      root: templateId,
       file_count: files.length,
       total_bytes: budget.bytes,
       files,
@@ -88,4 +107,3 @@ export async function GET() {
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
-

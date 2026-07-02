@@ -37,6 +37,8 @@ const PRE_DRAFT_TOOL_NAMES = new Set([
   "design_website",
   "generate_website",
   "generate_custom_site",
+  // Bolt-mode seeding uses this even before a draft exists.
+  "edit_custom_site_code",
   "change_font",
   "ask_clarifying_question",
 ]);
@@ -945,8 +947,18 @@ export function websiteBuilderTools(): WebsiteBuilderToolDef[] {
       },
       handler: async (args, ctx) => {
         if (!ctx.storefront) return { ok: false, error: "website_not_generated" };
+        // Bolt-style: allow edits even when the merchant didn't provide full business details.
         if (!hasMinimumBusinessProfile(ctx.profile)) {
-          return { ok: false, error: "missing_business_details" };
+          ctx.profile = sanitizeBusinessProfile({
+            ...ctx.profile,
+            business_name: ctx.profile.business_name ?? ctx.session.store?.business_name ?? "My Store",
+            description:
+              ctx.profile.description ??
+              ctx.session.store?.description ??
+              "A modern online store with curated products and a smooth checkout experience.",
+            industry: ctx.profile.industry ?? ctx.session.store?.industry ?? "other",
+            brand_color: ctx.profile.brand_color ?? ctx.session.store?.brand_color ?? "#0E7C66",
+          });
         }
 
         const instruction =
@@ -984,7 +996,8 @@ export function websiteBuilderTools(): WebsiteBuilderToolDef[] {
           "- Only include files that changed.",
           "- When editing a file, output the COMPLETE updated file contents.",
           "- Do not add new build tools, frameworks, or external dependencies.",
-          "- Keep it vanilla HTML/CSS/JS. Keep the site responsive.",
+          "- Keep the existing stack and patterns. If this project uses Vite/React/TanStack, keep using them.",
+          "- If you need to add images, prefer Unsplash URLs.",
           "- If adding a new section, update index.html and styles.css accordingly.",
         ].join("\n");
 

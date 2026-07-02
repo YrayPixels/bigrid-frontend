@@ -24,6 +24,8 @@ import { streamBuilderThinkingTurn } from "@/lib/storefront-builder/thinking-str
 import { buildBuilderChatHistory } from "@/lib/storefront-builder/chat-history";
 import { alignStorefrontTemplateToSelection } from "@/lib/storefront/template";
 import { websiteBuilderToolsForSession } from "@/lib/storefront-builder/agents/tools";
+import { seedBuildItUpIfNeeded } from "@/lib/bolt/seed-template";
+import { needsBoltTemplateSeed } from "@/lib/bolt/project-utils";
 import { codeFs, type CodeFile } from "@/lib/code-fs";
 
 export function asConcreteTemplateId(value: string | null | undefined): StorefrontTemplateId | undefined {
@@ -102,27 +104,40 @@ async function runBoltCustomTurn(args: {
   };
 
   const snapshot = session.storefront_snapshot as Record<string, unknown> | null;
-  const hasCustom =
+  let hasCustom =
     Array.isArray(snapshot?.custom_files) ||
     (typeof snapshot?.custom_code === "string" && (snapshot.custom_code as string).trim().length > 0);
 
-  // If this is the first bolt turn (no custom files yet), seed codeFs with build-it-up.
-  if (!hasCustom) {
-    const seeded = await fetch("/api/bolt/templates/build-it-up")
-      .then((res) => (res.ok ? res.json() : null))
-      .catch(() => null) as { files?: CodeFile[] } | null;
+  // Seed codeFs with the default bolt starter template when there is no node project yet.
+  const snapshotFiles = Array.isArray(snapshot?.custom_files)
+    ? (snapshot.custom_files as CodeFile[])
+    : codeFs.exportFiles();
+  if (!hasCustom || needsBoltTemplateSeed(snapshotFiles)) {
+    const didSeed = await seedBuildItUpIfNeeded(snapshotFiles);
 
-    if (seeded?.files?.length) {
-      codeFs.loadFiles(seeded.files);
-      // Ensure the session snapshot persists the starter template immediately.
-      if (ctx.storefront) {
-        const storefrontRecord = ctx.storefront as Record<string, unknown>;
-        storefrontRecord.custom_files = seeded.files;
-        storefrontRecord.custom_code = codeFs.getMainHtml();
+    if (didSeed) {
+      const seededFiles = codeFs.exportFiles();
+      // Ensure a storefront snapshot exists so we can persist the starter template.
+      if (!ctx.storefront) {
+        const available = templateOptions
+          .filter((option) => option.value !== "ai_pick")
+          .map((option) => option.value as StorefrontTemplateId);
+        const selectedTemplateId =
+          ctx.selectedTemplateId ?? (available[0] ?? null);
+        ctx.selectedTemplateId = selectedTemplateId;
+        const store = session.store ?? profileToStore(ctx.profile, selectedTemplateId ?? undefined);
+        ctx.storefront = synthesizeStorefront(store, recommendations as never);
       }
+
+      // Ensure the session snapshot persists the starter template immediately.
+      const storefrontRecord = ctx.storefront as Record<string, unknown>;
+      storefrontRecord.custom_files = seededFiles;
+      storefrontRecord.custom_code = codeFs.getMainHtml();
+      hasCustom = true;
     }
   }
 
+  // If we have a seeded template, always edit it (don't generate 3-file static site).
   const tool = hasCustom && editTool ? editTool : generateTool;
   const toolName = tool.name;
   const toolArgs =

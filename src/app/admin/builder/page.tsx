@@ -13,6 +13,8 @@ import { BuilderThinkingLogSheet } from "@/components/admin/builder/builder-thin
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api/client";
 import { codeFs } from "@/lib/code-fs";
+import { seedBuildItUpIfNeeded } from "@/lib/bolt/seed-template";
+import { needsBoltTemplateSeed } from "@/lib/bolt/project-utils";
 import {
   applyBuilderBrandColor,
   applyBuilderMedia,
@@ -95,6 +97,9 @@ export default function AdminBuilderPage() {
       const customFiles = snapshot.custom_files as unknown;
       if (Array.isArray(customFiles)) {
         codeFs.loadFiles(customFiles as never);
+        if (needsBoltTemplateSeed(customFiles as never)) {
+          void seedBuildItUpIfNeeded(customFiles as never);
+        }
       }
     }
   }, [session?.storefront_snapshot]);
