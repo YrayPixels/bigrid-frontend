@@ -4,6 +4,12 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * Semantic design tokens in @theme (:root below) always work as utilities
+ * (bg-primary, bg-accent, bg-secondary, etc.). Raw palette classes like bg-red-500
+ * are JIT-only when present in src/ — prefer semantic tokens or bg-[#hex] for edits.
+ */
+
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);

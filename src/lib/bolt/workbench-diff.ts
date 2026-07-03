@@ -197,3 +197,29 @@ export function formatDiffSummaryForChat(diffs: FileDiffSummary[]): string {
     })
     .join("\n\n");
 }
+
+export function formatFileDiffForAgent(
+  path: string,
+  before: string,
+  after: string,
+  maxPreview = 24,
+): string {
+  const beforeLines = before.split("\n").length;
+  const afterLines = after.split("\n").length;
+  const summary = summarizeFileDiff(before, after, maxPreview);
+
+  const lines = [
+    `${path} (+${summary.additions}/-${summary.deletions}, ${beforeLines} → ${afterLines} lines)`,
+    "",
+  ];
+
+  for (const change of summary.preview) {
+    lines.push(formatLineChangePreview(change));
+  }
+
+  if (summary.additions + summary.deletions > summary.preview.length) {
+    lines.push(`… (${summary.additions + summary.deletions - summary.preview.length} more changed lines)`);
+  }
+
+  return lines.join("\n");
+}

@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, FileCode2, FileSearch, Loader2, Lock, Pencil, Terminal, Trash2, X } from "lucide-react";
+import { Check, ClipboardCheck, Eye, FileCode2, FilePlus, FileSearch, GitCompare, Loader2, ListTodo, Lock, Pencil, RotateCcw, Terminal, Trash2, X } from "lucide-react";
 import type { WorkbenchEditStep } from "@/lib/bolt/workbench-edit-agent";
 import type { BoltAction } from "@/lib/code-parser";
 import type { BoltActionResult } from "@/lib/bolt/action-runner";
@@ -15,16 +15,32 @@ export type LiveBoltAction = {
 
 function stepIcon(type: WorkbenchEditStep["type"]) {
   switch (type) {
+    case "review":
+      return ClipboardCheck;
     case "grep":
       return FileSearch;
     case "read":
       return FileCode2;
     case "patch":
       return Pencil;
+    case "write":
+      return FilePlus;
+    case "verify":
+      return Eye;
+    case "diff":
+      return GitCompare;
+    case "revert":
+      return RotateCcw;
+    case "plan":
+      return ListTodo;
+    case "preview":
+      return Eye;
     case "delete":
       return Trash2;
     case "list":
       return FileCode2;
+    case "shell":
+      return Terminal;
     case "done":
       return Check;
     default:

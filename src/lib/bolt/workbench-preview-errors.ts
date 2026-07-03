@@ -24,13 +24,27 @@ const COMPILE_ERROR_MARKERS = [
   /error TS\d+:/i,
   /Failed to resolve import/i,
   /Could not resolve/i,
+  /is not exported under the conditions/i,
   /SyntaxError:/i,
   /Unexpected token/i,
+  /Invalid custom property/i,
+];
+
+const COMPILE_SUCCESS_MARKERS = [
+  /\[vite\][^\n]*(hmr update|hot updated|page reload)/i,
+  /\bhmr update\b/i,
+  /page reload/i,
+  /ready in \d+/i,
+  /✓\s*\d+\s*modules transformed/i,
+  /built in \d+ms/i,
+  /\[vite\]\s*connected/i,
 ];
 
 type ErrorListener = () => void;
 
 let scanBuffer = "";
+/** Overlap window so multi-line Vite errors split across chunks are still captured. */
+let errorScanCarry = "";
 let errors: WorkbenchPreviewError[] = [];
 const listeners = new Set<ErrorListener>();
 
@@ -56,8 +70,27 @@ function pushError(error: Omit<WorkbenchPreviewError, "id" | "seenAt">) {
     return;
   }
 
+  // Only one active compile/runtime error at a time — a new error replaces the previous of the same kind.
+  if (error.source === "compile" || error.source === "runtime") {
+    errors = errors.filter((entry) => entry.source !== error.source);
+  }
+
   errors = [{ ...error, id, content, seenAt: Date.now() }, ...errors].slice(0, MAX_ERRORS);
   notify();
+}
+
+function clearResolvedPreviewErrors(): void {
+  if (errors.length === 0) return;
+  errors = [];
+  errorScanCarry = "";
+  scanBuffer = scanBuffer.slice(-1500);
+  notify();
+}
+
+function ingestCompileSuccess(text: string): boolean {
+  if (!COMPILE_SUCCESS_MARKERS.some((marker) => marker.test(text))) return false;
+  clearResolvedPreviewErrors();
+  return true;
 }
 
 function extractFileLocation(text: string): { filePath?: string; line?: number } {
@@ -105,7 +138,7 @@ function captureCompileBlock(lines: string[], startIndex: number): string {
 
 function ingestCompileOutput(text: string) {
   const lines = text.split("\n");
-  for (let i = 0; i < lines.length; i++) {
+  for (let i = lines.length - 1; i >= 0; i--) {
     const line = lines[i] ?? "";
     if (!COMPILE_ERROR_MARKERS.some((marker) => marker.test(line))) continue;
 
@@ -118,7 +151,7 @@ function ingestCompileOutput(text: string) {
       content,
       ...location,
     });
-    break;
+    return;
   }
 }
 
@@ -128,7 +161,14 @@ export function ingestWebContainerOutput(chunk: string): void {
   if (!cleaned.trim()) return;
 
   scanBuffer = (scanBuffer + cleaned).slice(-MAX_SCAN_BUFFER);
-  ingestCompileOutput(scanBuffer);
+
+  if (ingestCompileSuccess(cleaned)) {
+    return;
+  }
+
+  const scanWindow = (errorScanCarry + cleaned).slice(-8000);
+  errorScanCarry = cleaned.slice(-600);
+  ingestCompileOutput(scanWindow);
 }
 
 export function recordWorkbenchPreviewRuntimeError(args: {
@@ -157,7 +197,24 @@ export function getLatestWorkbenchErrors(): WorkbenchPreviewError[] {
 
 export function clearWorkbenchErrors(): void {
   errors = [];
+  errorScanCarry = "";
+  scanBuffer = "";
   notify();
+}
+
+let healthCheckTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** Debounced recheck after project files change — clears stale errors when HMR succeeds quietly. */
+export function noteWorkbenchFilesChanged(): void {
+  if (typeof window === "undefined") return;
+  if (healthCheckTimer) clearTimeout(healthCheckTimer);
+  healthCheckTimer = setTimeout(() => {
+    healthCheckTimer = null;
+    const tail = scanBuffer.slice(-5000);
+    if (errors.length === 0) return;
+    if (COMPILE_ERROR_MARKERS.some((marker) => marker.test(tail))) return;
+    clearResolvedPreviewErrors();
+  }, 2500);
 }
 
 export function dismissWorkbenchError(id: string): void {
@@ -188,21 +245,47 @@ export function formatErrorsForAgent(errorsToFormat: WorkbenchPreviewError[]): s
     .join("\n\n");
 }
 
+/** Read current preview errors (optionally after a short wait for Vite HMR). */
+export async function getPreviewErrorsForAgent(waitMs = 0): Promise<{
+  has_errors: boolean;
+  message: string;
+  errors: Array<{
+    id: string;
+    source: WorkbenchPreviewError["source"];
+    file_path?: string;
+    line?: number;
+    summary: string;
+    content: string;
+    seen_at: number;
+  }>;
+}> {
+  const wait = Math.max(0, Math.min(waitMs, 5000));
+  if (wait > 0) {
+    await new Promise((resolve) => setTimeout(resolve, wait));
+  }
+
+  const latest = getLatestWorkbenchErrors();
+  return {
+    has_errors: latest.length > 0,
+    message:
+      latest.length === 0
+        ? "No compile or runtime errors captured from the WebContainer preview."
+        : formatErrorsForAgent(latest),
+    errors: latest.map((error) => ({
+      id: error.id,
+      source: error.source,
+      file_path: error.filePath,
+      line: error.line,
+      summary: error.message,
+      content: error.content,
+      seen_at: error.seenAt,
+    })),
+  };
+}
+
 /** Short chat message for persistence; full error text goes through workbench context. */
 export const FIX_PREVIEW_ERROR_MESSAGE = "Fix the compile error in the WebContainer preview.";
 
-export function buildFixPreviewErrorMessage(error: WorkbenchPreviewError): string {
-  const location =
-    error.filePath && error.line
-      ? `${error.filePath} at line ${error.line}`
-      : error.filePath ?? "the project";
-
-  return [
-    `Fix this WebContainer compile error in ${location}.`,
-    "Use grep → read_file → search_replace on the broken JSX/TSX only. Do not rewrite entire files.",
-    "",
-    error.message,
-    "",
-    error.content,
-  ].join("\n");
+export function buildFixPreviewErrorMessage(_error: WorkbenchPreviewError): string {
+  return FIX_PREVIEW_ERROR_MESSAGE;
 }

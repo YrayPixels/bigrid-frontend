@@ -35,8 +35,6 @@ import {
   snapshotFileContents,
 } from "@/lib/bolt/workbench-diff";
 import { runWorkbenchEditAgent } from "@/lib/bolt/workbench-edit-agent";
-import { isWorkbenchEditRequest } from "@/lib/bolt/workbench-intent";
-import { respondWorkbenchChat } from "@/lib/bolt/workbench-chat";
 import {
   appendHistoryToMessages,
   resolveLiveWorkbenchFiles,
@@ -987,17 +985,6 @@ export function websiteBuilderTools(): WebsiteBuilderToolDef[] {
             : ctx.message.trim();
         if (!instruction) return { ok: false, error: "missing_instruction" };
 
-        if (!isWorkbenchEditRequest(instruction)) {
-          const reply = await respondWorkbenchChat({
-            message: instruction,
-            chatHistory: ctx.chatHistory,
-            focusedPath: ctx.contextHints?.selectedPath,
-          });
-          ctx.assistantMessage = reply;
-          ctx.payload = { type: "conversation", workbench_chat: true };
-          return { ok: true, mode: "chat" };
-        }
-
         // Prefer live editor state; fall back to persisted snapshot files.
         const storefrontRecord = ctx.storefront as Record<string, unknown>;
         const liveBeforeEdit = codeFs.exportFiles();
@@ -1026,23 +1013,34 @@ export function websiteBuilderTools(): WebsiteBuilderToolDef[] {
           onStep: ctx.boltStream?.onAgentStep,
         });
 
-        if (agentResult.patchesApplied === 0) {
+        if (!agentResult.finished || !agentResult.ok) {
           ctx.status = "review_ready";
           ctx.assistantMessage =
             agentResult.summary ||
-            "I couldn't find a place to apply that change. Try naming the section (e.g. header, hero) or the file you want edited.";
+            "I couldn't complete that request. Try describing what you want changed.";
           ctx.payload = {
             type: "custom_site_edited",
             files: codeFs.listFiles(),
             edit_mode: "agent",
             agent_steps: agentResult.steps,
-            no_changes: true,
+            no_changes: agentResult.patchesApplied === 0,
             context_selection: {
               search_match_count: agentResult.steps.filter((s) => s.type === "grep").length,
-              patches_applied: 0,
+              patches_applied: agentResult.patchesApplied,
             },
           };
-          return { ok: false, error: "no_patches_applied", mode: "agent", steps: agentResult.steps };
+          return { ok: false, error: "agent_incomplete", mode: "agent", steps: agentResult.steps };
+        }
+
+        if (agentResult.patchesApplied === 0) {
+          ctx.status = "review_ready";
+          ctx.assistantMessage = agentResult.summary;
+          ctx.payload = {
+            type: "conversation",
+            workbench_agent: true,
+            agent_steps: agentResult.steps,
+          };
+          return { ok: true, mode: "agent", steps: agentResult.steps };
         }
 
         const afterFiles = codeFs.exportFiles();

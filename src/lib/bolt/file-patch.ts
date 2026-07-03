@@ -48,6 +48,32 @@ export function applySearchReplace(
   };
 }
 
+export type PatchHunk = {
+  old_string: string;
+  new_string: string;
+  replace_all?: boolean;
+};
+
+export function applyPatchHunks(
+  content: string,
+  hunks: PatchHunk[],
+): { ok: true; content: string; replacements: number } | { ok: false; error: string; hunk_index: number } {
+  let next = content;
+  let replacements = 0;
+
+  for (let i = 0; i < hunks.length; i++) {
+    const hunk = hunks[i]!;
+    const result = applySearchReplace(next, hunk.old_string, hunk.new_string, hunk.replace_all === true);
+    if (!result.ok) {
+      return { ok: false, error: result.error, hunk_index: i };
+    }
+    next = result.content;
+    replacements += result.replacements;
+  }
+
+  return { ok: true, content: next, replacements };
+}
+
 export function readFileSlice(
   content: string,
   startLine = 1,

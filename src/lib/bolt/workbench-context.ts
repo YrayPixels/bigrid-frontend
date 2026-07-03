@@ -2,9 +2,8 @@ import type { BuilderSession, StorefrontContent } from "@/lib/api/types";
 import type { CodeFile } from "@/lib/code-fs";
 import { codeFs } from "@/lib/code-fs";
 import type { ContextSelectionResult, WorkbenchContextHints } from "@/lib/bolt/select-context";
-import { buildEditGuidance, inferEditTargetPaths, isViteReactProject } from "@/lib/bolt/select-context";
+import { inferEditTargetPaths, isViteReactProject } from "@/lib/bolt/select-context";
 import type { CodeSearchMatch } from "@/lib/bolt/code-search";
-import { formatSearchResultsForPrompt } from "@/lib/bolt/code-search";
 import type { BuilderChatHistoryEntry } from "@/lib/storefront-builder/chat-history";
 
 export type BoltChatMessage = {
@@ -136,7 +135,6 @@ export function buildBoltCodeEditMessages(args: {
     .map((path) => path.replace(/^\/+/, ""))
     .filter(Boolean);
   const likelyEditTargets = inferEditTargetPaths(args.instruction, allPaths);
-  const editGuidance = buildEditGuidance(args.instruction, allPaths);
   const isVite = isViteReactProject(allPaths);
 
   messages.push({
@@ -148,17 +146,7 @@ export function buildBoltCodeEditMessages(args: {
       project_file_paths: allPaths,
       ...(focusedFile ? { focused_file: focusedFile } : {}),
       ...(taggedFiles.length > 0 ? { tagged_files: taggedFiles } : {}),
-      ...(likelyEditTargets.length > 0 ? { likely_edit_targets: likelyEditTargets } : {}),
-      ...(editGuidance
-        ? {
-            edit_guidance: {
-              primary_targets: editGuidance.primary_targets,
-              avoid_editing: editGuidance.avoid_editing,
-              output_only: editGuidance.output_only,
-              approach: editGuidance.approach,
-            },
-          }
-        : {}),
+      ...(likelyEditTargets.length > 0 ? { path_hints: likelyEditTargets } : {}),
       ...(args.searchMatches && args.searchMatches.length > 0
         ? {
             code_search_results: args.searchMatches.slice(0, 24).map((match) => ({
@@ -167,21 +155,9 @@ export function buildBoltCodeEditMessages(args: {
               text: match.text,
               query: match.query,
             })),
-            code_search_summary: formatSearchResultsForPrompt(args.searchMatches),
           }
         : {}),
-      ...(isVite
-        ? {
-            project_stack: "vite_react_tanstack",
-            file_roles: {
-              "src/routes/index.tsx":
-                "Homepage + Nav() header, Hero, footer — edit component className/style here for section-specific colors",
-              "src/routes/__root.tsx": "App shell, global HTML head, root providers",
-              "src/styles.css": "Global Tailwind theme tokens only — NOT for header/hero/footer colors",
-              "src/router.tsx": "Route configuration",
-            },
-          }
-        : { project_stack: "static_html" }),
+      ...(isVite ? { project_stack: "vite_react_tanstack" } : { project_stack: "static_html" }),
       ...(selection?.usedSmartContext && selection.omittedPaths.length > 0
         ? {
             omitted_file_paths: selection.omittedPaths,

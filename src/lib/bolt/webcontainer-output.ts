@@ -20,6 +20,12 @@ export function clearWebContainerOutput(): void {
   buffer = "";
 }
 
+/** Return the tail of buffered WebContainer boot/dev/shell output. */
+export function getWebContainerOutputTail(maxChars = 12_000): string {
+  if (!buffer) return "";
+  return buffer.slice(-Math.max(500, maxChars));
+}
+
 /** Subscribe to terminal output. Replays the buffered log once when attaching. */
 export function subscribeWebContainerOutput(listener: OutputListener): () => void {
   if (buffer) listener(buffer);

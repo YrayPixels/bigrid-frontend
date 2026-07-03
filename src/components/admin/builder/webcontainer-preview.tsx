@@ -11,6 +11,7 @@ import {
   appendWebContainerOutput,
   clearWebContainerOutput,
 } from "@/lib/bolt/webcontainer-output";
+import { noteWorkbenchFilesChanged } from "@/lib/bolt/workbench-preview-errors";
 import {
   ensureDependenciesInstalled,
   getWebContainer,
@@ -18,6 +19,7 @@ import {
   onPreviewUrl,
   startDevServer,
 } from "@/lib/bolt/webcontainer-runtime";
+import { registerWorkbenchPreview } from "@/lib/bolt/workbench-preview-inspect";
 import { cn } from "@/lib/utils";
 
 type PreviewStatus =
@@ -63,11 +65,20 @@ export function WebContainerPreview({ className }: WebContainerPreviewProps) {
   const [error, setError] = useState<string | null>(null);
   const [templateReady, setTemplateReady] = useState(false);
   const bootedRef = useRef(false);
+  const previewIframeRef = useRef<HTMLIFrameElement>(null);
   const [fileCount, setFileCount] = useState(0);
+
+  useEffect(() => {
+    return registerWorkbenchPreview({
+      surface: "webcontainer",
+      getDocument: () => previewIframeRef.current?.contentDocument ?? null,
+    });
+  }, []);
 
   useEffect(() => {
     return codeFs.onUpdate(() => {
       setFileCount(codeFs.listFiles().length);
+      noteWorkbenchFilesChanged();
     });
   }, []);
 
@@ -235,6 +246,7 @@ export function WebContainerPreview({ className }: WebContainerPreviewProps) {
       <div className="relative min-h-0 flex-1 overflow-hidden bg-secondary/20">
         {showIframe ? (
           <iframe
+            ref={previewIframeRef}
             title="WebContainer preview"
             src={url!}
             className="h-full w-full border-0"

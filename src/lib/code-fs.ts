@@ -37,8 +37,10 @@ class CodeFs {
 
   writeFile(path: string, content: string, encoding?: CodeFile["encoding"]) {
     const normalized = path.replace(/^\/+/, "");
-    this.files.set(normalized, { path: normalized, content, encoding });
+    const file: CodeFile = { path: normalized, content, encoding };
+    this.files.set(normalized, file);
     this.notify();
+    this.mirrorToWebContainer(file);
   }
 
   readFile(path: string): string | undefined {
@@ -120,6 +122,13 @@ class CodeFs {
     for (const listener of this.listeners) {
       listener();
     }
+  }
+
+  private mirrorToWebContainer(file: CodeFile) {
+    if (typeof window === "undefined") return;
+    void import("@/lib/bolt/wc-file-sync").then(({ mirrorCodeFileToWebContainer }) => {
+      mirrorCodeFileToWebContainer(file);
+    });
   }
 }
 

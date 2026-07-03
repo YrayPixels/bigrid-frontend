@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Code2, LayoutTemplate, Loader2 } from "lucide-react";
 import { codeFs } from "@/lib/code-fs";
+import { registerWorkbenchPreview } from "@/lib/bolt/workbench-preview-inspect";
 import { cn } from "@/lib/utils";
 
 type PreviewMode = "template" | "custom";
@@ -16,6 +17,13 @@ export function CustomCodePreview({ html, className }: { html?: string; classNam
   useEffect(() => {
     return codeFs.onUpdate(() => {
       setKey((k) => k + 1);
+    });
+  }, []);
+
+  useEffect(() => {
+    return registerWorkbenchPreview({
+      surface: "static",
+      getDocument: () => iframeRef.current?.contentDocument ?? null,
     });
   }, []);
 

@@ -28,8 +28,6 @@ import { seedBuildItUpIfNeeded } from "@/lib/bolt/seed-template";
 import { needsBoltTemplateSeed } from "@/lib/bolt/project-utils";
 import type { BoltStreamCallbacks } from "@/lib/bolt/bolt-stream";
 import type { WorkbenchContextHints } from "@/lib/bolt/select-context";
-import { isWorkbenchEditRequest } from "@/lib/bolt/workbench-intent";
-import { respondWorkbenchChat } from "@/lib/bolt/workbench-chat";
 import { mergeLiveCodeFsIntoSession, mergeLiveCodeFsIntoStorefront } from "@/lib/bolt/workbench-context";
 import { codeFs, type CodeFile } from "@/lib/code-fs";
 
@@ -160,31 +158,6 @@ async function runBoltCustomTurn(args: {
       storefrontRecord.custom_code = codeFs.getMainHtml();
       hasCustom = true;
     }
-  }
-
-  // If we have a seeded template, route chat vs code edits.
-  if (hasCustom && editTool && !isWorkbenchEditRequest(message)) {
-    const reply = await respondWorkbenchChat({
-      message,
-      chatHistory,
-      focusedPath: contextHints?.selectedPath,
-    });
-
-    return {
-      business_profile: enrichedProfile,
-      status: session.status,
-      selected_template_id: ctx.selectedTemplateId,
-      storefront: (mergeLiveCodeFsIntoStorefront(session.storefront_snapshot) ??
-        session.storefront_snapshot ??
-        undefined) as StorefrontContent | undefined,
-      assistant_message: reply,
-      assistant_payload: {
-        type: "conversation",
-        workbench_chat: true,
-        tool_calls: [],
-        tool_results: [],
-      },
-    };
   }
 
   const tool = hasCustom && editTool ? editTool : generateTool;

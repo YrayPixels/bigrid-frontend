@@ -1,15 +1,47 @@
 import type { CodeFile } from "@/lib/code-fs";
 import { codeFs } from "@/lib/code-fs";
-import { buildSearchQueries, searchCodeFiles, formatSearchResultsForPrompt } from "@/lib/bolt/code-search";
-import { applySearchReplace, normalizePatchPath, readFileSlice } from "@/lib/bolt/file-patch";
-import { isWorkbenchEditRequest } from "@/lib/bolt/workbench-intent";
+import { searchCodeFiles } from "@/lib/bolt/code-search";
+import { applyPatchHunks, applySearchReplace, normalizePatchPath, readFileSlice } from "@/lib/bolt/file-patch";
 import { mirrorCodeFileToWebContainer, mirrorDeleteFromWebContainer } from "@/lib/bolt/wc-file-sync";
-import { postChat } from "@/lib/storefront-builder/agents/openaiChat";
+import { getThinkingModel, postChat } from "@/lib/storefront-builder/agents/openaiChat";
 import type { BuilderChatHistoryEntry } from "@/lib/storefront-builder/chat-history";
+import { reviewWorkbenchEdit, type WorkbenchEditReview } from "@/lib/bolt/workbench-edit-review";
+import { formatFileDiffForAgent, snapshotFileContents } from "@/lib/bolt/workbench-diff";
+import {
+  appendAgentScratchpad,
+  clearAgentScratchpad,
+  getAgentScratchpad,
+  setAgentScratchpad,
+} from "@/lib/bolt/workbench-agent-scratchpad";
+import { inspectPreviewForAgent } from "@/lib/bolt/workbench-preview-inspect";
+import { isViteReactProject } from "@/lib/bolt/select-context";
+import {
+  formatErrorsForAgent,
+  getLatestWorkbenchErrors,
+  getPreviewErrorsForAgent,
+} from "@/lib/bolt/workbench-preview-errors";
+import { getWebContainerOutputTail } from "@/lib/bolt/webcontainer-output";
+import { runWebContainerCommand } from "@/lib/bolt/webcontainer-terminal";
 
 export type WorkbenchEditStep = {
   id: string;
-  type: "think" | "grep" | "read" | "patch" | "delete" | "list" | "done" | "error";
+  type:
+    | "think"
+    | "grep"
+    | "read"
+    | "write"
+    | "patch"
+    | "delete"
+    | "list"
+    | "shell"
+    | "verify"
+    | "diff"
+    | "revert"
+    | "plan"
+    | "preview"
+    | "review"
+    | "done"
+    | "error";
   title: string;
   detail?: string;
   path?: string;
@@ -28,6 +60,7 @@ type ChatMessage =
   | { role: "tool"; tool_call_id: string; content: string };
 
 const MAX_ITERATIONS = 14;
+const MAX_REVIEW_ATTEMPTS = 3;
 
 const WORKBENCH_EDIT_TOOLS = [
   {
@@ -61,6 +94,27 @@ const WORKBENCH_EDIT_TOOLS = [
           end_line: { type: "number" },
         },
         required: ["path"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "write_file",
+      description:
+        "Create a new file or replace an entire file. Use for new paths only, or set overwrite=true to replace an existing file. Prefer search_replace for small edits to existing files.",
+      parameters: {
+        type: "object",
+        properties: {
+          path: { type: "string" },
+          content: { type: "string" },
+          overwrite: {
+            type: "boolean",
+            description: "Allow replacing an existing file (default false)",
+          },
+        },
+        required: ["path", "content"],
         additionalProperties: false,
       },
     },
@@ -120,6 +174,173 @@ const WORKBENCH_EDIT_TOOLS = [
   {
     type: "function" as const,
     function: {
+      name: "run_command",
+      description:
+        "Run a shell command in the WebContainer project (e.g. grep in node_modules, cat a file, pnpm why tailwindcss). Do not run pnpm install unless dependencies are broken.",
+      parameters: {
+        type: "object",
+        properties: {
+          command: { type: "string", description: "Shell command to run in project root" },
+        },
+        required: ["command"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "apply_patch",
+      description:
+        "Apply multiple search/replace hunks to one file in a single step. Each hunk needs exact old_string copied from read_file.",
+      parameters: {
+        type: "object",
+        properties: {
+          path: { type: "string" },
+          hunks: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                old_string: { type: "string" },
+                new_string: { type: "string" },
+                replace_all: { type: "boolean" },
+              },
+              required: ["old_string", "new_string"],
+              additionalProperties: false,
+            },
+          },
+        },
+        required: ["path", "hunks"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "show_diff",
+      description: "Show what changed in a file compared to the start of this edit session.",
+      parameters: {
+        type: "object",
+        properties: {
+          path: { type: "string" },
+        },
+        required: ["path"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "revert_path",
+      description: "Restore a file to its content at the start of this edit session.",
+      parameters: {
+        type: "object",
+        properties: {
+          path: { type: "string" },
+        },
+        required: ["path"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "get_terminal_output",
+      description: "Read recent WebContainer boot, install, and dev-server terminal output.",
+      parameters: {
+        type: "object",
+        properties: {
+          max_chars: { type: "number", description: "Max characters to return (default 8000)" },
+        },
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "inspect_preview",
+      description:
+        "Inspect the live preview: computed styles for a CSS selector, HTML excerpt, or screenshot (static preview only).",
+      parameters: {
+        type: "object",
+        properties: {
+          selector: { type: "string", description: "CSS selector, e.g. header, .hero, body" },
+          include_html: { type: "boolean" },
+          include_screenshot: { type: "boolean" },
+        },
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "run_build",
+      description: "Run the project production build (pnpm run build) and return output.",
+      parameters: {
+        type: "object",
+        properties: {},
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "update_plan",
+      description: "Record your plan, hypotheses, or progress notes for this session.",
+      parameters: {
+        type: "object",
+        properties: {
+          mode: { type: "string", enum: ["append", "replace"] },
+          notes: {
+            type: "array",
+            items: { type: "string" },
+          },
+        },
+        required: ["notes"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "read_plan",
+      description: "Read your recorded plan and notes for this session.",
+      parameters: {
+        type: "object",
+        properties: {},
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "get_preview_errors",
+      description:
+        "Read compile/runtime errors from the live WebContainer preview. Call after edits to verify the preview. Optional wait_ms (0–5000) lets Vite HMR finish before reading.",
+      parameters: {
+        type: "object",
+        properties: {
+          wait_ms: {
+            type: "number",
+            description: "Milliseconds to wait before reading preview output (default 1500)",
+          },
+        },
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
       name: "finish_edit",
       description: "Call when all edits are complete and the request is satisfied.",
       parameters: {
@@ -138,128 +359,37 @@ function stepId(): string {
   return `step-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
-function extractDeleteTarget(instruction: string): string | null {
-  if (/\b\.lovable\b/i.test(instruction)) {
-    return ".lovable";
-  }
-
-  const explicit = instruction.match(
-    /\b(?:delete|remove)\s+(?:the\s+)?['"`]?([.@\w][^\s'"`,]*?)['"`]?(?:\s+(?:folder|directory|file))?\b/i,
-  );
-  if (explicit?.[1]) {
-    return normalizePatchPath(explicit[1].replace(/\/+$/, ""));
-  }
-
-  const fileOnly = instruction.match(/\bfile\s+['"`]?([^\s'"`,]+)['"`]?/i);
-  if (fileOnly?.[1]) {
-    return normalizePatchPath(fileOnly[1]);
-  }
-
-  return null;
-}
-
-function deleteTargetLabel(target: string, deletedPaths: string[]): string {
-  if (deletedPaths.length === 1 && !target.endsWith("/")) {
-    return `\`${deletedPaths[0]}\``;
-  }
-  if (target.includes(".") && !target.endsWith("/")) {
-    return `\`${target}\``;
-  }
-  return `\`${target}\` folder`;
-}
-
-function projectHasPathPrefix(paths: string[], target: string): boolean {
-  const normalized = target.replace(/\/+$/, "");
-  return paths.some((path) => {
-    const filePath = normalizePatchPath(path);
-    return (
-      filePath === normalized ||
-      filePath.toLowerCase() === normalized.toLowerCase() ||
-      filePath.startsWith(`${normalized}/`) ||
-      filePath.toLowerCase().startsWith(`${normalized.toLowerCase()}/`)
-    );
-  });
-}
-
-function tryFastDeletePath(args: {
-  instruction: string;
+function buildAgentSystemPrompt(args: {
   files: CodeFile[];
-  emit: (step: Omit<WorkbenchEditStep, "id">) => WorkbenchEditStep;
-}): {
-  ok: boolean;
-  summary: string;
-  patchesApplied: number;
-  editedPaths: string[];
-  steps: WorkbenchEditStep[];
-  finished: boolean;
-} | null {
-  const hasDeleteIntent =
-    /\b(delete|remove|unlink)\b/i.test(args.instruction) ||
-    /\bnot\s+a\s+folder\b/i.test(args.instruction);
-  if (!hasDeleteIntent) return null;
+  lockedPaths: string[];
+  focusedPath?: string | null;
+  taggedPaths?: string[];
+  previewErrors?: string;
+  isNodeProject?: boolean;
+}): string {
+  const paths = args.files.map((f) => normalizePatchPath(f.path)).sort();
+  const stack = args.isNodeProject ? "vite_react_tanstack" : "static_html";
 
-  const target = extractDeleteTarget(args.instruction);
-  if (!target) return null;
-
-  const livePaths =
-    codeFs.listFiles().length > 0 ? codeFs.listFiles() : args.files.map((file) => file.path);
-
-  if (!projectHasPathPrefix(livePaths, target)) {
-    const label = deleteTargetLabel(target, []);
-    args.emit({
-      type: "delete",
-      title: `${label} is not in the project`,
-      detail: "Already removed or not included in this workbench project.",
-      path: target,
-      status: "complete",
-    });
-    return {
-      ok: true,
-      summary: `${label} is not in your project — nothing to delete.`,
-      patchesApplied: 0,
-      editedPaths: [],
-      steps: [],
-      finished: true,
-    };
-  }
-
-  const deleted = codeFs.deletePath(target);
-  if (deleted.length === 0) {
-    const label = deleteTargetLabel(target, []);
-    args.emit({
-      type: "delete",
-      title: `${label} is not in the project`,
-      detail: "Already removed or not included in this workbench project.",
-      path: target,
-      status: "complete",
-    });
-    return {
-      ok: true,
-      summary: `${label} is not in your project — nothing to delete.`,
-      patchesApplied: 0,
-      editedPaths: [],
-      steps: [],
-      finished: true,
-    };
-  }
-
-  mirrorDeleteFromWebContainer(deleted);
-  const label = deleteTargetLabel(target, deleted);
-  args.emit({
-    type: "delete",
-    title: `Deleted ${label}`,
-    detail: deleted.join("\n"),
-    path: target,
-    status: "complete",
-  });
-  return {
-    ok: true,
-    summary: `Deleted ${label}.`,
-    patchesApplied: 0,
-    editedPaths: deleted,
-    steps: [],
-    finished: true,
-  };
+  return [
+    "You are an autonomous agent for a merchant storefront code workbench.",
+    "You have tools to explore and change this project — use them to decide what to do.",
+    "grep_codebase, read_file, list_files, and run_command help you understand the codebase.",
+    "search_replace edits existing files; write_file creates or replaces whole files; apply_patch applies multiple hunks.",
+    "show_diff and revert_path help you review or undo changes in this session.",
+    "get_preview_errors, get_terminal_output, run_build, and inspect_preview verify your work.",
+    "update_plan / read_plan track your reasoning across steps.",
+    "delete_path removes files or folders.",
+    "Call finish_edit when you are done (including when no file changes were needed).",
+    "",
+    `Stack: ${stack}`,
+    `Project files (${paths.length}): ${paths.join(", ")}`,
+    args.focusedPath ? `User is viewing: ${normalizePatchPath(args.focusedPath)}` : "",
+    args.taggedPaths?.length ? `User tagged: ${args.taggedPaths.map(normalizePatchPath).join(", ")}` : "",
+    args.previewErrors ? `Active preview errors:\n${args.previewErrors}` : "",
+    args.lockedPaths.length > 0 ? `Locked paths (do not edit): ${args.lockedPaths.join(", ")}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 function grepFiles(files: CodeFile[], pattern: string, pathPrefix?: string, useRegex = false) {
@@ -319,8 +449,10 @@ export async function runWorkbenchEditAgent(args: {
   editedPaths: string[];
   steps: WorkbenchEditStep[];
   finished: boolean;
+  review?: WorkbenchEditReview;
 }> {
   const locked = new Set((args.lockedPaths ?? []).map(normalizePatchPath));
+  const lockedList = [...locked];
   const steps: WorkbenchEditStep[] = [];
   let patchesApplied = 0;
   let pathsDeleted = 0;
@@ -335,81 +467,18 @@ export async function runWorkbenchEditAgent(args: {
     return full;
   };
 
-  const seedQueries = buildSearchQueries(args.instruction);
-  const seedMatches = isWorkbenchEditRequest(args.instruction)
-    ? searchCodeFiles(args.files, seedQueries)
-    : [];
+  clearAgentScratchpad();
 
-  emit({
-    type: "think",
-    title: "Planning edit",
-    detail: args.instruction.slice(0, 200),
-    status: "complete",
-  });
-
-  const fastDelete = tryFastDeletePath({
-    instruction: args.instruction,
+  const systemPrompt = buildAgentSystemPrompt({
     files: args.files,
-    emit,
+    lockedPaths: lockedList,
+    focusedPath: args.focusedPath,
+    taggedPaths: args.taggedPaths,
+    previewErrors: args.previewErrors,
+    isNodeProject: args.isNodeProject ?? isViteReactProject(args.files.map((f) => f.path)),
   });
-  if (fastDelete) {
-    emit({
-      type: "done",
-      title: fastDelete.summary,
-      status: "complete",
-    });
-    return {
-      ...fastDelete,
-      steps,
-    };
-  }
 
-  const deleteAttempts = new Set<string>();
-
-  if (seedMatches.length > 0) {
-    emit({
-      type: "grep",
-      title: `Pre-search: ${seedMatches.length} match${seedMatches.length === 1 ? "" : "es"}`,
-      detail: formatSearchResultsForPrompt(seedMatches, 8),
-      status: "complete",
-    });
-  }
-
-  const systemPrompt = [
-    "You are a Cursor-style code editing agent for a merchant website workbench.",
-    "Workflow (required):",
-    "1. grep_codebase — find the exact file and line(s) to change",
-    "2. read_file — read surrounding lines with line numbers",
-    "3. search_replace — apply minimal exact-match patches (copy old_string verbatim from read_file)",
-    "4. delete_path — remove a file or folder when the user asks to delete/remove it",
-    "5. finish_edit — when done",
-    "",
-    "RULES:",
-    "- If the user message is only a greeting or general chat (not a code change), call finish_edit immediately with a brief friendly reply. Do NOT grep or read files.",
-    "- NEVER rewrite entire files. Only use search_replace with small, unique old_string snippets.",
-    "- For delete/remove requests, use delete_path once (e.g. path `.lovable` removes the whole .lovable folder).",
-    "- If delete_path returns already_absent, call finish_edit immediately — do not grep, list_files, or retry delete_path.",
-    "- Copy old_string exactly from read_file output (without the line number prefix).",
-    "- If grep finds nothing, try alternate terms or list_files.",
-    "- Do not edit locked paths.",
-    args.isNodeProject
-      ? "- Vite + React + TanStack Router: header/nav/hero/footer live in src/routes/index.tsx. Do NOT edit src/styles.css for header/section colors — use className or style on the JSX element."
-      : "- Keep the existing stack.",
-    args.focusedPath ? `- User is viewing: ${args.focusedPath}` : "",
-    args.taggedPaths && args.taggedPaths.length > 0
-      ? `- User tagged paths with @ (files or folders expanded to project files): ${args.taggedPaths.join(", ")} — prioritize edits there.`
-      : "",
-    args.previewErrors
-      ? "- Active WebContainer preview errors are listed in the user message. Fix them before calling finish_edit when the user asks to fix errors or your edits likely caused them."
-      : "",
-    locked.size > 0 ? `- Locked paths: ${[...locked].join(", ")}` : "",
-  ]
-    .filter(Boolean)
-    .join("\n");
-
-  const messages: ChatMessage[] = [
-    { role: "system", content: systemPrompt },
-  ];
+  const messages: ChatMessage[] = [{ role: "system", content: systemPrompt }];
 
   for (const entry of args.chatHistory ?? []) {
     const content = entry.content.trim();
@@ -419,21 +488,31 @@ export async function runWorkbenchEditAgent(args: {
 
   messages.push({
     role: "user",
-    content: [
-      `Edit request: ${args.instruction}`,
-      args.previewErrors ? `\nWebContainer preview errors:\n${args.previewErrors}` : "",
-      seedMatches.length > 0
-        ? `\nInitial grep hints:\n${formatSearchResultsForPrompt(seedMatches, 16)}`
-        : "",
-      `\nProject has ${args.files.length} files. Use tools to search, read, and patch.`,
-    ].join(""),
+    content: args.instruction.trim(),
   });
 
-  for (let iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
+  const allPaths = args.files.map((f) => normalizePatchPath(f.path));
+  const sessionBeforeSnapshot = snapshotFileContents(args.files, allPaths);
+
+  const deleteAttempts = new Set<string>();
+
+  for (let attempt = 0; attempt < MAX_REVIEW_ATTEMPTS; attempt++) {
+    let executorDone = false;
+
+    if (attempt > 0) {
+      emit({
+        type: "think",
+        title: `Retry ${attempt + 1} of ${MAX_REVIEW_ATTEMPTS}`,
+        status: "running",
+      });
+    }
+
+    for (let iteration = 0; iteration < MAX_ITERATIONS && !executorDone; iteration++) {
     const data = await postChat({
+      model: getThinkingModel(),
       messages,
       tools: WORKBENCH_EDIT_TOOLS,
-      tool_choice: iteration === 0 ? "required" : "auto",
+      tool_choice: iteration === 0 && attempt === 0 ? "required" : "auto",
       temperature: 0.2,
     });
 
@@ -536,6 +615,50 @@ export async function runWorkbenchEditAgent(args: {
           });
           toolResult = { ok: true, path, ...slice, note: "Line numbers are for reference only — do NOT include them in search_replace old_string." };
         }
+      } else if (name === "write_file") {
+        const path = normalizePatchPath(String(parsed.path ?? ""));
+        const content = String(parsed.content ?? "");
+        const overwrite = parsed.overwrite === true;
+        const exists = codeFs.readFile(path) !== undefined;
+
+        emit({
+          type: "write",
+          title: exists ? `Writing ${path}` : `Creating ${path}`,
+          path,
+          status: "running",
+        });
+
+        if (locked.has(path)) {
+          emit({ type: "write", title: `Blocked: ${path} is locked`, path, status: "failed" });
+          toolResult = { ok: false, error: "path_locked", path };
+        } else if (exists && !overwrite) {
+          emit({
+            type: "write",
+            title: `File exists: ${path}`,
+            detail: "Use search_replace for edits, or pass overwrite=true to replace the whole file.",
+            path,
+            status: "failed",
+          });
+          toolResult = {
+            ok: false,
+            error: "file_exists",
+            path,
+            message: "File already exists — use search_replace or overwrite=true.",
+          };
+        } else {
+          codeFs.writeFile(path, content);
+          mirrorCodeFileToWebContainer({ path, content });
+          patchesApplied += 1;
+          editedPaths.add(path);
+          emit({
+            type: "write",
+            title: exists ? `Wrote ${path}` : `Created ${path}`,
+            detail: `${content.length} bytes`,
+            path,
+            status: "complete",
+          });
+          toolResult = { ok: true, path, created: !exists, bytes: content.length };
+        }
       } else if (name === "search_replace") {
         const path = normalizePatchPath(String(parsed.path ?? ""));
         const oldString = String(parsed.old_string ?? "");
@@ -552,7 +675,10 @@ export async function runWorkbenchEditAgent(args: {
           emit({ type: "patch", title: `Blocked: ${path} is locked`, path, status: "failed" });
           toolResult = { ok: false, error: "path_locked", path };
         } else {
-          const current = codeFs.readFile(path) ?? "";
+          const current =
+            codeFs.readFile(path) ??
+            args.files.find((f) => normalizePatchPath(f.path) === path)?.content ??
+            "";
           const patch = applySearchReplace(current, oldString, newString, replaceAll);
           if (!patch.ok) {
             emit({ type: "patch", title: `Patch failed: ${path}`, detail: patch.error, path, status: "failed" });
@@ -572,6 +698,170 @@ export async function runWorkbenchEditAgent(args: {
             toolResult = { ok: true, path, replacements: patch.replacements };
           }
         }
+      } else if (name === "apply_patch") {
+        const path = normalizePatchPath(String(parsed.path ?? ""));
+        const hunks = Array.isArray(parsed.hunks) ? parsed.hunks : [];
+        emit({
+          type: "patch",
+          title: `Applying ${hunks.length} hunk(s) to ${path}`,
+          path,
+          status: "running",
+        });
+
+        if (locked.has(path)) {
+          emit({ type: "patch", title: `Blocked: ${path} is locked`, path, status: "failed" });
+          toolResult = { ok: false, error: "path_locked", path };
+        } else if (hunks.length === 0) {
+          toolResult = { ok: false, error: "missing_hunks", path };
+        } else {
+          const current =
+            codeFs.readFile(path) ??
+            args.files.find((f) => normalizePatchPath(f.path) === path)?.content ??
+            "";
+          const normalizedHunks = hunks.map((hunk) => ({
+            old_string: String((hunk as { old_string?: string }).old_string ?? ""),
+            new_string: String((hunk as { new_string?: string }).new_string ?? ""),
+            replace_all: (hunk as { replace_all?: boolean }).replace_all === true,
+          }));
+          const patch = applyPatchHunks(current, normalizedHunks);
+          if (!patch.ok) {
+            emit({
+              type: "patch",
+              title: `Patch failed: ${path}`,
+              detail: `Hunk ${patch.hunk_index + 1}: ${patch.error}`,
+              path,
+              status: "failed",
+            });
+            toolResult = { ok: false, error: patch.error, path, hunk_index: patch.hunk_index };
+          } else {
+            codeFs.writeFile(path, patch.content);
+            mirrorCodeFileToWebContainer({ path, content: patch.content });
+            patchesApplied += patch.replacements;
+            editedPaths.add(path);
+            emit({
+              type: "patch",
+              title: `Patched ${path}`,
+              detail: `${patch.replacements} replacement(s) across ${hunks.length} hunk(s)`,
+              path,
+              status: "complete",
+            });
+            toolResult = { ok: true, path, replacements: patch.replacements, hunks: hunks.length };
+          }
+        }
+      } else if (name === "show_diff") {
+        const path = normalizePatchPath(String(parsed.path ?? ""));
+        const before = sessionBeforeSnapshot[path] ?? "";
+        const after = codeFs.readFile(path) ?? before;
+        const diffText = formatFileDiffForAgent(path, before, after);
+        emit({
+          type: "diff",
+          title: `Diff ${path}`,
+          path,
+          detail: diffText.slice(0, 4000),
+          status: before === after ? "complete" : "complete",
+        });
+        toolResult = { ok: true, path, changed: before !== after, diff: diffText };
+      } else if (name === "revert_path") {
+        const path = normalizePatchPath(String(parsed.path ?? ""));
+        emit({ type: "revert", title: `Reverting ${path}`, path, status: "running" });
+        if (!(path in sessionBeforeSnapshot)) {
+          const exists = codeFs.readFile(path) !== undefined;
+          if (exists) {
+            codeFs.deletePath(path);
+            mirrorDeleteFromWebContainer([path]);
+            editedPaths.add(path);
+            emit({ type: "revert", title: `Removed ${path} (new this session)`, path, status: "complete" });
+            toolResult = { ok: true, path, removed: true };
+          } else {
+            emit({ type: "revert", title: `Nothing to revert for ${path}`, path, status: "failed" });
+            toolResult = { ok: false, error: "file_not_in_session", path };
+          }
+        } else {
+          const before = sessionBeforeSnapshot[path] ?? "";
+          codeFs.writeFile(path, before);
+          mirrorCodeFileToWebContainer({ path, content: before });
+          editedPaths.add(path);
+          emit({ type: "revert", title: `Reverted ${path}`, path, status: "complete" });
+          toolResult = { ok: true, path, reverted: true };
+        }
+      } else if (name === "get_terminal_output") {
+        const maxChars =
+          typeof parsed.max_chars === "number" && Number.isFinite(parsed.max_chars)
+            ? parsed.max_chars
+            : 8000;
+        const output = getWebContainerOutputTail(maxChars);
+        emit({
+          type: "shell",
+          title: "Terminal output",
+          detail: output.slice(0, 4000) || "(empty)",
+          status: "complete",
+        });
+        toolResult = {
+          ok: true,
+          output: output || "(no terminal output captured yet)",
+          chars: output.length,
+        };
+      } else if (name === "inspect_preview") {
+        const selector = typeof parsed.selector === "string" ? parsed.selector : undefined;
+        emit({
+          type: "preview",
+          title: selector ? `Inspect ${selector}` : "Inspect preview",
+          status: "running",
+        });
+        const inspection = await inspectPreviewForAgent({
+          selector,
+          include_html: parsed.include_html === true,
+          include_screenshot: parsed.include_screenshot === true,
+        });
+        emit({
+          type: "preview",
+          title: inspection.ok ? "Preview inspected" : "Preview inspect failed",
+          detail: inspection.message,
+          status: inspection.ok ? "complete" : "failed",
+        });
+        toolResult = { ...inspection };
+      } else if (name === "run_build") {
+        emit({ type: "shell", title: "pnpm run build", status: "running" });
+        let output = "";
+        const result = await runWebContainerCommand({
+          command: "pnpm run build 2>&1",
+          onOutput: (chunk) => {
+            output = (output + chunk).slice(-12_000);
+          },
+        });
+        emit({
+          type: "shell",
+          title: "pnpm run build",
+          detail: output.slice(-4000) || `exit ${result.exitCode}`,
+          status: result.exitCode === 0 ? "complete" : "failed",
+        });
+        toolResult = { ok: result.exitCode === 0, exit_code: result.exitCode, output: output.slice(-12_000) };
+      } else if (name === "update_plan") {
+        const notes = Array.isArray(parsed.notes)
+          ? parsed.notes.filter((note): note is string => typeof note === "string" && note.trim().length > 0)
+          : [];
+        if (parsed.mode === "replace") {
+          setAgentScratchpad(notes);
+        } else {
+          for (const note of notes) appendAgentScratchpad(note);
+        }
+        const plan = getAgentScratchpad();
+        emit({
+          type: "plan",
+          title: "Plan updated",
+          detail: plan.slice(0, 4000),
+          status: "complete",
+        });
+        toolResult = { ok: true, plan };
+      } else if (name === "read_plan") {
+        const plan = getAgentScratchpad();
+        emit({
+          type: "plan",
+          title: plan ? "Current plan" : "No plan recorded",
+          detail: plan.slice(0, 4000) || undefined,
+          status: "complete",
+        });
+        toolResult = { ok: true, plan: plan || "(empty)" };
       } else if (name === "delete_path") {
         const path = normalizePatchPath(String(parsed.path ?? ""));
 
@@ -631,6 +921,32 @@ export async function runWorkbenchEditAgent(args: {
             }
           }
         }
+      } else if (name === "run_command") {
+        const command = String(parsed.command ?? "").trim();
+        emit({
+          type: "shell",
+          title: command.slice(0, 80) || "shell",
+          detail: command,
+          status: "running",
+        });
+        if (!command) {
+          toolResult = { ok: false, error: "missing_command" };
+        } else {
+          let output = "";
+          const result = await runWebContainerCommand({
+            command,
+            onOutput: (chunk) => {
+              output = (output + chunk).slice(-8000);
+            },
+          });
+          emit({
+            type: "shell",
+            title: command.slice(0, 80),
+            detail: output.slice(-4000) || `exit ${result.exitCode}`,
+            status: result.exitCode === 0 ? "complete" : "failed",
+          });
+          toolResult = { ok: result.exitCode === 0, exit_code: result.exitCode, output: output.slice(-8000) };
+        }
       } else if (name === "list_files") {
         const prefix = typeof parsed.path_prefix === "string" ? normalizePatchPath(parsed.path_prefix) : "";
         const livePaths =
@@ -646,25 +962,108 @@ export async function runWorkbenchEditAgent(args: {
           status: "complete",
         });
         toolResult = { ok: true, paths, count: paths.length };
+      } else if (name === "get_preview_errors") {
+        const waitMs =
+          typeof parsed.wait_ms === "number" && Number.isFinite(parsed.wait_ms)
+            ? parsed.wait_ms
+            : 1500;
+        emit({
+          type: "verify",
+          title: "Checking preview",
+          detail: waitMs > 0 ? `Waiting ${waitMs}ms for HMR…` : undefined,
+          status: "running",
+        });
+        const preview = await getPreviewErrorsForAgent(waitMs);
+        emit({
+          type: "verify",
+          title: preview.has_errors ? "Preview has errors" : "Preview looks clean",
+          detail: preview.message.slice(0, 4000),
+          status: preview.has_errors ? "failed" : "complete",
+        });
+        toolResult = { ok: true, ...preview };
       } else if (name === "finish_edit") {
         summary = String(parsed.summary ?? "Edit complete.");
-        finished = true;
-        emit({ type: "done", title: summary, status: "complete" });
+        executorDone = true;
         toolResult = { ok: true, finished: true, summary };
       }
 
       messages.push({ role: "tool", tool_call_id: callId, content: JSON.stringify(toolResult) });
+    }
+  }
 
-      if (finished) {
-        return {
-          ok: patchesApplied > 0 || pathsDeleted > 0 || finished,
-          summary: summary || "Edit complete.",
-          patchesApplied,
-          editedPaths: [...editedPaths],
-          steps,
-          finished: true,
-        };
-      }
+    const editedPathList = [...editedPaths];
+    const afterByPath: Record<string, string> = {};
+    for (const path of editedPathList) {
+      afterByPath[path] = codeFs.readFile(path) ?? sessionBeforeSnapshot[path] ?? "";
+    }
+
+    const livePreviewErrors =
+      formatErrorsForAgent(getLatestWorkbenchErrors()) || args.previewErrors;
+
+    const review = await reviewWorkbenchEdit({
+      userGoal: args.instruction.trim(),
+      editedPaths: editedPathList,
+      beforeByPath: sessionBeforeSnapshot,
+      afterByPath,
+      executorSummary: summary || "Executor finished.",
+      patchesApplied,
+      previewErrors: livePreviewErrors,
+      agentPlan: getAgentScratchpad() || undefined,
+      attempt,
+      maxAttempts: MAX_REVIEW_ATTEMPTS,
+    });
+
+    const reviewDetail = [
+      review.feedback,
+      review.gaps.length > 0 ? `\nGaps:\n${review.gaps.map((g) => `- ${g}`).join("\n")}` : "",
+    ]
+      .filter(Boolean)
+      .join("");
+
+    emit({
+      type: "review",
+      title: review.satisfied ? "Goal met" : review.should_retry ? "Needs more work" : "Review complete",
+      detail: reviewDetail,
+      status: review.satisfied ? "complete" : review.should_retry ? "failed" : "complete",
+    });
+
+    finished = review.satisfied || !review.should_retry;
+    summary = review.feedback;
+
+    if (review.satisfied || !review.should_retry) {
+      emit({
+        type: "done",
+        title: summary,
+        detail: review.gaps.length > 0 ? review.gaps.join("\n") : undefined,
+        status: review.satisfied ? "complete" : "failed",
+      });
+      return {
+        ok: review.satisfied,
+        summary,
+        patchesApplied,
+        editedPaths: editedPathList,
+        steps,
+        finished: true,
+        review,
+      };
+    }
+
+    if (review.retry_guidance || review.should_retry) {
+      messages.push({
+        role: "user",
+        content: [
+          "REVIEW FEEDBACK — the previous pass did not fully satisfy the request. Retry with corrections:",
+          review.retry_guidance ?? "Address the gaps listed below and ensure the change matches the plan understanding.",
+          review.gaps.length > 0 ? `\nGaps to fix:\n${review.gaps.map((g) => `- ${g}`).join("\n")}` : "",
+          "\nUse your tools to investigate and fix, then call finish_edit.",
+        ].join(""),
+      });
+      emit({
+        type: "think",
+        title: "Retrying with review feedback",
+        detail: review.retry_guidance ?? (review.gaps.join("; ") || "Applying corrections"),
+        status: "complete",
+      });
     }
   }
 

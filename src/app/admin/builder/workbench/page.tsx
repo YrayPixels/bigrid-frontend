@@ -41,6 +41,7 @@ import { appendWebContainerOutput } from "@/lib/bolt/webcontainer-output";
 import { formatErrorsForAgent, getLatestWorkbenchErrors } from "@/lib/bolt/workbench-preview-errors";
 import { buildWorkbenchProjectPayload } from "@/lib/bolt/workbench-persist";
 import { useWorkbenchAutoSave } from "@/lib/bolt/use-workbench-autosave";
+import { useWorkbenchEditorPreviewSync } from "@/lib/bolt/use-workbench-editor-preview-sync";
 import { lastWrittenPathsFromSession } from "@/lib/bolt/select-context";
 import type { WorkbenchEditStep } from "@/lib/bolt/workbench-edit-agent";
 import {
@@ -475,6 +476,13 @@ export default function AdminBuilderWorkbenchPage() {
   );
 
   const isLocked = lockedPaths.has(selectedPath);
+
+  useWorkbenchEditorPreviewSync({
+    path: selectedPath,
+    draft,
+    dirty,
+    enabled: files.length > 0 && !isLocked && !aiStreaming,
+  });
 
   const saveFile = () => {
     codeFs.writeFile(selectedPath, draft);

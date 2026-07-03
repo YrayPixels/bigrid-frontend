@@ -1,3 +1,11 @@
+/** Greeting-only messages that should stay in chat even when a compile error is active. */
+export function isPureWorkbenchGreeting(message: string): boolean {
+  const stripped = message.trim().replace(/[!?.]+$/g, "").trim();
+  return /^(hi|hey|hello|hiya|yo|sup|howdy|thanks?|thank you|thx|ok|okay|cool|nice|great|awesome|bye|goodbye)(\s+there|\s+again)?$/i.test(
+    stripped,
+  );
+}
+
 /** Returns true when the user message is asking to change site code (not just chatting). */
 export function isWorkbenchDeleteRequest(message: string): boolean {
   const text = message.trim();

@@ -23,10 +23,9 @@ export function WorkbenchErrorAlert({
   const [errors, setErrors] = useState<WorkbenchPreviewError[]>([]);
 
   useEffect(() => {
-    setErrors(getLatestWorkbenchErrors());
-    return subscribeWorkbenchErrors(() => {
-      setErrors(getLatestWorkbenchErrors());
-    });
+    const sync = () => setErrors(getLatestWorkbenchErrors());
+    sync();
+    return subscribeWorkbenchErrors(sync);
   }, []);
 
   const error = errors[0];
@@ -46,8 +45,8 @@ export function WorkbenchErrorAlert({
           <p className="mt-1 text-sm text-ink-soft">
             The preview hit a {error.source === "compile" ? "compile" : "runtime"} error. Ask the AI to fix it.
           </p>
-          <div className="mt-2 max-h-28 overflow-auto rounded-md bg-background/80 p-2 font-mono text-[11px] leading-5 text-ink-soft">
-            {error.message}
+          <div className="mt-2 max-h-28 overflow-auto rounded-md bg-background/80 p-2 font-mono text-[11px] leading-5 text-ink-soft whitespace-pre-wrap">
+            {error.content.split("\n").slice(0, 6).join("\n")}
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
             {error.filePath && error.line ? (
