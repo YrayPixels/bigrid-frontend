@@ -510,6 +510,7 @@ export type CreateStoreOrderInput = {
   delivery_address: string;
   notes?: string;
   callback_url?: string;
+  session_token?: string;
   items: { product_id: string; quantity: number }[];
 };
 
@@ -540,6 +541,175 @@ export type UpdateStorePaymentSettingsInput = {
   payout_account_name?: string;
   payout_bank_name?: string;
   payout_account_number?: string;
+};
+
+export type SocialPostStatus = "draft" | "publishing" | "published" | "failed";
+
+export type SocialPost = {
+  id: string;
+  provider: string;
+  post_type?: "text" | "video" | string;
+  status: SocialPostStatus;
+  message: string;
+  link_url: string | null;
+  video_url?: string | null;
+  external_post_id: string | null;
+  publish_id?: string | null;
+  error_message: string | null;
+  published_at: string | null;
+  created_at: string | null;
+};
+
+export type FacebookPageConnection = {
+  id: string;
+  provider: string;
+  page_id: string;
+  name: string;
+};
+
+export type MarketingStatus = {
+  facebook: {
+    configured: boolean;
+    connected: boolean;
+    pages: FacebookPageConnection[];
+  };
+  whatsapp: {
+    configured: boolean;
+    connected: boolean;
+    display_phone_number: string | null;
+    phone_number_id: string | null;
+    auto_reply_enabled: boolean;
+    webhook_url: string;
+  };
+  tiktok: {
+    configured: boolean;
+    connected: boolean;
+    account_name: string | null;
+    business_account_id: string | null;
+    auto_reply_enabled: boolean;
+    capabilities: {
+      inbound_only: boolean;
+      reply_window_hours: number;
+      supports_outbound_marketing: boolean;
+      supports_comment_to_dm: boolean;
+      region_restricted: boolean;
+      restricted_regions: string[];
+    };
+    webhook_url: string;
+  };
+  tiktok_content: {
+    configured: boolean;
+    connected: boolean;
+    creator_username: string | null;
+    open_id: string | null;
+    capabilities: {
+      supports_video_posting: boolean;
+      supports_photo_posting: boolean;
+      requires_app_audit_for_public: boolean;
+      max_caption_length: number;
+      source_methods: string[];
+    };
+  };
+  recent_posts: SocialPost[];
+  recent_conversations: CustomerConversationSummary[];
+};
+
+export type PublishTikTokVideoInput = {
+  video_url: string;
+  caption: string;
+};
+
+export type CustomerConversationSummary = {
+  id: string;
+  channel: "whatsapp" | "tiktok" | string;
+  external_user_id: string;
+  external_user_name: string | null;
+  status: string;
+  last_message_at: string | null;
+  latest_message?: string;
+  latest_direction?: "inbound" | "outbound";
+};
+
+export type ConnectWhatsAppInput = {
+  phone_number_id: string;
+  display_phone_number: string;
+  access_token: string;
+  waba_id?: string;
+};
+
+export type ConnectTikTokInput = {
+  business_account_id: string;
+  account_name?: string;
+  access_token: string;
+};
+
+export type UpdateMessagingSettingsInput = {
+  whatsapp_auto_reply_enabled?: boolean;
+  tiktok_auto_reply_enabled?: boolean;
+};
+
+export type MarketingChatResponse = {
+  assistant_message: string;
+  tool_calls: Array<{ name: string; arguments: Record<string, unknown> }>;
+  tool_results: Array<Record<string, unknown>>;
+  post: SocialPost | null;
+  status: MarketingStatus;
+};
+
+export type AbandonedRecoverySourceType = "checkout" | "cart";
+
+export type AbandonedRecoveryOutreach = {
+  id: string;
+  channel: "email" | "whatsapp";
+  status: string;
+  sent_at: string | null;
+  created_at: string | null;
+};
+
+export type AbandonedRecoveryItem = {
+  id: string;
+  source_type: AbandonedRecoverySourceType;
+  source_id: string;
+  kind: AbandonedRecoverySourceType;
+  order_number: string | null;
+  customer_name: string | null;
+  customer_email: string | null;
+  customer_phone: string | null;
+  items: StoreOrderItem[];
+  total_amount: number;
+  currency: string;
+  abandoned_at: string | null;
+  recovery_url: string;
+  last_outreach: AbandonedRecoveryOutreach | null;
+};
+
+export type AbandonedRecoveryResponse = {
+  summary: {
+    total: number;
+    checkout_count: number;
+    cart_count: number;
+    recoverable_value: number;
+  };
+  items: AbandonedRecoveryItem[];
+  meta: {
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+  };
+};
+
+export type AbandonedRecoveryDraft = {
+  subject: string | null;
+  message: string;
+  recovery_url: string;
+};
+
+export type AbandonedRecoverySendResponse = {
+  ok: boolean;
+  mode: "sent" | "link_ready";
+  whatsapp_url?: string | null;
+  outreach?: AbandonedRecoveryOutreach;
 };
 
 export const INDUSTRY_OPTIONS: { value: Industry; label: string }[] = [

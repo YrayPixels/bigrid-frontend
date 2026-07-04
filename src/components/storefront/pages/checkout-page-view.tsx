@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState, type CSSProperties } from "react";
+import { FormEvent, useRef, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { useCart } from "@/lib/storefront/cart-context";
 import { storefrontApi } from "@/lib/api/storefront";
 import { openPaystackCheckout } from "@/lib/paystack";
 import { formatMoney } from "@/lib/storefront/format";
 import { useStorefront } from "@/lib/storefront/store-context";
+import { useAbandonedCartTracking } from "@/lib/storefront/use-abandoned-cart-tracking";
 import { PageContainer } from "@/components/storefront/theme/page-container";
 import { useStorefrontTheme } from "@/lib/storefront/theme-context";
 import { beautyTemplateImages } from "@/lib/storefront/beauty-defaults";
@@ -18,13 +19,6 @@ export function CheckoutPageView() {
   const router = useRouter();
   const { store, checkout } = useStorefront();
   const paymentsEnabled = checkout?.payments_enabled ?? false;
-  const submitLabel = paymentsEnabled
-    ? submitting
-      ? "Opening payment..."
-      : "Continue to payment"
-    : submitting
-      ? "Placing order..."
-      : "Place order";
   const paymentHint = paymentsEnabled
     ? "Pay securely by card or bank transfer via Paystack after you submit."
     : "Online payment is not active yet. The store will contact you to arrange payment.";
@@ -32,6 +26,22 @@ export function CheckoutPageView() {
   const { theme, mode } = useStorefrontTheme();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const submitLabel = paymentsEnabled
+    ? submitting
+      ? "Opening payment..."
+      : "Continue to payment"
+    : submitting
+      ? "Placing order..."
+      : "Place order";
+  const formRef = useRef<HTMLFormElement>(null);
+  const sessionToken = useAbandonedCartTracking({
+    formRef,
+    storeId: store.id,
+    storeSlug: store.slug,
+    lines,
+    subtotal,
+    enabled: mode !== "edit",
+  });
   const isMinimalistic = theme.id === "minimalistic";
   const isBeauty = theme.id === "beauty";
   const isCosmetics = theme.id === "cosmetics";
@@ -111,6 +121,7 @@ export function CheckoutPageView() {
         },
         delivery_address: String(form.get("delivery_address") ?? ""),
         notes: String(form.get("notes") ?? ""),
+        session_token: sessionToken || undefined,
         items: lines.map((line) => ({
           product_id: line.product.id,
           quantity: line.quantity,
@@ -158,6 +169,7 @@ export function CheckoutPageView() {
       >
         <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[minmax(0,1fr)_390px]">
           <form
+            ref={formRef}
             onSubmit={handleSubmit}
             className="rounded-[2rem] p-5 shadow-[0_24px_90px_rgba(7,62,63,0.08)] ring-1 sm:p-8 lg:p-10"
             style={
@@ -400,7 +412,7 @@ export function CheckoutPageView() {
   return (
     <PageContainer>
       <div className="grid gap-10 lg:grid-cols-[1.2fr_0.8fr]">
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form ref={formRef} onSubmit={handleSubmit} className="space-y-5">
           <h1
             className="text-4xl font-bold tracking-tight"
             style={{ fontFamily: theme.displayFont }}

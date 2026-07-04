@@ -118,6 +118,38 @@ export const storefrontApi = {
       body,
     );
   },
+
+  async recordAbandonedCart(
+    slug: string,
+    body: {
+      session_token: string;
+      customer_name?: string;
+      customer_email?: string;
+      customer_phone?: string;
+      delivery_address?: string;
+      subtotal: number;
+      currency: string;
+      items: Array<{
+        product_id: string;
+        name: string;
+        quantity: number;
+        unit_price: number;
+        total: number;
+        currency: string;
+      }>;
+    },
+  ): Promise<{ cart: { id: string; session_token: string; last_activity_at: string | null } }> {
+    if (USE_MOCKS) {
+      return {
+        cart: {
+          id: "mock-cart",
+          session_token: body.session_token,
+          last_activity_at: new Date().toISOString(),
+        },
+      };
+    }
+    return publicWrite(`${STOREHAUSE_API_PREFIX}/public/storefronts/${slug}/abandoned-carts`, body);
+  },
 };
 
 export { StorefrontApiError };

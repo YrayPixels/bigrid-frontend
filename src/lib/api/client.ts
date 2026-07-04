@@ -33,6 +33,17 @@ import type {
   BillingSubscriptionResponse,
   BillingAddOnPack,
   SubscriptionPlanId,
+  MarketingChatResponse,
+  MarketingStatus,
+  AbandonedRecoveryResponse,
+  AbandonedRecoveryDraft,
+  AbandonedRecoverySendResponse,
+  AbandonedRecoverySourceType,
+  ConnectWhatsAppInput,
+  ConnectTikTokInput,
+  PublishTikTokVideoInput,
+  UpdateMessagingSettingsInput,
+  SocialPost,
   User,
 } from "./types";
 
@@ -626,6 +637,147 @@ export const api = {
     return http<BillingCheckoutResponse>(`${STOREHAUSE_API_PREFIX}/billing/topup`, {
       method: "POST",
       body: JSON.stringify({ type: pack.type, pack_id: pack.id }),
+    });
+  },
+
+  async getMarketingStatus(): Promise<MarketingStatus> {
+    requireToken();
+    return http<MarketingStatus>(`${STOREHAUSE_API_PREFIX}/marketing/status`);
+  },
+
+  async connectFacebookMarketing(): Promise<{ authorization_url: string; state: string }> {
+    requireToken();
+    return http<{ authorization_url: string; state: string }>(
+      `${STOREHAUSE_API_PREFIX}/marketing/facebook/connect`,
+    );
+  },
+
+  async disconnectFacebookMarketing(connectionId?: string): Promise<MarketingStatus & { message: string }> {
+    requireToken();
+    const query = connectionId ? `?connection_id=${encodeURIComponent(connectionId)}` : "";
+    return http<MarketingStatus & { message: string }>(
+      `${STOREHAUSE_API_PREFIX}/marketing/facebook/disconnect${query}`,
+      { method: "DELETE" },
+    );
+  },
+
+  async sendMarketingChat(
+    message: string,
+    recentMessages?: Array<{ role: "user" | "assistant"; content: string }>,
+  ): Promise<MarketingChatResponse> {
+    requireToken();
+    return http<MarketingChatResponse>(`${STOREHAUSE_API_PREFIX}/marketing/chat`, {
+      method: "POST",
+      body: JSON.stringify({
+        message,
+        ...(recentMessages?.length ? { recent_messages: recentMessages } : {}),
+      }),
+    });
+  },
+
+  async listMarketingPosts(): Promise<{ posts: SocialPost[] }> {
+    requireToken();
+    return http<{ posts: SocialPost[] }>(`${STOREHAUSE_API_PREFIX}/marketing/posts`);
+  },
+
+  async connectWhatsAppMarketing(input: ConnectWhatsAppInput): Promise<MarketingStatus & { message: string }> {
+    requireToken();
+    return http<MarketingStatus & { message: string }>(`${STOREHAUSE_API_PREFIX}/marketing/whatsapp/connect`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  },
+
+  async disconnectWhatsAppMarketing(): Promise<MarketingStatus & { message: string }> {
+    requireToken();
+    return http<MarketingStatus & { message: string }>(`${STOREHAUSE_API_PREFIX}/marketing/whatsapp/disconnect`, {
+      method: "DELETE",
+    });
+  },
+
+  async connectTikTokMarketing(input: ConnectTikTokInput): Promise<MarketingStatus & { message: string }> {
+    requireToken();
+    return http<MarketingStatus & { message: string }>(`${STOREHAUSE_API_PREFIX}/marketing/tiktok/connect`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  },
+
+  async disconnectTikTokMarketing(): Promise<MarketingStatus & { message: string }> {
+    requireToken();
+    return http<MarketingStatus & { message: string }>(`${STOREHAUSE_API_PREFIX}/marketing/tiktok/disconnect`, {
+      method: "DELETE",
+    });
+  },
+
+  async connectTikTokCreatorMarketing(): Promise<{ authorization_url: string; state: string }> {
+    requireToken();
+    return http<{ authorization_url: string; state: string }>(
+      `${STOREHAUSE_API_PREFIX}/marketing/tiktok/creator/connect`,
+    );
+  },
+
+  async disconnectTikTokCreatorMarketing(): Promise<MarketingStatus & { message: string }> {
+    requireToken();
+    return http<MarketingStatus & { message: string }>(
+      `${STOREHAUSE_API_PREFIX}/marketing/tiktok/creator/disconnect`,
+      { method: "DELETE" },
+    );
+  },
+
+  async publishTikTokVideo(input: PublishTikTokVideoInput): Promise<
+    MarketingStatus & { message: string; post: SocialPost | null }
+  > {
+    requireToken();
+    return http<MarketingStatus & { message: string; post: SocialPost | null }>(
+      `${STOREHAUSE_API_PREFIX}/marketing/tiktok/publish`,
+      {
+        method: "POST",
+        body: JSON.stringify(input),
+      },
+    );
+  },
+
+  async updateMessagingSettings(input: UpdateMessagingSettingsInput): Promise<MarketingStatus & { message: string }> {
+    requireToken();
+    return http<MarketingStatus & { message: string }>(`${STOREHAUSE_API_PREFIX}/marketing/messaging/settings`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    });
+  },
+
+  async getAbandonedRecoveries(params?: { page?: number; per_page?: number }): Promise<AbandonedRecoveryResponse> {
+    requireToken();
+    const query = new URLSearchParams();
+    if (params?.page) query.set("page", String(params.page));
+    if (params?.per_page) query.set("per_page", String(params.per_page));
+    const suffix = query.toString() ? `?${query.toString()}` : "";
+    return http<AbandonedRecoveryResponse>(`${STOREHAUSE_API_PREFIX}/marketing/abandoned${suffix}`);
+  },
+
+  async draftAbandonedRecoveryMessage(input: {
+    source_type: AbandonedRecoverySourceType;
+    source_id: string;
+    channel?: "email" | "whatsapp";
+  }): Promise<{ draft: AbandonedRecoveryDraft }> {
+    requireToken();
+    return http<{ draft: AbandonedRecoveryDraft }>(`${STOREHAUSE_API_PREFIX}/marketing/abandoned/draft-message`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  },
+
+  async sendAbandonedRecoveryMessage(input: {
+    source_type: AbandonedRecoverySourceType;
+    source_id: string;
+    channel: "email" | "whatsapp";
+    message: string;
+    subject?: string;
+  }): Promise<AbandonedRecoverySendResponse> {
+    requireToken();
+    return http<AbandonedRecoverySendResponse>(`${STOREHAUSE_API_PREFIX}/marketing/abandoned/send`, {
+      method: "POST",
+      body: JSON.stringify(input),
     });
   },
 };

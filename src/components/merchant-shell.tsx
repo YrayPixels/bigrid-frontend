@@ -8,9 +8,11 @@ import {
   ChevronLast,
   LayoutDashboard,
   LogOut,
+  Megaphone,
   MessageSquare,
   Package,
   ShoppingBag,
+  ShoppingCart,
   Sparkles,
   type LucideIcon,
 } from "lucide-react";
@@ -69,7 +71,14 @@ const navGroups: NavGroup[] = [
   },
   {
     label: "Sales",
-    items: [{ href: "/admin/orders", label: "Orders", icon: ShoppingBag }],
+    items: [
+      { href: "/admin/orders", label: "Orders", icon: ShoppingBag },
+      { href: "/admin/marketing/recovery", label: "Abandoned recovery", icon: ShoppingCart },
+    ],
+  },
+  {
+    label: "Growth",
+    items: [{ href: "/admin/marketing", label: "Marketing", icon: Megaphone }],
   },
 ];
 

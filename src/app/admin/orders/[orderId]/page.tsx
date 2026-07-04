@@ -55,6 +55,7 @@ export default function AdminOrderDetailPage() {
     queryKey: ["merchant-order", orderId],
     queryFn: () => api.getOrder(orderId),
     enabled: !!orderId,
+    retry: 1,
   });
 
   const updateStatus = useMutation({
@@ -77,6 +78,21 @@ export default function AdminOrderDetailPage() {
     return (
       <div className="grid min-h-[50vh] place-items-center">
         <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (orderQuery.isError) {
+    return (
+      <div className="px-6 py-10">
+        <p className="text-sm text-destructive">
+          {orderQuery.error instanceof Error
+            ? orderQuery.error.message
+            : "Could not load this order."}
+        </p>
+        <Link href="/admin/orders" className="mt-4 inline-block text-sm font-semibold text-primary">
+          Back to orders
+        </Link>
       </div>
     );
   }
@@ -154,7 +170,10 @@ export default function AdminOrderDetailPage() {
           <div className="rounded-2xl border border-border bg-card p-6 shadow-soft">
             <h2 className="font-display text-lg font-bold">Items</h2>
             <div className="mt-4 divide-y divide-border">
-              {order.items.map((item) => (
+              {(order.items ?? []).length === 0 ? (
+                <p className="py-2 text-sm text-ink-soft">No line items recorded.</p>
+              ) : (
+              order.items?.map((item) => (
                 <div
                   key={`${order.id}-${item.product_id}`}
                   className="flex items-center justify-between gap-4 py-4 first:pt-0 last:pb-0"
@@ -167,7 +186,8 @@ export default function AdminOrderDetailPage() {
                   </div>
                   <div className="font-semibold">{formatMoney(item.total, item.currency)}</div>
                 </div>
-              ))}
+              ))
+              )}
             </div>
             <div className="mt-4 flex items-center justify-between border-t border-border pt-4">
               <span className="text-sm text-ink-soft">Total</span>
