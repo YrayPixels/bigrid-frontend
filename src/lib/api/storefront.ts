@@ -1,6 +1,7 @@
 import { mockApi } from "./mocks";
 import type {
   CreateStoreOrderInput,
+  PlaceOrderResponse,
   PublicStorefront,
   PublishedStorefrontIndexEntry,
   StoreContactInquiryInput,
@@ -70,14 +71,34 @@ export const storefrontApi = {
     );
   },
 
-  async placeOrder(slug: string, body: CreateStoreOrderInput): Promise<StoreOrder> {
+  async placeOrder(slug: string, body: CreateStoreOrderInput): Promise<PlaceOrderResponse> {
     if (USE_MOCKS) {
       const res = await mockApi.placeOrder(slug, body);
-      return res.order;
+      return { order: res.order };
     }
-    const res = await publicWrite<{ order: StoreOrder }>(
+    return publicWrite<PlaceOrderResponse>(
       `${STOREHAUSE_API_PREFIX}/public/storefronts/${slug}/orders`,
       body,
+    );
+  },
+
+  async verifyPayment(slug: string, reference: string): Promise<StoreOrder> {
+    if (USE_MOCKS) {
+      const res = await mockApi.placeOrder(slug, {
+        customer: {
+          first_name: "Test",
+          last_name: "User",
+          email: "test@example.com",
+          phone: "+2348000000000",
+        },
+        delivery_address: "Test",
+        items: [],
+      });
+      return { ...res.order, payment_status: "paid" };
+    }
+    const res = await publicWrite<{ order: StoreOrder }>(
+      `${STOREHAUSE_API_PREFIX}/public/storefronts/${slug}/orders/verify`,
+      { reference },
     );
     return res.order;
   },

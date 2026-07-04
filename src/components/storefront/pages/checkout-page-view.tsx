@@ -5,6 +5,7 @@ import { FormEvent, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { useCart } from "@/lib/storefront/cart-context";
 import { storefrontApi } from "@/lib/api/storefront";
+import { openPaystackCheckout } from "@/lib/paystack";
 import { formatMoney } from "@/lib/storefront/format";
 import { useStorefront } from "@/lib/storefront/store-context";
 import { PageContainer } from "@/components/storefront/theme/page-container";
@@ -15,7 +16,18 @@ import { minimalisticTemplateImages } from "@/lib/storefront/minimalistic-defaul
 
 export function CheckoutPageView() {
   const router = useRouter();
-  const { store } = useStorefront();
+  const { store, checkout } = useStorefront();
+  const paymentsEnabled = checkout?.payments_enabled ?? false;
+  const submitLabel = paymentsEnabled
+    ? submitting
+      ? "Opening payment..."
+      : "Continue to payment"
+    : submitting
+      ? "Placing order..."
+      : "Place order";
+  const paymentHint = paymentsEnabled
+    ? "Pay securely by card or bank transfer via Paystack after you submit."
+    : "Online payment is not active yet. The store will contact you to arrange payment.";
   const { lines, subtotal, clear } = useCart();
   const { theme, mode } = useStorefrontTheme();
   const [submitting, setSubmitting] = useState(false);
@@ -90,7 +102,7 @@ export function CheckoutPageView() {
     const form = new FormData(event.currentTarget);
 
     try {
-      const order = await storefrontApi.placeOrder(store.slug, {
+      const result = await storefrontApi.placeOrder(store.slug, {
         customer: {
           first_name: String(form.get("first_name") ?? ""),
           last_name: String(form.get("last_name") ?? ""),
@@ -104,9 +116,30 @@ export function CheckoutPageView() {
           quantity: line.quantity,
         })),
       });
-      window.sessionStorage.setItem("storehaus_last_order", order.order_number);
+
+      if (result.payment?.provider === "paystack") {
+        await openPaystackCheckout({
+          publicKey: result.payment.public_key,
+          email: result.order.customer_email,
+          amount: result.payment.amount,
+          reference: result.payment.reference,
+          currency: result.payment.currency,
+          onSuccess: async (reference) => {
+            await storefrontApi.verifyPayment(store.slug, reference);
+            window.sessionStorage.setItem("storehaus_last_order", result.order.order_number);
+            clear();
+            router.push(
+              `/checkout/success?order=${encodeURIComponent(result.order.order_number)}&paid=1`,
+            );
+          },
+          onClose: () => setSubmitting(false),
+        });
+        return;
+      }
+
+      window.sessionStorage.setItem("storehaus_last_order", result.order.order_number);
       clear();
-      router.push(`/checkout/success?order=${encodeURIComponent(order.order_number)}`);
+      router.push(`/checkout/success?order=${encodeURIComponent(result.order.order_number)}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not place order. Please try again.");
       setSubmitting(false);
@@ -263,13 +296,17 @@ export function CheckoutPageView() {
               </div>
             ) : null}
 
+            <p className="mt-5 text-sm" style={{ color: theme.palette.muted }}>
+              {paymentHint}
+            </p>
+
             <button
               type="submit"
               disabled={submitting || mode === "edit"}
-              className="mt-6 rounded-full px-8 py-3 text-sm font-semibold transition disabled:opacity-60"
+              className="mt-4 rounded-full px-8 py-3 text-sm font-semibold transition disabled:opacity-60"
               style={{ backgroundColor: theme.palette.primary, color: theme.palette.background }}
             >
-              {submitting ? "Placing order..." : "Place order"}
+              {submitLabel}
             </button>
           </form>
 
@@ -434,13 +471,14 @@ export function CheckoutPageView() {
               {error}
             </div>
           ) : null}
+          <p className="text-sm text-muted-foreground">{paymentHint}</p>
           <button
             type="submit"
             disabled={submitting || mode === "edit"}
             className="rounded-md px-6 py-3 text-sm font-semibold text-white disabled:opacity-60"
             style={{ backgroundColor: theme.palette.primary, color: theme.palette.background }}
           >
-            {submitting ? "Placing order..." : "Place order"}
+            {submitLabel}
           </button>
         </form>
 

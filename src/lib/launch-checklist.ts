@@ -32,7 +32,7 @@ export const LAUNCH_CHECKLIST_STEPS: LaunchChecklistStep[] = [
     id: "payouts",
     title: "Set up payouts to receive payments",
     description:
-      "Choose your preferred payment gateway and add bank details for wallet withdrawals.",
+      "Add your bank account so Bizgrid can settle customer order earnings to you.",
     href: "/admin/settings?tab=payouts",
     icon: Building2,
   },
@@ -129,6 +129,8 @@ export function isLaunchChecklistStepComplete(
       return (context.metrics?.products_count ?? 0) > 0;
     case "publish":
       return store.is_published ?? false;
+    case "payouts":
+      return Boolean(store.payouts_configured);
     default:
       return false;
   }

@@ -26,6 +26,8 @@ import type {
   StorefrontTemplateOption,
   UpdateStoreInput,
   UpdateStorefrontInput,
+  StorePaymentSettings,
+  UpdateStorePaymentSettingsInput,
   BillingCheckoutResponse,
   BillingPortalResponse,
   BillingSubscriptionResponse,
@@ -323,6 +325,46 @@ export const api = {
       body: JSON.stringify(body),
     });
     return res.store;
+  },
+
+  async getPaymentSettings(): Promise<StorePaymentSettings> {
+    const token = requireToken();
+    if (USE_MOCKS) {
+      return {
+        checkout_enabled: true,
+        payouts_configured: false,
+        payout_account_name: null,
+        payout_bank_name: null,
+        payout_account_number: null,
+      };
+    }
+    const res = await http<{ payments: StorePaymentSettings }>(
+      `${STOREHAUSE_API_PREFIX}/stores/me/payments`,
+    );
+    return res.payments;
+  },
+
+  async updatePaymentSettings(body: UpdateStorePaymentSettingsInput): Promise<StorePaymentSettings> {
+    const token = requireToken();
+    if (USE_MOCKS) {
+      return {
+        checkout_enabled: true,
+        payouts_configured: Boolean(
+          body.payout_account_name && body.payout_bank_name && body.payout_account_number,
+        ),
+        payout_account_name: body.payout_account_name ?? null,
+        payout_bank_name: body.payout_bank_name ?? null,
+        payout_account_number: body.payout_account_number ?? null,
+      };
+    }
+    const res = await http<{ payments: StorePaymentSettings }>(
+      `${STOREHAUSE_API_PREFIX}/stores/me/payments`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      },
+    );
+    return res.payments;
   },
 
   async uploadStorefrontImage(storeId: string, file: File): Promise<{ url: string }> {

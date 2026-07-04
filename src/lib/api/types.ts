@@ -90,6 +90,11 @@ export type Store = {
   published_at?: string | null;
   is_published?: boolean;
   has_unpublished_changes?: boolean;
+  checkout_enabled?: boolean;
+  payouts_configured?: boolean;
+  payout_account_name?: string | null;
+  payout_bank_name?: string | null;
+  payout_account_number?: string | null;
 };
 
 export type StorefrontPublishState = {
@@ -424,6 +429,10 @@ export type PublicStorefront = {
   storefront: StorefrontContent;
   generation_id: string | null;
   categories?: StoreCategory[];
+  checkout?: {
+    payments_enabled: boolean;
+    paystack_public_key: string | null;
+  };
 };
 
 export type PublishedStorefrontIndexEntry = {
@@ -452,6 +461,7 @@ export type StoreOrder = {
   delivery_address: string;
   status: StoreOrderStatus;
   payment_status: string;
+  settlement_status?: string | null;
   currency: string;
   subtotal: number;
   total_amount: number;
@@ -499,7 +509,37 @@ export type CreateStoreOrderInput = {
   };
   delivery_address: string;
   notes?: string;
+  callback_url?: string;
   items: { product_id: string; quantity: number }[];
+};
+
+export type PaystackCheckoutPayment = {
+  provider: "paystack";
+  public_key: string;
+  reference: string;
+  access_code?: string | null;
+  authorization_url?: string | null;
+  amount: number;
+  currency: string;
+};
+
+export type PlaceOrderResponse = {
+  order: StoreOrder;
+  payment?: PaystackCheckoutPayment;
+};
+
+export type StorePaymentSettings = {
+  checkout_enabled: boolean;
+  payouts_configured: boolean;
+  payout_account_name: string | null;
+  payout_bank_name: string | null;
+  payout_account_number: string | null;
+};
+
+export type UpdateStorePaymentSettingsInput = {
+  payout_account_name?: string;
+  payout_bank_name?: string;
+  payout_account_number?: string;
 };
 
 export const INDUSTRY_OPTIONS: { value: Industry; label: string }[] = [

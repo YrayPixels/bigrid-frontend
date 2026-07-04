@@ -16,7 +16,7 @@ const RESERVED = new Set([
 ]);
 
 export const STORE_PLATFORM_DOMAIN =
-  process.env.NEXT_PUBLIC_STORE_PLATFORM_DOMAIN ?? "yrayhostings.com.ng";
+  process.env.NEXT_PUBLIC_STORE_PLATFORM_DOMAIN ?? "bizgrid.shop";
 
 function supportsSubdomainStorefronts(): boolean {
   return !STORE_PLATFORM_DOMAIN.endsWith(".vercel.app");

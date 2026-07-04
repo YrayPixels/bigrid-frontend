@@ -34,6 +34,7 @@ import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { PayoutDetailsCard } from "@/components/admin/payout-details-card";
 
 const SETTINGS_TABS = [
   "payouts",
@@ -221,8 +222,12 @@ export default function AdminSettingsPage() {
             </Link>
             <SettingsStat
               label="Payout status"
-              value="Pending setup"
-              hint="Add bank details to receive settlements"
+              value={store.payouts_configured ? "Bank details saved" : "Add bank account"}
+              hint={
+                store.payouts_configured
+                  ? "Bizgrid will settle paid orders to your account"
+                  : "Required to receive settlements from customer orders"
+              }
               icon={Wallet}
             />
             <Link href="/admin/settings/store" className="block transition-opacity hover:opacity-90">
@@ -243,7 +248,8 @@ export default function AdminSettingsPage() {
               <TabsTrigger value="policies">Policies</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="payouts" className="mt-6">
+            <TabsContent value="payouts" className="mt-6 space-y-6">
+              <PayoutDetailsCard />
               <Card className="shadow-soft">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
