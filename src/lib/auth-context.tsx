@@ -1,9 +1,9 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import { createContext, useContext, useEffect, useState, Suspense, type ReactNode } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { api, getToken } from "@/lib/api/client";
+import { api, getToken, setToken } from "@/lib/api/client";
 import type { User } from "@/lib/api/types";
 
 type AuthCtx = {
@@ -12,13 +12,29 @@ type AuthCtx = {
   refresh: () => Promise<void>;
   signOut: () => Promise<void>;
   setUser: (user: User | null) => void;
+  impersonating: boolean;
 };
 
 const Ctx = createContext<AuthCtx | undefined>(undefined);
 
+function ImpersonationHandler({ onToken }: { onToken: (token: string) => void }) {
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    const token = searchParams.get("impersonate_token");
+    if (token) {
+      onToken(token);
+      const url = new URL(window.location.href);
+      url.searchParams.delete("impersonate_token");
+      window.history.replaceState({}, "", url.pathname + url.search);
+    }
+  }, [searchParams, onToken]);
+  return null;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [impersonating, setImpersonating] = useState(false);
   const router = useRouter();
   const qc = useQueryClient();
 
@@ -38,6 +54,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const handleImpersonation = (token: string) => {
+    setToken(token);
+    setImpersonating(true);
+    void refresh();
+  };
+
   useEffect(() => {
     void refresh();
   }, []);
@@ -45,12 +67,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     await api.logout();
     setUser(null);
+    setImpersonating(false);
     qc.clear();
     router.push("/login");
   };
 
   return (
-    <Ctx.Provider value={{ user, loading, refresh, signOut, setUser }}>{children}</Ctx.Provider>
+    <Ctx.Provider value={{ user, loading, refresh, signOut, setUser, impersonating }}>
+      <Suspense fallback={null}>
+        <ImpersonationHandler onToken={handleImpersonation} />
+      </Suspense>
+      {children}
+    </Ctx.Provider>
   );
 }
 

@@ -4,6 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   FolderTree,
+  ChevronFirst,
+  ChevronLast,
   LayoutDashboard,
   LogOut,
   MessageSquare,
@@ -31,6 +33,7 @@ import {
   SidebarProvider,
   SidebarRail,
   SidebarTrigger,
+  useSidebar,
 } from "@/components/ui/sidebar";
 
 type NavItem = {
@@ -74,26 +77,55 @@ function isNavItemActive(pathname: string, item: NavItem) {
   return item.exact ? pathname === item.href : pathname.startsWith(item.href);
 }
 
+function DashboardSidebarCollapseTrigger() {
+  const { toggleSidebar, state } = useSidebar();
+  const collapsed = state === "collapsed";
+
+  if (collapsed) {
+    return (
+      <button
+        type="button"
+        onClick={toggleSidebar}
+        aria-label="Expand sidebar"
+        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-ink-soft transition-colors hover:bg-sidebar-accent hover:text-ink"
+      >
+        <ChevronLast className="h-4 w-4" />
+      </button>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={toggleSidebar}
+      aria-label="Collapse sidebar"
+      className="inline-flex h-8 items-center gap-2 rounded-md px-1.5 text-ink-soft transition-colors hover:bg-sidebar-accent hover:text-ink"
+    >
+      <span className="h-5 w-px bg-border" aria-hidden="true" />
+      <ChevronFirst className="h-4 w-4" />
+    </button>
+  );
+}
+
 export function MerchantShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { user, signOut } = useAuth();
+  const { user, signOut, impersonating } = useAuth();
 
   return (
     <SidebarProvider className="bg-canvas">
       <Sidebar collapsible="icon">
-        <SidebarHeader className="border-b border-border/60 px-4 py-4 group-data-[collapsible=icon]:px-2">
-          <div className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
+        <SidebarHeader className="border-b border-border/60 px-3 py-3 group-data-[collapsible=icon]:px-2 group-data-[collapsible=icon]:py-3">
+          <div className="flex items-center justify-between gap-2 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:justify-center">
             <Link
               href="/admin"
-              className="flex min-w-0 flex-1 items-center gap-2 group-data-[collapsible=icon]:flex-none group-data-[collapsible=icon]:justify-center"
+              className="flex min-w-0 flex-1 items-center gap-2.5 group-data-[collapsible=icon]:flex-none group-data-[collapsible=icon]:justify-center"
             >
-              <BizgridLogo size={32} className="shrink-0 group-data-[collapsible=icon]:justify-center" />
-              <div className="min-w-0 group-data-[collapsible=icon]:hidden">
-                <div className="font-display text-sm font-bold tracking-tight">Bizgrid</div>
-                <div className="text-xs text-ink-soft">Merchant dashboard</div>
-              </div>
+              <BizgridLogo size={36} className="shrink-0" />
+              <span className="truncate font-display text-base font-bold tracking-tight text-ink group-data-[collapsible=icon]:hidden">
+                Bizgrid
+              </span>
             </Link>
-            <SidebarTrigger className="shrink-0 group-data-[collapsible=icon]:hidden" />
+            <DashboardSidebarCollapseTrigger />
           </div>
         </SidebarHeader>
         <SidebarRail />
@@ -154,8 +186,22 @@ export function MerchantShell({ children }: { children: React.ReactNode }) {
       </Sidebar>
 
       <SidebarInset className="flex min-w-0 flex-col">
+        {impersonating && (
+          <div className="flex shrink-0 items-center justify-between gap-3 border-b border-amber-600/30 bg-amber-500/15 px-4 py-2 text-sm text-ink">
+            <span>
+              Admin impersonation — viewing as <strong>{user?.name ?? "merchant"}</strong>
+            </span>
+            <button
+              type="button"
+              onClick={() => void signOut()}
+              className="font-medium text-amber-900 underline underline-offset-2 hover:text-ink dark:text-amber-200"
+            >
+              Exit session
+            </button>
+          </div>
+        )}
         <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center gap-3 border-b border-border/60 bg-canvas-raised px-4 lg:px-6">
-          <SidebarTrigger />
+          <SidebarTrigger className="md:hidden" />
           <span className="text-sm font-medium text-ink-soft">Merchant dashboard</span>
         </header>
         <LaunchChecklistReminder />
