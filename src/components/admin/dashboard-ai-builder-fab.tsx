@@ -16,8 +16,10 @@ import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api/client";
 import {
   applyBuilderBrandColor,
+  applyBuilderLogo,
   applyBuilderMedia,
   processBuilderMessage,
+  removeBuilderLogo,
 } from "@/lib/storefront-builder/client";
 import {
   STOREFRONT_TEMPLATE_OPTIONS,
@@ -102,6 +104,25 @@ export function DashboardAiBuilderFab({
     onError: (error) => toast.error(error instanceof Error ? error.message : "Could not upload image"),
   });
 
+  const uploadLogo = useMutation({
+    mutationFn: async (file: File) => {
+      if (!session?.store) throw new Error("Create your store before uploading a logo");
+      const { url } = await api.uploadStorefrontImage(session.store.id, file);
+      return applyBuilderLogo({ session, url });
+    },
+    onSuccess: handleSessionResponse,
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not upload logo"),
+  });
+
+  const removeLogo = useMutation({
+    mutationFn: async () => {
+      if (!session) throw new Error("No active builder session");
+      return removeBuilderLogo({ session });
+    },
+    onSuccess: handleSessionResponse,
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not remove logo"),
+  });
+
   const applyImage = useMutation({
     mutationFn: async ({ target, url }: { target: BuilderMediaTarget; url: string; label: string }) => {
       if (!session) throw new Error("No active builder session");
@@ -120,7 +141,7 @@ export function DashboardAiBuilderFab({
     onError: (error) => toast.error(error instanceof Error ? error.message : "Could not select template"),
   });
 
-  const chatBusy = sendMessage.isPending || applyColor.isPending || uploadMedia.isPending || applyImage.isPending || selectTemplate.isPending;
+  const chatBusy = sendMessage.isPending || applyColor.isPending || uploadMedia.isPending || applyImage.isPending || selectTemplate.isPending || uploadLogo.isPending || removeLogo.isPending;
 
   return (
     <>
@@ -155,6 +176,9 @@ export function DashboardAiBuilderFab({
                 onSendMessage={(message) => sendMessage.mutate(message)}
                 onApplyColor={(color, label) => applyColor.mutate({ color, label })}
                 onUploadMedia={(target, file) => uploadMedia.mutate({ target, file })}
+                onUploadLogo={(file) => uploadLogo.mutate(file)}
+                onRemoveLogo={() => removeLogo.mutate()}
+                managingLogo={uploadLogo.isPending || removeLogo.isPending}
                 onApplyImage={(target, url, label) => applyImage.mutate({ target, url, label })}
                 onSelectTemplate={(templateId) => selectTemplate.mutate(templateId)}
               />

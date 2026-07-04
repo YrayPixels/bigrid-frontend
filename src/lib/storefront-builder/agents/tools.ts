@@ -889,7 +889,7 @@ export function websiteBuilderTools(): WebsiteBuilderToolDef[] {
               {
                 role: "system" as const,
                 content: [
-                  "You are StoreHause Code. Build a complete e-commerce storefront website.",
+                  "You are Bizgrid Code. Build a complete e-commerce storefront website.",
                   "Output ALL code in bolt artifact format:",
                   "<boltArtifact id=\"storefront\" title=\"Storefront\">",
                   "  <boltAction type=\"file\" filePath=\"index.html\">...complete HTML...</boltAction>",

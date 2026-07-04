@@ -11,6 +11,7 @@ import type {
   StorefrontTemplateOption,
 } from "@/lib/api/types";
 import { BuilderMessageWidgets } from "@/components/admin/builder/builder-message-widgets";
+import { BuilderLogoManager } from "@/components/admin/builder/builder-logo-manager";
 import { BuilderSuggestedActions } from "@/components/admin/builder/builder-suggested-actions";
 import { BuilderTemplateRecommendations } from "@/components/admin/builder/builder-template-recommendations";
 import { BuilderThinkingLogCompact } from "@/components/admin/builder/builder-thinking-log-compact";
@@ -44,6 +45,9 @@ export function BuilderChatPanel({
   onSendMessage,
   onApplyColor,
   onUploadMedia,
+  onUploadLogo,
+  onRemoveLogo,
+  managingLogo = false,
   onApplyImage,
   onSelectTemplate,
   onClearChat,
@@ -72,6 +76,9 @@ export function BuilderChatPanel({
   onSendMessage: (message: string) => void;
   onApplyColor: (color: string, label: string) => void;
   onUploadMedia: (target: BuilderMediaTarget, file: File) => void;
+  onUploadLogo?: (file: File) => void;
+  onRemoveLogo?: () => void;
+  managingLogo?: boolean;
   onApplyImage?: (target: BuilderMediaTarget, url: string, label: string) => void;
   onSelectTemplate?: (templateId: StorefrontTemplateId) => void;
   onClearChat?: () => void;
@@ -94,6 +101,8 @@ export function BuilderChatPanel({
   const [uploadTarget, setUploadTarget] = useState<BuilderMediaTarget>("media.hero_image_url");
   const [parsingFile, setParsingFile] = useState(false);
   const brandColor = session.store?.brand_color ?? session.business_profile.brand_color ?? "#0E7C66";
+  const logoUrl = session.store?.logo_url ?? null;
+  const businessName = session.store?.business_name ?? session.business_profile.business_name ?? "Your store";
   const suggestedActions = getLatestSuggestedActions(session);
   const busy = sending || generating || clearing || selectingTemplate;
   const selectedTemplateId =
@@ -295,6 +304,17 @@ export function BuilderChatPanel({
             Clear
           </button>
         </div>
+      ) : null}
+
+      {session.store && onUploadLogo && onRemoveLogo ? (
+        <BuilderLogoManager
+          businessName={businessName}
+          logoUrl={logoUrl}
+          brandColor={brandColor}
+          disabled={busy || managingLogo}
+          onUpload={onUploadLogo}
+          onRemove={onRemoveLogo}
+        />
       ) : null}
 
       <div

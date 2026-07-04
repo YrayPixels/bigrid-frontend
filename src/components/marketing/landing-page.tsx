@@ -1,11 +1,12 @@
 import Image from "next/image";
 import Link from "next/link";
+import { BizgridLogo } from "@/components/bizgrid-logo";
 
 const FEATURES = [
   {
     num: "01 / Catalog",
     title: "AI Catalog Management",
-    body: "Upload a single photo and Storehaus generates descriptions, tags, and variants for every product in your niche.",
+    body: "Upload a single photo and Bizgrid generates descriptions, tags, and variants for every product in your niche.",
   },
   {
     num: "02 / Identity",
@@ -66,11 +67,8 @@ export function LandingPage() {
     <div className="landing-theme min-h-screen bg-background text-foreground font-sans selection:bg-primary/20">
       <nav className="sticky top-0 z-50 flex items-center justify-between border-b border-foreground/10 bg-background/80 px-6 py-4 backdrop-blur-md">
         <div className="flex items-center gap-8">
-          <Link
-            href="/"
-            className="font-display text-2xl font-black italic tracking-tighter"
-          >
-            Storehaus
+          <Link href="/" className="flex items-center">
+            <BizgridLogo size={36} showWordmark wordmarkClassName="text-2xl font-black italic tracking-tighter" />
           </Link>
           <div className="hidden gap-6 text-sm font-medium text-foreground/60 md:flex">
             <a href="#platform" className="transition-colors hover:text-foreground">
@@ -108,7 +106,7 @@ export function LandingPage() {
             <span className="font-normal italic">instantly</span> retail-ready.
           </h1>
           <p className="animate-reveal mx-auto mb-10 max-w-xl text-lg text-pretty text-foreground/60 [animation-delay:200ms]">
-            Storehaus generates high-conversion storefronts, handles your global payments, and
+            Bizgrid generates high-conversion storefronts, handles your global payments, and
             scales your inventory automatically.
           </p>
           <div className="animate-reveal flex flex-col items-center justify-center gap-4 [animation-delay:300ms] sm:flex-row">
@@ -188,7 +186,7 @@ export function LandingPage() {
             <div className="mb-12 flex items-end justify-between">
               <h2 className="font-display text-5xl leading-none italic">Live Shops</h2>
               <p className="max-w-[24ch] font-mono text-sm text-background/60">
-                Join 12,000+ brands selling with Storehaus technology.
+                Join 12,000+ brands selling with Bizgrid technology.
               </p>
             </div>
             <div className="grid gap-8 md:grid-cols-2">
@@ -217,9 +215,7 @@ export function LandingPage() {
       <footer id="pricing" className="border-t border-foreground/10 px-6 py-12">
         <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-12 md:flex-row">
           <div className="space-y-4">
-            <span className="font-display text-xl font-bold tracking-tighter italic">
-              Storehaus
-            </span>
+            <BizgridLogo size={28} showWordmark wordmarkClassName="text-xl font-bold italic tracking-tighter" />
             <p className="max-w-[30ch] text-xs text-foreground/60">
               The future of autonomous commerce. Built for the next generation of merchants.
             </p>
@@ -254,7 +250,7 @@ export function LandingPage() {
                   </a>
                 </li>
                 <li>
-                  <a href="mailto:support@storehaus.ai" className="transition-colors hover:text-primary">
+                  <a href="mailto:support@bizgrid.ai" className="transition-colors hover:text-primary">
                     Contact
                   </a>
                 </li>
@@ -268,7 +264,7 @@ export function LandingPage() {
           </div>
         </div>
         <div className="mx-auto mt-12 flex max-w-6xl items-center justify-between border-t border-foreground/10 pt-8 font-mono text-[10px] text-foreground/60">
-          <span>© {new Date().getFullYear()} STOREHAUS AI INC.</span>
+          <span>© {new Date().getFullYear()} BIZGRID INC.</span>
           <span>EST. BERLIN / NYC</span>
         </div>
       </footer>

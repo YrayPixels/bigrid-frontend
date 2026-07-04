@@ -1,5 +1,11 @@
 import { mockApi } from "./mocks";
-import type { CreateStoreOrderInput, PublicStorefront, StoreContactInquiryInput, StoreOrder } from "./types";
+import type {
+  CreateStoreOrderInput,
+  PublicStorefront,
+  PublishedStorefrontIndexEntry,
+  StoreContactInquiryInput,
+  StoreOrder,
+} from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ?? "";
 const STOREHAUSE_API_PREFIX = "/storehause";
@@ -43,6 +49,14 @@ async function publicWrite<T>(path: string, body: unknown): Promise<T> {
 }
 
 export const storefrontApi = {
+  async listPublished(): Promise<PublishedStorefrontIndexEntry[]> {
+    if (USE_MOCKS) return mockApi.listPublishedStorefronts();
+    const res = await publicHttp<{ data: PublishedStorefrontIndexEntry[] }>(
+      `${STOREHAUSE_API_PREFIX}/public/storefronts`,
+    );
+    return res.data;
+  },
+
   async getBySlug(slug: string): Promise<PublicStorefront> {
     if (USE_MOCKS) return mockApi.getPublicStorefront(slug);
     return publicHttp<PublicStorefront>(`${STOREHAUSE_API_PREFIX}/public/storefronts/${slug}`);

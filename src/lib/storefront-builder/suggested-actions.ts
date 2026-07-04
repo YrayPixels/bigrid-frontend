@@ -23,7 +23,7 @@ const COLOR_PRESETS: Record<string, { label: string; color: string }[]> = {
     { label: "Cozy terracotta", color: "#C47A2C" },
   ],
   default: [
-    { label: "StoreHause teal", color: "#0E7C66" },
+    { label: "Bizgrid teal", color: "#0E7C66" },
     { label: "Warm terracotta", color: "#C47A2C" },
     { label: "Deep navy", color: "#1E3A5F" },
   ],
@@ -136,6 +136,15 @@ export function fallbackSuggestedActions(session: BuilderSession): BuilderSugges
         label: "Upload header photo",
         target: "media.hero_image_url" as const,
       },
+      ...(!session.store?.logo_url
+        ? [
+            {
+              type: "prompt" as const,
+              label: "Upload logo",
+              message: "I want to upload my business logo",
+            },
+          ]
+        : []),
       {
         type: "prompt",
         label: "Source brand photos",
@@ -236,7 +245,7 @@ export async function aiSuggestedActions({
   const isPreBuild = !hasStorefront && !hasStore;
 
   const prompt = [
-    "You generate suggested next-step chips for a merchant building their StoreHause website.",
+    "You generate suggested next-step chips for a merchant building their Bizgrid website.",
     "Return ONLY valid JSON: {\"actions\": BuilderSuggestedAction[]}.",
     "",
     "BuilderSuggestedAction shapes:",

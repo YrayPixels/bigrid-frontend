@@ -1,9 +1,9 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, type ReactNode } from "react";
 import {
   Banknote,
   BellRing,
@@ -14,75 +14,39 @@ import {
   Loader2,
   MessageSquareText,
   PackageCheck,
-  Palette,
   ReceiptText,
   Save,
   ShieldCheck,
-  Smartphone,
   Store,
   Truck,
   Wallet,
-  Zap,
   type LucideIcon,
 } from "lucide-react";
-import { toast } from "sonner";
 import { api } from "@/lib/api/client";
-import type { UpdateStoreInput } from "@/lib/api/types";
 import { INDUSTRY_OPTIONS } from "@/lib/api/types";
-import { BusinessProfileFields } from "@/components/admin/business-profile-fields";
-import type { BusinessProfileInput } from "@/lib/business-profile";
 import { getStorefrontUrl } from "@/lib/store-host";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 
-const smsBalance = {
-  remaining: 1240,
-  total: 2000,
-  reserved: 180,
-};
+const SETTINGS_TABS = [
+  "payouts",
+  "operations",
+  "notifications",
+  "policies",
+] as const;
 
-const currentPlan = {
-  name: "Growth",
-  price: "NGN 18,500",
-  cycle: "monthly",
-  renewalDate: "28 Jun 2026",
-  usage: [
-    { label: "Products", value: "86 / 250" },
-    { label: "Staff seats", value: "4 / 8" },
-    { label: "AI generations", value: "19 / 50" },
-    { label: "Custom domains", value: "1 / 2" },
-  ],
-};
+type SettingsTab = (typeof SETTINGS_TABS)[number];
 
-const planOptions = [
-  {
-    name: "Starter",
-    price: "NGN 7,500",
-    description: "For new stores validating products and checkout.",
-    features: ["50 products", "Basic analytics", "Manual payout review"],
-  },
-  {
-    name: "Growth",
-    price: "NGN 18,500",
-    description: "For active merchants that need automation and campaigns.",
-    features: ["250 products", "SMS campaigns", "Priority payout checks"],
-    active: true,
-  },
-  {
-    name: "Scale",
-    price: "NGN 45,000",
-    description: "For teams selling across channels with higher limits.",
-    features: ["Unlimited products", "Advanced automations", "Dedicated support"],
-  },
-];
+function isSettingsTab(value: string | null): value is SettingsTab {
+  return SETTINGS_TABS.includes(value as SettingsTab);
+}
 
 const payoutChecklist = [
   "Bank account must match business or owner identity",
@@ -166,100 +130,41 @@ function Field({
   );
 }
 
-type StoreProfileForm = {
-  business_name: string;
-  description: string;
-  contact_email: string;
-  contact_phone: string;
-  brand_color: string;
-  business_profile: BusinessProfileInput;
-};
-
-function storeProfileFromStore(store: NonNullable<Awaited<ReturnType<typeof api.getMyStore>>>): StoreProfileForm {
-  return {
-    business_name: store.business_name,
-    description: store.description,
-    contact_email: store.contact_email ?? "",
-    contact_phone: store.contact_phone ?? "",
-    brand_color: store.brand_color,
-    business_profile: {
-      business_location: store.business_location ?? null,
-      weekly_orders: store.weekly_orders ?? null,
-      payment_currencies: store.payment_currencies ?? [],
-      staff_count: store.staff_count ?? null,
-      physical_store_count: store.physical_store_count ?? null,
-    },
-  };
-}
-
 export default function AdminSettingsPage() {
-  const queryClient = useQueryClient();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const requestedTab = searchParams.get("tab");
-  const settingsTab =
-    requestedTab === "billing" ||
-    requestedTab === "payouts" ||
-    requestedTab === "store" ||
-    requestedTab === "operations" ||
-    requestedTab === "notifications" ||
-    requestedTab === "policies"
-      ? requestedTab
-      : "store";
+  const settingsTab = isSettingsTab(requestedTab) ? requestedTab : "payouts";
   const storeQuery = useQuery({
     queryKey: ["store", "me"],
     queryFn: () => api.getMyStore(),
   });
-  const [storeForm, setStoreForm] = useState<StoreProfileForm | null>(null);
 
   useEffect(() => {
-    if (storeQuery.data) {
-      setStoreForm(storeProfileFromStore(storeQuery.data));
+    if (storeQuery.isFetched && !storeQuery.data) {
+      router.replace("/admin/onboarding");
     }
-  }, [storeQuery.data]);
+  }, [router, storeQuery.data, storeQuery.isFetched]);
 
-  const saveStoreProfile = useMutation({
-    mutationFn: (body: UpdateStoreInput) => api.updateMyStore(body),
-    onSuccess: (store) => {
-      queryClient.setQueryData(["store", "me"], store);
-      setStoreForm(storeProfileFromStore(store));
-      toast.success("Store settings saved.");
-    },
-    onError: (error) =>
-      toast.error(error instanceof Error ? error.message : "Could not save store settings"),
-  });
-
-  async function handleStoreProfileSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!storeForm) return;
-
-    const businessName = storeForm.business_name.trim();
-    if (!businessName) {
-      toast.error("Business name is required.");
+  useEffect(() => {
+    if (requestedTab === "billing") {
+      const checkout = searchParams.get("checkout");
+      router.replace(
+        checkout ? `/admin/settings/plan?checkout=${checkout}` : "/admin/settings/plan",
+      );
       return;
     }
+    if (requestedTab === "store") {
+      router.replace("/admin/settings/store");
+    }
+  }, [requestedTab, router, searchParams]);
 
-    await saveStoreProfile.mutateAsync({
-      business_name: businessName,
-      description: storeForm.description.trim(),
-      contact_email: storeForm.contact_email.trim() || null,
-      contact_phone: storeForm.contact_phone.trim() || null,
-      brand_color: storeForm.brand_color,
-      ...(storeForm.business_profile.business_location
-        ? { business_location: storeForm.business_profile.business_location }
-        : {}),
-      ...(storeForm.business_profile.weekly_orders
-        ? { weekly_orders: storeForm.business_profile.weekly_orders }
-        : {}),
-      ...(storeForm.business_profile.payment_currencies.length
-        ? { payment_currencies: storeForm.business_profile.payment_currencies }
-        : {}),
-      ...(storeForm.business_profile.staff_count
-        ? { staff_count: storeForm.business_profile.staff_count }
-        : {}),
-      ...(storeForm.business_profile.physical_store_count
-        ? { physical_store_count: storeForm.business_profile.physical_store_count }
-        : {}),
-    });
+  function handleSettingsTabChange(tab: string) {
+    if (!isSettingsTab(tab)) return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", tab);
+    params.delete("checkout");
+    router.replace(`/admin/settings?${params.toString()}`, { scroll: false });
   }
 
   if (storeQuery.isLoading) {
@@ -271,10 +176,9 @@ export default function AdminSettingsPage() {
   }
 
   const store = storeQuery.data;
-  const smsPercent = Math.round((smsBalance.remaining / smsBalance.total) * 100);
 
   return (
-    <div className="w-full px-6 py-10">
+    <div className="space-y-8">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <header>
           <span className="text-xs font-medium uppercase tracking-wide text-ink-soft">
@@ -282,8 +186,16 @@ export default function AdminSettingsPage() {
           </span>
           <h1 className="mt-1 font-display text-3xl font-bold tracking-tight">Store settings</h1>
           <p className="mt-2 max-w-3xl text-sm text-ink-soft">
-            Manage your subscription, SMS balance, payout destination, store profile, checkout,
-            fulfilment, notifications, and compliance settings from one place.
+            Manage payout destination, checkout, fulfilment, notifications, and compliance
+            settings.{" "}
+            <Link href="/admin/settings/store" className="font-medium text-primary hover:underline">
+              Store details
+            </Link>{" "}
+            and{" "}
+            <Link href="/admin/settings/plan" className="font-medium text-primary hover:underline">
+              Plan & billing
+            </Link>{" "}
+            live on their own pages.
           </p>
         </header>
         {store ? (
@@ -298,171 +210,38 @@ export default function AdminSettingsPage() {
 
       {store ? (
         <>
-          <section className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <SettingsStat
-              label="Current plan"
-              value={currentPlan.name}
-              hint={`${currentPlan.price} ${currentPlan.cycle}, renews ${currentPlan.renewalDate}`}
-              icon={CreditCard}
-            />
-            <SettingsStat
-              label="SMS balance"
-              value={`${smsBalance.remaining.toLocaleString()} SMS`}
-              hint={`${smsBalance.reserved.toLocaleString()} reserved for order alerts`}
-              icon={Smartphone}
-            />
+          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <Link href="/admin/settings/plan" className="block transition-opacity hover:opacity-90">
+              <SettingsStat
+                label="Plan & billing"
+                value="Manage plan"
+                hint="Subscription, SMS, WhatsApp, and AI credits"
+                icon={CreditCard}
+              />
+            </Link>
             <SettingsStat
               label="Payout status"
               value="Pending setup"
               hint="Add bank details to receive settlements"
               icon={Wallet}
             />
-            <SettingsStat
-              label="Store profile"
-              value={formatIndustry(store.industry)}
-              hint={`Public URL: ${getStorefrontUrl(store.slug)}`}
-              icon={Store}
-            />
+            <Link href="/admin/settings/store" className="block transition-opacity hover:opacity-90">
+              <SettingsStat
+                label="Store profile"
+                value={formatIndustry(store.industry)}
+                hint={`Public URL: ${getStorefrontUrl(store.slug)}`}
+                icon={Store}
+              />
+            </Link>
           </section>
 
-          <Tabs defaultValue={settingsTab} key={settingsTab} className="mt-8">
-            <TabsList className="h-auto flex-wrap justify-start gap-1 bg-card p-1 shadow-soft">
-              <TabsTrigger value="billing">Plan & SMS</TabsTrigger>
+          <Tabs value={settingsTab} onValueChange={handleSettingsTabChange}>
+            <TabsList className="hidden">
               <TabsTrigger value="payouts">Payouts</TabsTrigger>
-              <TabsTrigger value="store">Store details</TabsTrigger>
               <TabsTrigger value="operations">Operations</TabsTrigger>
               <TabsTrigger value="notifications">Notifications</TabsTrigger>
               <TabsTrigger value="policies">Policies</TabsTrigger>
             </TabsList>
-
-            <TabsContent value="billing" className="mt-6 space-y-6">
-              <Card className="shadow-soft">
-                <CardHeader>
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <CardTitle className="flex items-center gap-2">
-                        <Zap className="h-5 w-5 text-primary" />
-                        Manage subscription plan
-                      </CardTitle>
-                      <CardDescription>
-                        Review limits, renewal date, and upgrade options for your storefront.
-                      </CardDescription>
-                    </div>
-                    <Badge variant="secondary">Renews {currentPlan.renewalDate}</Badge>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <div className="grid gap-3 md:grid-cols-4">
-                    {currentPlan.usage.map((item) => (
-                      <div
-                        key={item.label}
-                        className="rounded-xl border border-border bg-background p-4"
-                      >
-                        <p className="text-xs font-medium uppercase tracking-wide text-ink-soft">
-                          {item.label}
-                        </p>
-                        <p className="mt-2 font-display text-lg font-semibold">{item.value}</p>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="grid gap-4 lg:grid-cols-3">
-                    {planOptions.map((plan) => (
-                      <div
-                        key={plan.name}
-                        className={`rounded-2xl border p-5 ${
-                          plan.active
-                            ? "border-primary bg-primary/5 shadow-soft"
-                            : "border-border bg-background"
-                        }`}
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <h3 className="font-display text-lg font-bold">{plan.name}</h3>
-                            <p className="mt-1 text-sm text-ink-soft">{plan.description}</p>
-                          </div>
-                          {plan.active ? <Badge>Active</Badge> : null}
-                        </div>
-                        <p className="mt-5 font-display text-2xl font-bold">
-                          {plan.price}
-                          <span className="text-sm font-medium text-ink-soft">/mo</span>
-                        </p>
-                        <ul className="mt-4 space-y-2 text-sm text-ink-soft">
-                          {plan.features.map((feature) => (
-                            <li key={feature} className="flex items-center gap-2">
-                              <CheckCircle2 className="h-4 w-4 text-primary" />
-                              {feature}
-                            </li>
-                          ))}
-                        </ul>
-                        <Button
-                          className="mt-5 w-full"
-                          variant={plan.active ? "secondary" : "default"}
-                        >
-                          {plan.active ? "Current plan" : "Switch to plan"}
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="shadow-soft">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <MessageSquareText className="h-5 w-5 text-primary" />
-                    SMS wallet
-                  </CardTitle>
-                  <CardDescription>
-                    Track SMS units for order updates, delivery notices, marketing campaigns, and
-                    OTPs.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-                  <div className="space-y-4">
-                    <div className="rounded-2xl border border-border bg-background p-5">
-                      <div className="flex items-center justify-between gap-4">
-                        <div>
-                          <p className="text-sm text-ink-soft">Available balance</p>
-                          <p className="mt-1 font-display text-3xl font-bold">
-                            {smsBalance.remaining.toLocaleString()} SMS
-                          </p>
-                        </div>
-                        <Badge variant="secondary">{smsPercent}% left</Badge>
-                      </div>
-                      <Progress value={smsPercent} className="mt-5" />
-                      <p className="mt-3 text-xs text-ink-soft">
-                        Auto reminders pause when the balance drops below 100 units unless auto
-                        top-up is enabled.
-                      </p>
-                    </div>
-                    <ToggleRow
-                      title="Auto top-up SMS wallet"
-                      description="Buy 1,000 units automatically when balance falls below 200."
-                    />
-                  </div>
-                  <div className="space-y-3 rounded-2xl border border-border bg-background p-5">
-                    <Field label="Top-up package">
-                      <select className="h-10 w-full rounded-md border border-input bg-transparent px-3 text-sm">
-                        <option>1,000 SMS units - NGN 6,000</option>
-                        <option>2,500 SMS units - NGN 13,500</option>
-                        <option>5,000 SMS units - NGN 25,000</option>
-                      </select>
-                    </Field>
-                    <Field label="Billing card">
-                      <select className="h-10 w-full rounded-md border border-input bg-transparent px-3 text-sm">
-                        <option>Use primary billing card</option>
-                        <option>Add a new payment method</option>
-                      </select>
-                    </Field>
-                    <Button className="w-full">
-                      <Smartphone className="mr-2 h-4 w-4" />
-                      Buy SMS units
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
 
             <TabsContent value="payouts" className="mt-6">
               <Card className="shadow-soft">
@@ -539,148 +318,6 @@ export default function AdminSettingsPage() {
               </Card>
             </TabsContent>
 
-            <TabsContent value="store" className="mt-6">
-              <Card className="shadow-soft">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Palette className="h-5 w-5 text-primary" />
-                    Store profile and branding
-                  </CardTitle>
-                  <CardDescription>
-                    Keep your public store information accurate for customers and AI-generated
-                    content.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {storeForm ? (
-                    <form
-                      className="grid gap-5 lg:grid-cols-2"
-                      onSubmit={handleStoreProfileSubmit}
-                    >
-                      <Field label="Business name">
-                        <Input
-                          value={storeForm.business_name}
-                          onChange={(event) =>
-                            setStoreForm((current) =>
-                              current ? { ...current, business_name: event.target.value } : current,
-                            )
-                          }
-                          required
-                        />
-                      </Field>
-                      <Field label="Industry" comingSoon>
-                        <select
-                          defaultValue={store.industry}
-                          disabled
-                          className="h-10 w-full rounded-md border border-input bg-muted/40 px-3 text-sm text-ink-soft"
-                        >
-                          {INDUSTRY_OPTIONS.map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                      </Field>
-                      <Field label="Store slug" hint="This controls your Storehaus storefront URL." comingSoon>
-                        <Input defaultValue={store.slug} disabled />
-                      </Field>
-                      <Field label="Custom domain" comingSoon>
-                        <Input
-                          defaultValue={store.primary_domain ?? ""}
-                          placeholder="shop.yourdomain.com"
-                          disabled
-                        />
-                      </Field>
-                      <Field label="Brand color">
-                        <div className="flex gap-3">
-                          <Input
-                            type="color"
-                            value={storeForm.brand_color}
-                            onChange={(event) =>
-                              setStoreForm((current) =>
-                                current ? { ...current, brand_color: event.target.value } : current,
-                              )
-                            }
-                            className="h-10 w-16 p-1"
-                          />
-                          <Input
-                            value={storeForm.brand_color}
-                            onChange={(event) =>
-                              setStoreForm((current) =>
-                                current ? { ...current, brand_color: event.target.value } : current,
-                              )
-                            }
-                          />
-                        </div>
-                      </Field>
-                      <Field label="Support phone">
-                        <Input
-                          value={storeForm.contact_phone}
-                          onChange={(event) =>
-                            setStoreForm((current) =>
-                              current ? { ...current, contact_phone: event.target.value } : current,
-                            )
-                          }
-                          placeholder="+234 800 000 0000"
-                        />
-                      </Field>
-                      <Field label="Contact email">
-                        <Input
-                          type="email"
-                          value={storeForm.contact_email}
-                          onChange={(event) =>
-                            setStoreForm((current) =>
-                              current ? { ...current, contact_email: event.target.value } : current,
-                            )
-                          }
-                          placeholder="hello@yourstore.com"
-                        />
-                      </Field>
-                      <div className="lg:col-span-2">
-                        <Field label="Store description">
-                          <Textarea
-                            value={storeForm.description}
-                            onChange={(event) =>
-                              setStoreForm((current) =>
-                                current ? { ...current, description: event.target.value } : current,
-                              )
-                            }
-                            className="min-h-28"
-                          />
-                        </Field>
-                      </div>
-                      <div className="lg:col-span-2 rounded-2xl border border-border bg-background p-5">
-                        <div className="mb-5">
-                          <h3 className="font-display text-lg font-semibold">Business operations</h3>
-                          <p className="mt-1 text-sm text-ink-soft">
-                            Update where you sell, how you get paid, and the size of your team.
-                          </p>
-                        </div>
-                        <BusinessProfileFields
-                          value={storeForm.business_profile}
-                          onChange={(business_profile) =>
-                            setStoreForm((current) => (current ? { ...current, business_profile } : current))
-                          }
-                        />
-                      </div>
-                      <div className="lg:col-span-2 flex flex-wrap gap-3">
-                        <Button type="submit" disabled={saveStoreProfile.isPending}>
-                          {saveStoreProfile.isPending ? (
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          ) : (
-                            <Save className="mr-2 h-4 w-4" />
-                          )}
-                          Save store settings
-                        </Button>
-                        <Button asChild variant="outline" type="button">
-                          <Link href="/admin/website">Open website editor</Link>
-                        </Button>
-                      </div>
-                    </form>
-                  ) : null}
-                </CardContent>
-              </Card>
-            </TabsContent>
 
             <TabsContent value="operations" className="mt-6 grid gap-6 xl:grid-cols-2">
               <Card className="shadow-soft">

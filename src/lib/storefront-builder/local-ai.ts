@@ -688,7 +688,7 @@ export function synthesizeStorefront(
       privacy_policy: {
         title: "Privacy policy",
         source: "platform_default",
-        body: `This privacy policy explains how ${name} and Storehaus collect, use, and protect your personal information when you shop on this storefront.`,
+        body: `This privacy policy explains how ${name} and Bizgrid collect, use, and protect your personal information when you shop on this storefront.`,
       },
     },
     products: copy?.products ?? productsForIndustry(name, store.industry, slugBase),

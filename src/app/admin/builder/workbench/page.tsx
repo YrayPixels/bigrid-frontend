@@ -32,10 +32,12 @@ import type { BuilderSession, StorefrontContent } from "@/lib/api/types";
 import { STOREFRONT_TEMPLATE_OPTIONS } from "@/lib/api/types";
 import {
   applyBuilderBrandColor,
+  applyBuilderLogo,
   applyBuilderMedia,
   streamAndPersistBuilderMessage,
   type BoltStreamCallbacks,
   type WorkbenchContextHints,
+  removeBuilderLogo,
 } from "@/lib/storefront-builder/client";
 import { appendWebContainerOutput } from "@/lib/bolt/webcontainer-output";
 import { formatErrorsForAgent, getLatestWorkbenchErrors } from "@/lib/bolt/workbench-preview-errors";
@@ -705,6 +707,45 @@ export default function AdminBuilderWorkbenchPage() {
     onError: (error) => toast.error(error instanceof Error ? error.message : "Could not upload image"),
   });
 
+  const uploadLogo = useMutation({
+    mutationFn: async (file: File) => {
+      if (!session?.store) throw new Error("Create your store before uploading a logo");
+      const { url } = await api.uploadStorefrontImage(session.store.id, file);
+      const logoResponse = await applyBuilderLogo({ session, url });
+      if (!snapshotHasCustomFiles(session.storefront_snapshot)) {
+        return logoResponse;
+      }
+
+      const updatedSession = (logoResponse.session ?? session) as BuilderSession;
+      return streamAndPersistBuilderMessage({
+        session: updatedSession,
+        message: `Update the site header/navigation to use this logo image: ${url}`,
+        templateOptions,
+      });
+    },
+    onSuccess: handleSessionResponse,
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not upload logo"),
+  });
+
+  const removeLogo = useMutation({
+    mutationFn: async () => {
+      if (!session) throw new Error("No active builder session");
+      const logoResponse = await removeBuilderLogo({ session });
+      if (!snapshotHasCustomFiles(session.storefront_snapshot)) {
+        return logoResponse;
+      }
+
+      const updatedSession = (logoResponse.session ?? session) as BuilderSession;
+      return streamAndPersistBuilderMessage({
+        session: updatedSession,
+        message: "Remove the logo from the site header and show the business name as text instead",
+        templateOptions,
+      });
+    },
+    onSuccess: handleSessionResponse,
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not remove logo"),
+  });
+
   const clearChat = useMutation({
     mutationFn: async () => {
       if (!session) throw new Error("No active builder session");
@@ -743,10 +784,10 @@ export default function AdminBuilderWorkbenchPage() {
     );
   }
 
-  const chatBusy = sendMessage.isPending || applyColor.isPending || uploadMedia.isPending;
+  const chatBusy = sendMessage.isPending || applyColor.isPending || uploadMedia.isPending || uploadLogo.isPending || removeLogo.isPending;
   const hasThinkingHistory = allThinkingTurns.length > 0;
   const hasFiles = files.length > 0;
-  const title = session.store?.business_name ?? "StoreHause";
+  const title = session.store?.business_name ?? "Bizgrid";
   const currentContent = codeFs.readFile(selectedPath) ?? "";
   const baselineContent = baselineMap.get(selectedPath) ?? "";
   const selectedDiff = lastDiffs.find((diff) => diff.path === selectedPath) ?? null;
@@ -854,6 +895,9 @@ export default function AdminBuilderWorkbenchPage() {
                     onSendMessage={(message) => sendMessage.mutate(message)}
                     onApplyColor={(color, label) => applyColor.mutate({ color, label })}
                     onUploadMedia={(target, file) => uploadMedia.mutate({ target, file })}
+                    onUploadLogo={(file) => uploadLogo.mutate(file)}
+                    onRemoveLogo={() => removeLogo.mutate()}
+                    managingLogo={uploadLogo.isPending || removeLogo.isPending}
                     onClearChat={() => clearChat.mutate()}
                     liveActions={liveActions}
                     agentSteps={agentSteps}

@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { Store } from "lucide-react";
 import type { ReactNode } from "react";
+import { BizgridLogo } from "@/components/bizgrid-logo";
 
 export function AuthShell({
   title,
@@ -15,11 +15,8 @@ export function AuthShell({
     <div className="relative min-h-screen bg-canvas">
       <div className="absolute inset-0 bg-gradient-mesh opacity-60" />
       <div className="relative mx-auto flex min-h-screen max-w-md flex-col items-center justify-center px-6 py-12">
-        <Link href="/" className="mb-8 flex items-center gap-2">
-          <div className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-hero text-primary-foreground">
-            <Store className="h-4 w-4" />
-          </div>
-          <span className="font-display text-lg font-bold tracking-tight">Storehaus</span>
+        <Link href="/" className="mb-8">
+          <BizgridLogo size={32} showWordmark wordmarkClassName="text-lg" />
         </Link>
         <div className="w-full rounded-2xl border border-border bg-card p-8 shadow-elevated">
           <h1 className="font-display text-2xl font-bold tracking-tight">{title}</h1>

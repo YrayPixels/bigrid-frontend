@@ -12,7 +12,7 @@ export default function PrivacyPolicyPage() {
       title={page?.title ?? "Privacy policy"}
       body={
         page?.body ??
-        "This storefront uses Storehaus platform defaults for privacy and data handling."
+        "This storefront uses Bizgrid platform defaults for privacy and data handling."
       }
     />
   );

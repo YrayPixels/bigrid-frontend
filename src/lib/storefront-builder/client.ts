@@ -54,9 +54,10 @@ export function shouldStreamBuilderThinking(
   extras?: {
     brandColor?: string;
     mediaUpdates?: Partial<Record<BuilderMediaTarget, string>>;
+    logoUrl?: string | null;
   },
 ): boolean {
-  return !extras?.brandColor && !extras?.mediaUpdates;
+  return !extras?.brandColor && !extras?.mediaUpdates && extras?.logoUrl === undefined;
 }
 
 function isBoltCustomRequest(session: BuilderSession, message: string): boolean {
@@ -309,12 +310,14 @@ export async function processBuilderMessage({
   templateOptions,
   brandColor,
   mediaUpdates,
+  logoUrl,
 }: {
   session: BuilderSession;
   message: string;
   templateOptions: StorefrontTemplateOption[];
   brandColor?: string;
   mediaUpdates?: Partial<Record<BuilderMediaTarget, string>>;
+  logoUrl?: string | null;
 }): Promise<BuilderSessionResponse> {
   const enrichedSession: BuilderSession = {
     ...session,
@@ -327,9 +330,10 @@ export async function processBuilderMessage({
   const extras = {
     ...(brandColor ? { brand_color: brandColor } : {}),
     ...(mediaUpdates ? { media_updates: mediaUpdates } : {}),
+    ...(logoUrl !== undefined ? { logo_url: logoUrl } : {}),
   };
 
-  if (brandColor || mediaUpdates) {
+  if (brandColor || mediaUpdates || logoUrl !== undefined) {
     return api.sendBuilderMessage(session.id, message, extras);
   }
 
@@ -470,6 +474,34 @@ export async function applyBuilderMedia({
     message: `Use this photo for my ${label}`,
     templateOptions: STOREFRONT_TEMPLATE_OPTIONS,
     mediaUpdates: { [target]: url },
+  });
+}
+
+export async function applyBuilderLogo({
+  session,
+  url,
+}: {
+  session: BuilderSession;
+  url: string;
+}): Promise<BuilderSessionResponse> {
+  return processBuilderMessage({
+    session,
+    message: "Use this as my website logo",
+    templateOptions: STOREFRONT_TEMPLATE_OPTIONS,
+    logoUrl: url,
+  });
+}
+
+export async function removeBuilderLogo({
+  session,
+}: {
+  session: BuilderSession;
+}): Promise<BuilderSessionResponse> {
+  return processBuilderMessage({
+    session,
+    message: "Remove my logo",
+    templateOptions: STOREFRONT_TEMPLATE_OPTIONS,
+    logoUrl: null,
   });
 }
 

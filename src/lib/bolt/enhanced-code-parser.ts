@@ -252,7 +252,7 @@ function isSingleLineCommand(line: string): boolean {
       .every((part) => part.length > 0 && !looksLikeScriptContent(part));
   }
 
-  let clean = line.replace(/^sudo\s+/, "");
+  const clean = line.replace(/^sudo\s+/, "");
   if (COMMAND_PATTERNS.some((pattern) => pattern.test(clean))) return true;
 
   const first = clean.split(/\s+/)[0] ?? "";

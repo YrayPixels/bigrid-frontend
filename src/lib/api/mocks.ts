@@ -31,6 +31,7 @@ import type {
   Industry,
   MerchantDashboardOverview,
   PublicStorefront,
+  PublishedStorefrontIndexEntry,
   RecommendStorefrontTemplatesInput,
   Store,
   StoreCategory,
@@ -49,6 +50,14 @@ import type {
   StorefrontTemplateOption,
   UpdateStoreInput,
   UpdateStorefrontInput,
+  BillingCheckoutResponse,
+  BillingPortalResponse,
+  BillingSubscriptionResponse,
+  BillingAddOnPack,
+  BillingPlanOption,
+  MerchantSubscription,
+  MerchantSubscriptionUsage,
+  SubscriptionPlanId,
   User,
 } from "./types";
 
@@ -736,6 +745,7 @@ export const mockApi = {
     if (body.contact_email !== undefined) store.contact_email = body.contact_email;
     if (body.contact_phone !== undefined) store.contact_phone = body.contact_phone;
     if (body.brand_color) store.brand_color = body.brand_color;
+    if (body.logo_url !== undefined) store.logo_url = body.logo_url;
     if (body.business_location !== undefined) store.business_location = body.business_location;
     if (body.weekly_orders !== undefined) store.weekly_orders = body.weekly_orders;
     if (body.payment_currencies !== undefined) store.payment_currencies = body.payment_currencies;
@@ -767,6 +777,19 @@ export const mockApi = {
     });
 
     return { url };
+  },
+
+  async listPublishedStorefronts(): Promise<PublishedStorefrontIndexEntry[]> {
+    await delay(100);
+    const db = load();
+
+    return Object.values(db.stores)
+      .filter((store) => publishMetaForStore(db, store).is_published)
+      .map((store) => ({
+        slug: store.slug,
+        business_name: store.business_name,
+        published_at: withPublishFields(db, store).published_at ?? null,
+      }));
   },
 
   async getPublicStorefront(slug: string): Promise<PublicStorefront> {
@@ -961,6 +984,7 @@ export const mockApi = {
       storefront_snapshot?: StorefrontContent | null;
       brand_color?: string;
       color_label?: string;
+      logo_url?: string | null;
       media_updates?: Partial<Record<"media.hero_image_url" | "media.about_image_url", string>>;
       apply_stock_images?: boolean;
     },
@@ -979,7 +1003,7 @@ export const mockApi = {
       created_at: new Date().toISOString(),
     });
 
-    if (state?.brand_color || state?.media_updates || state?.apply_stock_images) {
+    if (state?.brand_color || state?.media_updates || state?.apply_stock_images || state?.logo_url !== undefined) {
       const store = session.store ?? ensureBuilderStore(db, userId, session);
       session.store = store;
       let storefront = session.storefront_snapshot ?? db.storefronts[store.id] ?? null;
@@ -1021,6 +1045,14 @@ export const mockApi = {
         summary = "Done — I added suitable photos to your website. Check the preview on the right.";
       }
 
+      if (state.logo_url !== undefined) {
+        store.logo_url = state.logo_url;
+        summary = state.logo_url
+          ? "Done — I updated your logo. Check the preview on the right."
+          : "Done — I removed your logo. Your business name will show in the header instead.";
+        payloadType = "logo_applied";
+      }
+
       if (storefront) {
         session.storefront_snapshot = storefront;
         db.storefronts[store.id] = storefront;
@@ -1036,6 +1068,7 @@ export const mockApi = {
           type: payloadType,
           changed_paths: changedPaths,
           brand_color: state.brand_color ?? store.brand_color,
+          ...(state.logo_url !== undefined ? { logo_url: store.logo_url } : {}),
         }),
         created_at: new Date().toISOString(),
       });
@@ -1357,7 +1390,168 @@ export const mockApi = {
       changed_paths: result.changed_paths,
     };
   },
+
+  async getBillingSubscription(token: string): Promise<BillingSubscriptionResponse> {
+    await delay(200);
+    findStoreForToken(token);
+    return mockBillingCatalog("growth");
+  },
+
+  async startBillingCheckout(
+    token: string,
+    plan: SubscriptionPlanId,
+  ): Promise<BillingCheckoutResponse> {
+    await delay(300);
+    findStoreForToken(token);
+    return {
+      mode: "checkout",
+      checkout_url: `https://checkout.dodopayments.com/mock/${plan}`,
+      session_id: `mock_session_${plan}`,
+    };
+  },
+
+  async openBillingPortal(token: string): Promise<BillingPortalResponse> {
+    await delay(200);
+    findStoreForToken(token);
+    return { portal_url: "https://portal.dodopayments.com/mock" };
+  },
+
+  async startBillingTopup(
+    token: string,
+    pack: Pick<BillingAddOnPack, "type" | "id">,
+  ): Promise<BillingCheckoutResponse> {
+    await delay(300);
+    findStoreForToken(token);
+    return {
+      mode: "checkout",
+      checkout_url: `https://checkout.dodopayments.com/mock/${pack.type}/${pack.id}`,
+      session_id: `mock_topup_${pack.id}`,
+    };
+  },
 };
+
+function mockBillingCatalog(activePlan: SubscriptionPlanId): BillingSubscriptionResponse {
+  const plans: BillingPlanOption[] = [
+    {
+      id: "starter",
+      name: "Starter",
+      price_label: "NGN 5,000",
+      description: "Launch your first store and start selling with essential limits.",
+      features: [
+        "Up to NGN 1M monthly processing",
+        "1 storefront",
+        "Up to 500 customers",
+        "100 SMS + 50 WhatsApp units/month",
+        "5 AI queries per day",
+      ],
+      limits: [
+        { label: "Monthly processing", value: "NGN 1,000,000" },
+        { label: "Storefronts", value: "1" },
+        { label: "Customers", value: "500" },
+        { label: "SMS units", value: "100/mo" },
+        { label: "WhatsApp units", value: "50/mo" },
+        { label: "AI queries", value: "5/day" },
+      ],
+      available: true,
+    },
+    {
+      id: "growth",
+      name: "Growth",
+      price_label: "NGN 15,000",
+      description: "For growing brands selling across channels with higher volume.",
+      features: [
+        "Up to NGN 10M monthly processing",
+        "Up to 3 storefronts",
+        "Up to 5,000 customers",
+        "500 SMS + 300 WhatsApp units/month",
+        "5 AI queries per day",
+      ],
+      limits: [
+        { label: "Monthly processing", value: "NGN 10,000,000" },
+        { label: "Storefronts", value: "3" },
+        { label: "Customers", value: "5,000" },
+        { label: "SMS units", value: "500/mo" },
+        { label: "WhatsApp units", value: "300/mo" },
+        { label: "AI queries", value: "5/day" },
+      ],
+      available: true,
+    },
+    {
+      id: "scale",
+      name: "Scale",
+      price_label: "NGN 30,000",
+      description: "For teams with high order volume and multi-store operations.",
+      features: [
+        "Up to NGN 50M monthly processing",
+        "Up to 10 storefronts",
+        "Unlimited customers",
+        "2,000 SMS + 1,500 WhatsApp units/month",
+        "5 AI queries per day",
+      ],
+      limits: [
+        { label: "Monthly processing", value: "NGN 50,000,000" },
+        { label: "Storefronts", value: "10" },
+        { label: "Customers", value: "Unlimited" },
+        { label: "SMS units", value: "2,000/mo" },
+        { label: "WhatsApp units", value: "1,500/mo" },
+        { label: "AI queries", value: "5/day" },
+      ],
+      available: true,
+    },
+  ];
+
+  const active = plans.find((plan) => plan.id === activePlan) ?? plans[0];
+
+  return {
+    subscription: {
+      plan: active.id,
+      plan_name: active.name,
+      price_label: active.price_label,
+      status: "trialing",
+      renews_at: null,
+      limits: active.limits,
+      usage: {
+        processing: { used_ngn: 0, cap_ngn: 1_000_000, label: "NGN 0 / NGN 1,000,000" },
+        stores: { used: 1, cap: 1, label: "1 / 1" },
+        customers: { used: 0, cap: 500, label: "0 / 500" },
+        sms: {
+          remaining: 100,
+          included_monthly: 100,
+          included_remaining: 100,
+          purchased_balance: 0,
+        },
+        whatsapp: {
+          remaining: 50,
+          included_monthly: 50,
+          included_remaining: 50,
+          purchased_balance: 0,
+        },
+        ai: {
+          daily_limit: 5,
+          used_today: 0,
+          remaining_today: 5,
+          purchased_remaining: 0,
+        },
+        limits: active.limits,
+      },
+      has_payment_method: false,
+      billing_configured: true,
+    },
+    plans,
+    add_ons: {
+      sms: [
+        { id: "sms_500", type: "sms", units: 500, credits: null, price_label: "NGN 3,000", available: true },
+        { id: "sms_1000", type: "sms", units: 1000, credits: null, price_label: "NGN 5,500", available: true },
+      ],
+      whatsapp: [
+        { id: "wa_200", type: "whatsapp", units: 200, credits: null, price_label: "NGN 4,000", available: true },
+      ],
+      ai_credits: [
+        { id: "ai_50", type: "ai_credits", units: null, credits: 50, price_label: "NGN 2,000", available: true },
+      ],
+    },
+  };
+}
 
 function createEmptyBuilderSession(store: Store | null): BuilderSession {
   const profile: BuilderBusinessProfile = store
@@ -1866,7 +2060,7 @@ function synthesizeStorefront(store: Store): StorefrontContent {
       privacy_policy: {
         title: "Privacy policy",
         source: "platform_default",
-        body: `This privacy policy explains how ${name} and Storehaus collect, use, and protect your personal information when you shop on this storefront.`,
+        body: `This privacy policy explains how ${name} and Bizgrid collect, use, and protect your personal information when you shop on this storefront.`,
       },
     },
     products:

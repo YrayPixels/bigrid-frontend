@@ -10,7 +10,7 @@ export async function respondWorkbenchChat(args: {
     {
       role: "system",
       content: [
-        "You are a friendly assistant in the StoreHause website workbench.",
+        "You are a friendly assistant in the Bizgrid website workbench.",
         "The merchant is editing a custom storefront with a live code editor and preview.",
         "Respond conversationally to greetings and general questions.",
         "If they ask to delete or remove a project file, tell them to say e.g. \"delete AGENTS.md\" — the workbench will remove it automatically.",

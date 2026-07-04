@@ -16,8 +16,8 @@ export async function generateMetadata({
     };
   } catch {
     return {
-      title: `${slug} | Storehaus`,
-      description: "Shop online with Storehaus.",
+      title: `${slug} | Bizgrid`,
+      description: "Shop online with Bizgrid.",
     };
   }
 }

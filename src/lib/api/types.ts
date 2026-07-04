@@ -132,11 +132,110 @@ export type UpdateStoreInput = {
   contact_email?: string | null;
   contact_phone?: string | null;
   brand_color?: string;
+  logo_url?: string | null;
   business_location?: BusinessLocation;
   weekly_orders?: WeeklyOrderRange;
   payment_currencies?: PaymentCurrency[];
   staff_count?: StaffCountRange;
   physical_store_count?: PhysicalStoreCount;
+};
+
+export type SubscriptionPlanId = "starter" | "growth" | "scale";
+
+export type SubscriptionLimit = {
+  label: string;
+  value: string;
+};
+
+export type MerchantUsageMetric = {
+  label: string;
+  used?: number;
+  cap?: number | null;
+  used_ngn?: number;
+  cap_ngn?: number | null;
+};
+
+export type MerchantMessagingBalance = {
+  remaining: number;
+  included_monthly: number;
+  included_remaining: number;
+  purchased_balance: number;
+};
+
+export type MerchantAiUsage = {
+  daily_limit: number;
+  used_today: number;
+  remaining_today: number;
+  purchased_remaining: number;
+};
+
+export type MerchantSubscriptionUsage = {
+  processing: MerchantUsageMetric;
+  stores: MerchantUsageMetric;
+  customers: MerchantUsageMetric;
+  sms: MerchantMessagingBalance;
+  whatsapp: MerchantMessagingBalance;
+  ai: MerchantAiUsage;
+  limits: SubscriptionLimit[];
+};
+
+export type MerchantSubscription = {
+  plan: SubscriptionPlanId;
+  plan_name: string;
+  price_label: string | null;
+  status: string;
+  renews_at: string | null;
+  limits: SubscriptionLimit[];
+  usage?: MerchantSubscriptionUsage;
+  has_payment_method: boolean;
+  billing_configured: boolean;
+};
+
+export type BillingPlanOption = {
+  id: SubscriptionPlanId;
+  name: string;
+  price_label: string;
+  description: string;
+  features: string[];
+  limits: SubscriptionLimit[];
+  available: boolean;
+};
+
+export type BillingAddOnPack = {
+  id: string;
+  type: "sms" | "whatsapp" | "ai_credits";
+  units: number | null;
+  credits: number | null;
+  price_label: string;
+  available: boolean;
+};
+
+export type BillingAddOns = {
+  sms: BillingAddOnPack[];
+  whatsapp: BillingAddOnPack[];
+  ai_credits: BillingAddOnPack[];
+};
+
+export type BillingSubscriptionResponse = {
+  subscription: MerchantSubscription;
+  plans: BillingPlanOption[];
+  add_ons: BillingAddOns;
+};
+
+export type BillingCheckoutResponse =
+  | {
+      mode: "checkout";
+      checkout_url: string;
+      session_id: string | null;
+    }
+  | {
+      mode: "plan_change";
+      subscription: MerchantSubscription;
+      message: string;
+    };
+
+export type BillingPortalResponse = {
+  portal_url: string;
 };
 
 export type ProductImportError = {
@@ -325,6 +424,12 @@ export type PublicStorefront = {
   storefront: StorefrontContent;
   generation_id: string | null;
   categories?: StoreCategory[];
+};
+
+export type PublishedStorefrontIndexEntry = {
+  slug: string;
+  business_name: string;
+  published_at: string | null;
 };
 
 export type StoreOrderStatus = "pending" | "processing" | "fulfilled" | "cancelled" | "refunded";

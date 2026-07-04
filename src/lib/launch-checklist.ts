@@ -40,7 +40,7 @@ export const LAUNCH_CHECKLIST_STEPS: LaunchChecklistStep[] = [
     id: "store_info",
     title: "Complete store information",
     description: "You can update your store information anytime from Settings.",
-    href: "/admin/settings?tab=store",
+    href: "/admin/settings/store",
     icon: Store,
     autoComplete: true,
   },
@@ -71,7 +71,7 @@ export const LAUNCH_CHECKLIST_STEPS: LaunchChecklistStep[] = [
     id: "subscription",
     title: "Choose a subscription plan",
     description: "Unlock higher limits, SMS campaigns, and growth features.",
-    href: "/admin/settings?tab=billing",
+    href: "/admin/settings/plan",
     icon: CreditCard,
   },
 ];

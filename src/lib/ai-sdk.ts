@@ -2,7 +2,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 import type { LanguageModelV1 } from "ai";
 
 /**
- * AI SDK configuration for StoreHause.
+ * AI SDK configuration for Bizgrid.
  * Uses OpenAI as the default provider with the Vercel AI SDK.
  */
 const openai = createOpenAI({

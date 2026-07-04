@@ -386,6 +386,22 @@ export function BuilderMessageWidgets({
     );
   }
 
+  if (type === "logo_applied") {
+    const appliedLogo = typeof payload.logo_url === "string" ? payload.logo_url : null;
+    return (
+      <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+        {appliedLogo ? (
+          <>
+            <img src={appliedLogo} alt="" className="h-5 w-5 rounded object-cover" />
+            Logo updated
+          </>
+        ) : (
+          "Logo removed"
+        )}
+      </div>
+    );
+  }
+
   if (type === "images_sourced") {
     return <ImageSourceWidget payload={payload} />;
   }

@@ -26,6 +26,11 @@ import type {
   StorefrontTemplateOption,
   UpdateStoreInput,
   UpdateStorefrontInput,
+  BillingCheckoutResponse,
+  BillingPortalResponse,
+  BillingSubscriptionResponse,
+  BillingAddOnPack,
+  SubscriptionPlanId,
   User,
 } from "./types";
 
@@ -43,6 +48,7 @@ export type PersistBuilderMessageInput = {
   storefront_snapshot?: StorefrontContent | null;
   brand_color?: string;
   color_label?: string;
+  logo_url?: string | null;
   media_updates?: Partial<Record<"media.hero_image_url" | "media.about_image_url", string>>;
   apply_stock_images?: boolean;
 };
@@ -546,6 +552,38 @@ export const api = {
     return http<ProductImportReport>(`${STOREHAUSE_API_PREFIX}/products/import`, {
       method: "POST",
       body: JSON.stringify({ products }),
+    });
+  },
+
+  async getBillingSubscription(): Promise<BillingSubscriptionResponse> {
+    requireToken();
+    if (USE_MOCKS) return mockApi.getBillingSubscription(requireToken());
+    return http<BillingSubscriptionResponse>(`${STOREHAUSE_API_PREFIX}/billing/subscription`);
+  },
+
+  async startBillingCheckout(plan: SubscriptionPlanId): Promise<BillingCheckoutResponse> {
+    requireToken();
+    if (USE_MOCKS) return mockApi.startBillingCheckout(requireToken(), plan);
+    return http<BillingCheckoutResponse>(`${STOREHAUSE_API_PREFIX}/billing/checkout`, {
+      method: "POST",
+      body: JSON.stringify({ plan }),
+    });
+  },
+
+  async openBillingPortal(): Promise<BillingPortalResponse> {
+    requireToken();
+    if (USE_MOCKS) return mockApi.openBillingPortal(requireToken());
+    return http<BillingPortalResponse>(`${STOREHAUSE_API_PREFIX}/billing/portal`, {
+      method: "POST",
+    });
+  },
+
+  async startBillingTopup(pack: Pick<BillingAddOnPack, "type" | "id">): Promise<BillingCheckoutResponse> {
+    requireToken();
+    if (USE_MOCKS) return mockApi.startBillingTopup(requireToken(), pack);
+    return http<BillingCheckoutResponse>(`${STOREHAUSE_API_PREFIX}/billing/topup`, {
+      method: "POST",
+      body: JSON.stringify({ type: pack.type, pack_id: pack.id }),
     });
   },
 };
