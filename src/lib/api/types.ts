@@ -95,6 +95,17 @@ export type Store = {
   payout_account_name?: string | null;
   payout_bank_name?: string | null;
   payout_account_number?: string | null;
+  notifications?: StoreNotificationSettings;
+};
+
+export type StoreNotificationSettings = {
+  notify_merchant_new_order: boolean;
+  notify_customer_order_confirmation: boolean;
+  notify_customer_payment_confirmation: boolean;
+  notify_merchant_low_stock: boolean;
+  notification_email: string | null;
+  customer_order_note: string | null;
+  sms_sender_name: string | null;
 };
 
 export type StorefrontPublishState = {
@@ -143,6 +154,13 @@ export type UpdateStoreInput = {
   payment_currencies?: PaymentCurrency[];
   staff_count?: StaffCountRange;
   physical_store_count?: PhysicalStoreCount;
+  notify_merchant_new_order?: boolean;
+  notify_customer_order_confirmation?: boolean;
+  notify_customer_payment_confirmation?: boolean;
+  notify_merchant_low_stock?: boolean;
+  notification_email?: string | null;
+  customer_order_note?: string | null;
+  sms_sender_name?: string | null;
 };
 
 export type SubscriptionPlanId = "starter" | "growth" | "scale";

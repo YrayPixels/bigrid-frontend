@@ -1,9 +1,9 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   Banknote,
   BellRing,
@@ -22,7 +22,9 @@ import {
   Wallet,
   type LucideIcon,
 } from "lucide-react";
+import { toast } from "sonner";
 import { api } from "@/lib/api/client";
+import type { StoreNotificationSettings } from "@/lib/api/types";
 import { INDUSTRY_OPTIONS } from "@/lib/api/types";
 import { getStorefrontUrl } from "@/lib/store-host";
 import { Badge } from "@/components/ui/badge";
@@ -92,10 +94,14 @@ function ToggleRow({
   title,
   description,
   checked,
+  onCheckedChange,
+  disabled,
 }: {
   title: string;
   description: string;
   checked?: boolean;
+  onCheckedChange?: (checked: boolean) => void;
+  disabled?: boolean;
 }) {
   return (
     <div className="flex items-start justify-between gap-4 rounded-xl border border-border bg-background p-4">
@@ -103,7 +109,7 @@ function ToggleRow({
         <p className="text-sm font-semibold">{title}</p>
         <p className="mt-1 text-sm text-ink-soft">{description}</p>
       </div>
-      <Switch defaultChecked={checked} aria-label={title} />
+      <Switch checked={checked} onCheckedChange={onCheckedChange} disabled={disabled} aria-label={title} />
     </div>
   );
 }
@@ -134,11 +140,38 @@ function Field({
 export default function AdminSettingsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const queryClient = useQueryClient();
   const requestedTab = searchParams.get("tab");
   const settingsTab = isSettingsTab(requestedTab) ? requestedTab : "payouts";
   const storeQuery = useQuery({
     queryKey: ["store", "me"],
     queryFn: () => api.getMyStore(),
+  });
+  const [notificationForm, setNotificationForm] = useState<StoreNotificationSettings>({
+    notify_merchant_new_order: true,
+    notify_customer_order_confirmation: true,
+    notify_customer_payment_confirmation: true,
+    notify_merchant_low_stock: true,
+    notification_email: null,
+    customer_order_note: null,
+    sms_sender_name: null,
+  });
+
+  useEffect(() => {
+    if (!storeQuery.data?.notifications) return;
+    setNotificationForm(storeQuery.data.notifications);
+  }, [storeQuery.data?.notifications]);
+
+  const saveNotifications = useMutation({
+    mutationFn: () => api.updateMyStore(notificationForm),
+    onSuccess: (store) => {
+      queryClient.setQueryData(["store", "me"], store);
+      if (store.notifications) {
+        setNotificationForm(store.notifications);
+      }
+      toast.success("Notification settings saved.");
+    },
+    onError: (error: Error) => toast.error(error.message),
   });
 
   useEffect(() => {
@@ -375,11 +408,8 @@ export default function AdminSettingsPage() {
                     title="Require manual order acceptance"
                     description="Review each paid order before fulfilment begins."
                   />
-                  <Field label="Low-stock alert threshold">
-                    <Input defaultValue="5" inputMode="numeric" />
-                  </Field>
-                  <Field label="Default order note">
-                    <Textarea placeholder="Add a message customers receive after purchase." />
+                  <Field label="Low-stock alert threshold" comingSoon>
+                    <Input defaultValue="5" inputMode="numeric" disabled />
                   </Field>
                 </CardContent>
               </Card>
@@ -393,34 +423,85 @@ export default function AdminSettingsPage() {
                     Merchant and customer notifications
                   </CardTitle>
                   <CardDescription>
-                    Choose which events should send email, SMS, and dashboard alerts.
+                    Choose which events should send email alerts. SMS delivery is coming soon.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <ToggleRow
                     title="New order alerts"
-                    description="Notify store admins immediately when a customer places an order."
-                    checked
+                    description="Email the store team immediately when a customer places an order."
+                    checked={notificationForm.notify_merchant_new_order}
+                    onCheckedChange={(checked) =>
+                      setNotificationForm((prev) => ({ ...prev, notify_merchant_new_order: checked }))
+                    }
                   />
                   <ToggleRow
-                    title="Customer SMS updates"
-                    description="Send payment confirmation, fulfilment, and delivery messages to buyers."
-                    checked
+                    title="Customer order confirmation"
+                    description="Send buyers an email when they place an order."
+                    checked={notificationForm.notify_customer_order_confirmation}
+                    onCheckedChange={(checked) =>
+                      setNotificationForm((prev) => ({ ...prev, notify_customer_order_confirmation: checked }))
+                    }
+                  />
+                  <ToggleRow
+                    title="Customer payment confirmation"
+                    description="Send buyers an email when their payment is confirmed."
+                    checked={notificationForm.notify_customer_payment_confirmation}
+                    onCheckedChange={(checked) =>
+                      setNotificationForm((prev) => ({ ...prev, notify_customer_payment_confirmation: checked }))
+                    }
                   />
                   <ToggleRow
                     title="Low-stock alerts"
-                    description="Warn your team before popular products sell out."
-                    checked
+                    description="Warn your team before tracked products sell out."
+                    checked={notificationForm.notify_merchant_low_stock}
+                    onCheckedChange={(checked) =>
+                      setNotificationForm((prev) => ({ ...prev, notify_merchant_low_stock: checked }))
+                    }
                   />
                   <Separator />
                   <div className="grid gap-4 md:grid-cols-2">
                     <Field label="Admin notification email">
-                      <Input type="email" placeholder="orders@yourstore.com" />
+                      <Input
+                        type="email"
+                        placeholder="orders@yourstore.com"
+                        value={notificationForm.notification_email ?? ""}
+                        onChange={(event) =>
+                          setNotificationForm((prev) => ({
+                            ...prev,
+                            notification_email: event.target.value || null,
+                          }))
+                        }
+                      />
                     </Field>
-                    <Field label="SMS sender name">
-                      <Input defaultValue={store.business_name.slice(0, 11)} maxLength={11} />
+                    <Field label="SMS sender name" comingSoon>
+                      <Input
+                        value={notificationForm.sms_sender_name ?? store?.business_name.slice(0, 11) ?? ""}
+                        maxLength={11}
+                        disabled
+                      />
                     </Field>
                   </div>
+                  <Field label="Default order note">
+                    <Textarea
+                      placeholder="Add a message customers receive after purchase."
+                      value={notificationForm.customer_order_note ?? ""}
+                      onChange={(event) =>
+                        setNotificationForm((prev) => ({
+                          ...prev,
+                          customer_order_note: event.target.value || null,
+                        }))
+                      }
+                    />
+                  </Field>
+                  <Button onClick={() => saveNotifications.mutate()} disabled={saveNotifications.isPending}>
+                    {saveNotifications.isPending ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Save className="mr-2 h-4 w-4" />
+                    )}
+                    Save notification settings
+                  </Button>
                 </CardContent>
               </Card>
             </TabsContent>
