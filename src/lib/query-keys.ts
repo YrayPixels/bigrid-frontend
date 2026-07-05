@@ -26,5 +26,6 @@ export const merchantKeys = {
     subscription: () => ["billing", "subscription"] as const,
   },
   paymentSettings: () => ["payment-settings"] as const,
+  domains: () => ["store-domains"] as const,
   publicStorefront: (slug: string) => ["public-storefront", slug] as const,
 };

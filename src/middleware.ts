@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { parseStoreSlugFromHost } from "@/lib/store-host";
+import {
+  isPlatformRootHost,
+  parseStoreSlugFromHost,
+  resolveCustomDomainSlug,
+} from "@/lib/store-host";
 
 function applyWebContainerIsolation(res: NextResponse) {
   // WebContainer needs SharedArrayBuffer, which requires crossOriginIsolated.
@@ -9,7 +13,7 @@ function applyWebContainerIsolation(res: NextResponse) {
   return res;
 }
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (
@@ -22,7 +26,11 @@ export function middleware(request: NextRequest) {
   }
 
   const host = request.headers.get("host");
-  const slug = parseStoreSlugFromHost(host);
+  let slug = parseStoreSlugFromHost(host);
+
+  if (!slug && host && !isPlatformRootHost(host)) {
+    slug = await resolveCustomDomainSlug(host);
+  }
 
   if (!slug) {
     // Apply on every main-app document route so client-side navigation from

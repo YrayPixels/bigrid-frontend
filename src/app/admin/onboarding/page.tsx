@@ -171,7 +171,7 @@ export default function AdminOnboardingPage() {
                   </span>
                 </div>
                 <span className="mt-1 block text-xs text-ink-soft">
-                  You can purchase or connect a custom domain later.
+                  Connect a custom domain later from Settings → Domains (Growth and Scale plans).
                 </span>
               </label>
               <label className="block">

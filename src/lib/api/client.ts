@@ -27,6 +27,8 @@ import type {
   UpdateStoreInput,
   UpdateStorefrontInput,
   StorePaymentSettings,
+  StoreDomainsResponse,
+  StoreDomain,
   UpdateStorePaymentSettingsInput,
   BillingCheckoutResponse,
   BillingPortalResponse,
@@ -336,6 +338,64 @@ export const api = {
       body: JSON.stringify(body),
     });
     return res.store;
+  },
+
+  async getStoreDomains(): Promise<StoreDomainsResponse> {
+    const token = requireToken();
+    if (USE_MOCKS) {
+      return mockApi.getStoreDomains(token);
+    }
+    return http<StoreDomainsResponse>(`${STOREHAUSE_API_PREFIX}/stores/me/domains`);
+  },
+
+  async addStoreDomain(hostname: string): Promise<StoreDomain> {
+    const token = requireToken();
+    if (USE_MOCKS) {
+      const res = await mockApi.addStoreDomain(token, hostname);
+      return res.domain;
+    }
+    const res = await http<{ domain: StoreDomain }>(`${STOREHAUSE_API_PREFIX}/stores/me/domains`, {
+      method: "POST",
+      body: JSON.stringify({ hostname }),
+    });
+    return res.domain;
+  },
+
+  async verifyStoreDomain(domainId: string): Promise<StoreDomain> {
+    const token = requireToken();
+    if (USE_MOCKS) {
+      const res = await mockApi.verifyStoreDomain(token, domainId);
+      return res.domain;
+    }
+    const res = await http<{ domain: StoreDomain }>(
+      `${STOREHAUSE_API_PREFIX}/stores/me/domains/${domainId}/verify`,
+      { method: "POST" },
+    );
+    return res.domain;
+  },
+
+  async setPrimaryStoreDomain(domainId: string): Promise<StoreDomain> {
+    const token = requireToken();
+    if (USE_MOCKS) {
+      const res = await mockApi.setPrimaryStoreDomain(token, domainId);
+      return res.domain;
+    }
+    const res = await http<{ domain: StoreDomain }>(
+      `${STOREHAUSE_API_PREFIX}/stores/me/domains/${domainId}/primary`,
+      { method: "PATCH" },
+    );
+    return res.domain;
+  },
+
+  async deleteStoreDomain(domainId: string): Promise<void> {
+    const token = requireToken();
+    if (USE_MOCKS) {
+      await mockApi.deleteStoreDomain(token, domainId);
+      return;
+    }
+    await http<{ message: string }>(`${STOREHAUSE_API_PREFIX}/stores/me/domains/${domainId}`, {
+      method: "DELETE",
+    });
   },
 
   async getPaymentSettings(): Promise<StorePaymentSettings> {

@@ -93,5 +93,51 @@ export function isPlatformRootHost(host: string | undefined | null): boolean {
 }
 
 export function isStorefrontHost(host: string | undefined | null): boolean {
-  return parseStoreSlugFromHost(host) !== null;
+  if (parseStoreSlugFromHost(host) !== null) {
+    return true;
+  }
+
+  return Boolean(host && !isPlatformRootHost(host));
+}
+
+const customDomainSlugCache = new Map<string, { slug: string | null; expiresAt: number }>();
+
+export async function resolveCustomDomainSlug(host: string | undefined | null): Promise<string | null> {
+  if (!host || isPlatformRootHost(host) || parseStoreSlugFromHost(host)) {
+    return null;
+  }
+
+  const hostname = host.split(":")[0].toLowerCase();
+  const cached = customDomainSlugCache.get(hostname);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.slug;
+  }
+
+  const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "");
+  if (!apiBase) {
+    return null;
+  }
+
+  try {
+    const res = await fetch(
+      `${apiBase}/storehause/public/storefronts/resolve-host?host=${encodeURIComponent(hostname)}`,
+      {
+        headers: { Accept: "application/json" },
+        next: { revalidate: 300 },
+      },
+    );
+
+    const slug = res.ok
+      ? ((await res.json().catch(() => null)) as { slug?: string } | null)?.slug ?? null
+      : null;
+
+    customDomainSlugCache.set(hostname, {
+      slug: typeof slug === "string" ? slug : null,
+      expiresAt: Date.now() + 5 * 60 * 1000,
+    });
+
+    return typeof slug === "string" ? slug : null;
+  } catch {
+    return null;
+  }
 }

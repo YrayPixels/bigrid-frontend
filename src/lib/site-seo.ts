@@ -1,4 +1,4 @@
-import { parseStoreSlugFromHost, STORE_PLATFORM_DOMAIN } from "@/lib/store-host";
+import { isPlatformRootHost, parseStoreSlugFromHost, STORE_PLATFORM_DOMAIN } from "@/lib/store-host";
 
 export const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ??
@@ -22,6 +22,11 @@ export function getSitemapBaseUrl(host: string | null | undefined): string {
   const slug = parseStoreSlugFromHost(host);
   if (slug) {
     return getStorefrontBaseUrl(slug);
+  }
+
+  if (host && !isPlatformRootHost(host)) {
+    const hostname = host.split(":")[0];
+    return `https://${hostname}`;
   }
 
   return SITE_URL;

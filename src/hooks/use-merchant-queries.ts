@@ -18,6 +18,7 @@ import type {
   StoreOrder,
   StoreOrdersResponse,
   StorePaymentSettings,
+  StoreDomainsResponse,
   StoreProduct,
   StorefrontDraftResponse,
   StorefrontTemplateOption,
@@ -193,6 +194,17 @@ export function usePaymentSettings(
   return useQuery({
     queryKey: merchantKeys.paymentSettings(),
     queryFn: () => api.getPaymentSettings(),
+    ...options,
+  });
+}
+
+export function useStoreDomains(
+  options?: Omit<UseQueryOptions<StoreDomainsResponse, Error>, "queryKey" | "queryFn">,
+) {
+  return useQuery({
+    queryKey: merchantKeys.domains(),
+    queryFn: () => api.getStoreDomains(),
+    staleTime: 30 * 1000,
     ...options,
   });
 }

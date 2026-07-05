@@ -104,6 +104,34 @@ export type Store = {
   notifications?: StoreNotificationSettings;
 };
 
+export type StoreDomainVerification = {
+  txt_host: string;
+  txt_value: string;
+  cname_host: string;
+  cname_target: string;
+  txt_verified: boolean;
+  cname_verified: boolean;
+};
+
+export type StoreDomain = {
+  id: string;
+  hostname: string;
+  status: "pending" | "verified" | string;
+  is_primary: boolean;
+  verified_at?: string | null;
+  verification: StoreDomainVerification;
+};
+
+export type StoreDomainsResponse = {
+  domains: StoreDomain[];
+  meta: {
+    allowed: boolean;
+    max_domains: number;
+    used: number;
+    subdomain_host: string;
+  };
+};
+
 export type StoreNotificationSettings = {
   notify_merchant_new_order: boolean;
   notify_customer_order_confirmation: boolean;

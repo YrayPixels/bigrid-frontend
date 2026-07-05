@@ -41,6 +41,8 @@ import type {
   StoreOrdersResponse,
   StoreOrderStatus,
   StoreProduct,
+  StoreDomain,
+  StoreDomainsResponse,
   StorefrontContent,
   StorefrontDraftResponse,
   StorefrontPublishState,
@@ -62,6 +64,8 @@ import type {
 } from "./types";
 
 const STORAGE_KEY = "storehaus_mock_db_v1";
+
+const mockStoreDomains: Record<string, StoreDomain[]> = {};
 
 type MockDB = {
   users: Record<string, { user: User; password: string }>;
@@ -755,6 +759,110 @@ export const mockApi = {
     }
     save(db);
     return { store };
+  },
+
+  async getStoreDomains(token: string): Promise<StoreDomainsResponse> {
+    await delay(150);
+    const db = load();
+    const userId = db.sessions[token];
+    if (!userId) throw { status: 401, message: "Unauthenticated" };
+    const store = db.stores[userId];
+    if (!store) throw { status: 404, message: "Store not found" };
+
+    return {
+      domains: mockStoreDomains[store.id] ?? [],
+      meta: {
+        allowed: true,
+        max_domains: 1,
+        used: (mockStoreDomains[store.id] ?? []).length,
+        subdomain_host: getStoreSubdomainHost(store.slug),
+      },
+    };
+  },
+
+  async addStoreDomain(token: string, hostname: string): Promise<{ domain: StoreDomain }> {
+    await delay(200);
+    const db = load();
+    const userId = db.sessions[token];
+    if (!userId) throw { status: 401, message: "Unauthenticated" };
+    const store = db.stores[userId];
+    if (!store) throw { status: 404, message: "Store not found" };
+
+    const normalized = hostname.toLowerCase().replace(/^www\./, "").trim();
+    const domain: StoreDomain = {
+      id: `domain-${Date.now()}`,
+      hostname: normalized,
+      status: "pending",
+      is_primary: (mockStoreDomains[store.id] ?? []).length === 0,
+      verification: {
+        txt_host: `_storehause-verify.${normalized}`,
+        txt_value: "storehause-verify=mock-token",
+        cname_host: normalized,
+        cname_target: getStoreSubdomainHost(store.slug),
+        txt_verified: false,
+        cname_verified: false,
+      },
+    };
+    mockStoreDomains[store.id] = [...(mockStoreDomains[store.id] ?? []), domain];
+    return { domain };
+  },
+
+  async verifyStoreDomain(token: string, domainId: string): Promise<{ domain: StoreDomain }> {
+    await delay(250);
+    const db = load();
+    const userId = db.sessions[token];
+    if (!userId) throw { status: 401, message: "Unauthenticated" };
+    const store = db.stores[userId];
+    if (!store) throw { status: 404, message: "Store not found" };
+
+    const domains = mockStoreDomains[store.id] ?? [];
+    const index = domains.findIndex((entry) => entry.id === domainId);
+    if (index === -1) throw { status: 404, message: "Domain not found" };
+
+    const updated: StoreDomain = {
+      ...domains[index],
+      status: "verified",
+      verified_at: new Date().toISOString(),
+      verification: {
+        ...domains[index].verification,
+        txt_verified: true,
+        cname_verified: true,
+      },
+    };
+    domains[index] = updated;
+    mockStoreDomains[store.id] = domains;
+    return { domain: updated };
+  },
+
+  async setPrimaryStoreDomain(token: string, domainId: string): Promise<{ domain: StoreDomain }> {
+    await delay(150);
+    const db = load();
+    const userId = db.sessions[token];
+    if (!userId) throw { status: 401, message: "Unauthenticated" };
+    const store = db.stores[userId];
+    if (!store) throw { status: 404, message: "Store not found" };
+
+    mockStoreDomains[store.id] = (mockStoreDomains[store.id] ?? []).map((entry) => ({
+      ...entry,
+      is_primary: entry.id === domainId,
+    }));
+    const domain = mockStoreDomains[store.id]?.find((entry) => entry.id === domainId);
+    if (!domain) throw { status: 404, message: "Domain not found" };
+    return { domain };
+  },
+
+  async deleteStoreDomain(token: string, domainId: string): Promise<{ message: string }> {
+    await delay(150);
+    const db = load();
+    const userId = db.sessions[token];
+    if (!userId) throw { status: 401, message: "Unauthenticated" };
+    const store = db.stores[userId];
+    if (!store) throw { status: 404, message: "Store not found" };
+
+    mockStoreDomains[store.id] = (mockStoreDomains[store.id] ?? []).filter(
+      (entry) => entry.id !== domainId,
+    );
+    return { message: "Domain removed." };
   },
 
   async uploadStorefrontImage(

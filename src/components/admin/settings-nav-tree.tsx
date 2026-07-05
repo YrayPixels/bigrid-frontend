@@ -7,6 +7,7 @@ import {
   BellRing,
   ChevronRight,
   CreditCard,
+  Globe2,
   ReceiptText,
   Settings,
   Store,
@@ -30,7 +31,7 @@ type SettingsNavItem = {
   icon: LucideIcon;
   iconClassName: string;
   href: string;
-  page?: "store" | "plan";
+  page?: "store" | "plan" | "domains";
   tab?: "payouts" | "operations" | "notifications" | "policies";
 };
 
@@ -50,6 +51,14 @@ export const SETTINGS_NAV: SettingsNavItem[] = [
     iconClassName: "bg-violet-500/15 text-violet-600",
     href: "/admin/settings/plan",
     page: "plan",
+  },
+  {
+    id: "domains",
+    label: "Domains",
+    icon: Globe2,
+    iconClassName: "bg-teal-500/15 text-teal-600",
+    href: "/admin/settings/domains",
+    page: "domains",
   },
   {
     id: "payouts",

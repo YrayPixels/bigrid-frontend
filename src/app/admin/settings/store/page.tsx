@@ -203,12 +203,24 @@ export default function AdminSettingsStorePage() {
               <Field label="Store slug" hint="This controls your Bizgrid storefront URL." comingSoon>
                 <Input defaultValue={store.slug} disabled />
               </Field>
-              <Field label="Custom domain" comingSoon>
-                <Input
-                  defaultValue={store.primary_domain ?? ""}
-                  placeholder="shop.yourdomain.com"
-                  disabled
-                />
+              <Field
+                label="Custom domain"
+                hint="Connect your own domain on Growth or Scale plans."
+              >
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <Input
+                    defaultValue={
+                      store.primary_domain && store.primary_domain !== store.subdomain_host
+                        ? store.primary_domain
+                        : ""
+                    }
+                    placeholder="Not connected"
+                    disabled
+                  />
+                  <Button asChild variant="outline" type="button" className="shrink-0">
+                    <Link href="/admin/settings/domains">Manage domains</Link>
+                  </Button>
+                </div>
               </Field>
               <Field label="Brand color">
                 <div className="flex gap-3">
