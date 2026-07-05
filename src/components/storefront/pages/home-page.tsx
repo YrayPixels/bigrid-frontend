@@ -6,6 +6,8 @@ import { BeautyHome } from "./home/beauty-home";
 import { ClassicHome } from "./home/classic-home";
 import { CosmeticsHome } from "./home/cosmetics-home";
 import { FashionLookbookHome } from "./home/fashion-lookbook-home";
+import { FurnitureHardwareHome } from "./home/furniture-hardware-home";
+import { HairAndFashionHome } from "./home/hair-and-fashion-home";
 import { MinimalisticHome } from "./home/minimalistic-home";
 
 export function HomePageView() {
@@ -26,6 +28,14 @@ export function HomePageView() {
 
   if (theme.id === "cosmetics") {
     return <CosmeticsHome store={store} storefront={storefront} />;
+  }
+
+  if (theme.id === "furniture-hardware") {
+    return <FurnitureHardwareHome store={store} storefront={storefront} />;
+  }
+
+  if (theme.id === "hair-and-fashion") {
+    return <HairAndFashionHome store={store} storefront={storefront} />;
   }
 
   if (theme.id === "editorial") {

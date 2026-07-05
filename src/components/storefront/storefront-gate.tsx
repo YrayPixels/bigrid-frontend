@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { usePublicStorefront } from "@/hooks/use-merchant-queries";
 import { Loader2 } from "lucide-react";
 import { notFound } from "next/navigation";
 import { StoreShell } from "@/components/storefront/store-shell";
@@ -12,10 +12,7 @@ import { StorefrontThemeProvider } from "@/lib/storefront/theme-context";
 import { getStorefrontTheme, resolveStorefrontTemplate } from "@/lib/storefront/template";
 
 export function StorefrontGate({ slug, children }: { slug: string; children: React.ReactNode }) {
-  const query = useQuery({
-    queryKey: ["public-storefront", slug],
-    queryFn: () => storefrontApi.getBySlug(slug),
-  });
+  const query = usePublicStorefront(slug);
 
   useEffect(() => {
     if (!query.data || typeof window === "undefined") return;

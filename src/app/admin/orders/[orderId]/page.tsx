@@ -2,9 +2,13 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Loader2, Mail, MapPin, Phone, ShoppingBag } from "lucide-react";
 import { toast } from "sonner";
+import {
+  merchantInvalidators,
+  useMerchantOrder,
+} from "@/hooks/use-merchant-queries";
 import { api } from "@/lib/api/client";
 import type { StoreOrderStatus } from "@/lib/api/types";
 
@@ -51,21 +55,16 @@ export default function AdminOrderDetailPage() {
   const orderId = params.orderId;
   const queryClient = useQueryClient();
 
-  const orderQuery = useQuery({
-    queryKey: ["merchant-order", orderId],
-    queryFn: () => api.getOrder(orderId),
-    enabled: !!orderId,
-    retry: 1,
-  });
+  const orderQuery = useMerchantOrder(orderId, { retry: 1 });
 
   const updateStatus = useMutation({
     mutationFn: (nextStatus: StoreOrderStatus) =>
       api.updateOrderStatus(orderId, { status: nextStatus }),
     onSuccess: () => {
       toast.success("Order status updated.");
-      queryClient.invalidateQueries({ queryKey: ["merchant-order", orderId] });
-      queryClient.invalidateQueries({ queryKey: ["merchant-orders"] });
-      queryClient.invalidateQueries({ queryKey: ["merchant-dashboard-overview"] });
+      merchantInvalidators.order(queryClient, orderId);
+      merchantInvalidators.orders(queryClient);
+      merchantInvalidators.dashboard(queryClient);
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : "Could not update order.");

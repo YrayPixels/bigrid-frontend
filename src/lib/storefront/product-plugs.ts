@@ -2,6 +2,8 @@ import type { StoreProduct, StorefrontContent, StorefrontTemplateId } from "@/li
 import { beautyFallbackProducts } from "./beauty-defaults";
 import { cosmeticsFallbackProducts } from "./cosmetics-defaults";
 import { fashionFallbackProducts } from "./fashion-defaults";
+import { furnitureHardwareFallbackProducts } from "./furniture-hardware-defaults";
+import { hairFashionFallbackProducts } from "./hair-fashion-defaults";
 import { minimalisticFallbackProducts } from "./minimalistic-defaults";
 
 export type ProductPlugSource = "merchant_products" | "theme_products";
@@ -53,6 +55,8 @@ export function getThemeProducts(templateId: StorefrontTemplateId): StoreProduct
   if (templateId === "cosmetics") return cosmeticsFallbackProducts;
   if (templateId === "beauty") return beautyFallbackProducts;
   if (templateId === "fashion_lookbook") return fashionFallbackProducts;
+  if (templateId === "furniture-hardware") return furnitureHardwareFallbackProducts;
+  if (templateId === "hair-and-fashion") return hairFashionFallbackProducts;
   if (templateId === "minimalistic") return minimalisticFallbackProducts;
 
   return genericThemeProducts;

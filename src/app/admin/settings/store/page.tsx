@@ -1,11 +1,12 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Globe2, Loader2, Palette, Save } from "lucide-react";
 import { toast } from "sonner";
+import { merchantCache, useStoreMe } from "@/hooks/use-merchant-queries";
 import { api } from "@/lib/api/client";
 import type { UpdateStoreInput } from "@/lib/api/types";
 import { INDUSTRY_OPTIONS } from "@/lib/api/types";
@@ -73,10 +74,7 @@ function storeProfileFromStore(
 export default function AdminSettingsStorePage() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const storeQuery = useQuery({
-    queryKey: ["store", "me"],
-    queryFn: () => api.getMyStore(),
-  });
+  const storeQuery = useStoreMe();
   const [storeForm, setStoreForm] = useState<StoreProfileForm | null>(null);
 
   useEffect(() => {
@@ -94,7 +92,7 @@ export default function AdminSettingsStorePage() {
   const saveStoreProfile = useMutation({
     mutationFn: (body: UpdateStoreInput) => api.updateMyStore(body),
     onSuccess: (store) => {
-      queryClient.setQueryData(["store", "me"], store);
+      merchantCache.setStoreMe(queryClient, store);
       setStoreForm(storeProfileFromStore(store));
       toast.success("Store settings saved.");
     },

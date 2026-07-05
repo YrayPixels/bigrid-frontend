@@ -25,6 +25,8 @@ import {
   type ImageReplaceScope,
 } from "@/lib/storefront-builder/section-scope";
 import { STOREFRONT_FONT_OPTIONS } from "@/lib/storefront/template";
+import { attachBoltTemplateToStorefront } from "@/lib/storefront/bolt-template-storefront";
+import { resolveStorefrontTemplateType } from "@/lib/storefront/template-registry";
 import { api } from "@/lib/api/client";
 import { codeFs } from "@/lib/code-fs";
 import { createBoltStreamPipeline, lockedPathsFromStorefront } from "@/lib/bolt/bolt-stream";
@@ -191,7 +193,30 @@ export function websiteBuilderTools(): WebsiteBuilderToolDef[] {
 
         ctx.selectedTemplateId = selected;
         const store = profileToStore(ctx.profile, selected);
-        ctx.storefront = synthesizeStorefront(store, ctx.recommendations);
+        let storefront = synthesizeStorefront(store, ctx.recommendations);
+        const templateType = resolveStorefrontTemplateType(selected, ctx.templateOptions);
+
+        if (templateType === "bolt") {
+          storefront = await attachBoltTemplateToStorefront(storefront, selected);
+          ctx.storefront = storefront;
+          ctx.status = "content_generated";
+          ctx.payload = {
+            type: "website_generated",
+            template_type: "bolt",
+            next_steps: [
+              { label: "Open code workbench", action: "link", href: "/admin/builder/workbench" },
+              { label: "Add your products", action: "add_products_prompt", message: "Help me add my products" },
+              { label: "Refine the design", action: "prompt", message: "Refine the homepage layout and styling" },
+            ],
+          };
+          if (!ctx.assistantMessage) {
+            ctx.assistantMessage =
+              "Your website starter is ready in the code workbench. Open the workbench to preview and refine the design, then add your products when you're happy with the look.";
+          }
+          return { ok: true, template_id: selected, template_type: "bolt" };
+        }
+
+        ctx.storefront = storefront;
 
         const imageIntent =
           `${ctx.profile.business_name ?? ""} ${ctx.profile.description ?? ""} ${ctx.message}`.trim();

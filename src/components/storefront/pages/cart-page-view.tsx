@@ -779,6 +779,10 @@ export function CartPageView() {
     return <MinimalisticCartPageView />;
   }
 
+  if (theme.id === "furniture-hardware" || theme.id === "hair-and-fashion") {
+    return <FashionCartPageView />;
+  }
+
   if (lines.length === 0) {
     return (
       <PageContainer className="text-center">

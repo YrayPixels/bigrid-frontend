@@ -1,9 +1,14 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { api } from "@/lib/api/client";
+import {
+  merchantCache,
+  merchantInvalidators,
+  usePaymentSettings,
+} from "@/hooks/use-merchant-queries";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -13,10 +18,7 @@ import { Banknote, Save } from "lucide-react";
 
 export function PayoutDetailsCard() {
   const queryClient = useQueryClient();
-  const { data, isLoading } = useQuery({
-    queryKey: ["payment-settings"],
-    queryFn: () => api.getPaymentSettings(),
-  });
+  const { data, isLoading } = usePaymentSettings();
 
   const [accountName, setAccountName] = useState("");
   const [bankName, setBankName] = useState("");
@@ -37,8 +39,8 @@ export function PayoutDetailsCard() {
         payout_account_number: accountNumber.trim(),
       }),
     onSuccess: (payments) => {
-      queryClient.setQueryData(["payment-settings"], payments);
-      queryClient.invalidateQueries({ queryKey: ["store", "me"] });
+      merchantCache.setPaymentSettings(queryClient, payments);
+      merchantInvalidators.store(queryClient);
       toast.success("Payout details saved");
     },
     onError: (error: Error) => {

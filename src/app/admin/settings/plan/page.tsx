@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -14,6 +14,7 @@ import {
   Zap,
 } from "lucide-react";
 import { toast } from "sonner";
+import { merchantCache, merchantInvalidators, useBillingSubscription, useStoreMe } from "@/hooks/use-merchant-queries";
 import { api } from "@/lib/api/client";
 import type { BillingAddOnPack, SubscriptionPlanId } from "@/lib/api/types";
 import { Badge } from "@/components/ui/badge";
@@ -98,15 +99,8 @@ export default function PlanSettingsPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
-  const storeQuery = useQuery({
-    queryKey: ["store", "me"],
-    queryFn: () => api.getMyStore(),
-  });
-  const billingQuery = useQuery({
-    queryKey: ["billing", "subscription"],
-    queryFn: () => api.getBillingSubscription(),
-    enabled: Boolean(storeQuery.data),
-  });
+  const storeQuery = useStoreMe();
+  const billingQuery = useBillingSubscription({ enabled: Boolean(storeQuery.data) });
   const [checkoutPlan, setCheckoutPlan] = useState<SubscriptionPlanId | null>(null);
   const [selectedSmsPack, setSelectedSmsPack] = useState("");
   const [selectedWhatsappPack, setSelectedWhatsappPack] = useState("");
@@ -124,10 +118,10 @@ export default function PlanSettingsPage() {
 
     if (checkout === "success") {
       toast.success("Payment received. Your subscription will update shortly.");
-      void queryClient.invalidateQueries({ queryKey: ["billing", "subscription"] });
+      void merchantInvalidators.billing(queryClient);
     } else if (checkout === "addon_success") {
       toast.success("Add-on purchase received. Your balance will update shortly.");
-      void queryClient.invalidateQueries({ queryKey: ["billing", "subscription"] });
+      void merchantInvalidators.billing(queryClient);
     } else if (checkout === "cancelled") {
       toast.message("Checkout cancelled. You can try again whenever you're ready.");
     }
@@ -143,7 +137,7 @@ export default function PlanSettingsPage() {
         return;
       }
       toast.success(result.message);
-      void queryClient.invalidateQueries({ queryKey: ["billing", "subscription"] });
+      void merchantInvalidators.billing(queryClient);
     },
     onError: (error) =>
       toast.error(error instanceof Error ? error.message : "Could not start checkout"),

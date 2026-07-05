@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { Check, ChevronRight, ExternalLink } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,7 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { api } from "@/lib/api/client";
+import { useMerchantDashboard, useStoreMe } from "@/hooks/use-merchant-queries";
 import { getStorefrontUrl } from "@/lib/store-host";
 import {
   dismissLaunchChecklist,
@@ -33,16 +32,8 @@ type LaunchChecklistDialogProps = {
 
 export function LaunchChecklistDialog({ open, onOpenChange, onDismiss }: LaunchChecklistDialogProps) {
   const router = useRouter();
-  const storeQuery = useQuery({
-    queryKey: ["store", "me"],
-    queryFn: () => api.getMyStore(),
-  });
-  const dashboardQuery = useQuery({
-    queryKey: ["merchant-dashboard-overview"],
-    queryFn: () => api.getDashboardOverview(),
-    enabled: !!storeQuery.data,
-  });
-
+  const storeQuery = useStoreMe();
+  const dashboardQuery = useMerchantDashboard({ enabled: !!storeQuery.data });
   const store = storeQuery.data;
 
   const progress = useMemo(
@@ -147,16 +138,8 @@ export function LaunchChecklistDialog({ open, onOpenChange, onDismiss }: LaunchC
 }
 
 export function LaunchChecklistReminder() {
-  const storeQuery = useQuery({
-    queryKey: ["store", "me"],
-    queryFn: () => api.getMyStore(),
-  });
-  const dashboardQuery = useQuery({
-    queryKey: ["merchant-dashboard-overview"],
-    queryFn: () => api.getDashboardOverview(),
-    enabled: !!storeQuery.data,
-  });
-
+  const storeQuery = useStoreMe();
+  const dashboardQuery = useMerchantDashboard({ enabled: !!storeQuery.data });
   const store = storeQuery.data;
   const [open, setOpen] = useState(false);
   const [bannerVisible, setBannerVisible] = useState(false);

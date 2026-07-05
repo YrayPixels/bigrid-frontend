@@ -1,5 +1,7 @@
 import type { StorefrontContent, StorefrontTemplateId } from "@/lib/api/types";
 import { cosmeticsTemplateImages } from "@/lib/storefront/cosmetics-defaults";
+import { furnitureHardwareTemplateImages } from "@/lib/storefront/furniture-hardware-defaults";
+import { hairFashionTemplateImages } from "@/lib/storefront/hair-fashion-defaults";
 import { migrateHomeBlocks } from "@/lib/storefront/blocks/migrate-home";
 import type {
   ContactFormBlockProps,
@@ -48,7 +50,11 @@ export function buildAboutPageBlocks(
   const imageUrl =
     templateId === "cosmetics" || templateId === "beauty"
       ? storefront.media?.about_image_url ?? cosmeticsTemplateImages.about
-      : storefront.media?.about_image_url ?? null;
+      : templateId === "furniture-hardware"
+        ? storefront.media?.about_image_url ?? furnitureHardwareTemplateImages.collection
+        : templateId === "hair-and-fashion"
+          ? storefront.media?.about_image_url ?? hairFashionTemplateImages.textureBg
+          : storefront.media?.about_image_url ?? null;
 
   return [
     {

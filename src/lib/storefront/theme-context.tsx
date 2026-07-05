@@ -17,10 +17,14 @@ export type EditableHandlers = {
   onSelectPath?: (path: string | null) => void;
 };
 
+export type StorefrontShellChrome = "full" | "content-only";
+
 type StorefrontThemeContextValue = {
   theme: StorefrontTheme;
   mode: StorefrontMode;
   editable?: EditableHandlers;
+  /** Home pages for furniture/hair templates ship their own chrome. */
+  shellChrome?: StorefrontShellChrome;
 };
 
 const StorefrontThemeContext = createContext<StorefrontThemeContextValue | null>(null);
@@ -29,11 +33,13 @@ export function StorefrontThemeProvider({
   theme,
   mode = "live",
   editable,
+  shellChrome,
   children,
 }: {
   theme: StorefrontTheme;
   mode?: StorefrontMode;
   editable?: EditableHandlers;
+  shellChrome?: StorefrontShellChrome;
   children: ReactNode;
 }) {
   const paletteVars = useMemo(
@@ -100,7 +106,7 @@ export function StorefrontThemeProvider({
   ]);
 
   return (
-    <StorefrontThemeContext.Provider value={{ theme, mode, editable }}>
+    <StorefrontThemeContext.Provider value={{ theme, mode, editable, shellChrome }}>
       <div
         data-template={theme.id}
         data-mode={mode}

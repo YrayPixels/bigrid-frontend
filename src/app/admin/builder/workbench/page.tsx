@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { FileCode2, Loader2, Lock, PanelLeft, Save, Sparkles, Unlock } from "lucide-react";
 import { toast } from "sonner";
 import { BuilderChatPanel } from "@/components/admin/builder/builder-chat-panel";
@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/resizable";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api/client";
+import { merchantCache, useBuilderSessionOrStart } from "@/hooks/use-merchant-queries";
 import { codeFs } from "@/lib/code-fs";
 import { seedBuildItUpIfNeeded } from "@/lib/bolt/seed-template";
 import { needsBoltTemplateSeed, preferredWorkbenchFilePath } from "@/lib/bolt/project-utils";
@@ -172,15 +173,7 @@ export default function AdminBuilderWorkbenchPage() {
   const [lastDiffs, setLastDiffs] = useState<FileDiffSummary[]>([]);
   const [agentSteps, setAgentSteps] = useState<WorkbenchEditStep[]>([]);
 
-  const sessionQuery = useQuery({
-    queryKey: ["builder-session"],
-    queryFn: async () => {
-      const current = await api.getCurrentBuilderSession();
-      if (current.session) return current;
-      return api.startBuilderSession();
-    },
-    enabled: !!user,
-  });
+  const sessionQuery = useBuilderSessionOrStart({ enabled: !!user });
 
   const session = sessionQuery.data?.session ?? null;
   const storefront = session?.storefront_snapshot ?? null;
@@ -506,7 +499,7 @@ export default function AdminBuilderWorkbenchPage() {
             }
           : data.session;
 
-      queryClient.setQueryData(["builder-session"], {
+      merchantCache.setBuilderSession(queryClient, {
         ...data,
         session: mergedSession,
         storefront: mergedSession?.storefront_snapshot ?? data.storefront,
@@ -752,7 +745,7 @@ export default function AdminBuilderWorkbenchPage() {
       return api.clearBuilderChat(session.id);
     },
     onSuccess: (data) => {
-      queryClient.setQueryData(["builder-session"], data);
+      merchantCache.setBuilderSession(queryClient, data);
       toast.success("Chat cleared");
     },
     onError: (error) => toast.error(error instanceof Error ? error.message : "Could not clear chat"),

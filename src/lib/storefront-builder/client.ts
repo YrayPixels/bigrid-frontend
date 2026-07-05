@@ -25,10 +25,13 @@ import { buildBuilderChatHistory, type BuilderChatHistoryEntry } from "@/lib/sto
 import { alignStorefrontTemplateToSelection } from "@/lib/storefront/template";
 import { websiteBuilderToolsForSession } from "@/lib/storefront-builder/agents/tools";
 import { seedBuildItUpIfNeeded } from "@/lib/bolt/seed-template";
+import { asBoltTemplateId } from "@/lib/bolt/templates";
 import { needsBoltTemplateSeed } from "@/lib/bolt/project-utils";
 import type { BoltStreamCallbacks } from "@/lib/bolt/bolt-stream";
 import type { WorkbenchContextHints } from "@/lib/bolt/select-context";
 import { mergeLiveCodeFsIntoSession, mergeLiveCodeFsIntoStorefront } from "@/lib/bolt/workbench-context";
+import { attachBoltTemplateToStorefront } from "@/lib/storefront/bolt-template-storefront";
+import { resolveStorefrontTemplateType } from "@/lib/storefront/template-registry";
 import { codeFs, type CodeFile } from "@/lib/code-fs";
 
 export function asConcreteTemplateId(value: string | null | undefined): StorefrontTemplateId | undefined {
@@ -137,7 +140,10 @@ async function runBoltCustomTurn(args: {
         : [];
 
   if (liveFiles.length === 0 && (!hasCustom || needsBoltTemplateSeed(filesForSeedCheck))) {
-    const didSeed = await seedBuildItUpIfNeeded(filesForSeedCheck);
+    const boltTemplateId =
+      asBoltTemplateId(ctx.selectedTemplateId ?? undefined) ??
+      asBoltTemplateId(session.selected_template_id ?? undefined);
+    const didSeed = await seedBuildItUpIfNeeded(filesForSeedCheck, boltTemplateId);
 
     if (didSeed) {
       const seededFiles = codeFs.exportFiles();
@@ -416,8 +422,12 @@ export async function generateBuilderDraftForSession({
   const draftStore =
     enrichedSession.store ??
     profileToStore(enrichedSession.business_profile, selectedTemplateId ?? undefined);
-  const storefront = synthesizeStorefront(draftStore, recommendations);
+  let storefront = synthesizeStorefront(draftStore, recommendations);
   const concreteTemplateId = asConcreteTemplateId(selectedTemplateId ?? undefined);
+
+  if (concreteTemplateId && resolveStorefrontTemplateType(concreteTemplateId, templateOptions) === "bolt") {
+    storefront = await attachBoltTemplateToStorefront(storefront, concreteTemplateId);
+  }
 
   return api.generateBuilderDraft(session.id, {
     storefront,

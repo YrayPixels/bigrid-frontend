@@ -27,7 +27,9 @@ export function getSitemapBaseUrl(host: string | null | undefined): string {
   return SITE_URL;
 }
 
-export const PLATFORM_PUBLIC_PATHS = ["/", "/login", "/signup"] as const;
+export const PLATFORM_PUBLIC_PATHS = ["/", "/login", "/signup", "/privacy"] as const;
+
+export const PLATFORM_PRIVACY_URL = "/privacy";
 
 export const STOREFRONT_STATIC_PATHS = [
   "/",

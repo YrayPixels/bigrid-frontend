@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   CircleHelp,
   Clock3,
@@ -22,6 +22,11 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { api } from "@/lib/api/client";
+import {
+  merchantInvalidators,
+  useMerchantDashboard,
+  useMerchantOrders,
+} from "@/hooks/use-merchant-queries";
 import type { StoreOrderStatus } from "@/lib/api/types";
 
 const STATUS_OPTIONS: { value: "all" | StoreOrderStatus; label: string }[] = [
@@ -92,22 +97,13 @@ export default function AdminOrdersPage() {
     setPage(1);
   }, [status, debouncedSearch]);
 
-  const ordersQuery = useQuery({
-    queryKey: ["merchant-orders", status, debouncedSearch, page],
-    queryFn: () =>
-      api.getOrders({
-        status,
-        search: debouncedSearch || undefined,
-        page,
-        per_page: 15,
-      }),
+  const ordersQuery = useMerchantOrders({
+    status,
+    search: debouncedSearch,
+    page,
   });
 
-  const dashboardQuery = useQuery({
-    queryKey: ["merchant-dashboard-overview"],
-    queryFn: () => api.getDashboardOverview(),
-    staleTime: 60 * 1000,
-  });
+  const dashboardQuery = useMerchantDashboard();
 
   const metrics = dashboardQuery.data?.metrics;
   const statsLoading = dashboardQuery.isLoading;
@@ -126,8 +122,8 @@ export default function AdminOrdersPage() {
       api.updateOrderStatus(orderId, { status: nextStatus }),
     onSuccess: () => {
       toast.success("Order status updated.");
-      queryClient.invalidateQueries({ queryKey: ["merchant-orders"] });
-      queryClient.invalidateQueries({ queryKey: ["merchant-dashboard-overview"] });
+      merchantInvalidators.orders(queryClient);
+      merchantInvalidators.dashboard(queryClient);
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : "Could not update order.");

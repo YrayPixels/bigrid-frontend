@@ -255,9 +255,9 @@ export function LandingPage() {
                   </a>
                 </li>
                 <li>
-                  <a href="#pricing" className="transition-colors hover:text-primary">
-                    Legal
-                  </a>
+                  <Link href="/privacy" className="transition-colors hover:text-primary">
+                    Privacy policy
+                  </Link>
                 </li>
               </ul>
             </div>

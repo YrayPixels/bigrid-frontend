@@ -7,3 +7,10 @@ export const DEFAULT_BOLT_TEMPLATE_ID: BoltTemplateId = "furniture-hardware";
 export function isBoltTemplateId(value: string): value is BoltTemplateId {
   return (BOLT_TEMPLATE_IDS as readonly string[]).includes(value);
 }
+
+export function asBoltTemplateId(
+  value: string | null | undefined,
+): BoltTemplateId | undefined {
+  if (!value || !isBoltTemplateId(value)) return undefined;
+  return value;
+}

@@ -11,7 +11,7 @@ export type StorefrontTheme = {
   id: StorefrontTemplateId;
   brandColor: string;
   palette: StorefrontColorPalette;
-  shell: "default" | "fashion" | "minimalistic" | "beauty" | "cosmetics";
+  shell: "default" | "fashion" | "minimalistic" | "beauty" | "cosmetics" | "furniture" | "hair_fashion";
   displayFont: string;
   pageBg: string;
   pageText: string;
@@ -169,6 +169,38 @@ export function getStorefrontTheme(
         productGridCols: "sm:grid-cols-2 lg:grid-cols-4",
       };
       break;
+    case "furniture-hardware":
+      result = {
+        ...base,
+        shell: "furniture",
+        displayFont: "var(--font-display)",
+        pageBg: "bg-[#f7f3eb]",
+        pageText: "text-[#1c1812]",
+        mutedText: "text-[#7a6e5e]",
+        borderColor: "border-[#e8e0d4]",
+        cardBg: "bg-white",
+        buttonRadius: "rounded-full",
+        buttonStyle: "rounded",
+        heroAlign: "left",
+        productGridCols: "sm:grid-cols-2 lg:grid-cols-4",
+      };
+      break;
+    case "hair-and-fashion":
+      result = {
+        ...base,
+        shell: "hair_fashion",
+        displayFont: "var(--font-editorial)",
+        pageBg: "bg-[#fdf8f3]",
+        pageText: "text-[#1a1410]",
+        mutedText: "text-[#7a6b5e]",
+        borderColor: "border-[#ede4d8]",
+        cardBg: "bg-white",
+        buttonRadius: "rounded-none",
+        buttonStyle: "square",
+        heroAlign: "center",
+        productGridCols: "sm:grid-cols-2 lg:grid-cols-4",
+      };
+      break;
     case "editorial":
       result = {
         ...base,
@@ -291,6 +323,26 @@ export function getDefaultStorefrontPalette(
         muted: "#607085",
         border: "#DCE7F2",
       };
+    case "furniture-hardware":
+      return {
+        primary: brandColor ?? "#2C2416",
+        accent: "#C4A574",
+        background: "#FAF7F2",
+        surface: "#FFFFFF",
+        text: "#2C2416",
+        muted: "#7A6E5E",
+        border: "#E8E0D4",
+      };
+    case "hair-and-fashion":
+      return {
+        primary: brandColor ?? "#1A1410",
+        accent: "#D4A574",
+        background: "#FDF8F3",
+        surface: "#FFFFFF",
+        text: "#1A1410",
+        muted: "#7A6B5E",
+        border: "#EDE4D8",
+      };
     default:
       return {
         primary: brandColor ?? "#1F6F5B",
@@ -341,6 +393,8 @@ export const STOREFRONT_THEME_PRESETS: Record<
   beauty: { label: "Beauty", brandColor: "#6F2F2B" },
   cosmetics: { label: "Cosmetics", brandColor: "#82934C" },
   minimalistic: { label: "Minimalistic", brandColor: "#073E3F" },
+  "furniture-hardware": { label: "Furniture & Hardware", brandColor: "#2C2416" },
+  "hair-and-fashion": { label: "Hair & Fashion", brandColor: "#1A1410" },
 };
 
 export const STOREFRONT_PALETTE_PRESETS: {

@@ -1,5 +1,7 @@
 import type { StorefrontContent, StorefrontTemplateId } from "@/lib/api/types";
 import { cosmeticsTemplateImages } from "@/lib/storefront/cosmetics-defaults";
+import { buildFurnitureHardwareHomeBlocks } from "@/lib/storefront/template-presets/furniture-hardware";
+import { buildHairFashionHomeBlocks } from "@/lib/storefront/template-presets/hair-and-fashion";
 import {
   categoryShowcaseLayoutForTemplate,
   defaultCategoryShowcaseProps,
@@ -127,6 +129,14 @@ export function buildDefaultHomeBlocks(
     return buildCosmeticsHomeBlocks(storefront);
   }
 
+  if (templateId === "furniture-hardware") {
+    return buildFurnitureHardwareHomeBlocks(storefront);
+  }
+
+  if (templateId === "hair-and-fashion") {
+    return buildHairFashionHomeBlocks(storefront);
+  }
+
   const valueProps = storefront.value_props?.length
     ? storefront.value_props
     : [
@@ -209,11 +219,25 @@ function ensureCategoryShowcaseBlock(
 
 export function migrateHomeBlocks(storefront: StorefrontContent): StorefrontBlock[] {
   const existing = storefront.pages?.home?.blocks;
-  if (existing?.length) return ensureCategoryShowcaseBlock(existing, storefront);
-
   const templateId = storefront.template?.id ?? "classic";
+
+  if (existing?.length) {
+    if (templateId === "fashion_lookbook" || templateId === "beauty") {
+      return ensureCategoryShowcaseBlock(existing, storefront);
+    }
+    return existing;
+  }
+
   if (templateId === "cosmetics") {
     return buildCosmeticsHomeBlocks(storefront);
+  }
+
+  if (templateId === "furniture-hardware") {
+    return buildFurnitureHardwareHomeBlocks(storefront);
+  }
+
+  if (templateId === "hair-and-fashion") {
+    return buildHairFashionHomeBlocks(storefront);
   }
 
   return buildDefaultHomeBlocks(storefront, templateId);

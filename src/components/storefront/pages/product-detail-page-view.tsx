@@ -746,6 +746,10 @@ export function ProductDetailPageView({ product }: { product: StoreProduct | nul
     return <BeautyProductDetail product={product} />;
   }
 
+  if (theme.id === "furniture-hardware" || theme.id === "hair-and-fashion") {
+    return <FashionProductDetail product={product} />;
+  }
+
   const productImageUrl = product.image_url;
 
   return (

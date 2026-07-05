@@ -45,9 +45,15 @@ export function CheckoutPageView() {
   const isMinimalistic = theme.id === "minimalistic";
   const isBeauty = theme.id === "beauty";
   const isCosmetics = theme.id === "cosmetics";
+  const isStyledCheckout =
+    isMinimalistic ||
+    isBeauty ||
+    isCosmetics ||
+    theme.id === "furniture-hardware" ||
+    theme.id === "hair-and-fashion";
 
   if (lines.length === 0) {
-    if (isMinimalistic || isBeauty || isCosmetics) {
+    if (isStyledCheckout) {
       return (
         <div
           className="px-4 py-16 text-center sm:px-6"
@@ -157,7 +163,7 @@ export function CheckoutPageView() {
     }
   }
 
-  if (isMinimalistic || isBeauty || isCosmetics) {
+  if (isStyledCheckout) {
     const inputClass =
       "w-full rounded-2xl border px-4 py-3 text-sm outline-none transition focus:ring-4 disabled:opacity-60";
     const currency = lines[0]?.product.currency;

@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { FolderTree, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api/client";
 import type { StoreCategory } from "@/lib/api/types";
+import { merchantInvalidators, useCategories, useStoreMe } from "@/hooks/use-merchant-queries";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -44,16 +45,8 @@ export default function AdminCategoriesPage() {
   const [editingCategory, setEditingCategory] = useState<StoreCategory | undefined>();
   const [form, setForm] = useState<CategoryForm>(blankForm);
 
-  const storeQuery = useQuery({
-    queryKey: ["store", "me"],
-    queryFn: () => api.getMyStore(),
-  });
-
-  const categoriesQuery = useQuery({
-    queryKey: ["categories", storeQuery.data?.id],
-    queryFn: () => api.getCategories(),
-    enabled: !!storeQuery.data,
-  });
+  const storeQuery = useStoreMe();
+  const categoriesQuery = useCategories(storeQuery.data?.id);
 
   const categories = useMemo(() => categoriesQuery.data ?? [], [categoriesQuery.data]);
 
@@ -82,8 +75,8 @@ export default function AdminCategoriesPage() {
       return api.createCategory(payload);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["categories"] });
-      queryClient.invalidateQueries({ queryKey: ["products"] });
+      merchantInvalidators.categories(queryClient);
+      merchantInvalidators.products(queryClient);
       toast.success(editingCategory ? "Category updated." : "Category created.");
       setDialogOpen(false);
     },
@@ -94,7 +87,7 @@ export default function AdminCategoriesPage() {
   const deleteCategory = useMutation({
     mutationFn: (categoryId: string) => api.deleteCategory(categoryId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["categories"] });
+      merchantInvalidators.categories(queryClient);
       toast.success("Category deleted.");
     },
     onError: (error) =>

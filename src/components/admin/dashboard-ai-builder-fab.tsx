@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { BuilderChatPanel } from "@/components/admin/builder/builder-chat-panel";
@@ -12,6 +12,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  merchantCache,
+  merchantInvalidators,
+  useBuilderSessionOrStart,
+  useStorefrontTemplates,
+} from "@/hooks/use-merchant-queries";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api/client";
 import {
@@ -38,21 +44,8 @@ export function DashboardAiBuilderFab({
   const queryClient = useQueryClient();
   const { user, refresh } = useAuth();
 
-  const templatesQuery = useQuery({
-    queryKey: ["storefront-templates"],
-    queryFn: api.getStorefrontTemplates,
-    enabled: open,
-  });
-
-  const sessionQuery = useQuery({
-    queryKey: ["builder-session"],
-    queryFn: async () => {
-      const current = await api.getCurrentBuilderSession();
-      if (current.session) return current;
-      return api.startBuilderSession();
-    },
-    enabled: open && !!user,
-  });
+  const templatesQuery = useStorefrontTemplates({ enabled: open });
+  const sessionQuery = useBuilderSessionOrStart({ enabled: open && !!user });
 
   const session = sessionQuery.data?.session ?? null;
   const templateOptions = useMemo(
@@ -61,10 +54,10 @@ export function DashboardAiBuilderFab({
   );
 
   const handleSessionResponse = async (data: Awaited<ReturnType<typeof processBuilderMessage>>) => {
-    queryClient.setQueryData(["builder-session"], data);
+    merchantCache.setBuilderSession(queryClient, data);
     if (data.session?.store) {
       await refresh();
-      queryClient.invalidateQueries({ queryKey: ["store", "me"] });
+      merchantInvalidators.store(queryClient);
     }
   };
 

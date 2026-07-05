@@ -3,12 +3,11 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Loader2, Send, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { BuilderThinkingLog } from "@/components/admin/builder/builder-thinking-log";
+import { useBuilderSessionOrStart, useStorefrontTemplates } from "@/hooks/use-merchant-queries";
 import { useAuth } from "@/lib/auth-context";
-import { api } from "@/lib/api/client";
 import { STOREFRONT_TEMPLATE_OPTIONS } from "@/lib/api/types";
 import type { AgentThinkingLogEntry } from "@/lib/storefront-builder/agents/types";
 import type { BuilderAiTurn } from "@/lib/storefront-builder/local-ai";
@@ -26,20 +25,8 @@ export default function BuilderThinkingPage() {
   const [finalTurn, setFinalTurn] = useState<BuilderAiTurn | null>(null);
   const [abortController, setAbortController] = useState<AbortController | null>(null);
 
-  const templatesQuery = useQuery({
-    queryKey: ["storefront-templates"],
-    queryFn: api.getStorefrontTemplates,
-  });
-
-  const sessionQuery = useQuery({
-    queryKey: ["builder-session"],
-    queryFn: async () => {
-      const current = await api.getCurrentBuilderSession();
-      if (current.session) return current;
-      return api.startBuilderSession();
-    },
-    enabled: !!user,
-  });
+  const templatesQuery = useStorefrontTemplates();
+  const sessionQuery = useBuilderSessionOrStart({ enabled: !!user });
 
   const session = sessionQuery.data?.session ?? null;
   const templateOptions = useMemo(

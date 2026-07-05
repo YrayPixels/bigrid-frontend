@@ -12,6 +12,7 @@ import {
   type StorefrontTemplateRecommendation,
 } from "@/lib/api/types";
 import { getDefaultStorefrontPalette, resolveStorefrontTemplate } from "@/lib/storefront/template";
+import { applyTemplatePreset } from "@/lib/storefront/draft";
 import { BUILDER_WELCOME_MESSAGE } from "@/lib/storefront-builder/copy";
 import { describeStorefrontEdit } from "@/lib/storefront-builder/edit-summary";
 import {
@@ -143,6 +144,11 @@ const TEMPLATE_KEYWORD_MAP: Record<string, StorefrontTemplateId> = {
   lookbook: "fashion_lookbook",
   minimalistic: "minimalistic",
   minimal: "minimalistic",
+  furniture: "furniture-hardware",
+  hardware: "furniture-hardware",
+  "home decor": "furniture-hardware",
+  hair: "hair-and-fashion",
+  extensions: "hair-and-fashion",
 };
 
 export function resolveTemplateFromMessage(
@@ -629,7 +635,7 @@ export function synthesizeStorefront(
     body: `${name} was built around a simple idea: ${industryLabel} should feel personal, clear, and easy to shop. ${desc}`,
   };
 
-  return ensureHomeBlocksOnStorefront({
+  const synthesized = ensureHomeBlocksOnStorefront({
     template: {
       id: templateId,
       source: store.storefront_template_id === "ai_pick" ? "ai_selected" : "merchant_selected",
@@ -714,6 +720,12 @@ export function synthesizeStorefront(
       last_generated_at: new Date().toISOString(),
     },
   });
+
+  if (templateId === "furniture-hardware" || templateId === "hair-and-fashion") {
+    return applyTemplatePreset(synthesized, templateId, store.brand_color);
+  }
+
+  return synthesized;
 }
 
 export function applyStorefrontEdit(

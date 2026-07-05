@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ExternalLink, Eye, Loader2, Pencil, RefreshCcw, Sparkles, X } from "lucide-react";
 import { getStorefrontUrl } from "@/lib/store-host";
 import { toast } from "sonner";
@@ -11,6 +11,12 @@ import { StorefrontPreview } from "@/components/storefront/storefront-preview";
 import { VisualStorefrontEditor } from "@/components/storefront/editor/visual-storefront-editor";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api/client";
+import {
+  merchantCache,
+  useStorefront,
+  useStorefrontTemplates,
+  useStoreMe,
+} from "@/hooks/use-merchant-queries";
 import { getDefaultStorefrontPalette } from "@/lib/storefront/template";
 import {
   PublishStorefrontButton,
@@ -26,11 +32,10 @@ import {
   type StorefrontTemplatePreview,
 } from "@/lib/api/types";
 
-type ConcreteTemplateOption = StorefrontTemplateOption & { value: StorefrontTemplateId };
+import { getConcreteTemplateOptions } from "@/lib/storefront/template-registry";
+import { applyTemplatePreset } from "@/lib/storefront/draft";
 
-function getConcreteTemplateOptions(options: StorefrontTemplateOption[]): ConcreteTemplateOption[] {
-  return options.filter((option): option is ConcreteTemplateOption => option.value !== "ai_pick");
-}
+type ConcreteTemplateOption = StorefrontTemplateOption & { value: StorefrontTemplateId };
 
 const FASHION_TEMPLATE_THUMBNAIL =
   "https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=600&q=80";
@@ -233,7 +238,7 @@ function createStarterStorefront(
   const description =
     store.description || `Tell customers what makes ${store.business_name} special.`;
 
-  return {
+  const base: StorefrontContent = {
     template: {
       id: templateId,
       source: "merchant_selected",
@@ -302,6 +307,8 @@ function createStarterStorefront(
       description: description.slice(0, 150),
     },
   };
+
+  return applyTemplatePreset(base, templateId, store.brand_color);
 }
 
 function StorefrontCreationChoice({
@@ -394,18 +401,10 @@ export default function WebsiteEditorPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [previewOpen, setPreviewOpen] = useState(false);
-  const { data: activeTemplateOptions = STOREFRONT_TEMPLATE_OPTIONS } = useQuery({
-    queryKey: ["storefront-templates"],
-    queryFn: api.getStorefrontTemplates,
-  });
+  const { data: activeTemplateOptions = STOREFRONT_TEMPLATE_OPTIONS } = useStorefrontTemplates();
   const concreteTemplateOptions = getConcreteTemplateOptions(activeTemplateOptions);
 
-  const storeQuery = useQuery({
-    queryKey: ["store", "me"],
-    queryFn: () => api.getMyStore(),
-    enabled: !!user,
-  });
-
+  const storeQuery = useStoreMe({ enabled: !!user });
   const store = storeQuery.data;
 
   useEffect(() => {
@@ -414,18 +413,14 @@ export default function WebsiteEditorPage() {
     }
   }, [storeQuery.isFetched, storeQuery.data, user, router]);
 
-  const storefrontQuery = useQuery({
-    queryKey: ["storefront", store?.id],
-    queryFn: () => api.getStorefront(store!.id),
-    enabled: !!store,
-  });
+  const storefrontQuery = useStorefront(store?.id, { enabled: !!store });
 
   const generate = useMutation({
     mutationFn: ({ storeId, templateId }: { storeId: string; templateId?: StorefrontTemplateId }) =>
       api.generateStorefront(storeId, templateId),
     onSuccess: (data) => {
       if (store) {
-        queryClient.setQueryData(["storefront", store.id], data);
+        merchantCache.setStorefront(queryClient, store.id, data);
       }
       toast.success("Draft generated — publish when you're ready to go live.");
     },
@@ -447,7 +442,7 @@ export default function WebsiteEditorPage() {
         storefront_template_id: templateId,
       }),
     onSuccess: (data) => {
-      if (store) queryClient.setQueryData(["storefront", store.id], data);
+      if (store) merchantCache.setStorefront(queryClient, store.id, data);
       toast.success("Draft saved.");
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : "Could not save edits"),
@@ -456,9 +451,9 @@ export default function WebsiteEditorPage() {
   const publishStorefront = useMutation({
     mutationFn: () => api.publishStorefront(store!.id),
     onSuccess: (data) => {
-      queryClient.setQueryData(["store", "me"], data.store);
+      merchantCache.setStoreMe(queryClient, data.store);
       if (store) {
-        queryClient.setQueryData(["storefront", store.id], {
+        merchantCache.setStorefront(queryClient, store.id, {
           storefront: data.storefront ?? storefrontQuery.data?.storefront ?? null,
           publish: data.publish,
         });
@@ -580,9 +575,9 @@ export default function WebsiteEditorPage() {
               if (brandColor !== store.brand_color) {
                 try {
                   const updatedStore = await api.updateMyStore({ brand_color: brandColor });
-                  queryClient.setQueryData(["store", "me"], updatedStore);
+                  merchantCache.setStoreMe(queryClient, updatedStore);
                 } catch {
-                  queryClient.setQueryData(["store", "me"], {
+                  merchantCache.setStoreMe(queryClient, {
                     ...store,
                     brand_color: brandColor,
                   });

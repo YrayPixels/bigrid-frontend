@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import {
   Loader2,
@@ -13,6 +13,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { toast } from "sonner";
+import { merchantInvalidators, useMarketingAbandoned } from "@/hooks/use-merchant-queries";
 import { api } from "@/lib/api/client";
 import type { AbandonedRecoveryItem, AbandonedRecoverySourceType } from "@/lib/api/types";
 import { AdminStatCard } from "@/components/admin/stat-card";
@@ -185,10 +186,7 @@ export default function AbandonedRecoveryPage() {
   const [page, setPage] = useState(1);
   const [activeId, setActiveId] = useState<string | null>(null);
 
-  const recoveryQuery = useQuery({
-    queryKey: ["marketing-abandoned", page],
-    queryFn: () => api.getAbandonedRecoveries({ page, per_page: 15 }),
-  });
+  const recoveryQuery = useMarketingAbandoned(page);
 
   const summary = recoveryQuery.data?.summary;
   const items = recoveryQuery.data?.items ?? [];
@@ -223,7 +221,7 @@ export default function AbandonedRecoveryPage() {
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <ShoppingCart className="h-5 w-5 text-primary" />
-              <h1 className="font-display text-xl font-bold tracking-tight sm:text-2xl">Abandoned recovery</h1>
+              <h1 className="font-display text-xl font-bold tracking-tight sm:text-2xl">Abandoned Cart</h1>
             </div>
             <p className="text-xs text-ink-soft sm:text-sm">
               Reach customers who left items in their cart or did not finish payment. Draft recovery
@@ -386,7 +384,7 @@ export default function AbandonedRecoveryPage() {
               <RecoveryPanel
                 item={activeItem}
                 onSent={() => {
-                  void queryClient.invalidateQueries({ queryKey: ["marketing-abandoned"] });
+                  void merchantInvalidators.marketingAbandoned(queryClient);
                 }}
               />
             ) : (

@@ -16,6 +16,8 @@ import {
   sanitizeStorefrontPalette,
 } from "@/lib/storefront/palette-utils";
 import { replaceTemplateImagesForStorefront } from "@/lib/storefront-builder/image-sourcing";
+import { attachBoltTemplateToStorefront } from "@/lib/storefront/bolt-template-storefront";
+import { resolveStorefrontTemplateType } from "@/lib/storefront/template-registry";
 import {
   applyBrandColorToStorefront,
   concreteTemplateIds,
@@ -74,6 +76,7 @@ function templateCatalogForAi(templateOptions: StorefrontTemplateOption[]) {
     .filter((option): option is StorefrontTemplateOption & { value: StorefrontTemplateId } => option.value !== "ai_pick")
     .map((option) => ({
       id: option.value,
+      type: resolveStorefrontTemplateType(option.value, templateOptions),
       label: option.label,
       description: option.description,
       best_for: option.best_for ?? [option.bestFor],
@@ -348,25 +351,38 @@ export async function rebuildStorefrontFromDesignRequest(args: {
   );
   storefront = colorApplied.storefront;
 
-  const imageIntent = `${nextProfile.business_name ?? ""} ${nextProfile.description ?? ""} ${message}`.trim();
-  const imagesReplaced = await replaceTemplateImagesForStorefront({
-    intent: imageIntent,
-    storefront,
-    context: {
-      business_name: nextStore.business_name,
-      industry: nextStore.industry,
-      description: nextStore.description,
-      tone: nextProfile.tone,
-    },
-  });
-  storefront = imagesReplaced.storefront;
+  const templateType = resolveStorefrontTemplateType(direction.template_id, templateOptions);
+  let imageSummary: string | undefined;
+  let changedPaths: string[] = [];
+
+  if (templateType === "bolt") {
+    storefront = await attachBoltTemplateToStorefront(storefront, direction.template_id);
+  } else {
+    const imageIntent = `${nextProfile.business_name ?? ""} ${nextProfile.description ?? ""} ${message}`.trim();
+    const imagesReplaced = await replaceTemplateImagesForStorefront({
+      intent: imageIntent,
+      storefront,
+      context: {
+        business_name: nextStore.business_name,
+        industry: nextStore.industry,
+        description: nextStore.description,
+        tone: nextProfile.tone,
+      },
+    });
+    storefront = imagesReplaced.storefront;
+    imageSummary = imagesReplaced.result.summary;
+    changedPaths = imagesReplaced.changed_paths;
+  }
 
   const colorOptions = direction.palette.map((entry) => entry.color);
   const templateLabel =
     templateOptions.find((option) => option.value === direction.template_id)?.label ??
     direction.template_id.replace(/_/g, " ");
 
-  const assistantMessage = `Done — I refreshed your website with ${direction.merchant_summary}, a matching color palette (${direction.color_label.toLowerCase()}), and on-brand photos. Check the preview on the right, then tell me what to refine.`;
+  const assistantMessage =
+    templateType === "bolt"
+      ? `Done — I switched your site to the ${templateLabel} code template. Open the workbench to preview and refine it, then tell me what to adjust.`
+      : `Done — I refreshed your website with ${direction.merchant_summary}, a matching color palette (${direction.color_label.toLowerCase()}), and on-brand photos. Check the preview on the right, then tell me what to refine.`;
 
   return {
     business_profile: nextProfile,
@@ -386,8 +402,9 @@ export async function rebuildStorefrontFromDesignRequest(args: {
         merchant_summary: direction.merchant_summary,
       },
       color_options: colorOptions,
-      image_summary: imagesReplaced.result.summary,
-      changed_paths: imagesReplaced.changed_paths,
+      template_type: templateType,
+      image_summary: imageSummary,
+      changed_paths: changedPaths,
       suggested_actions: direction.palette.slice(0, 3).map((entry) => ({
         type: "color" as const,
         label: entry.label,

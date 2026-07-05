@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMerchantDashboard, useStoreMe } from "@/hooks/use-merchant-queries";
 import Link from "next/link";
 import {
   Banknote,
@@ -16,7 +16,6 @@ import {
 } from "lucide-react";
 import { getStorefrontUrl } from "@/lib/store-host";
 import { useAuth } from "@/lib/auth-context";
-import { api } from "@/lib/api/client";
 import { DashboardAiBuilderFab } from "@/components/admin/dashboard-ai-builder-fab";
 import { PublishStatusBadge } from "@/components/admin/publish-storefront-button";
 
@@ -90,12 +89,7 @@ export default function AdminDashboardPage() {
     }
   }, [router]);
 
-  const storeQuery = useQuery({
-    queryKey: ["store", "me"],
-    queryFn: () => api.getMyStore(),
-    enabled: !!user,
-    staleTime: 5 * 60 * 1000,
-  });
+  const storeQuery = useStoreMe({ enabled: !!user });
 
   const store = storeQuery.data;
 
@@ -105,11 +99,8 @@ export default function AdminDashboardPage() {
     }
   }, [storeQuery.isFetched, storeQuery.data, user, router]);
 
-  const dashboardQuery = useQuery({
-    queryKey: ["merchant-dashboard-overview"],
-    queryFn: () => api.getDashboardOverview(),
+  const dashboardQuery = useMerchantDashboard({
     enabled: !!user && (user.has_store || !!store),
-    staleTime: 60 * 1000,
   });
 
   if (storeQuery.isLoading) {

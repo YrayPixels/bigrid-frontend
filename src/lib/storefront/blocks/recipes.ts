@@ -3,6 +3,8 @@ import {
   buildCosmeticsHomeBlocks,
   buildDefaultHomeBlocks,
 } from "@/lib/storefront/blocks/migrate-home";
+import { buildFurnitureHardwareHomeBlocks } from "@/lib/storefront/template-presets/furniture-hardware";
+import { buildHairFashionHomeBlocks } from "@/lib/storefront/template-presets/hair-and-fashion";
 import type { StorefrontBlock } from "@/lib/storefront/blocks/types";
 
 /**
@@ -19,6 +21,8 @@ export const HOME_BLOCK_RECIPES: Partial<
   beauty: (storefront) => buildDefaultHomeBlocks(storefront, "beauty"),
   fashion_lookbook: (storefront) => buildDefaultHomeBlocks(storefront, "fashion_lookbook"),
   minimalistic: (storefront) => buildDefaultHomeBlocks(storefront, "minimalistic"),
+  "furniture-hardware": buildFurnitureHardwareHomeBlocks,
+  "hair-and-fashion": buildHairFashionHomeBlocks,
 };
 
 export function buildHomeBlocksForTemplate(

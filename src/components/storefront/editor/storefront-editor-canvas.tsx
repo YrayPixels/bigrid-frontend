@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useCategories } from "@/hooks/use-merchant-queries";
 import type {
   Store,
   StorefrontColorPalette,
@@ -12,6 +12,8 @@ import { StoreShell } from "@/components/storefront/store-shell";
 import { HomePageView } from "@/components/storefront/pages/home-page";
 import { PageRenderer } from "@/components/storefront/blocks/page-renderer";
 import { ProductsPageView } from "@/components/storefront/pages/products-page-view";
+import { CartPageView } from "@/components/storefront/pages/cart-page-view";
+import { CheckoutPageView } from "@/components/storefront/pages/checkout-page-view";
 import { BlockEditorProvider } from "@/components/storefront/editor/block-editor-context";
 import { api } from "@/lib/api/client";
 import { CartProvider } from "@/lib/storefront/cart-context";
@@ -28,7 +30,7 @@ import { setEditableStorefrontPath } from "@/lib/storefront-builder/editable-pat
 import { getStorefrontTheme } from "@/lib/storefront/template";
 import { getStorefrontUrl } from "@/lib/store-host";
 
-export type EditorPage = "home" | "products" | "about" | "contact" | "faq";
+export type EditorPage = "home" | "products" | "about" | "contact" | "faq" | "cart" | "checkout";
 
 type StorefrontEditorCanvasProps = {
   store: Store;
@@ -66,10 +68,7 @@ export function StorefrontEditorCanvas({
     [store, brandColor, templateId],
   );
 
-  const categoriesQuery = useQuery({
-    queryKey: ["categories", store.id],
-    queryFn: () => api.getCategories(),
-  });
+  const categoriesQuery = useCategories(store.id);
 
   const previewData = useMemo(
     () => ({
@@ -107,6 +106,10 @@ export function StorefrontEditorCanvas({
     switch (activePage) {
       case "products":
         return <ProductsPageView />;
+      case "cart":
+        return <CartPageView />;
+      case "checkout":
+        return <CheckoutPageView />;
       case "about":
         return <PageRenderer page="about" store={store} storefront={previewData.storefront} />;
       case "contact":
@@ -146,6 +149,7 @@ export function StorefrontEditorCanvas({
           <StorefrontThemeProvider
             theme={theme}
             mode={readOnly ? "preview" : "edit"}
+            shellChrome={activePage === "home" ? "content-only" : "full"}
             editable={
               readOnly
                 ? undefined

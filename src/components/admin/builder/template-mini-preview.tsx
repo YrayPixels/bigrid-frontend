@@ -115,6 +115,45 @@ export function TemplateMiniPreview({
     );
   }
 
+  if (variant === "furniture") {
+    return (
+      <div className="h-24 overflow-hidden rounded-lg border border-[#e8e0d4] bg-[#faf7f2] p-2">
+        <div className="grid h-full grid-rows-[0.22fr_1fr_0.3fr] gap-1.5">
+          <div className="h-2 rounded-sm bg-[#2c2416]/80" />
+          <div className="relative overflow-hidden rounded-md bg-[#c4a574]/30">
+            <div className="absolute inset-x-0 top-2 mx-auto h-2 w-16 rounded bg-white/80" />
+            <div className="absolute bottom-2 left-2 h-8 w-10 rounded bg-white/90" />
+          </div>
+          <div className="grid grid-cols-4 gap-1">
+            {[0, 1, 2, 3].map((item) => (
+              <div key={item} className="rounded-sm bg-white/80" />
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (variant === "hair_fashion") {
+    return (
+      <div className="h-24 overflow-hidden rounded-lg border border-[#ede4d8] bg-[#fdf8f3] p-2">
+        <div className="grid h-full grid-cols-[1fr_0.9fr] gap-2">
+          <div className="relative overflow-hidden rounded-md bg-[#d4a574]/25">
+            <div className="absolute left-2 top-2 h-3 w-10 rounded bg-white/80" />
+            <div className="absolute bottom-2 left-2 h-10 w-8 rounded-full bg-[#1a1410]/70" />
+          </div>
+          <div className="grid grid-rows-3 gap-1">
+            {[0, 1, 2].map((item) => (
+              <div key={item} className="rounded bg-white/80 p-1">
+                <div className="h-4 rounded bg-[#d4a574]/30" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="h-24 overflow-hidden rounded-lg border border-border bg-background p-3">
       <div className="h-3 w-20 rounded" style={{ backgroundColor: brandColor }} />

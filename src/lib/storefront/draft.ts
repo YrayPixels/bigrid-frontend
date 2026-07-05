@@ -4,7 +4,10 @@ import type {
   StorefrontContent,
   StorefrontTemplateId,
 } from "@/lib/api/types";
-import { resolveStorefrontTemplate } from "./template";
+import { clearBoltProjectFromStorefront } from "./bolt-template-storefront";
+import { applyFurnitureHardwareTemplatePreset } from "./template-presets/furniture-hardware";
+import { applyHairFashionTemplatePreset } from "./template-presets/hair-and-fashion";
+import { getDefaultStorefrontPalette, resolveStorefrontTemplate } from "./template";
 
 type StorefrontDefaultsContext = Pick<Store, "business_name" | "description">;
 
@@ -326,6 +329,28 @@ export function applyTemplateToDraft(
     template: { id: templateId, source: "merchant_selected" },
     ...(palette ? { palette } : {}),
   };
+}
+
+export function applyTemplatePreset(
+  content: StorefrontContent,
+  templateId: StorefrontTemplateId,
+  brandColor?: string | null,
+): StorefrontContent {
+  const withoutBoltProject = clearBoltProjectFromStorefront(content);
+
+  if (templateId === "furniture-hardware") {
+    return applyFurnitureHardwareTemplatePreset(withoutBoltProject, brandColor ?? undefined);
+  }
+
+  if (templateId === "hair-and-fashion") {
+    return applyHairFashionTemplatePreset(withoutBoltProject, brandColor ?? undefined);
+  }
+
+  return applyTemplateToDraft(
+    withoutBoltProject,
+    templateId,
+    getDefaultStorefrontPalette(templateId, brandColor ?? undefined),
+  );
 }
 
 export function getInitialDraft(store: Store, storefront: StorefrontContent): StorefrontContent {

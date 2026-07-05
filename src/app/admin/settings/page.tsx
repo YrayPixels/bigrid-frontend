@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
@@ -23,6 +23,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
+import { merchantCache, useStoreMe } from "@/hooks/use-merchant-queries";
 import { api } from "@/lib/api/client";
 import type { StoreNotificationSettings } from "@/lib/api/types";
 import { INDUSTRY_OPTIONS } from "@/lib/api/types";
@@ -143,10 +144,7 @@ export default function AdminSettingsPage() {
   const queryClient = useQueryClient();
   const requestedTab = searchParams.get("tab");
   const settingsTab = isSettingsTab(requestedTab) ? requestedTab : "payouts";
-  const storeQuery = useQuery({
-    queryKey: ["store", "me"],
-    queryFn: () => api.getMyStore(),
-  });
+  const storeQuery = useStoreMe();
   const [notificationForm, setNotificationForm] = useState<StoreNotificationSettings>({
     notify_merchant_new_order: true,
     notify_customer_order_confirmation: true,
@@ -165,7 +163,7 @@ export default function AdminSettingsPage() {
   const saveNotifications = useMutation({
     mutationFn: () => api.updateMyStore(notificationForm),
     onSuccess: (store) => {
-      queryClient.setQueryData(["store", "me"], store);
+      merchantCache.setStoreMe(queryClient, store);
       if (store.notifications) {
         setNotificationForm(store.notifications);
       }

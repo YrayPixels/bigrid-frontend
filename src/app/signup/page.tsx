@@ -105,7 +105,14 @@ export default function SignupPage() {
           {submitting ? "Creating account..." : "Create account"}
         </button>
       </form>
-      <p className="mt-6 text-center text-sm text-ink-soft">
+      <p className="mt-6 text-center text-xs text-ink-soft">
+        By creating an account, you agree to our{" "}
+        <Link href="/privacy" className="font-medium text-primary hover:underline">
+          Privacy Policy
+        </Link>
+        .
+      </p>
+      <p className="mt-3 text-center text-sm text-ink-soft">
         Already have an account?{" "}
         <Link href="/login" className="font-medium text-primary hover:underline">
           Sign in

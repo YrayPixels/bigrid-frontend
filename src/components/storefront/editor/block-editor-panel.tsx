@@ -13,7 +13,7 @@ import type { HeroBlockProps, StorefrontContentPageSlug } from "@/lib/storefront
 
 type BlockEditorPanelProps = {
   draft: StorefrontContent;
-  activePage: StorefrontContentPageSlug | "products";
+  activePage: StorefrontContentPageSlug | "products" | "cart" | "checkout";
   selectedBlock: SelectedBlockRef | null;
   onClose: () => void;
   onUpdateProp: (page: StorefrontContentPageSlug, blockId: string, field: string, value: string) => void;
@@ -28,7 +28,9 @@ export function BlockEditorPanel({
   onUpdateProp,
   onReorder,
 }: BlockEditorPanelProps) {
-  if (!selectedBlock || activePage === "products") return null;
+  if (!selectedBlock || activePage === "products" || activePage === "cart" || activePage === "checkout") {
+    return null;
+  }
 
   const page = selectedBlock.page;
   const block = findPageBlock(draft, page, selectedBlock.blockId);

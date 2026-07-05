@@ -1018,6 +1018,16 @@ export function ProductsPageView() {
     );
   }
 
+  if (theme.id === "furniture-hardware" || theme.id === "hair-and-fashion") {
+    return (
+      <FashionProductsPage
+        products={products}
+        categories={filterCategories}
+        initialCategoryId={initialCategoryId}
+      />
+    );
+  }
+
   return (
     <PageContainer>
       <PageTitle title="Products" subtitle={`Shop the full catalog from ${store.business_name}.`} />

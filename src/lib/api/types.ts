@@ -37,7 +37,9 @@ export type Industry =
   | "services"
   | "other";
 
-export type StorefrontTemplateId =
+export type StorefrontTemplateType = "json" | "bolt";
+
+export type JsonStorefrontTemplateId =
   | "classic"
   | "editorial"
   | "bold_grid"
@@ -45,6 +47,10 @@ export type StorefrontTemplateId =
   | "minimalistic"
   | "beauty"
   | "cosmetics";
+
+export type BoltStorefrontTemplateId = "furniture-hardware" | "hair-and-fashion";
+
+export type StorefrontTemplateId = JsonStorefrontTemplateId | BoltStorefrontTemplateId;
 export type StorefrontTemplateChoice = StorefrontTemplateId | "ai_pick";
 
 export type StorefrontTemplateOrigin = "platform" | "ai_generated" | "admin_created";
@@ -748,11 +754,14 @@ export type StorefrontTemplatePreview =
   | "minimal"
   | "beauty"
   | "cosmetics"
+  | "furniture"
+  | "hair_fashion"
   | "spark";
 
 export type StorefrontTemplateOption = {
   id?: StorefrontTemplateId;
   value: StorefrontTemplateChoice;
+  type?: StorefrontTemplateType;
   label: string;
   description: string;
   bestFor: string;
@@ -795,6 +804,7 @@ export const STOREFRONT_TEMPLATE_OPTIONS: StorefrontTemplateOption[] = [
   },
   {
     value: "fashion_lookbook",
+    type: "json",
     label: "Fashion",
     description:
       "A clothing-brand homepage with campaign imagery, curated edits, and product drops.",
@@ -812,6 +822,7 @@ export const STOREFRONT_TEMPLATE_OPTIONS: StorefrontTemplateOption[] = [
   },
   {
     value: "beauty",
+    type: "json",
     label: "Beauty",
     description:
       "A polished beauty storefront for hair, skincare, bundles, and best-seller storytelling.",
@@ -829,6 +840,7 @@ export const STOREFRONT_TEMPLATE_OPTIONS: StorefrontTemplateOption[] = [
   },
   {
     value: "cosmetics",
+    type: "json",
     label: "Cosmetics",
     description:
       "A clean cosmetics storefront for skincare, serums, product storytelling, and ingredient-led trust.",
@@ -846,6 +858,7 @@ export const STOREFRONT_TEMPLATE_OPTIONS: StorefrontTemplateOption[] = [
   },
   {
     value: "minimalistic",
+    type: "json",
     label: "Minimalistic",
     description:
       "A clean supplement-inspired storefront with soft neutrals, rounded product cards, and wellness storytelling.",
@@ -860,5 +873,59 @@ export const STOREFRONT_TEMPLATE_OPTIONS: StorefrontTemplateOption[] = [
     optional_content_slots: ["categoryHighlights", "wellnessStory"],
     origin: "platform",
     generation_status: "active",
+  },
+  {
+    value: "furniture-hardware",
+    type: "json",
+    label: "Furniture & Hardware",
+    description:
+      "A premium furniture storefront with room collections, category grids, and editorial product storytelling.",
+    bestFor: "Furniture, home decor",
+    best_for: ["furniture stores", "home decor", "hardware retailers"],
+    industries: ["home_and_living"],
+    tone_tags: ["premium", "editorial", "warm"],
+    visual_tags: ["room-led", "catalog-rich", "image-forward"],
+    product_types: ["physical"],
+    preview: "furniture",
+    required_content_slots: ["hero", "about", "products"],
+    optional_content_slots: ["categoryHighlights", "roomCollections"],
+    origin: "platform",
+    generation_status: "active",
+    default_palette: {
+      primary: "#2C2416",
+      accent: "#C4A574",
+      background: "#FAF7F2",
+      surface: "#FFFFFF",
+      text: "#2C2416",
+      muted: "#7A6E5E",
+      border: "#E8E0D4",
+    },
+  },
+  {
+    value: "hair-and-fashion",
+    type: "json",
+    label: "Hair & Fashion",
+    description:
+      "A beauty-forward storefront for hair extensions, textures, and fashion accessories with editorial styling.",
+    bestFor: "Hair, extensions, fashion",
+    best_for: ["hair brands", "extension shops", "fashion accessories"],
+    industries: ["beauty_and_skincare", "fashion_and_apparel"],
+    tone_tags: ["editorial", "premium", "bold"],
+    visual_tags: ["lookbook", "texture-led", "campaign-style"],
+    product_types: ["physical"],
+    preview: "hair_fashion",
+    required_content_slots: ["hero", "about", "products"],
+    optional_content_slots: ["textureFeature", "styleGallery"],
+    origin: "platform",
+    generation_status: "active",
+    default_palette: {
+      primary: "#1A1410",
+      accent: "#D4A574",
+      background: "#FDF8F3",
+      surface: "#FFFFFF",
+      text: "#1A1410",
+      muted: "#7A6B5E",
+      border: "#EDE4D8",
+    },
   },
 ];

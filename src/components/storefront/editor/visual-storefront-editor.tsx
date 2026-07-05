@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useStorefrontTemplates } from "@/hooks/use-merchant-queries";
 import {
   ChevronDown,
   ExternalLink,
@@ -12,6 +12,7 @@ import {
   Smartphone,
   Tablet,
 } from "lucide-react";
+import { getConcreteTemplateOptions } from "@/lib/storefront/template-registry";
 import type {
   Store,
   StorefrontColorPalette,
@@ -20,7 +21,6 @@ import type {
   StorefrontTemplateOption,
 } from "@/lib/api/types";
 import { STOREFRONT_TEMPLATE_OPTIONS } from "@/lib/api/types";
-import { api } from "@/lib/api/client";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { getStorefrontUrl } from "@/lib/store-host";
 import {
@@ -35,6 +35,7 @@ import {
   setBlockPropField,
 } from "@/lib/storefront/blocks/block-draft";
 import {
+  applyTemplatePreset,
   applyTemplateToDraft,
   cloneStorefrontContent,
   normalizeStorefrontContent,
@@ -50,10 +51,6 @@ import {
 
 type ConcreteTemplateOption = StorefrontTemplateOption & { value: StorefrontTemplateId };
 
-function getConcreteTemplateOptions(options: StorefrontTemplateOption[]): ConcreteTemplateOption[] {
-  return options.filter((option): option is ConcreteTemplateOption => option.value !== "ai_pick");
-}
-
 const PALETTE_FIELDS: { key: keyof StorefrontColorPalette; label: string }[] = [
   { key: "primary", label: "Primary" },
   { key: "accent", label: "Accent" },
@@ -67,6 +64,8 @@ const PALETTE_FIELDS: { key: keyof StorefrontColorPalette; label: string }[] = [
 const EDITOR_PAGES: { id: EditorPage; label: string }[] = [
   { id: "home", label: "Home" },
   { id: "products", label: "Products" },
+  { id: "cart", label: "Cart" },
+  { id: "checkout", label: "Checkout" },
   { id: "about", label: "About" },
   { id: "contact", label: "Contact" },
   { id: "faq", label: "FAQ" },
@@ -141,10 +140,7 @@ export function VisualStorefrontEditor({
   const [openSection, setOpenSection] = useState("template-style");
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const brandColor = palette.primary;
-  const { data: activeTemplateOptions = STOREFRONT_TEMPLATE_OPTIONS } = useQuery({
-    queryKey: ["storefront-templates"],
-    queryFn: api.getStorefrontTemplates,
-  });
+  const { data: activeTemplateOptions = STOREFRONT_TEMPLATE_OPTIONS } = useStorefrontTemplates();
   const concreteTemplateOptions = useMemo(
     () => getConcreteTemplateOptions(activeTemplateOptions),
     [activeTemplateOptions],
@@ -233,8 +229,10 @@ export function VisualStorefrontEditor({
   }
 
   function selectTemplate(nextTemplateId: StorefrontTemplateId) {
+    const nextPalette = getDefaultStorefrontPalette(nextTemplateId, store.brand_color);
     setTemplateId(nextTemplateId);
-    setPalette(getDefaultStorefrontPalette(nextTemplateId));
+    setPalette(nextPalette);
+    setDraft((current) => applyTemplatePreset(current, nextTemplateId, store.brand_color));
   }
 
   function updatePaletteColor(key: keyof StorefrontColorPalette, value: string) {

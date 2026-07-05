@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Code2, Loader2, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -12,6 +12,12 @@ import { BuilderProgress } from "@/components/admin/builder/builder-progress";
 import { BuilderThinkingLogSheet } from "@/components/admin/builder/builder-thinking-log-sheet";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api/client";
+import {
+  merchantCache,
+  merchantInvalidators,
+  useBuilderSessionOrStart,
+  useStorefrontTemplates,
+} from "@/hooks/use-merchant-queries";
 import {
   applyBuilderBrandColor,
   applyBuilderLogo,
@@ -47,20 +53,8 @@ export default function AdminBuilderPage() {
   const [pendingUserMessage, setPendingUserMessage] = useState("");
   const thinkingRunRef = useRef<AgentThinkingLogEntry[]>([]);
 
-  const templatesQuery = useQuery({
-    queryKey: ["storefront-templates"],
-    queryFn: api.getStorefrontTemplates,
-  });
-
-  const sessionQuery = useQuery({
-    queryKey: ["builder-session"],
-    queryFn: async () => {
-      const current = await api.getCurrentBuilderSession();
-      if (current.session) return current;
-      return api.startBuilderSession();
-    },
-    enabled: !!user,
-  });
+  const templatesQuery = useStorefrontTemplates();
+  const sessionQuery = useBuilderSessionOrStart({ enabled: !!user });
 
   const session = sessionQuery.data?.session ?? null;
   const templateOptions = useMemo(
@@ -98,7 +92,7 @@ export default function AdminBuilderPage() {
   const handleSessionResponse = async (
     data: Awaited<ReturnType<typeof processBuilderMessage>>,
   ) => {
-    queryClient.setQueryData(["builder-session"], data);
+    merchantCache.setBuilderSession(queryClient, data);
     const nextStorefront = data.storefront ?? data.session?.storefront_snapshot ?? null;
     if (nextStorefront) {
       const templateId =
@@ -114,7 +108,7 @@ export default function AdminBuilderPage() {
     }
     if (data.session?.store) {
       await refresh();
-      queryClient.invalidateQueries({ queryKey: ["store", "me"] });
+      merchantInvalidators.store(queryClient);
     }
   };
 
@@ -205,7 +199,7 @@ export default function AdminBuilderPage() {
       return api.clearBuilderChat(session.id);
     },
     onSuccess: (data) => {
-      queryClient.setQueryData(["builder-session"], data);
+      merchantCache.setBuilderSession(queryClient, data);
       toast.success("Chat cleared");
     },
     onError: (error) => toast.error(error instanceof Error ? error.message : "Could not clear chat"),
@@ -232,9 +226,9 @@ export default function AdminBuilderPage() {
       return api.publishStorefront(storeId);
     },
     onSuccess: async (data) => {
-      queryClient.setQueryData(["store", "me"], data.store);
+      merchantCache.setStoreMe(queryClient, data.store);
       await refresh();
-      queryClient.invalidateQueries({ queryKey: ["builder-session"] });
+      merchantInvalidators.builderSession(queryClient);
       toast.success(data.message);
     },
     onError: (error) => toast.error(error instanceof Error ? error.message : "Could not publish storefront"),

@@ -1,11 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Facebook, Loader2, Megaphone, MessageCircle, Send, Unlink, Video } from "lucide-react";
 import { toast } from "sonner";
+import {
+  merchantCache,
+  merchantInvalidators,
+  useMarketingStatus,
+  useStoreMe,
+} from "@/hooks/use-merchant-queries";
 import { api } from "@/lib/api/client";
 import type { SocialPost } from "@/lib/api/types";
 import { Badge } from "@/components/ui/badge";
@@ -56,16 +62,8 @@ export default function AdminMarketingPage() {
     },
   ]);
 
-  const storeQuery = useQuery({
-    queryKey: ["store", "me"],
-    queryFn: () => api.getMyStore(),
-  });
-
-  const statusQuery = useQuery({
-    queryKey: ["marketing", "status"],
-    queryFn: () => api.getMarketingStatus(),
-    enabled: Boolean(storeQuery.data),
-  });
+  const storeQuery = useStoreMe();
+  const statusQuery = useMarketingStatus({ enabled: Boolean(storeQuery.data) });
 
   useEffect(() => {
     if (storeQuery.isFetched && !storeQuery.data) {
@@ -78,7 +76,7 @@ export default function AdminMarketingPage() {
     const message = searchParams.get("message");
     if (facebook === "connected") {
       toast.success("Facebook Page connected.");
-      void queryClient.invalidateQueries({ queryKey: ["marketing"] });
+      void merchantInvalidators.marketing(queryClient);
       router.replace("/admin/marketing");
     } else if (facebook === "error") {
       toast.error(message ? decodeURIComponent(message) : "Facebook connection failed.");
@@ -91,7 +89,7 @@ export default function AdminMarketingPage() {
     const message = searchParams.get("message");
     if (tiktokCreator === "connected") {
       toast.success("TikTok creator account connected.");
-      void queryClient.invalidateQueries({ queryKey: ["marketing"] });
+      void merchantInvalidators.marketing(queryClient);
       router.replace("/admin/marketing");
     } else if (tiktokCreator === "error") {
       toast.error(message ? decodeURIComponent(message) : "TikTok creator connection failed.");
@@ -115,7 +113,7 @@ export default function AdminMarketingPage() {
     mutationFn: () => api.disconnectFacebookMarketing(),
     onSuccess: (data) => {
       toast.success("Facebook disconnected.");
-      queryClient.setQueryData(["marketing", "status"], data);
+      merchantCache.setMarketingStatus(queryClient, data);
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -124,7 +122,7 @@ export default function AdminMarketingPage() {
     mutationFn: () => api.connectWhatsAppMarketing(whatsappForm),
     onSuccess: (data) => {
       toast.success("WhatsApp connected.");
-      queryClient.setQueryData(["marketing", "status"], data);
+      merchantCache.setMarketingStatus(queryClient, data);
       setWhatsappForm({ phone_number_id: "", display_phone_number: "", access_token: "" });
     },
     onError: (error: Error) => toast.error(error.message),
@@ -134,7 +132,7 @@ export default function AdminMarketingPage() {
     mutationFn: () => api.disconnectWhatsAppMarketing(),
     onSuccess: (data) => {
       toast.success("WhatsApp disconnected.");
-      queryClient.setQueryData(["marketing", "status"], data);
+      merchantCache.setMarketingStatus(queryClient, data);
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -143,7 +141,7 @@ export default function AdminMarketingPage() {
     mutationFn: () => api.connectTikTokMarketing(tiktokForm),
     onSuccess: (data) => {
       toast.success("TikTok connected.");
-      queryClient.setQueryData(["marketing", "status"], data);
+      merchantCache.setMarketingStatus(queryClient, data);
       setTiktokForm({ business_account_id: "", account_name: "", access_token: "" });
     },
     onError: (error: Error) => toast.error(error.message),
@@ -153,7 +151,7 @@ export default function AdminMarketingPage() {
     mutationFn: () => api.disconnectTikTokMarketing(),
     onSuccess: (data) => {
       toast.success("TikTok disconnected.");
-      queryClient.setQueryData(["marketing", "status"], data);
+      merchantCache.setMarketingStatus(queryClient, data);
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -170,7 +168,7 @@ export default function AdminMarketingPage() {
     mutationFn: () => api.disconnectTikTokCreatorMarketing(),
     onSuccess: (data) => {
       toast.success("TikTok creator account disconnected.");
-      queryClient.setQueryData(["marketing", "status"], data);
+      merchantCache.setMarketingStatus(queryClient, data);
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -179,7 +177,7 @@ export default function AdminMarketingPage() {
     mutationFn: () => api.publishTikTokVideo(tiktokVideoForm),
     onSuccess: (data) => {
       toast.success(data.message || "TikTok video is publishing.");
-      queryClient.setQueryData(["marketing", "status"], data);
+      merchantCache.setMarketingStatus(queryClient, data);
       setTiktokVideoForm({ video_url: "", caption: "" });
     },
     onError: (error: Error) => toast.error(error.message),
@@ -189,7 +187,7 @@ export default function AdminMarketingPage() {
     mutationFn: (settings: { whatsapp_auto_reply_enabled?: boolean; tiktok_auto_reply_enabled?: boolean }) =>
       api.updateMessagingSettings(settings),
     onSuccess: (data) => {
-      queryClient.setQueryData(["marketing", "status"], data);
+      merchantCache.setMarketingStatus(queryClient, data);
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -207,7 +205,7 @@ export default function AdminMarketingPage() {
         { role: "assistant", content: response.assistant_message },
       ]);
       setInput("");
-      queryClient.setQueryData(["marketing", "status"], response.status);
+      merchantCache.setMarketingStatus(queryClient, response.status);
     },
     onError: (error: Error) => toast.error(error.message),
   });

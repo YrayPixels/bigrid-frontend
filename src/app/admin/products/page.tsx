@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Archive,
   ArchiveRestore,
@@ -52,6 +52,14 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  merchantCache,
+  merchantInvalidators,
+  useCategories,
+  useProductOrderStats,
+  useProducts,
+  useStoreMe,
+} from "@/hooks/use-merchant-queries";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api/client";
 import type { ProductImportReport, Store, StoreCategory, StoreProduct } from "@/lib/api/types";
@@ -325,11 +333,7 @@ export default function AdminProductsPage() {
   const [lastUpdated, setLastUpdated] = useState(() => new Date());
   const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(new Set());
 
-  const storeQuery = useQuery({
-    queryKey: ["store", "me"],
-    queryFn: () => api.getMyStore(),
-    enabled: !!user,
-  });
+  const storeQuery = useStoreMe({ enabled: !!user });
 
   const store = storeQuery.data;
 
@@ -339,23 +343,9 @@ export default function AdminProductsPage() {
     }
   }, [storeQuery.isFetched, storeQuery.data, user, router]);
 
-  const productsQuery = useQuery({
-    queryKey: ["products", store?.id],
-    queryFn: () => api.getProducts(),
-    enabled: !!store,
-  });
-
-  const categoriesQuery = useQuery({
-    queryKey: ["categories", store?.id],
-    queryFn: () => api.getCategories(),
-    enabled: !!store,
-  });
-
-  const ordersQuery = useQuery({
-    queryKey: ["merchant-orders", "product-stats", store?.id],
-    queryFn: () => api.getOrders({ per_page: 100 }),
-    enabled: !!store,
-  });
+  const productsQuery = useProducts(store?.id, { enabled: !!store });
+  const categoriesQuery = useCategories(store?.id, { enabled: !!store });
+  const ordersQuery = useProductOrderStats(store?.id, { enabled: !!store });
 
   const products = useMemo(() => productsQuery.data ?? [], [productsQuery.data]);
   const categories = useMemo(() => categoriesQuery.data ?? [], [categoriesQuery.data]);
@@ -429,9 +419,9 @@ export default function AdminProductsPage() {
       return api.createProduct(payload);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["products"] });
-      queryClient.invalidateQueries({ queryKey: ["categories"] });
-      queryClient.invalidateQueries({ queryKey: ["storefront"] });
+      merchantInvalidators.products(queryClient);
+      merchantInvalidators.categories(queryClient);
+      merchantInvalidators.storefront(queryClient);
       setLastUpdated(new Date());
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : "Could not save product"),
@@ -440,7 +430,7 @@ export default function AdminProductsPage() {
   const duplicateProduct = useMutation({
     mutationFn: (productId: string) => api.duplicateProduct(productId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["products"] });
+      merchantInvalidators.products(queryClient);
       setLastUpdated(new Date());
       toast.success("Product duplicated as draft.");
     },
@@ -451,7 +441,7 @@ export default function AdminProductsPage() {
     mutationFn: ({ productId, archived }: { productId: string; archived: boolean }) =>
       api.updateProduct(productId, { status: archived ? "archived" : "active" }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["products"] });
+      merchantInvalidators.products(queryClient);
       setLastUpdated(new Date());
       toast.success("Product updated.");
     },
@@ -461,7 +451,7 @@ export default function AdminProductsPage() {
   const deleteProduct = useMutation({
     mutationFn: (productId: string) => api.deleteProduct(productId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["products"] });
+      merchantInvalidators.products(queryClient);
       setLastUpdated(new Date());
       toast.success("Product deleted.");
     },
@@ -503,7 +493,7 @@ export default function AdminProductsPage() {
     for (const id of ids) {
       try { await api.deleteProduct(id); } catch { /* continue */ }
     }
-    queryClient.invalidateQueries({ queryKey: ["products"] });
+    merchantInvalidators.products(queryClient);
     setLastUpdated(new Date());
     clearSelection();
     toast.success(`${ids.length} product(s) deleted.`);
@@ -514,7 +504,7 @@ export default function AdminProductsPage() {
     for (const id of ids) {
       try { await api.updateProduct(id, { status: archived ? "archived" : "active" }); } catch { /* continue */ }
     }
-    queryClient.invalidateQueries({ queryKey: ["products"] });
+    merchantInvalidators.products(queryClient);
     setLastUpdated(new Date());
     clearSelection();
     toast.success(`${ids.length} product(s) ${archived ? "archived" : "restored"}.`);
@@ -587,13 +577,13 @@ export default function AdminProductsPage() {
       const importedProducts = productsFromRows(rows);
 
       const report = await api.importProducts(importedProducts);
-      queryClient.invalidateQueries({ queryKey: ["products"] });
-      queryClient.invalidateQueries({ queryKey: ["categories"] });
-      queryClient.invalidateQueries({ queryKey: ["storefront"] });
+      merchantInvalidators.products(queryClient);
+      merchantInvalidators.categories(queryClient);
+      merchantInvalidators.storefront(queryClient);
       setLastUpdated(new Date());
 
-      if (report.imported > 0) {
-        queryClient.setQueryData(["products"], report.data);
+      if (report.imported > 0 && store) {
+        merchantCache.setProducts(queryClient, store.id, report.data);
       }
 
       if (report.failed > 0) {

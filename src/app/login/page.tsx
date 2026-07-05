@@ -8,6 +8,7 @@ import { Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api/client";
+import { merchantKeys } from "@/lib/query-keys";
 import { AuthShell, Field } from "@/components/auth-shell";
 
 export default function LoginPage() {
@@ -32,12 +33,12 @@ export default function LoginPage() {
       if (nextUser.has_store) {
         await Promise.all([
           queryClient.prefetchQuery({
-            queryKey: ["store", "me"],
+            queryKey: merchantKeys.store.me(),
             queryFn: () => api.getMyStore(),
             staleTime: 5 * 60 * 1000,
           }),
           queryClient.prefetchQuery({
-            queryKey: ["merchant-dashboard-overview"],
+            queryKey: merchantKeys.dashboard(),
             queryFn: () => api.getDashboardOverview(),
             staleTime: 60 * 1000,
           }),
