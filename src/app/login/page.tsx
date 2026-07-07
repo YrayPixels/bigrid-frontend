@@ -17,6 +17,7 @@ export default function LoginPage() {
   const { user, setUser } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [remember, setRemember] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -28,7 +29,7 @@ export default function LoginPage() {
     e.preventDefault();
     setSubmitting(true);
     try {
-      const { user: nextUser } = await api.login({ email, password });
+      const { user: nextUser } = await api.login({ email, password, remember });
       setUser(nextUser);
       if (nextUser.has_store) {
         await Promise.all([
@@ -82,6 +83,20 @@ export default function LoginPage() {
             </button>
           }
         />
+        <div className="flex items-center justify-between gap-3">
+          <label className="flex items-center gap-2 text-sm text-ink-soft">
+            <input
+              type="checkbox"
+              checked={remember}
+              onChange={(e) => setRemember(e.target.checked)}
+              className="h-4 w-4 rounded border-border text-primary"
+            />
+            Remember me
+          </label>
+          <Link href="/forgot-password" className="text-sm font-medium text-primary hover:underline">
+            Forgot password?
+          </Link>
+        </div>
         <button
           type="submit"
           disabled={submitting}

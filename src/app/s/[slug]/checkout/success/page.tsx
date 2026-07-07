@@ -1,99 +1,41 @@
-"use client";
+import type { Metadata } from "next";
+import { headers } from "next/headers";
+import CheckoutSuccessPageClient from "./page.client";
+import { getSitemapBaseUrl } from "@/lib/site-seo";
+import { loadStorefront } from "@/lib/storefront/load-storefront";
 
-import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { Suspense } from "react";
-import { useStorefront } from "@/lib/storefront/store-context";
-import { useStorefrontTheme } from "@/lib/storefront/theme-context";
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const host = (await headers()).get("host");
+  const baseUrl = getSitemapBaseUrl(host);
 
-function CheckoutSuccessContent() {
-  const { store } = useStorefront();
-  const { theme } = useStorefrontTheme();
-  const searchParams = useSearchParams();
-  const orderNumber = searchParams.get("order") ?? "your order";
-  const paid = searchParams.get("paid") === "1";
-
-  if (theme.id === "minimalistic" || theme.id === "beauty" || theme.id === "cosmetics") {
-    const isBeauty = theme.id === "beauty";
-    const isCosmetics = theme.id === "cosmetics";
-    return (
-      <div
-        className="px-4 py-16 text-center sm:px-6"
-        style={{ backgroundColor: theme.palette.background, color: theme.palette.text }}
-      >
-        <div
-          className="mx-auto max-w-4xl rounded-[2rem] px-6 py-14 shadow-[0_24px_80px_rgba(7,62,63,0.08)]"
-          style={{ backgroundColor: `${theme.palette.surface}cc` }}
-        >
-          <div
-            className="mx-auto grid h-16 w-16 place-items-center rounded-full text-sm font-bold"
-            style={{ backgroundColor: theme.palette.primary, color: theme.palette.background }}
-          >
-            OK
-          </div>
-          <div
-            className="mx-auto mt-6 inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-semibold"
-            style={{ backgroundColor: theme.palette.background }}
-          >
-            <span className="h-2 w-5 rounded-full" style={{ backgroundColor: theme.palette.primary }} />
-            {isCosmetics ? "Skincare order placed" : isBeauty ? "Beauty order placed" : "Order placed"}
-            <span className="h-2 w-5 rounded-full" style={{ backgroundColor: theme.palette.primary }} />
-          </div>
-          <h1 className="mt-5 text-4xl font-semibold tracking-[-0.04em]">
-            {paid ? "Payment confirmed" : "Your order is confirmed"}
-          </h1>
-          <p className="mx-auto mt-3 max-w-md text-sm leading-6" style={{ color: theme.palette.muted }}>
-            Thank you for shopping with {store.business_name}. Your order reference is{" "}
-            <span className="font-bold" style={{ color: theme.palette.text }}>{orderNumber}</span>.
-            {paid ? " Your payment was received successfully." : " The store will contact you about payment if needed."}
-          </p>
-          <Link
-            href="/products"
-            className="mt-8 inline-flex rounded-full px-8 py-3 text-sm font-semibold transition"
-            style={{ backgroundColor: theme.palette.primary, color: theme.palette.background }}
-          >
-            Continue shopping
-          </Link>
-        </div>
-      </div>
-    );
+  try {
+    const data = await loadStorefront(slug);
+    const storeName = data.store.business_name || slug;
+    const title = `${storeName} — Order confirmation`;
+    const description = `Order confirmation for ${storeName}.`;
+    return {
+      metadataBase: new URL(baseUrl),
+      title,
+      description,
+      alternates: { canonical: "./" },
+      robots: { index: false, follow: false },
+    };
+  } catch {
+    return {
+      metadataBase: new URL(baseUrl),
+      title: `${slug} — Order confirmation`,
+      description: "Order confirmation.",
+      alternates: { canonical: "./" },
+      robots: { index: false, follow: false },
+    };
   }
-
-  return (
-    <div className="w-full px-4 py-16 text-center sm:px-6">
-      <div
-        className="mx-auto grid h-16 w-16 place-items-center rounded-full text-2xl font-bold text-white"
-        style={{ backgroundColor: store.brand_color }}
-      >
-        OK
-      </div>
-      <h1 className="mt-6 font-display text-4xl font-bold tracking-tight">
-        {paid ? "Payment confirmed" : "Order placed"}
-      </h1>
-      <p className="mt-3 text-sm text-muted-foreground">
-        Thank you for shopping with {store.business_name}. Your order reference is{" "}
-        <span className="font-semibold text-foreground">{orderNumber}</span>.
-        {paid ? " Your payment was received successfully." : " The store will contact you about payment if needed."}
-      </p>
-      <Link
-        href="/products"
-        className="mt-8 inline-flex rounded-md px-6 py-3 text-sm font-semibold text-white"
-        style={{ backgroundColor: store.brand_color }}
-      >
-        Continue shopping
-      </Link>
-    </div>
-  );
 }
 
 export default function CheckoutSuccessPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="px-4 py-16 text-center text-sm text-muted-foreground">Loading...</div>
-      }
-    >
-      <CheckoutSuccessContent />
-    </Suspense>
-  );
+  return <CheckoutSuccessPageClient />;
 }

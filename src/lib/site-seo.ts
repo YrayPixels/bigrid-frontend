@@ -44,3 +44,9 @@ export const STOREFRONT_STATIC_PATHS = [
   "/faq",
   "/privacy-policy",
 ] as const;
+
+export function resolveMetadataAssetUrl(baseUrl: string, url: string): string {
+  if (!url) return baseUrl;
+  if (/^https?:\/\//i.test(url)) return url;
+  return new URL(url, baseUrl).toString();
+}

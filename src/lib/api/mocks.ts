@@ -294,7 +294,7 @@ export const mockApi = {
     return { token, user };
   },
 
-  async login(body: { email: string; password: string }): Promise<AuthResponse> {
+  async login(body: { email: string; password: string; remember?: boolean }): Promise<AuthResponse> {
     await delay(400);
     const db = load();
     const match = Object.values(db.users).find(
@@ -306,6 +306,40 @@ export const mockApi = {
     match.user.has_store = !!db.stores[match.user.id];
     save(db);
     return { token, user: match.user };
+  },
+
+  async requestPasswordReset(body: { email: string }): Promise<{ message: string }> {
+    await delay(250);
+    // Always respond with same message to avoid leaking account existence.
+    const db = load();
+    const match = Object.values(db.users).find((u) => u.user.email === body.email);
+    if (match) {
+      // store the "code" on the user record in-memory for the reset step
+      (match.user as unknown as { verification_code?: string }).verification_code = "123456";
+      db.users[match.user.id] = { ...db.users[match.user.id], user: match.user };
+      save(db);
+    }
+    return { message: "If that account exists, a reset code was sent." };
+  },
+
+  async resetPasswordWithCode(body: {
+    email: string;
+    code: string;
+    password: string;
+  }): Promise<{ message: string }> {
+    await delay(300);
+    const db = load();
+    const matchEntry = Object.values(db.users).find((u) => u.user.email === body.email);
+    if (!matchEntry) throw { status: 401, message: "Invalid reset code" };
+    const expected = (matchEntry.user as unknown as { verification_code?: string }).verification_code;
+    if (!expected || body.code !== expected) throw { status: 401, message: "Invalid reset code" };
+    db.users[matchEntry.user.id] = { user: matchEntry.user, password: body.password };
+    // revoke all sessions for that user
+    for (const [token, userId] of Object.entries(db.sessions)) {
+      if (userId === matchEntry.user.id) delete db.sessions[token];
+    }
+    save(db);
+    return { message: "Password updated. You can sign in now." };
   },
 
   async logout(token: string) {

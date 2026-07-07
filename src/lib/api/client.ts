@@ -149,7 +149,7 @@ export const api = {
     return res;
   },
 
-  async login(body: { email: string; password: string }): Promise<AuthResponse> {
+  async login(body: { email: string; password: string; remember?: boolean }): Promise<AuthResponse> {
     const res = USE_MOCKS
       ? await mockApi.login(body)
       : await http<AuthResponse>(`${STOREHAUSE_API_PREFIX}/auth/login`, {
@@ -158,6 +158,26 @@ export const api = {
         });
     setToken(res.token);
     return res;
+  },
+
+  async requestPasswordReset(body: { email: string }): Promise<{ message: string }> {
+    if (USE_MOCKS) return mockApi.requestPasswordReset(body);
+    return http<{ message: string }>(`${STOREHAUSE_API_PREFIX}/auth/request-password-reset`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  async resetPasswordWithCode(body: {
+    email: string;
+    code: string;
+    password: string;
+  }): Promise<{ message: string }> {
+    if (USE_MOCKS) return mockApi.resetPasswordWithCode(body);
+    return http<{ message: string }>(`${STOREHAUSE_API_PREFIX}/auth/reset-password-with-code`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
   },
 
   async logout(): Promise<void> {

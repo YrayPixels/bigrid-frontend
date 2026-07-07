@@ -56,6 +56,7 @@ export function useAbandonedCartTracking({
             unit_price: line.product.price,
             total: line.product.price * line.quantity,
             currency: line.product.currency,
+            image_url: line.product.image_url ?? undefined,
           })),
         })
         .catch(() => undefined);

@@ -1,21 +1,26 @@
 "use client";
 
 import { useEffect } from "react";
-import { usePublicStorefront } from "@/hooks/use-merchant-queries";
 import { Loader2 } from "lucide-react";
-import { notFound } from "next/navigation";
 import { StoreShell } from "@/components/storefront/store-shell";
 import { storefrontApi } from "@/lib/api/storefront";
 import { CartProvider } from "@/lib/storefront/cart-context";
 import { StorefrontProvider } from "@/lib/storefront/store-context";
 import { StorefrontThemeProvider } from "@/lib/storefront/theme-context";
 import { getStorefrontTheme, resolveStorefrontTemplate } from "@/lib/storefront/template";
+import type { PublicStorefront } from "@/lib/api/types";
 
-export function StorefrontGate({ slug, children }: { slug: string; children: React.ReactNode }) {
-  const query = usePublicStorefront(slug);
-
+export function StorefrontGate({
+  slug,
+  data,
+  children,
+}: {
+  slug: string;
+  data: PublicStorefront;
+  children: React.ReactNode;
+}) {
   useEffect(() => {
-    if (!query.data || typeof window === "undefined") return;
+    if (!data || typeof window === "undefined") return;
 
     const key = "storehaus_visit_session";
     let sessionId = window.sessionStorage.getItem(key);
@@ -24,14 +29,18 @@ export function StorefrontGate({ slug, children }: { slug: string; children: Rea
       window.sessionStorage.setItem(key, sessionId);
     }
 
+    const sentKey = `storehaus_visit_sent:${slug}:${window.location.pathname}`;
+    if (window.sessionStorage.getItem(sentKey) === "1") return;
+    window.sessionStorage.setItem(sentKey, "1");
+
     void storefrontApi.recordVisit(slug, {
       session_id: sessionId,
       path: window.location.pathname,
       referrer: document.referrer || undefined,
     });
-  }, [query.data, slug]);
+  }, [data, slug]);
 
-  if (query.isLoading) {
+  if (!data) {
     return (
       <div className="grid min-h-screen place-items-center">
         <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -39,22 +48,18 @@ export function StorefrontGate({ slug, children }: { slug: string; children: Rea
     );
   }
 
-  if (query.isError || !query.data) {
-    notFound();
-  }
-
-  const templateId = resolveStorefrontTemplate(query.data.store, query.data.storefront);
+  const templateId = resolveStorefrontTemplate(data.store, data.storefront);
   const theme = getStorefrontTheme(
     templateId,
-    query.data.store.brand_color,
-    query.data.storefront.palette,
-    query.data.storefront.display_font,
+    data.store.brand_color,
+    data.storefront.palette,
+    data.storefront.display_font,
   );
 
   return (
-    <StorefrontProvider value={query.data}>
+    <StorefrontProvider value={data}>
       <StorefrontThemeProvider theme={theme} mode="live">
-        <CartProvider storeId={query.data.store.id}>
+        <CartProvider storeId={data.store.id}>
           <StoreShell>{children}</StoreShell>
         </CartProvider>
       </StorefrontThemeProvider>

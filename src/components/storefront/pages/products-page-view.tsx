@@ -245,7 +245,7 @@ function FashionProductsPage({
           className="text-4xl font-bold tracking-[-0.04em] sm:text-5xl"
           style={{ fontFamily: "var(--font-editorial)" }}
         >
-          All Product
+          All Products
         </h1>
         <div className="mt-5 flex items-center justify-center gap-3 text-[11px] font-semibold">
           <Link href="/">Home</Link>
@@ -260,114 +260,122 @@ function FashionProductsPage({
 
       <section className="mx-auto grid max-w-7xl gap-8 px-4 py-12 sm:px-6 lg:grid-cols-[270px_1fr] lg:py-16">
         <aside className="lg:border-r lg:pr-8" style={{ borderColor: theme.palette.border }}>
-          <div className="sticky top-24 space-y-10">
-            <h2 className="text-sm font-extrabold">Filter Options</h2>
+          <details
+            className="rounded-2xl border p-5 lg:sticky lg:top-24 lg:rounded-none lg:border-0 lg:p-0"
+            style={{ borderColor: theme.palette.border }}
+          >
+            <summary className="cursor-pointer list-none text-sm font-extrabold lg:hidden">
+              Filters
+            </summary>
+            <div className="mt-6 space-y-10 lg:mt-0">
+              <h2 className="hidden text-sm font-extrabold lg:block">Filter Options</h2>
 
-            <div>
-              <h3 className="mb-5 text-base font-extrabold">Category</h3>
-              {categories.length ? (
-                <div className="grid gap-3">
-                  {categories.map((category) => (
-                    <FashionCheckbox
-                      key={category.id}
-                      label={categoryLabel(category)}
-                      checked={selectedCategoryId === category.id}
-                      onClick={() =>
-                        setSelectedCategoryId(
-                          selectedCategoryId === category.id ? null : category.id,
-                        )
-                      }
-                    />
-                  ))}
-                </div>
-              ) : (
-                <p className="text-[13px]" style={{ color: theme.palette.muted }}>
-                  No categories yet.
-                </p>
-              )}
-            </div>
-
-            <div>
-              <h3 className="mb-4 text-base font-extrabold">Price</h3>
-              <div className="text-[13px]" style={{ color: theme.palette.muted }}>
-                {formatMoney(minPrice, products[0]?.currency ?? "NGN")} -{" "}
-                {formatMoney(priceLimit || maxPrice, products[0]?.currency ?? "NGN")}
+              <div>
+                <h3 className="mb-5 text-base font-extrabold">Category</h3>
+                {categories.length ? (
+                  <div className="grid gap-3">
+                    {categories.map((category) => (
+                      <FashionCheckbox
+                        key={category.id}
+                        label={categoryLabel(category)}
+                        checked={selectedCategoryId === category.id}
+                        onClick={() =>
+                          setSelectedCategoryId(
+                            selectedCategoryId === category.id ? null : category.id,
+                          )
+                        }
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[13px]" style={{ color: theme.palette.muted }}>
+                    No categories yet.
+                  </p>
+                )}
               </div>
-              <input
-                type="range"
-                min={minPrice}
-                max={maxPrice}
-                value={priceLimit || maxPrice}
-                onChange={(event) => setPriceLimit(Number(event.target.value))}
-                className="mt-4 h-1 w-full accent-[#55220b]"
-              />
-            </div>
 
-            <div>
-              <h3 className="mb-5 text-base font-extrabold">Color</h3>
-              <div className="grid grid-cols-2 gap-x-5 gap-y-4">
-                {fashionColorOptions.map((color) => (
-                  <button
-                    key={color.value}
-                    type="button"
-                    onClick={() =>
-                      setSelectedColor(selectedColor === color.value ? null : color.value)
-                    }
-                    className="flex items-center gap-2 text-[13px]"
-                  >
-                    <span
-                      className={cn(
-                        "grid h-6 w-6 place-items-center rounded-full border border-[#68b697] bg-white",
-                        selectedColor === color.value && "ring-2 ring-[#b16b68] ring-offset-2",
-                      )}
+              <div>
+                <h3 className="mb-4 text-base font-extrabold">Price</h3>
+                <div className="text-[13px]" style={{ color: theme.palette.muted }}>
+                  {formatMoney(minPrice, products[0]?.currency ?? "NGN")} -{" "}
+                  {formatMoney(priceLimit || maxPrice, products[0]?.currency ?? "NGN")}
+                </div>
+                <input
+                  type="range"
+                  min={minPrice}
+                  max={maxPrice}
+                  value={priceLimit || maxPrice}
+                  onChange={(event) => setPriceLimit(Number(event.target.value))}
+                  className="mt-4 h-1 w-full accent-[#55220b]"
+                />
+              </div>
+
+              <div>
+                <h3 className="mb-5 text-base font-extrabold">Color</h3>
+                <div className="grid grid-cols-2 gap-x-5 gap-y-4">
+                  {fashionColorOptions.map((color) => (
+                    <button
+                      key={color.value}
+                      type="button"
+                      onClick={() =>
+                        setSelectedColor(selectedColor === color.value ? null : color.value)
+                      }
+                      className="flex items-center gap-2 text-[13px]"
                     >
                       <span
                         className={cn(
-                          "h-4 w-4 rounded-full border border-black/10",
-                          color.className,
+                          "grid h-6 w-6 place-items-center rounded-full border border-[#68b697] bg-white",
+                          selectedColor === color.value && "ring-2 ring-[#b16b68] ring-offset-2",
                         )}
-                      />
-                    </span>
-                    {color.label}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  className="flex items-center gap-2 text-[13px]"
-                  onClick={() => setSelectedColor(null)}
-                >
-                  <span className="grid h-6 w-6 place-items-center rounded-full bg-[#123d33] text-base leading-none text-white">
-                    +
-                  </span>
-                  More
-                </button>
-              </div>
-            </div>
-
-            <div>
-              <h3 className="mb-5 text-base font-extrabold">Size</h3>
-              <div className="flex flex-wrap gap-3">
-                {fashionSizeOptions.map((size) => (
+                      >
+                        <span
+                          className={cn(
+                            "h-4 w-4 rounded-full border border-black/10",
+                            color.className,
+                          )}
+                        />
+                      </span>
+                      {color.label}
+                    </button>
+                  ))}
                   <button
-                    key={size}
                     type="button"
-                    onClick={() => setSelectedSize(selectedSize === size ? null : size)}
-                    className="flex items-center gap-2 text-[12px]"
+                    className="flex items-center gap-2 text-[13px]"
+                    onClick={() => setSelectedColor(null)}
                   >
-                    <span
-                      className={cn(
-                        "grid h-4 w-4 place-items-center border border-black/10 bg-white text-[10px] text-white",
-                        selectedSize === size && "border-[#55220b] bg-[#55220b]",
-                      )}
-                    >
-                      {selectedSize === size ? "✓" : ""}
+                    <span className="grid h-6 w-6 place-items-center rounded-full bg-[#123d33] text-base leading-none text-white">
+                      +
                     </span>
-                    {size}
+                    More
                   </button>
-                ))}
+                </div>
+              </div>
+
+              <div>
+                <h3 className="mb-5 text-base font-extrabold">Size</h3>
+                <div className="flex flex-wrap gap-3">
+                  {fashionSizeOptions.map((size) => (
+                    <button
+                      key={size}
+                      type="button"
+                      onClick={() => setSelectedSize(selectedSize === size ? null : size)}
+                      className="flex items-center gap-2 text-[12px]"
+                    >
+                      <span
+                        className={cn(
+                          "grid h-4 w-4 place-items-center border border-black/10 bg-white text-[10px] text-white",
+                          selectedSize === size && "border-[#55220b] bg-[#55220b]",
+                        )}
+                      >
+                        {selectedSize === size ? "✓" : ""}
+                      </span>
+                      {size}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
+          </details>
         </aside>
 
         <div>
@@ -695,10 +703,14 @@ function MinimalisticProductsPage({
 
       <section className="mx-auto grid max-w-7xl gap-8 px-4 py-10 sm:px-6 lg:grid-cols-[280px_minmax(0,1fr)] lg:py-14">
         <aside className="lg:border-r lg:pr-8" style={{ borderColor: theme.palette.border }}>
-          <div
-            className="sticky top-24 space-y-7 rounded-[1.75rem] p-5 shadow-[0_20px_60px_rgba(7,62,63,0.06)] lg:rounded-none lg:bg-transparent lg:p-0 lg:shadow-none"
-            style={{ backgroundColor: theme.palette.background }}
+          <details
+            className="rounded-[1.75rem] border p-5 shadow-[0_20px_60px_rgba(7,62,63,0.06)] lg:sticky lg:top-24 lg:rounded-none lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none"
+            style={{ borderColor: theme.palette.border, backgroundColor: theme.palette.background }}
           >
+            <summary className="cursor-pointer list-none text-sm font-bold lg:hidden">
+              Filters
+            </summary>
+            <div className="mt-6 space-y-7 lg:mt-0">
             <div>
               <h2 className="text-sm font-bold">Filter Options</h2>
               <p className="mt-1 text-xs leading-5" style={{ color: theme.palette.muted }}>
@@ -796,7 +808,8 @@ function MinimalisticProductsPage({
                 ))}
               </div>
             </div>
-          </div>
+            </div>
+          </details>
         </aside>
 
         <div>
