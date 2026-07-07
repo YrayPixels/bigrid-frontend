@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { api } from "@/lib/api/client";
-import { AuthShell, Field } from "@/components/auth-shell";
+import { AuthShell, AuthSubmitButton, Field } from "@/components/auth-shell";
 
 export default function ForgotPasswordPage() {
   const router = useRouter();
@@ -38,13 +38,9 @@ export default function ForgotPasswordPage() {
           autoComplete="email"
           placeholder="you@company.com"
         />
-        <button
-          type="submit"
-          disabled={submitting}
-          className="w-full rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-soft hover:opacity-90 disabled:opacity-60"
-        >
+        <AuthSubmitButton disabled={submitting}>
           {submitting ? "Sending code..." : "Send reset code"}
-        </button>
+        </AuthSubmitButton>
       </form>
       <p className="mt-6 text-center text-sm text-ink-soft">
         Remembered it?{" "}

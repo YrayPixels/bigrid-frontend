@@ -6,7 +6,7 @@ import { Suspense, useMemo, useState, type FormEvent } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api/client";
-import { AuthShell, Field } from "@/components/auth-shell";
+import { AuthShell, AuthSubmitButton, Field } from "@/components/auth-shell";
 
 function ResetPasswordInner() {
   const router = useRouter();
@@ -99,13 +99,9 @@ function ResetPasswordInner() {
             </button>
           }
         />
-        <button
-          type="submit"
-          disabled={submitting}
-          className="w-full rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-soft hover:opacity-90 disabled:opacity-60"
-        >
+        <AuthSubmitButton disabled={submitting}>
           {submitting ? "Resetting..." : "Reset password"}
-        </button>
+        </AuthSubmitButton>
       </form>
       <p className="mt-6 text-center text-sm text-ink-soft">
         Need a new code?{" "}

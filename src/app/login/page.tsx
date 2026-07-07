@@ -9,7 +9,12 @@ import { toast } from "sonner";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api/client";
 import { merchantKeys } from "@/lib/query-keys";
-import { AuthShell, Field } from "@/components/auth-shell";
+import {
+  AuthShell,
+  AuthSubmitButton,
+  Field,
+  GoogleAuthFooter,
+} from "@/components/auth-shell";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -55,7 +60,7 @@ export default function LoginPage() {
   };
 
   return (
-    <AuthShell title="Welcome back" subtitle="Sign in to your merchant dashboard.">
+    <AuthShell title="Welcome back">
       <form onSubmit={handleSubmit} className="space-y-4">
         <Field
           label="Email"
@@ -97,20 +102,19 @@ export default function LoginPage() {
             Forgot password?
           </Link>
         </div>
-        <button
-          type="submit"
-          disabled={submitting}
-          className="w-full rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-soft hover:opacity-90 disabled:opacity-60"
-        >
-          {submitting ? "Signing in..." : "Sign in"}
-        </button>
+        <AuthSubmitButton disabled={submitting}>
+          {submitting ? "Signing in..." : "Continue"}
+        </AuthSubmitButton>
       </form>
-      <p className="mt-6 text-center text-sm text-ink-soft">
+
+      <p className="mt-5 text-center text-sm text-ink-soft">
         No account yet?{" "}
-        <Link href="/signup" className="font-medium text-primary hover:underline">
+        <Link href="/signup" className="font-semibold text-primary hover:underline">
           Create one
         </Link>
       </p>
+
+      <GoogleAuthFooter label="Sign in with Google" />
     </AuthShell>
   );
 }

@@ -14,13 +14,13 @@ export default function PrivacyPage() {
   const { title, lastUpdated, sections } = PLATFORM_PRIVACY_POLICY;
 
   return (
-    <div className="landing-theme min-h-screen bg-background text-foreground font-sans selection:bg-primary/20">
-      <header className="border-b border-foreground/10 px-6 py-4">
+    <div className="min-h-screen bg-canvas text-ink font-sans selection:bg-primary/20">
+      <header className="border-b border-border px-6 py-4">
         <div className="mx-auto flex max-w-3xl items-center justify-between">
           <Link href="/" className="flex items-center">
-            <BizgridLogo size={32} showWordmark wordmarkClassName="text-xl font-black italic tracking-tighter" />
+            <BizgridLogo size={32} showWordmark wordmarkClassName="text-xl font-bold tracking-tight" />
           </Link>
-          <Link href="/" className="text-sm text-foreground/60 transition-colors hover:text-foreground">
+          <Link href="/" className="text-sm text-ink-soft transition-colors hover:text-ink">
             Back to home
           </Link>
         </div>
@@ -28,15 +28,15 @@ export default function PrivacyPage() {
 
       <main className="px-6 py-12">
         <article className="mx-auto max-w-3xl">
-          <p className="font-mono text-[10px] uppercase tracking-widest text-foreground/60">Legal</p>
+          <p className="font-mono text-[10px] uppercase tracking-widest text-ink-soft">Legal</p>
           <h1 className="mt-2 font-display text-4xl font-bold tracking-tight sm:text-5xl">{title}</h1>
-          <p className="mt-3 text-sm text-foreground/60">Last updated: {lastUpdated}</p>
+          <p className="mt-3 text-sm text-ink-soft">Last updated: {lastUpdated}</p>
 
           <div className="mt-10 space-y-10">
             {sections.map((section) => (
               <section key={section.heading}>
                 <h2 className="text-lg font-semibold tracking-tight">{section.heading}</h2>
-                <div className="mt-3 space-y-3 whitespace-pre-line text-sm leading-7 text-foreground/70">
+                <div className="mt-3 space-y-3 whitespace-pre-line text-sm leading-7 text-ink-soft">
                   {section.body}
                 </div>
               </section>
@@ -45,10 +45,10 @@ export default function PrivacyPage() {
         </article>
       </main>
 
-      <footer className="border-t border-foreground/10 px-6 py-8">
-        <div className="mx-auto flex max-w-3xl items-center justify-between font-mono text-[10px] text-foreground/60">
+      <footer className="border-t border-border px-6 py-8">
+        <div className="mx-auto flex max-w-3xl items-center justify-between font-mono text-[10px] text-ink-soft">
           <span>© {new Date().getFullYear()} BIZGRID INC.</span>
-          <Link href="/" className="transition-colors hover:text-foreground">
+          <Link href="/" className="transition-colors hover:text-primary">
             bizgrid.shop
           </Link>
         </div>

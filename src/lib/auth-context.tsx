@@ -3,7 +3,9 @@
 import { createContext, useContext, useEffect, useState, Suspense, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { api, getToken, setToken } from "@/lib/api/client";
+import { merchantKeys } from "@/lib/query-keys";
 import type { User } from "@/lib/api/types";
 
 type AuthCtx = {
@@ -17,17 +19,43 @@ type AuthCtx = {
 
 const Ctx = createContext<AuthCtx | undefined>(undefined);
 
-function ImpersonationHandler({ onToken }: { onToken: (token: string) => void }) {
+function AuthCallbackHandler({
+  onAuthToken,
+  onImpersonateToken,
+  onError,
+}: {
+  onAuthToken: (token: string) => void;
+  onImpersonateToken: (token: string) => void;
+  onError: (message: string) => void;
+}) {
   const searchParams = useSearchParams();
   useEffect(() => {
-    const token = searchParams.get("impersonate_token");
-    if (token) {
-      onToken(token);
+    const authToken = searchParams.get("auth_token");
+    if (authToken) {
+      onAuthToken(authToken);
+      const url = new URL(window.location.href);
+      url.searchParams.delete("auth_token");
+      window.history.replaceState({}, "", url.pathname + url.search);
+      return;
+    }
+
+    const impersonateToken = searchParams.get("impersonate_token");
+    if (impersonateToken) {
+      onImpersonateToken(impersonateToken);
       const url = new URL(window.location.href);
       url.searchParams.delete("impersonate_token");
       window.history.replaceState({}, "", url.pathname + url.search);
+      return;
     }
-  }, [searchParams, onToken]);
+
+    const authError = searchParams.get("auth_error");
+    if (authError) {
+      onError(authError);
+      const url = new URL(window.location.href);
+      url.searchParams.delete("auth_error");
+      window.history.replaceState({}, "", url.pathname + url.search);
+    }
+  }, [searchParams, onAuthToken, onImpersonateToken, onError]);
   return null;
 }
 
@@ -54,10 +82,53 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const handleImpersonation = (token: string) => {
+  const handleAuthToken = async (token: string, impersonation = false) => {
     setToken(token);
-    setImpersonating(true);
-    void refresh();
+    setImpersonating(impersonation);
+    setLoading(true);
+    try {
+      const freshUser = await api.me();
+      setUser(freshUser);
+      if (freshUser.has_store) {
+        await Promise.all([
+          qc.prefetchQuery({
+            queryKey: merchantKeys.store.me(),
+            queryFn: () => api.getMyStore(),
+            staleTime: 5 * 60 * 1000,
+          }),
+          qc.prefetchQuery({
+            queryKey: merchantKeys.dashboard(),
+            queryFn: () => api.getDashboardOverview(),
+            staleTime: 60 * 1000,
+          }),
+        ]);
+      }
+      if (!impersonation) {
+        toast.success(`Welcome${freshUser.name ? `, ${freshUser.name.split(" ")[0]}` : ""}!`);
+        router.replace(freshUser.has_store ? "/admin" : "/admin/onboarding");
+      }
+    } catch {
+      setToken(null);
+      setUser(null);
+      setImpersonating(false);
+      if (!impersonation) {
+        toast.error("Could not complete sign-in. Please try again.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleImpersonation = (token: string) => {
+    void handleAuthToken(token, true);
+  };
+
+  const handleGoogleAuth = (token: string) => {
+    void handleAuthToken(token, false);
+  };
+
+  const handleAuthError = (message: string) => {
+    toast.error(message);
   };
 
   useEffect(() => {
@@ -75,7 +146,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <Ctx.Provider value={{ user, loading, refresh, signOut, setUser, impersonating }}>
       <Suspense fallback={null}>
-        <ImpersonationHandler onToken={handleImpersonation} />
+        <AuthCallbackHandler
+          onAuthToken={handleGoogleAuth}
+          onImpersonateToken={handleImpersonation}
+          onError={handleAuthError}
+        />
       </Suspense>
       {children}
     </Ctx.Provider>

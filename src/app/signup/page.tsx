@@ -7,7 +7,12 @@ import { Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api/client";
-import { AuthShell, Field } from "@/components/auth-shell";
+import {
+  AuthShell,
+  AuthSubmitButton,
+  Field,
+  GoogleAuthFooter,
+} from "@/components/auth-shell";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -48,9 +53,21 @@ export default function SignupPage() {
   };
 
   return (
-    <AuthShell title="Create your account" subtitle="Free during the MVP - no card required.">
+    <AuthShell
+      title="Join us"
+      subtitle="Free during the MVP — no card required."
+      footer={
+        <p className="text-center text-xs leading-relaxed text-ink-soft">
+          By signing up, I confirm that I have read and agree to Bizgrid&apos;s{" "}
+          <Link href="/privacy" className="font-medium text-primary hover:underline">
+            Privacy Policy
+          </Link>
+          .
+        </p>
+      }
+    >
       <form onSubmit={handleSubmit} className="space-y-4">
-        <Field label="Your name" value={name} onChange={setName} required autoComplete="name" />
+        <Field label="Full name" value={name} onChange={setName} required autoComplete="name" />
         <Field
           label="Email"
           type="email"
@@ -66,7 +83,7 @@ export default function SignupPage() {
           onChange={setPassword}
           required
           autoComplete="new-password"
-          placeholder="At least 8 characters"
+          helperText="At least 8 characters."
           endAdornment={
             <button
               type="button"
@@ -97,27 +114,19 @@ export default function SignupPage() {
             </button>
           }
         />
-        <button
-          type="submit"
-          disabled={submitting}
-          className="w-full rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-soft hover:opacity-90 disabled:opacity-60"
-        >
-          {submitting ? "Creating account..." : "Create account"}
-        </button>
+        <AuthSubmitButton disabled={submitting}>
+          {submitting ? "Creating account..." : "Continue"}
+        </AuthSubmitButton>
       </form>
-      <p className="mt-6 text-center text-xs text-ink-soft">
-        By creating an account, you agree to our{" "}
-        <Link href="/privacy" className="font-medium text-primary hover:underline">
-          Privacy Policy
-        </Link>
-        .
-      </p>
-      <p className="mt-3 text-center text-sm text-ink-soft">
+
+      <p className="mt-5 text-center text-sm text-ink-soft">
         Already have an account?{" "}
-        <Link href="/login" className="font-medium text-primary hover:underline">
-          Sign in
+        <Link href="/login" className="font-semibold text-primary hover:underline">
+          Log in
         </Link>
       </p>
+
+      <GoogleAuthFooter label="Sign up with Google" />
     </AuthShell>
   );
 }

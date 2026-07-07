@@ -201,17 +201,14 @@
   }
 }
 
-.landing-theme {
-  --background: oklch(0.978 0.005 85);
-  --foreground: oklch(0.205 0 0);
-  --primary: oklch(0.638 0.155 39);
-  --primary-foreground: oklch(0.978 0.005 85);
-  --font-display: "Playfair Display", ui-serif, Georgia, serif;
-}
-
-.landing-theme .font-display {
-  font-family: var(--font-display);
-  letter-spacing: -0.02em;
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
 }
 
 .animate-reveal {
