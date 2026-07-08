@@ -1,7 +1,7 @@
 import { BUILDER_HISTORY_SNIPPET_MAX_CHARS } from "@/lib/storefront-builder/chat-history";
 import { remainingPlannedTools } from "@/lib/storefront-builder/section-scope";
 import type { WebsiteBuilderToolDef } from "./types";
-import { getAssistantMessageContent, getThinkingModel, postChat } from "./openaiChat";
+import { getAssistantMessageContent, getThinkingModelName, postChat } from "./openaiChat";
 import {
   BUILDER_CRITIC_SYSTEM_PROMPT,
   BUILDER_EXECUTOR_CONTEXT_SUFFIX,
@@ -93,7 +93,7 @@ export async function runInterpreter(args: {
       : "";
 
   const data = await postChat({
-    model: getThinkingModel(),
+    model: await getThinkingModelName(),
     temperature: 0.2,
     response_format: { type: "json_object" },
     messages: [
@@ -141,7 +141,7 @@ export async function runPlanner(args: {
       : "";
 
   const data = await postChat({
-    model: getThinkingModel(),
+    model: await getThinkingModelName(),
     temperature: 0.2,
     response_format: { type: "json_object" },
     messages: [
@@ -204,7 +204,7 @@ export async function runCritic(args: {
   }
 
   const data = await postChat({
-    model: getThinkingModel(),
+    model: await getThinkingModelName(),
     temperature: 0.15,
     response_format: { type: "json_object" },
     messages: [

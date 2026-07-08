@@ -10,7 +10,7 @@ import type {
   StorefrontTemplateRecommendation,
 } from "@/lib/api/types";
 import { parseJsonObject } from "@/lib/storefront-builder/agents/agentThinking";
-import { getAssistantMessageContent, getThinkingModel, postChat } from "@/lib/storefront-builder/agents/openaiChat";
+import { getAssistantMessageContent, getThinkingModelName, postChat } from "@/lib/storefront-builder/agents/openaiChat";
 import {
   expandSwatchPaletteToTheme,
   sanitizeStorefrontPalette,
@@ -155,7 +155,7 @@ export async function resolveDesignDirectionWithAi(
 
   try {
     const data = await postChat({
-      model: getThinkingModel(),
+      model: await getThinkingModelName(),
       temperature: 0.4,
       response_format: { type: "json_object" },
       messages: [

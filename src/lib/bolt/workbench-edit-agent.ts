@@ -3,7 +3,7 @@ import { codeFs } from "@/lib/code-fs";
 import { searchCodeFiles } from "@/lib/bolt/code-search";
 import { applyPatchHunks, applySearchReplace, normalizePatchPath, readFileSlice } from "@/lib/bolt/file-patch";
 import { mirrorCodeFileToWebContainer, mirrorDeleteFromWebContainer } from "@/lib/bolt/wc-file-sync";
-import { getThinkingModel, postChat } from "@/lib/storefront-builder/agents/openaiChat";
+import { getThinkingModelName, postChat } from "@/lib/storefront-builder/agents/openaiChat";
 import type { BuilderChatHistoryEntry } from "@/lib/storefront-builder/chat-history";
 import { reviewWorkbenchEdit, type WorkbenchEditReview } from "@/lib/bolt/workbench-edit-review";
 import { formatFileDiffForAgent, snapshotFileContents } from "@/lib/bolt/workbench-diff";
@@ -509,7 +509,7 @@ export async function runWorkbenchEditAgent(args: {
 
     for (let iteration = 0; iteration < MAX_ITERATIONS && !executorDone; iteration++) {
     const data = await postChat({
-      model: getThinkingModel(),
+      model: await getThinkingModelName(),
       messages,
       tools: WORKBENCH_EDIT_TOOLS,
       tool_choice: iteration === 0 && attempt === 0 ? "required" : "auto",

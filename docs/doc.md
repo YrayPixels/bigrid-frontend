@@ -281,6 +281,7 @@ That is the experience StoreHause should deliver.
 
 | Doc | Purpose |
 |-----|---------|
+| [website-builder-inventory.md](./website-builder-inventory.md) | Full file inventory for manual review (~230 files across repos) |
 | [builder-ai-acceptance-criteria.md](./builder-ai-acceptance-criteria.md) | Testable checklist for AI voice, tools, and golden-path QA |
 | [modular-storefront-roadmap.md](./modular-storefront-roadmap.md) | Phased plan for block-based AI generation and editing (About, Contact, forms, homepage sections) |
 | `src/lib/storefront-builder/copy.ts` | Merchant-facing onboarding copy used in the builder UI |

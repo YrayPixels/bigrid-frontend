@@ -4,7 +4,7 @@ import { migrateHomeBlocks } from "@/lib/storefront/blocks/migrate-home";
 import { migrateAboutBlocks } from "@/lib/storefront/blocks/migrate-page-blocks";
 import type { StorefrontBlock } from "@/lib/storefront/blocks/types";
 import { parseJsonObject } from "@/lib/storefront-builder/agents/agentThinking";
-import { getAssistantMessageContent, getThinkingModel, postChat } from "@/lib/storefront-builder/agents/openaiChat";
+import { getAssistantMessageContent, getThinkingModelName, postChat } from "@/lib/storefront-builder/agents/openaiChat";
 import {
   buildImageSearchLinks,
   catalogEntriesBySection,
@@ -123,7 +123,7 @@ async function resolveTemplateImagePlan(
 
   try {
     const data = await postChat({
-      model: getThinkingModel(),
+      model: await getThinkingModelName(),
       temperature: 0.45,
       response_format: { type: "json_object" },
       messages: [

@@ -1,4 +1,4 @@
-import { getThinkingModel, postChat } from "@/lib/storefront-builder/agents/openaiChat";
+import { getThinkingModelName, postChat } from "@/lib/storefront-builder/agents/openaiChat";
 import { summarizeFileDiff } from "@/lib/bolt/workbench-diff";
 
 export type WorkbenchEditReview = {
@@ -74,7 +74,7 @@ export async function reviewWorkbenchEdit(args: {
 
   try {
     const data = await postChat({
-      model: getThinkingModel(),
+      model: await getThinkingModelName(),
       messages: [
         {
           role: "system",

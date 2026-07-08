@@ -1,5 +1,8 @@
 import { generateText, streamText, type CoreMessage, type LanguageModelV1 } from "ai";
-import { getChatModel, getThinkingModel } from "@/lib/ai-sdk";
+import { consumeAiStream } from "@/lib/ai-stream";
+import { getChatModel, getConfiguredThinkingModelName } from "@/lib/ai-sdk";
+
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ?? "";
 
 export type PostChatBody = {
   model?: string | LanguageModelV1;
@@ -14,7 +17,7 @@ export type ChatCompletionResponse = {
   choices?: Array<{ message?: { role?: string; content?: string | null; tool_calls?: unknown[] } }>;
 };
 
-export { getThinkingModel };
+export { getConfiguredThinkingModelName as getThinkingModelName };
 
 function toCoreMessages(messages: unknown[]): CoreMessage[] {
   return messages.map((msg) => {
@@ -30,7 +33,7 @@ function toCoreMessages(messages: unknown[]): CoreMessage[] {
 async function aiSdkChat(body: PostChatBody): Promise<ChatCompletionResponse> {
   const messages = toCoreMessages(body.messages);
   const model = typeof body.model === "string" || !body.model
-    ? getChatModel()
+    ? await getChatModel()
     : body.model;
 
   const result = await generateText({
@@ -65,14 +68,16 @@ async function aiSdkChat(body: PostChatBody): Promise<ChatCompletionResponse> {
   };
 }
 
-/** Raw fetch path — for tool-calling calls (OpenAI function format) */
+/** Local dev fallback when no backend API base is configured. */
 async function rawFetchChat(body: PostChatBody): Promise<ChatCompletionResponse> {
-  const apiKey = process.env.OPENAI_API_KEY ?? process.env.NEXT_PUBLIC_OPENAI_API_KEY;
-  if (!apiKey) throw new Error("Missing OPENAI_API_KEY");
+  const apiKey = process.env.OPENAI_API_KEY ?? process.env.DEEPSEEK_API_KEY;
+  if (!apiKey) {
+    throw new Error("Configure AI in the platform admin, or set OPENAI_API_KEY for local dev.");
+  }
 
   const model = typeof body.model === "string" && body.model
     ? body.model
-    : (process.env.OPENAI_CHAT_MODEL ?? "gpt-4o-mini");
+    : await getConfiguredThinkingModelName();
 
   const payload: Record<string, unknown> = {
     model,
@@ -89,7 +94,11 @@ async function rawFetchChat(body: PostChatBody): Promise<ChatCompletionResponse>
     payload.response_format = { type: "json_object" };
   }
 
-  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+  const baseUrl = process.env.DEEPSEEK_API_KEY
+    ? process.env.DEEPSEEK_BASE_URL ?? "https://api.deepseek.com/v1"
+    : process.env.OPENAI_BASE_URL ?? "https://api.openai.com/v1";
+
+  const res = await fetch(`${baseUrl.replace(/\/$/, "")}/chat/completions`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -103,15 +112,31 @@ async function rawFetchChat(body: PostChatBody): Promise<ChatCompletionResponse>
   return JSON.parse(text) as ChatCompletionResponse;
 }
 
+async function proxyChatThroughBackend(body: PostChatBody): Promise<ChatCompletionResponse> {
+  const res = await fetch(`${API_BASE}/storehause/ai/chat`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+
+  const text = await res.text();
+  if (!res.ok) throw new Error(text || `Chat failed (${res.status})`);
+  return JSON.parse(text) as ChatCompletionResponse;
+}
+
 export async function callOpenAiChat(body: PostChatBody): Promise<ChatCompletionResponse> {
+  if (API_BASE) {
+    return proxyChatThroughBackend(body);
+  }
+
   const hasTools = Array.isArray(body.tools) && body.tools.length > 0;
 
-  // Use raw fetch for tool-calling calls (preserves OpenAI function format)
   if (hasTools) {
     return rawFetchChat(body);
   }
 
-  // Use AI SDK for simple text/JSON calls
   return aiSdkChat(body);
 }
 
@@ -136,10 +161,29 @@ export async function postChatStream(args: {
   onDelta: (delta: string) => void;
   signal?: AbortSignal;
 }): Promise<{ text: string }> {
-  // Server-side: stream directly via AI SDK (relative fetch URLs break in Node).
+  if (API_BASE) {
+    const res = await fetch(`${API_BASE}/storehause/ai/chat/stream`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        messages: args.messages,
+        temperature: args.temperature,
+      }),
+      signal: args.signal,
+    });
+
+    if (!res.ok || !res.body) {
+      const text = await res.text().catch(() => "");
+      throw new Error(text || `Chat stream failed (${res.status})`);
+    }
+
+    const fullText = await consumeAiStream(res.body, args.onDelta);
+    return { text: fullText };
+  }
+
   if (typeof window === "undefined") {
     const result = streamText({
-      model: getChatModel(),
+      model: await getChatModel(),
       messages: args.messages,
       temperature: args.temperature,
       abortSignal: args.signal,
@@ -168,41 +212,7 @@ export async function postChatStream(args: {
     throw new Error(text || `Chat stream failed (${res.status})`);
   }
 
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  let fullText = "";
-
-  // AI SDK data stream protocol: lines that start with "0:" contain text deltas.
-  // Other lines (e.g. "e:", "d:") are metadata; ignore for now.
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-
-    while (true) {
-      const newlineIdx = buffer.indexOf("\n");
-      if (newlineIdx === -1) break;
-      const line = buffer.slice(0, newlineIdx).trimEnd();
-      buffer = buffer.slice(newlineIdx + 1);
-
-      if (!line) continue;
-      if (!line.startsWith("0:")) continue;
-
-      const payload = line.slice(2);
-      try {
-        // Text deltas are JSON-string encoded.
-        const delta = JSON.parse(payload) as string;
-        if (typeof delta === "string" && delta.length > 0) {
-          fullText += delta;
-          args.onDelta(delta);
-        }
-      } catch {
-        // Ignore malformed lines; streaming must be resilient.
-      }
-    }
-  }
-
+  const fullText = await consumeAiStream(res.body, args.onDelta);
   return { text: fullText };
 }
 

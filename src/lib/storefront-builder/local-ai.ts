@@ -39,7 +39,7 @@ import {
 import { colorPresetActions } from "@/lib/storefront-builder/suggested-actions";
 import { STOREFRONT_NAV_ITEMS } from "@/lib/storefront/template";
 import { parseJsonObject } from "@/lib/storefront-builder/agents/agentThinking";
-import { getAssistantMessageContent, getThinkingModel, postChat } from "@/lib/storefront-builder/agents/openaiChat";
+import { getAssistantMessageContent, getThinkingModelName, postChat } from "@/lib/storefront-builder/agents/openaiChat";
 import { BUILDER_EDITOR_SYSTEM_PROMPT } from "@/lib/storefront-builder/prompts";
 import { promptAllowedStorefrontPaths } from "@/lib/storefront-builder/editable-paths";
 
@@ -949,7 +949,7 @@ async function tryAiStorefrontEdit(
 ): Promise<BuilderEditTurn | null> {
   try {
     const data = await postChat({
-      model: getThinkingModel(),
+      model: await getThinkingModelName(),
       temperature: 0.35,
       response_format: { type: "json_object" },
       messages: [
@@ -1422,7 +1422,7 @@ async function tryAiGenerateFaqItems(
 ): Promise<Array<{ question: string; answer: string }> | null> {
   try {
     const data = await postChat({
-      model: getThinkingModel(),
+      model: await getThinkingModelName(),
       temperature: 0.45,
       response_format: { type: "json_object" },
       messages: [
