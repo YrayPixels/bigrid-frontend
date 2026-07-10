@@ -99,6 +99,24 @@ class ApiError extends Error {
   }
 }
 
+function apiErrorMessage(data: unknown, fallback = "Request failed"): string {
+  if (!data || typeof data !== "object") return fallback;
+  const payload = data as { message?: unknown; errors?: Record<string, unknown> };
+  if (payload.errors && typeof payload.errors === "object") {
+    for (const value of Object.values(payload.errors)) {
+      if (Array.isArray(value) && typeof value[0] === "string" && value[0].trim()) {
+        return value[0];
+      }
+      if (typeof value === "string" && value.trim()) {
+        return value;
+      }
+    }
+  }
+  return typeof payload.message === "string" && payload.message.trim()
+    ? payload.message
+    : fallback;
+}
+
 async function http<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = getToken();
   const res = await fetch(`${API_BASE}${path}`, {
@@ -112,7 +130,7 @@ async function http<T>(path: string, init: RequestInit = {}): Promise<T> {
   });
   if (res.status === 204) return undefined as T;
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new ApiError(res.status, data?.message ?? "Request failed");
+  if (!res.ok) throw new ApiError(res.status, apiErrorMessage(data));
   return data as T;
 }
 
@@ -127,7 +145,7 @@ async function httpForm<T>(path: string, body: FormData): Promise<T> {
     body,
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new ApiError(res.status, data?.message ?? "Request failed");
+  if (!res.ok) throw new ApiError(res.status, apiErrorMessage(data));
   return data as T;
 }
 
