@@ -26,32 +26,17 @@ function parseLastModified(value: string | null | undefined): Date | undefined {
   return Number.isNaN(parsed.getTime()) ? undefined : parsed;
 }
 
-async function buildPlatformSitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = getSitemapBaseUrl(null);
+function buildPlatformSitemap(host: string | null): MetadataRoute.Sitemap {
+  // Only same-host URLs are allowed. Storefront subdomains publish their own /sitemap.xml.
+  const baseUrl = getSitemapBaseUrl(host);
   const now = new Date();
 
-  const entries: MetadataRoute.Sitemap = PLATFORM_PUBLIC_PATHS.map((path) => ({
+  return PLATFORM_PUBLIC_PATHS.map((path) => ({
     url: toAbsoluteUrl(baseUrl, path),
     lastModified: now,
     changeFrequency: path === "/" ? "weekly" : "monthly",
     priority: path === "/" ? 1 : 0.6,
   }));
-
-  try {
-    const published = await storefrontApi.listPublished();
-    for (const store of published) {
-      entries.push({
-        url: getStorefrontBaseUrl(store.slug),
-        lastModified: parseLastModified(store.published_at) ?? now,
-        changeFrequency: "weekly",
-        priority: 0.7,
-      });
-    }
-  } catch {
-    // Platform pages are still discoverable when the storefront index is unavailable.
-  }
-
-  return entries;
 }
 
 async function buildStorefrontSitemap(slug: string): Promise<MetadataRoute.Sitemap> {
@@ -104,5 +89,5 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     return buildStorefrontSitemap(slug);
   }
 
-  return buildPlatformSitemap();
+  return buildPlatformSitemap(host);
 }

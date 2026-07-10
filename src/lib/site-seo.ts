@@ -1,8 +1,9 @@
-import { isPlatformRootHost, parseStoreSlugFromHost, STORE_PLATFORM_DOMAIN } from "@/lib/store-host";
+import { parseStoreSlugFromHost, STORE_PLATFORM_DOMAIN } from "@/lib/store-host";
 
+/** Canonical platform origin (apex redirects to www in production). */
 export const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ??
-  `https://${STORE_PLATFORM_DOMAIN}`;
+  `https://www.${STORE_PLATFORM_DOMAIN}`;
 
 function supportsSubdomainStorefronts(): boolean {
   return !STORE_PLATFORM_DOMAIN.endsWith(".vercel.app");
@@ -17,15 +18,22 @@ export function getStorefrontBaseUrl(slug: string): string {
   return `https://${slug}.${STORE_PLATFORM_DOMAIN}`;
 }
 
-/** Base URL for sitemap entries based on the incoming request host. */
+/**
+ * Base URL for sitemap/robots entries for the current request host.
+ * Google requires every <loc> to match the sitemap's host exactly
+ * (www vs apex and subdomains are different hosts).
+ */
 export function getSitemapBaseUrl(host: string | null | undefined): string {
   const slug = parseStoreSlugFromHost(host);
   if (slug) {
     return getStorefrontBaseUrl(slug);
   }
 
-  if (host && !isPlatformRootHost(host)) {
-    const hostname = host.split(":")[0];
+  if (host) {
+    const hostname = host.split(":")[0].toLowerCase();
+    if (hostname === "localhost" || /^\d+\.\d+\.\d+\.\d+$/.test(hostname)) {
+      return `http://${host}`;
+    }
     return `https://${hostname}`;
   }
 

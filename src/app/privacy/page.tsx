@@ -7,6 +7,7 @@ export const metadata: Metadata = {
   title: "Privacy Policy — Bizgrid",
   description:
     "Learn how Bizgrid collects, uses, and protects information when you use our merchant platform and website.",
+  alternates: { canonical: "/privacy" },
   robots: { index: true, follow: true },
 };
 
