@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { isCodeWorkbenchEnabled } from "@/lib/features";
 import {
   isPlatformRootHost,
   parseStoreSlugFromHost,
@@ -11,6 +12,15 @@ function applyWebContainerIsolation(res: NextResponse) {
   res.headers.set("Cross-Origin-Opener-Policy", "same-origin");
   res.headers.set("Cross-Origin-Embedder-Policy", "credentialless");
   return res;
+}
+
+function isWorkbenchPath(pathname: string): boolean {
+  return (
+    pathname === "/admin/builder/workbench" ||
+    pathname.startsWith("/admin/builder/workbench/") ||
+    pathname === "/admin/builder/custom" ||
+    pathname.startsWith("/admin/builder/custom/")
+  );
 }
 
 export async function middleware(request: NextRequest) {
@@ -25,6 +35,12 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  if (!isCodeWorkbenchEnabled() && isWorkbenchPath(pathname)) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/admin/builder";
+    return NextResponse.redirect(url);
+  }
+
   const host = request.headers.get("host");
   let slug = parseStoreSlugFromHost(host);
 
@@ -33,9 +49,11 @@ export async function middleware(request: NextRequest) {
   }
 
   if (!slug) {
-    // Apply on every main-app document route so client-side navigation from
-    // /login or /admin does not leave the page without isolation headers.
-    return applyWebContainerIsolation(NextResponse.next());
+    // Isolation headers are only needed while the code workbench (WebContainer) is enabled.
+    if (isCodeWorkbenchEnabled()) {
+      return applyWebContainerIsolation(NextResponse.next());
+    }
+    return NextResponse.next();
   }
 
   const url = request.nextUrl.clone();

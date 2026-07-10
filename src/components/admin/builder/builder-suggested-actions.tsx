@@ -3,6 +3,15 @@
 import { ExternalLink, ImageIcon, ImagePlus, MessageSquare, Palette } from "lucide-react";
 import Link from "next/link";
 import type { BuilderMediaTarget, BuilderSuggestedAction } from "@/lib/api/types";
+import { isCodeWorkbenchEnabled } from "@/lib/features";
+
+function isWorkbenchLink(action: BuilderSuggestedAction): boolean {
+  return (
+    action.type === "link" &&
+    typeof action.href === "string" &&
+    action.href.includes("/admin/builder/workbench")
+  );
+}
 
 export function BuilderSuggestedActions({
   actions,
@@ -19,13 +28,17 @@ export function BuilderSuggestedActions({
   onUpload: (target: BuilderMediaTarget) => void;
   onApplyImage?: (target: BuilderMediaTarget, url: string, label: string) => void;
 }) {
-  if (!actions.length) return null;
+  const visibleActions = isCodeWorkbenchEnabled()
+    ? actions
+    : actions.filter((action) => !isWorkbenchLink(action));
+
+  if (!visibleActions.length) return null;
 
   return (
     <div className="space-y-2">
       <p className="text-xs font-medium uppercase tracking-wide text-ink-soft">Suggested next steps</p>
       <div className="flex flex-wrap gap-2">
-        {actions.map((action) => {
+        {visibleActions.map((action) => {
           if (action.type === "link") {
             return (
               <Link

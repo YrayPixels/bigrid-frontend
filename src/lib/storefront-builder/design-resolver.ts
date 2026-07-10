@@ -18,6 +18,7 @@ import {
 import { replaceTemplateImagesForStorefront } from "@/lib/storefront-builder/image-sourcing";
 import { attachBoltTemplateToStorefront } from "@/lib/storefront/bolt-template-storefront";
 import { resolveStorefrontTemplateType } from "@/lib/storefront/template-registry";
+import { isCodeWorkbenchEnabled } from "@/lib/features";
 import {
   applyBrandColorToStorefront,
   concreteTemplateIds,
@@ -352,10 +353,11 @@ export async function rebuildStorefrontFromDesignRequest(args: {
   storefront = colorApplied.storefront;
 
   const templateType = resolveStorefrontTemplateType(direction.template_id, templateOptions);
+  const useBoltWorkbench = templateType === "bolt" && isCodeWorkbenchEnabled();
   let imageSummary: string | undefined;
   let changedPaths: string[] = [];
 
-  if (templateType === "bolt") {
+  if (useBoltWorkbench) {
     storefront = await attachBoltTemplateToStorefront(storefront, direction.template_id);
   } else {
     const imageIntent = `${nextProfile.business_name ?? ""} ${nextProfile.description ?? ""} ${message}`.trim();
@@ -379,10 +381,9 @@ export async function rebuildStorefrontFromDesignRequest(args: {
     templateOptions.find((option) => option.value === direction.template_id)?.label ??
     direction.template_id.replace(/_/g, " ");
 
-  const assistantMessage =
-    templateType === "bolt"
-      ? `Done — I switched your site to the ${templateLabel} code template. Open the workbench to preview and refine it, then tell me what to adjust.`
-      : `Done — I refreshed your website with ${direction.merchant_summary}, a matching color palette (${direction.color_label.toLowerCase()}), and on-brand photos. Check the preview on the right, then tell me what to refine.`;
+  const assistantMessage = useBoltWorkbench
+    ? `Done — I switched your site to the ${templateLabel} code template. Open the workbench to preview and refine it, then tell me what to adjust.`
+    : `Done — I refreshed your website with ${direction.merchant_summary}, a matching color palette (${direction.color_label.toLowerCase()}), and on-brand photos. Check the preview on the right, then tell me what to refine.`;
 
   return {
     business_profile: nextProfile,
@@ -402,7 +403,7 @@ export async function rebuildStorefrontFromDesignRequest(args: {
         merchant_summary: direction.merchant_summary,
       },
       color_options: colorOptions,
-      template_type: templateType,
+      template_type: useBoltWorkbench ? "bolt" : "json",
       image_summary: imageSummary,
       changed_paths: changedPaths,
       suggested_actions: direction.palette.slice(0, 3).map((entry) => ({

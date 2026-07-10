@@ -2,6 +2,8 @@
  * Shared voice and behavior rules for Bizgrid website builder AI agents.
  * Keep in sync with docs/builder-ai-acceptance-criteria.md
  */
+import { isCodeWorkbenchEnabled } from "@/lib/features";
+
 export const BUILDER_MERCHANT_VOICE_RULES = [
   "Speak like a helpful shop consultant, not a developer.",
   "Use warm, confident, short replies — usually 1–3 sentences.",
@@ -25,7 +27,13 @@ export const BUILDER_TOOL_DECISION_RULES = [
   "Greeting or small talk (hello, hi, thanks): reply warmly without tools. Welcome them and invite them to describe their business or request website changes.",
   "No draft yet + business description: capture_business_details, then invite build when ready.",
   "No draft yet + build/go ahead: design_website if needed, then generate_website. If the merchant described a specific vibe (luxury, modern, playful, editorial), also call change_font to pick a matching font.",
-  "No draft yet + custom code, build from scratch, unique design, handcrafted website, custom HTML: capture_business_details if needed, then generate_custom_site.",
+  ...(isCodeWorkbenchEnabled()
+    ? [
+        "No draft yet + custom code, build from scratch, unique design, handcrafted website, custom HTML: capture_business_details if needed, then generate_custom_site.",
+      ]
+    : [
+        "No draft yet + custom code / from scratch requests: use design_website + generate_website with a template storefront. Custom code workbench is not available.",
+      ]),
   "Draft exists + new design, different look, switch shop type, different layout, another style, or need something else: switch_design. The words design, look, layout, style, and vibe mean switch_design — not apply_brand_color.",
   "Draft exists + color, palette, shade, or hex only (no mention of design/look/layout/style): apply_brand_color — updates colors only, never switch_design.",
   "Font/typography (any context): change_font. Pick the font that matches the merchant's brand personality — elegant serif for luxury/editorial brands, modern sans for tech/minimal brands, clean sans for readable/service brands, script for decorative/artistic brands. Proactively prescribe a font during design, not just when asked.",
@@ -36,8 +44,12 @@ export const BUILDER_TOOL_DECISION_RULES = [
   "Draft exists + replace photos on ONE section only (Essentials/category showcase, homepage hero, about, product grid): replace_template_images with the matching scope — never full_site unless the merchant asked for the whole website.",
   "Essentials, Shop the Essentials, and category showcase mean the homepage category-showcase section — not the whole site.",
   "When generating a website or switching design, photos are auto-sourced — use replace_template_images only if the merchant asks to refresh photos again.",
-  "Draft exists + custom code, build from scratch, unique design, handcrafted website, custom HTML: generate_custom_site — generates a completely custom website using real code instead of templates.",
-  "Draft exists + edit custom code, tweak the custom site, change HTML/CSS/JS, update the custom website: edit_custom_site_code.",
+  ...(isCodeWorkbenchEnabled()
+    ? [
+        "Draft exists + custom code, build from scratch, unique design, handcrafted website, custom HTML: generate_custom_site — generates a completely custom website using real code instead of templates.",
+        "Draft exists + edit custom code, tweak the custom site, change HTML/CSS/JS, update the custom website: edit_custom_site_code.",
+      ]
+    : []),
   "Draft exists + improve product descriptions, better copy, write descriptions for products: generate_product_descriptions.",
   "Draft exists + [Image: url] reference + product/add to store context: process_product_image — ALWAYS use this for product image analysis. Extract the URL from the [Image: ...] marker in the message.",
   "Draft exists + [Image: url] reference + header/homepage/hero context (NOT product/add): refine_website_copy to update media.hero_image_url or media.about_image_url.",

@@ -9,6 +9,7 @@ import {
 } from "@/components/admin/publish-storefront-button";
 import { StorefrontPreview } from "@/components/storefront/storefront-preview";
 import type { Store, StorefrontContent, StorefrontPublishState } from "@/lib/api/types";
+import { isCodeWorkbenchEnabled } from "@/lib/features";
 import { getStorefrontUrl } from "@/lib/store-host";
 import type { AgentThinkingLogEntry } from "@/lib/storefront-builder/agents/types";
 
@@ -167,13 +168,15 @@ function PreviewHeader({
             Log
           </button>
         ) : null}
-        <Link
-          href="/admin/builder/workbench"
-          className="inline-flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm font-medium text-ink hover:bg-secondary"
-        >
-          <Code2 className="h-4 w-4" />
-          Code workbench
-        </Link>
+        {isCodeWorkbenchEnabled() ? (
+          <Link
+            href="/admin/builder/workbench"
+            className="inline-flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm font-medium text-ink hover:bg-secondary"
+          >
+            <Code2 className="h-4 w-4" />
+            Code workbench
+          </Link>
+        ) : null}
         {storefront ? (
           <Link
             href="/admin/website"

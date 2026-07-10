@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Code2, Loader2, Sparkles } from "lucide-react";
+import { Loader2, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { BuilderChatPanel } from "@/components/admin/builder/builder-chat-panel";
@@ -41,6 +41,8 @@ import {
   getLatestThinkingTurn,
   type ThinkingLogTurn,
 } from "@/lib/storefront-builder/session-thinking-log";
+import { isCodeWorkbenchEnabled } from "@/lib/features";
+import { getJsonTemplateOptions } from "@/lib/storefront/template-registry";
 
 export default function AdminBuilderPage() {
   const router = useRouter();
@@ -57,10 +59,13 @@ export default function AdminBuilderPage() {
   const sessionQuery = useBuilderSessionOrStart({ enabled: !!user });
 
   const session = sessionQuery.data?.session ?? null;
-  const templateOptions = useMemo(
-    () => templatesQuery.data ?? STOREFRONT_TEMPLATE_OPTIONS,
-    [templatesQuery.data],
-  );
+  const templateOptions = useMemo(() => {
+    const options = templatesQuery.data ?? STOREFRONT_TEMPLATE_OPTIONS;
+    if (isCodeWorkbenchEnabled()) return options;
+    const jsonOnly = getJsonTemplateOptions(options);
+    const aiPick = options.find((option) => option.value === "ai_pick");
+    return aiPick ? [aiPick, ...jsonOnly] : jsonOnly;
+  }, [templatesQuery.data]);
   const sessionThinkingTurns = useMemo(
     () => (session ? extractThinkingLogTurns(session as BuilderSession) : []),
     [session],
@@ -271,18 +276,19 @@ export default function AdminBuilderPage() {
             <p className="text-xs font-medium uppercase tracking-wide text-ink-soft">{BUILDER_PAGE.eyebrow}</p>
             <h1 className="mt-1 font-display text-3xl font-bold tracking-tight">{BUILDER_PAGE.title}</h1>
             <p className="mt-1 text-sm text-ink-soft">
-              Pick a template design and refine your storefront layout. Use the code workbench for custom
-              site code and AI edits.
+              Pick a template design and refine your storefront layout with AI, then publish when you&apos;re
+              ready.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Link
-              href="/admin/builder/workbench"
-              className="inline-flex items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2 text-xs font-medium text-ink-soft hover:text-ink"
-            >
-              <Code2 className="h-3.5 w-3.5" />
-              Code workbench
-            </Link>
+            {isCodeWorkbenchEnabled() ? (
+              <Link
+                href="/admin/builder/workbench"
+                className="inline-flex items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2 text-xs font-medium text-ink-soft hover:text-ink"
+              >
+                Code workbench
+              </Link>
+            ) : null}
             <Link
               href="/admin/builder/thinking"
               className="inline-flex items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2 text-xs font-medium text-ink-soft hover:text-ink"

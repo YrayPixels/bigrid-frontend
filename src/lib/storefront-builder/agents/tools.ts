@@ -27,6 +27,7 @@ import {
 import { STOREFRONT_FONT_OPTIONS } from "@/lib/storefront/template";
 import { attachBoltTemplateToStorefront } from "@/lib/storefront/bolt-template-storefront";
 import { resolveStorefrontTemplateType } from "@/lib/storefront/template-registry";
+import { isCodeWorkbenchEnabled } from "@/lib/features";
 import { api } from "@/lib/api/client";
 import { codeFs } from "@/lib/code-fs";
 import { createBoltStreamPipeline, lockedPathsFromStorefront } from "@/lib/bolt/bolt-stream";
@@ -74,7 +75,17 @@ const DRAFT_TOOL_NAMES = new Set([
 export function websiteBuilderToolsForSession(session: BuilderSession): WebsiteBuilderToolDef[] {
   const tools = websiteBuilderTools();
   const allowed = session.storefront_snapshot ? DRAFT_TOOL_NAMES : PRE_DRAFT_TOOL_NAMES;
-  return tools.filter((tool) => allowed.has(tool.name));
+  const workbenchEnabled = isCodeWorkbenchEnabled();
+  return tools.filter((tool) => {
+    if (!allowed.has(tool.name)) return false;
+    if (
+      !workbenchEnabled &&
+      (tool.name === "generate_custom_site" || tool.name === "edit_custom_site_code")
+    ) {
+      return false;
+    }
+    return true;
+  });
 }
 
 async function applyBrandedTemplateImages(
@@ -196,7 +207,7 @@ export function websiteBuilderTools(): WebsiteBuilderToolDef[] {
         let storefront = synthesizeStorefront(store, ctx.recommendations);
         const templateType = resolveStorefrontTemplateType(selected, ctx.templateOptions);
 
-        if (templateType === "bolt") {
+        if (templateType === "bolt" && isCodeWorkbenchEnabled()) {
           storefront = await attachBoltTemplateToStorefront(storefront, selected);
           ctx.storefront = storefront;
           ctx.status = "content_generated";
@@ -865,6 +876,9 @@ export function websiteBuilderTools(): WebsiteBuilderToolDef[] {
         additionalProperties: false,
       },
       handler: async (args, ctx) => {
+        if (!isCodeWorkbenchEnabled()) {
+          return { ok: false, error: "code_workbench_disabled" };
+        }
         // Bolt-style: allow generation even when the merchant says "just any".
         // Fall back to sane defaults rather than blocking on requirements.
         if (!hasMinimumBusinessProfile(ctx.profile)) {
@@ -989,6 +1003,9 @@ export function websiteBuilderTools(): WebsiteBuilderToolDef[] {
         additionalProperties: false,
       },
       handler: async (args, ctx) => {
+        if (!isCodeWorkbenchEnabled()) {
+          return { ok: false, error: "code_workbench_disabled" };
+        }
         if (!ctx.storefront) return { ok: false, error: "website_not_generated" };
         // Bolt-style: allow edits even when the merchant didn't provide full business details.
         if (!hasMinimumBusinessProfile(ctx.profile)) {

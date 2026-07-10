@@ -32,6 +32,7 @@ import type { WorkbenchContextHints } from "@/lib/bolt/select-context";
 import { mergeLiveCodeFsIntoSession, mergeLiveCodeFsIntoStorefront } from "@/lib/bolt/workbench-context";
 import { attachBoltTemplateToStorefront } from "@/lib/storefront/bolt-template-storefront";
 import { resolveStorefrontTemplateType } from "@/lib/storefront/template-registry";
+import { isCodeWorkbenchEnabled } from "@/lib/features";
 import { codeFs, type CodeFile } from "@/lib/code-fs";
 
 export function asConcreteTemplateId(value: string | null | undefined): StorefrontTemplateId | undefined {
@@ -64,6 +65,7 @@ export function shouldStreamBuilderThinking(
 }
 
 function isBoltCustomRequest(session: BuilderSession, message: string): boolean {
+  if (!isCodeWorkbenchEnabled()) return false;
   const snapshot = session.storefront_snapshot as Record<string, unknown> | null;
   const hasCustom =
     Array.isArray(snapshot?.custom_files) ||
@@ -426,7 +428,9 @@ export async function generateBuilderDraftForSession({
   const concreteTemplateId = asConcreteTemplateId(selectedTemplateId ?? undefined);
 
   if (concreteTemplateId && resolveStorefrontTemplateType(concreteTemplateId, templateOptions) === "bolt") {
-    storefront = await attachBoltTemplateToStorefront(storefront, concreteTemplateId);
+    if (isCodeWorkbenchEnabled()) {
+      storefront = await attachBoltTemplateToStorefront(storefront, concreteTemplateId);
+    }
   }
 
   return api.generateBuilderDraft(session.id, {

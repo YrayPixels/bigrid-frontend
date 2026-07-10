@@ -4,6 +4,7 @@ import {
   type StorefrontTemplateOption,
   type StorefrontTemplateType,
 } from "@/lib/api/types";
+import { isCodeWorkbenchEnabled } from "@/lib/features";
 
 /** Storefront templates are JSON block layouts; bolt code projects use the workbench separately. */
 export function isBoltStorefrontTemplateId(_templateId: StorefrontTemplateId): boolean {
@@ -51,5 +52,7 @@ export function getConcreteTemplateOptions(
     merged.push(option as StorefrontTemplateOption & { value: StorefrontTemplateId });
   }
 
-  return merged.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+  const concrete = merged.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+  if (isCodeWorkbenchEnabled()) return concrete;
+  return concrete.filter((option) => isJsonStorefrontTemplate(option.value, options));
 }
