@@ -13,6 +13,7 @@ import { useStorefrontTheme } from "@/lib/storefront/theme-context";
 import { useStorefront } from "@/lib/storefront/store-context";
 import { formatMoney } from "@/lib/storefront/format";
 import { fashionTemplateImages } from "@/lib/storefront/fashion-defaults";
+import { getHomeBlockProps, homeBlockPath } from "@/lib/storefront/home-block-content";
 import { getHomepageProducts } from "@/lib/storefront/product-plugs";
 
 function FashionImageCard({
@@ -69,6 +70,7 @@ export function FashionLookbookHome({
   const heroImageUrl = storefront.media?.hero_image_url ?? fashionTemplateImages.hero;
   const aboutImageUrl = storefront.media?.about_image_url ?? fashionTemplateImages.about;
   const faqPage = storefront.pages?.faq;
+  const featuredGrid = getHomeBlockProps<{ title?: string }>(storefront, "featured-products");
 
   return (
     <div style={{ backgroundColor: theme.palette.background, color: theme.palette.text }}>
@@ -85,9 +87,15 @@ export function FashionLookbookHome({
         </div>
         <div className="absolute inset-0 grid place-items-center px-4 text-center">
           <div className="max-w-[720px] text-white drop-shadow-[0_2px_18px_rgba(0,0,0,0.28)]">
-            <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.24em] text-white/85">
-              Modern essentials
-            </p>
+            <EditableText
+              path="pages.home.blocks.hero-main.props.eyebrow"
+              value={
+                getHomeBlockProps<{ eyebrow?: string }>(storefront, "hero-main").eyebrow ||
+                "Modern essentials"
+              }
+              as="p"
+              className="mb-3 text-[11px] font-semibold uppercase tracking-[0.24em] text-white/85"
+            />
             <EditableText
               path="hero.headline"
               value={storefront.hero.headline}
@@ -158,12 +166,13 @@ export function FashionLookbookHome({
         className="px-4 py-16 text-center sm:px-6 lg:py-20"
         style={{ backgroundColor: theme.palette.background }}
       >
-        <h2
+        <EditableText
+          path={homeBlockPath("featured-products", "title")}
+          value={featuredGrid.title || "Our Best Sellers"}
+          as="h2"
           className="text-4xl font-bold tracking-[-0.04em]"
           style={{ fontFamily: "var(--font-editorial)" }}
-        >
-          Our Best Sellers
-        </h2>
+        />
         <p className="mt-2 text-[11px]" style={{ color: theme.palette.muted }}>
           Customer favourites, always in style.
         </p>

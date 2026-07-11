@@ -9,6 +9,7 @@ import { EditableText } from "@/components/storefront/theme/editable-text";
 import { StorefrontLink } from "@/components/storefront/theme/storefront-link";
 import {
   categoryShowcaseItemHref,
+  hydrateShowcaseItemsFromCategories,
   resolveCategoryShowcaseItemLabel,
   resolveCategoryShowcaseProps,
 } from "@/lib/storefront/blocks/category-showcase-utils";
@@ -226,6 +227,12 @@ export function CategoryShowcaseBlock({
   const { theme } = useStorefrontTheme();
   const props = resolveCategoryShowcaseProps(storefront, blockId);
   const layout = props.layout ?? "editorial_grid";
+  const items =
+    categories?.length
+      ? hydrateShowcaseItemsFromCategories(props.items, categories, {
+          limit: Math.max(props.items.length, 4),
+        })
+      : props.items;
 
   if (layout === "style_tiles") {
     return (
@@ -242,7 +249,7 @@ export function CategoryShowcaseBlock({
             style={{ fontFamily: "var(--font-editorial)" }}
           />
           <div className="mt-6 grid gap-2 sm:grid-cols-2">
-            {props.items.map((item, index) => (
+            {items.map((item, index) => (
               <StyleTileItem
                 key={`${item.label}-${index}`}
                 item={item}
@@ -268,7 +275,7 @@ export function CategoryShowcaseBlock({
             className="text-center text-3xl font-bold tracking-[-0.04em]"
           />
           <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {props.items.map((item, index) => (
+            {items.map((item, index) => (
               <CompactGridItem
                 key={`${item.label}-${index}`}
                 item={item}
@@ -305,7 +312,7 @@ export function CategoryShowcaseBlock({
         style={{ fontFamily: "var(--font-editorial)" } as CSSProperties}
       />
       <div className="mx-auto mt-10 grid max-w-7xl gap-6 sm:grid-cols-2 lg:grid-cols-4">
-        {props.items.map((item, index) => (
+        {items.map((item, index) => (
           <EditorialGridItem
             key={`${item.label}-${index}`}
             item={item}

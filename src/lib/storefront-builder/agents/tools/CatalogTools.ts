@@ -5,7 +5,12 @@ import {
   resolveBlockIdFromInstruction,
 } from "@/lib/storefront/blocks/page-block-operations";
 import { resolvePageBlocks } from "@/lib/storefront/blocks/migrate-page-blocks";
+import {
+  hydrateShowcaseItemsFromCategories,
+  hydrateStorefrontCategoryShowcases,
+} from "@/lib/storefront/blocks/category-showcase-utils";
 import type { CategoryShowcaseItem } from "@/lib/storefront/blocks/types";
+import { applyCategoryShowcaseImagesOnly } from "@/lib/storefront-builder/image-sourcing";
 import type { WebsiteBuilderToolDef } from "../types";
 import {
   asNumber,
@@ -404,12 +409,18 @@ export class CatalogTools {
       {
         name: "link_category_showcase",
         description:
-          "Wire homepage Essentials / category showcase tiles to real categories. Pass items with label + category_id (from manage_categories list) and optional image_url.",
+          "Wire homepage collection sections (Essentials, curated collections, rooms, choose your style) to real store categories. Pass block_id when targeting a specific section. Pass items with label + category_id, or omit items to auto-link from existing categories. Missing tile images are filled from Unsplash.",
         parameters: {
           type: "object",
           properties: {
+            block_id: {
+              type: "string",
+              description:
+                "Target block: category-showcase, collections, rooms, or choose-style. Defaults from the merchant message.",
+            },
             title: { type: "string" },
             eyebrow: { type: "string" },
+            cta_label: { type: "string", description: 'Header CTA like "View All"' },
             items: {
               type: "array",
               items: {
@@ -420,20 +431,21 @@ export class CatalogTools {
                   category_slug: { type: "string" },
                   image_url: { type: "string" },
                   href: { type: "string" },
+                  cta_label: { type: "string" },
                 },
                 required: ["label"],
                 additionalProperties: false,
               },
             },
           },
-          required: ["items"],
           additionalProperties: false,
         },
         handler: async (args, ctx) => {
           if (!ctx.storefront) return { ok: false, error: "website_not_generated" };
 
+          const categories = await api.getCategories().catch(() => []);
           const rawItems = Array.isArray(args.items) ? args.items : [];
-          const items: CategoryShowcaseItem[] = [];
+          let items: CategoryShowcaseItem[] = [];
           for (const row of rawItems as Array<Record<string, unknown>>) {
             const label = asString(row?.label);
             if (!label) continue;
@@ -443,19 +455,36 @@ export class CatalogTools {
               category_slug: asString(row?.category_slug) || null,
               image_url: asString(row?.image_url) || null,
               href: asString(row?.href) || null,
+              cta_label: asString(row?.cta_label) || null,
             });
           }
 
-          if (!items.length) return { ok: false, error: "no_items" };
+          if (!items.length && categories.length) {
+            items = hydrateShowcaseItemsFromCategories([], categories, { limit: 8 });
+          }
+
+          if (!items.length) {
+            return {
+              ok: false,
+              error: "no_items",
+              message: "No categories to link yet. Create categories first, then link them to the section.",
+            };
+          }
 
           const blocks = resolvePageBlocks(ctx.storefront, "home");
+          const explicitBlockId = asString(args.block_id);
+          const instructionHint = [explicitBlockId, ctx.planIntent, ctx.message, "category showcase"]
+            .filter(Boolean)
+            .join(" ");
           const blockId =
-            resolveBlockIdFromInstruction("category showcase essentials", "home", blocks) ??
+            explicitBlockId ||
+            resolveBlockIdFromInstruction(instructionHint, "home", blocks) ||
             "category-showcase";
 
           const props: Record<string, unknown> = { items };
           if (asString(args.title)) props.title = asString(args.title);
           if (asString(args.eyebrow)) props.eyebrow = asString(args.eyebrow);
+          if (asString(args.cta_label)) props.cta_label = asString(args.cta_label);
 
           const result = applyPageBlockOperations(
             ctx.storefront,
@@ -468,20 +497,39 @@ export class CatalogTools {
             return {
               ok: false,
               error: "showcase_not_updated",
-              message: "Could not find or update the category showcase block (it may be locked).",
+              message: "Could not find or update that collection section (it may be locked).",
             };
           }
 
-          ctx.storefront = result.storefront;
+          let storefront = result.storefront;
+          if (categories.length) {
+            storefront = hydrateStorefrontCategoryShowcases(storefront, categories).storefront;
+          }
+
+          const images = await applyCategoryShowcaseImagesOnly(
+            storefront,
+            `${ctx.profile.business_name ?? ""} ${ctx.profile.description ?? ""} collection photos`.trim(),
+            {
+              business_name: ctx.session.store?.business_name,
+              industry: ctx.session.store?.industry,
+              description: ctx.session.store?.description,
+              tone: ctx.profile.tone,
+            },
+          );
+
+          ctx.storefront = images.storefront;
           ctx.status = "review_ready";
-          ctx.assistantMessage = `Linked ${items.length} categor${items.length === 1 ? "y" : "ies"} to your Essentials section. Check the preview.`;
+          ctx.assistantMessage = `Linked ${items.length} categor${items.length === 1 ? "y" : "ies"} to your collection section${images.changed_paths.length ? " and filled missing photos" : ""}. Check the preview.`;
           ctx.payload = {
             type: "category_showcase_linked",
             block_id: blockId,
             items,
-            changed_paths: result.changed_block_ids.map((id) => `pages.home.blocks.${id}`),
+            changed_paths: [
+              ...result.changed_block_ids.map((id) => `pages.home.blocks.${id}`),
+              ...images.changed_paths,
+            ],
           };
-          return { ok: true, block_id: blockId, items };
+          return { ok: true, block_id: blockId, items, images_filled: images.changed_paths.length };
         },
       },
       {

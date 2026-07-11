@@ -8,6 +8,7 @@ import { EditableText } from "@/components/storefront/theme/editable-text";
 import { StorefrontLink } from "@/components/storefront/theme/storefront-link";
 import { StorefrontFaqSection } from "@/components/storefront/pages/storefront-faq-section";
 import { ProductCardThemed } from "@/components/storefront/theme/product-card-themed";
+import { getHomeBlockProps, homeBlockPath } from "@/lib/storefront/home-block-content";
 import { getHomepageProducts } from "@/lib/storefront/product-plugs";
 import { useStorefrontTheme } from "@/lib/storefront/theme-context";
 
@@ -25,6 +26,9 @@ export function ClassicHome({
   const isEditorial = variant === "editorial";
   const isBoldGrid = variant === "bold_grid";
   const heroImageUrl = storefront.media?.hero_image_url;
+  const featuredGrid = getHomeBlockProps<{ title?: string }>(storefront, "featured-products");
+  const productSectionTitle =
+    featuredGrid.title || (isEditorial ? "The collection" : "Featured products");
   const ctaLabel = (
     <>
       <EditableText path="hero.cta_label" value={storefront.hero.cta_label} as="span" />
@@ -100,9 +104,13 @@ export function ClassicHome({
       >
         <div className="mb-8 flex items-end justify-between gap-4">
           <div>
-            <h2 className="text-3xl font-bold" style={{ fontFamily: theme.displayFont }}>
-              {isEditorial ? "The collection" : "Featured products"}
-            </h2>
+            <EditableText
+              path={homeBlockPath("featured-products", "title")}
+              value={productSectionTitle}
+              as="h2"
+              className="text-3xl font-bold"
+              style={{ fontFamily: theme.displayFont }}
+            />
             <p className="mt-2 text-sm" style={{ color: theme.palette.muted }}>
               {isBoldGrid
                 ? "A quick look at what customers are buying now."

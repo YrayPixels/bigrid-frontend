@@ -1,5 +1,4 @@
 import type { Store, StorefrontContent } from "@/lib/api/types";
-import { isCategoryShowcaseInstruction } from "@/lib/storefront-builder/section-scope";
 import {
   buildCategoryShowcasePropsForContext,
 } from "@/lib/storefront/blocks/category-showcase-operations";
@@ -86,6 +85,13 @@ const BLOCK_ID_ALIASES: Record<string, string> = {
   "shop the essentials": "category-showcase",
   "category showcase": "category-showcase",
   "categories section": "category-showcase",
+  collections: "collections",
+  "curated collections": "collections",
+  rooms: "rooms",
+  "space by room": "rooms",
+  "style your space": "rooms",
+  "choose your style": "choose-style",
+  "choose-style": "choose-style",
   "home faq": "home-faq",
   "faq section": "faq-main",
   "contact intro": "contact-intro",
@@ -264,7 +270,7 @@ export function regenerateSectionProps(
     case "product_grid":
       return { title: "Shop the line", limit: 4 };
     case "category_showcase":
-      return buildCategoryShowcasePropsForContext(storefront, store, "", undefined, undefined);
+      return buildCategoryShowcasePropsForContext(storefront);
     case "faq":
       return {
         title: storefront.pages?.faq?.title ?? "Frequently asked questions",
@@ -421,13 +427,13 @@ export function tryRegenerateSection(
   instruction: string,
   store?: Store | null,
 ): { storefront: StorefrontContent; changed_paths: string[]; assistant_message: string } | null {
+  // Section regenerate is driven by explicit AI regenerate_section ops when possible.
+  // Keep a narrow fallback only when the instruction literally asks to regenerate/redesign a section.
   const lower = instruction.toLowerCase();
-  const sectionRefresh =
-    /\b(redesign|regenerate|refresh|rewrite|fix)\b/.test(lower) ||
-    (isCategoryShowcaseInstruction(instruction) &&
-      /\b(update|refined|change|copy|images?|photos?|labels?|titles?|theme)\b/.test(lower));
-  if (!sectionRefresh) return null;
-  if (/\b(entire|whole|full|all)\b.*\b(site|storefront|website)\b/.test(lower)) return null;
+  if (!lower.includes("regenerate") && !lower.includes("redesign")) return null;
+  if (lower.includes("entire site") || lower.includes("whole website") || lower.includes("full storefront")) {
+    return null;
+  }
 
   const page = resolvePageFromInstruction(instruction);
   const blocks = resolvePageBlocks(storefront, page);

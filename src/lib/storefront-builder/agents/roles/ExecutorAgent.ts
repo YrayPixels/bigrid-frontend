@@ -62,6 +62,7 @@ export class ExecutorAgent extends BuilderAgent {
 
     this.sessionState = input.session.storefront_snapshot
       ? "### Session state\nA website draft already exists in the preview. Follow the plan above — call each planned tool in order. Never reply with only prose when a tool is assigned to you. Execute tools silently and report results after.\n" +
+        "When calling replace_template_images, ALWAYS set scope yourself from the merchant's intent (full_site|hero|about|category_showcase|products). Do not omit scope.\n" +
         `Enabled tools: ${input.toolDefs.map((tool) => tool.name).join(", ")}`
       : "### Session state\nNo website draft yet. Gather business details if needed, then design and generate when the merchant is ready.";
 

@@ -37,13 +37,16 @@ export const BUILDER_TOOL_DECISION_RULES = [
   "Draft exists + new design, different look, switch shop type, different layout, another style, or need something else: switch_design. The words design, look, layout, style, and vibe mean switch_design — not apply_brand_color.",
   "Draft exists + color, palette, shade, or hex only (no mention of design/look/layout/style): apply_brand_color — updates colors only, never switch_design.",
   "Font/typography (any context): change_font. Pick the font that matches the merchant's brand personality — elegant serif for luxury/editorial brands, modern sans for tech/minimal brands, clean sans for readable/service brands, script for decorative/artistic brands. Proactively prescribe a font during design, not just when asked.",
-  "Draft exists + copy/headline/about/FAQ/SEO edits, or updates to ONE page/section (Essentials, category showcase, hero, about): refine_website_copy.",
+  "Draft exists + copy/headline/about/FAQ/SEO edits, or updates to ANY page/section text (Essentials, category showcase, hero, about, promo panels, collections, rooms, best sellers titles): refine_website_copy — use pages.home.blocks.{id}.props.* for section copy.",
   "Draft exists + stock photos (quick template defaults): apply_stock_images.",
   "Draft exists + find/source photo ideas, brand-matched images, or what photos to use: source_website_images.",
-  "Draft exists + replace ALL placeholder photos across the entire website: replace_template_images with scope full_site only.",
-  "Draft exists + replace photos on ONE section only (Essentials/category showcase, homepage/landing page hero, about, product grid): replace_template_images with the matching scope — never full_site unless the merchant asked for the whole website.",
-  "Essentials, Shop the Essentials, and category showcase mean the homepage category-showcase section — not the whole site.",
-  "Landing page, homepage header, and hero image mean the homepage hero — use replace_template_images with scope hero.",
+  "Draft exists + image/photo updates: replace_template_images. ALWAYS pass scope yourself from merchant intent — never omit scope.",
+  "scope full_site: refresh photos across the site, or vague asks like 'update the images' / 'better photos' with no section named.",
+  "scope hero: landing page, homepage header, hero image.",
+  "scope about: about section photo.",
+  "scope category_showcase: Essentials, curated collections, rooms, choose your style.",
+  "scope products: best sellers / product grid / new arrivals (uses merchant products; seeds draft products if empty).",
+  "Essentials / collections / rooms / choose your style tiles: link_category_showcase (optional block_id). Missing tile images fill from Unsplash when linking or refreshing category_showcase.",
   "When generating a website or switching design, photos are auto-sourced — use replace_template_images only if the merchant asks to refresh photos again.",
   ...(isCodeWorkbenchEnabled()
     ? [
@@ -95,7 +98,7 @@ export const BUILDER_PLANNER_SYSTEM_PROMPT_PREFIX =
   "Plan step descriptions must use plain language a shop owner understands.\n" +
   "Speak in terms of websites, pages, copy, and brand — never templates.\n" +
   "When the merchant scoped work to one page or section, every step must stay within that scope.\n" +
-  "Do not assign replace_template_images for section-only requests — use refine_website_copy for copy and replace_template_images with a section scope for images.\n\n" +
+  "For image updates, assign replace_template_images — the Executor must choose scope (full_site|hero|about|category_showcase|products) from merchant intent; never rely on keyword matching.\n\n" +
   "CRITICAL — every actionable step MUST include a non-empty tools array using ONLY allowed tool names.\n" +
   "CRITICAL — match the merchant request narrowly. Do NOT invent extra website edits.\n" +
   "- If they only ask to list/show/display products → ONE step with tools: [\"list_products\"]. Do NOT add a product grid or homepage changes.\n" +
@@ -106,7 +109,7 @@ export const BUILDER_PLANNER_SYSTEM_PROMPT_PREFIX =
   "- Color/palette only (no mention of design/look/layout) → apply_brand_color\n" +
   "- Design/look/layout/style changes (not just colors) → switch_design\n" +
   "- Font/typography changes → change_font\n" +
-  "- Image/photo requests → apply_stock_images, source_website_images, or replace_template_images depending on scope\n" +
+  "- Image/photo requests → replace_template_images (preferred), or source_website_images / apply_stock_images. Executor picks scope.\n" +
   "- List/show existing products → list_products\n" +
   "- Adding products → add_products\n" +
   "- Update/archive/delete/duplicate products or set variants → update_product / archive_product / delete_product / duplicate_product / set_product_variants\n" +
@@ -137,13 +140,14 @@ export const BUILDER_EXECUTOR_CONTEXT_SUFFIX =
   "Speak as if you are personally designing and building the merchant's website.";
 
 export const BUILDER_EDITOR_HOME_SECTIONS =
-  "Homepage sections (cosmetics and block-based templates) — use update_block OR matching flat paths:\n" +
+  "Homepage sections — use update_block OR matching flat paths (works across all templates):\n" +
   '- hero-main: eyebrow, headline, subheadline, cta_label — or hero.headline / hero.subheadline / hero.cta_label / pages.home.blocks.hero-main.props.eyebrow\n' +
   '- home-stats: props.items[{value,label}] — or home_stats[N].value / home_stats[N].label\n' +
   '- about-spotlight: title, body, badges — or about.title / about.body / value_props[N].title / value_props[N].body\n' +
-  '- serum-promo: title, body, bullets[], cta_label — or pages.home.blocks.serum-promo.props.*\n' +
-  '- trust-features: title, body, items[{title,body}] — or pages.home.blocks.trust-features.props.*\n' +
-  '- category-showcase: title, eyebrow, layout, items[{label,image_url,category_id,cta_label}] — also called "Essentials" or "Shop the Essentials"\n' +
+  '- serum-promo / modern-form / perfect-match / extensions-kit / newsletter: title, body, bullets[], cta_label, image_url — or pages.home.blocks.{id}.props.*\n' +
+  '- trust-features / difference / reviews: title, body, image_url, items[{title,body}] — or pages.home.blocks.{id}.props.*\n' +
+  '- category-showcase / collections / rooms / choose-style: title, eyebrow, layout, items[{label,image_url,category_id,cta_label}] — also called "Essentials" or "Shop the Essentials"\n' +
+  '- product_grid (featured-products / bestsellers / new-arrivals): title — product photos come from storefront.products, not theme stock\n' +
   "- testimonials: home_testimonials_title, home_testimonials_intro, home_testimonials[N].quote, home_testimonials[N].author\n" +
   "- homepage FAQ preview: pages.faq.title and pages.faq.items[N].question / answer\n" +
   'Example update_block: {"op":"update_block","page":"home","block_id":"serum-promo","props":{"title":"Glow Serums","bullets":["...","..."]}}';
@@ -161,11 +165,11 @@ export const BUILDER_EDITOR_SYSTEM_PROMPT =
   '- reorder_blocks: {"op":"reorder_blocks","page":"home","order":["hero-main","..."]}\n' +
   '- remove_block: {"op":"remove_block","page":"...","block_id":"..."} — never remove hero-main, about-main, contact-form, or faq-main\n' +
   "Block types: hero, stats_row, rich_text, feature_grid, cta_banner, product_grid, category_showcase, faq, contact_form.\n" +
-  "Common home block ids: hero-main, home-stats, about-spotlight, serum-promo, trust-features, category-showcase, home-faq.\n" +
+  "Common home block ids: hero-main, home-stats, about-spotlight, serum-promo, trust-features, category-showcase, perfect-match, extensions-kit, difference, collections, modern-form, rooms, reviews, choose-style, bestsellers, new-arrivals, featured-products, newsletter, home-faq.\n" +
   "Respect edit_metadata.locked on blocks.\n" +
   "If the merchant asks to remove placeholder or test header text, replace hero.headline with on-brand copy using the business name and industry tone from context.\n" +
-  "If the merchant asks to update, refresh, or improve a named section (Essentials, category showcase, hero, about, products page), change only that section — not the whole website.\n" +
+  "If the merchant asks to update, refresh, or improve a named section (Essentials, category showcase, hero, about, products page, collections, promo panels), change only that section — not the whole website.\n" +
   "If the merchant asks to update, refresh, or improve FAQ questions or answers without specifics, rewrite all FAQ items tailored to their business.\n" +
   "Never append filler like 'Updated to match your request.' — rewrite copy cleanly.\n" +
-  "Do not change products, palette, template, or unrelated fields.\n" +
+  "Do not change palette or template. Product catalog images for best sellers / product grids are updated via replace_template_images (products or full_site), not this editor — but section titles for those grids ARE editable here.\n" +
   "Prefer applying sensible inferred updates over asking clarifying questions. Only ask a question when a required detail is impossible to infer.";

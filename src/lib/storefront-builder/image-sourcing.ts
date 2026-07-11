@@ -20,7 +20,7 @@ import {
   inferUnsplashSearchPlanWithAi,
   searchUnsplashPhotos,
 } from "@/lib/storefront-builder/unsplash-client";
-import { resolveCategoryShowcaseProps } from "@/lib/storefront/blocks/category-showcase-utils";
+import { resolveCategoryShowcaseProps, showcaseItemsMissingImages } from "@/lib/storefront/blocks/category-showcase-utils";
 import { ensureMerchantHomepageProducts } from "@/lib/storefront/product-plugs";
 import type { ImageReplaceScope } from "@/lib/storefront-builder/section-scope";
 import { describeImageScope } from "@/lib/storefront-builder/section-scope";
@@ -230,7 +230,11 @@ function patchCategoryShowcaseBlocks(blocks: StorefrontBlock[], plan: TemplateIm
         ...props,
         items: items.map((item, index) => ({
           ...item,
-          image_url: plan.product_urls[index % plan.product_urls.length] ?? item.image_url,
+          // Fill gaps only — keep merchant/custom collection photos.
+          image_url:
+            item.image_url && String(item.image_url).trim()
+              ? item.image_url
+              : plan.product_urls[index % plan.product_urls.length] ?? item.image_url,
         })),
       },
     };
@@ -451,7 +455,7 @@ function applyProductImagesOnly(
   return { storefront: next, changed_paths: changedPaths };
 }
 
-async function applyCategoryShowcaseImagesOnly(
+export async function applyCategoryShowcaseImagesOnly(
   storefront: StorefrontContent,
   intent: string,
   context: ImageSourceContext = {},
@@ -459,41 +463,71 @@ async function applyCategoryShowcaseImagesOnly(
   const next = structuredClone(storefront);
   ensureHomeBlocksOnStorefront(next);
 
-  const props = resolveCategoryShowcaseProps(next);
-  const itemCount = Math.max(props.items.length, 4);
-  const searchPlan = await inferUnsplashSearchPlanWithAi(context, intent);
-  const queries =
-    searchPlan.products.length > 0
-      ? searchPlan.products
-      : searchPlan.search_terms.length > 0
-        ? searchPlan.search_terms
-        : [intent, context.description ?? "product category"].filter(Boolean).map(String);
-
-  const urls = await fetchImageUrlsForQueries(queries, itemCount);
-  const resolvedUrls =
-    urls.length > 0 ? urls : fallbackCategoryShowcaseUrls(intent, context, itemCount);
+  const homeBlocks = migrateHomeBlocks(next);
   const changedPaths: string[] = [];
-  const homeBlocks = migrateHomeBlocks(next).map((block) => {
-    if (block.type !== "category_showcase" && block.id !== "category-showcase") return block;
+  const searchTerms: string[] = [];
+
+  const updatedBlocks = [];
+  for (const block of homeBlocks) {
+    if (block.type !== "category_showcase" && block.id !== "category-showcase") {
+      updatedBlocks.push(block);
+      continue;
+    }
 
     const currentItems = resolveCategoryShowcaseProps(next, block.id).items;
-    const items = currentItems.map((item, index) => {
-      const imageUrl = resolvedUrls[index % Math.max(resolvedUrls.length, 1)] ?? item.image_url;
-      changedPaths.push(`pages.home.blocks.${block.id}.props.items.${index}.image_url`);
-      return { ...item, image_url: imageUrl ?? item.image_url };
+    const missingIndexes = showcaseItemsMissingImages(currentItems);
+    const items = [...currentItems];
+
+    // Prefer per-tile Unsplash queries from the collection label when images are missing.
+    for (const index of missingIndexes) {
+      const label = items[index]?.label?.trim() || intent || context.description || "product collection";
+      searchTerms.push(label);
+      const urls = await fetchImageUrlsForQueries([label], 1);
+      const fallback =
+        urls[0] ??
+        fallbackCategoryShowcaseUrls(label, context, 1)[0] ??
+        null;
+      if (fallback) {
+        items[index] = { ...items[index], image_url: fallback };
+        changedPaths.push(`pages.home.blocks.${block.id}.props.items.${index}.image_url`);
+      }
+    }
+
+    // AI already chose category_showcase scope — fill gaps, or refresh all when every tile already has a photo.
+    if (!missingIndexes.length) {
+      const queries = currentItems.map(
+        (item) => item.label?.trim() || intent || context.description || "product collection",
+      );
+      searchTerms.push(...queries);
+      const urls = await fetchImageUrlsForQueries(queries, Math.max(queries.length, 4));
+      const resolvedUrls =
+        urls.length > 0 ? urls : fallbackCategoryShowcaseUrls(intent, context, Math.max(queries.length, 4));
+      for (let index = 0; index < items.length; index += 1) {
+        const imageUrl = resolvedUrls[index % Math.max(resolvedUrls.length, 1)];
+        if (!imageUrl) continue;
+        items[index] = { ...items[index], image_url: imageUrl };
+        changedPaths.push(`pages.home.blocks.${block.id}.props.items.${index}.image_url`);
+      }
+    }
+
+    updatedBlocks.push({
+      ...block,
+      props: { ...(block.props as Record<string, unknown>), items },
     });
+  }
 
-    return { ...block, props: { ...(block.props as Record<string, unknown>), items } };
-  });
-
-  next.pages = { ...next.pages, home: { blocks: homeBlocks } };
+  next.pages = { ...next.pages, home: { blocks: updatedBlocks } };
   ensureHomeBlocksOnStorefront(next);
 
+  const filled = changedPaths.length;
   return {
     storefront: next,
     changed_paths: changedPaths,
-    search_terms: searchPlan.search_terms,
-    summary: searchPlan.summary ?? `I updated photos in your ${describeImageScope("category_showcase")}.`,
+    search_terms: [...new Set(searchTerms)],
+    summary:
+      filled > 0
+        ? `I updated ${filled} collection photo${filled === 1 ? "" : "s"} across your Essentials / collections sections.`
+        : `Your ${describeImageScope("category_showcase")} already had photos — tell me if you want them refreshed.`,
   };
 }
 

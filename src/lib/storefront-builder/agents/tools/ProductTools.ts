@@ -40,6 +40,7 @@ export class ProductTools {
 
           const added: string[] = [];
           const failed: string[] = [];
+          const createdProducts: Awaited<ReturnType<typeof api.createProduct>>[] = [];
 
           for (const item of raw) {
             try {
@@ -49,7 +50,7 @@ export class ProductTools {
                 failed.push(name || "(unnamed)");
                 continue;
               }
-              await api.createProduct({
+              const created = await api.createProduct({
                 name,
                 price,
                 description: typeof item.description === "string" ? item.description : "",
@@ -62,6 +63,7 @@ export class ProductTools {
                 stock_quantity: typeof item.stock_quantity === "number" ? item.stock_quantity : undefined,
                 image_url: typeof item.image_url === "string" ? item.image_url : null,
               });
+              createdProducts.push(created);
               added.push(name);
             } catch (err) {
               console.error(
@@ -76,6 +78,18 @@ export class ProductTools {
             ctx.assistantMessage =
               "I couldn't add those products. Please try again with product names and prices.";
             return { ok: false, error: "all_failed" };
+          }
+
+          if (ctx.storefront) {
+            const existing = ctx.storefront.products ?? [];
+            ctx.storefront = {
+              ...ctx.storefront,
+              products: [...createdProducts, ...existing],
+              data_plugs: {
+                ...ctx.storefront.data_plugs,
+                home_products_source: "merchant_products",
+              },
+            };
           }
 
           const summary =

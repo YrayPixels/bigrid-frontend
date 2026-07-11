@@ -18,11 +18,15 @@ export type CategoryShowcaseItem = {
   image_url?: string | null;
   href?: string | null;
   cta_label?: string | null;
+  /** Optional supporting line under the tile label (e.g. featured style blurb). */
+  body?: string | null;
 };
 
 export type CategoryShowcaseBlockProps = {
   title: string;
   eyebrow?: string;
+  /** Optional header CTA (e.g. "View All"). */
+  cta_label?: string;
   layout?: CategoryShowcaseLayout;
   items: CategoryShowcaseItem[];
 };

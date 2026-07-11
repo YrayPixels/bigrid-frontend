@@ -18,18 +18,30 @@ import {
   furnitureHardwareRooms,
   furnitureHardwareTemplateImages,
 } from "@/lib/storefront/furniture-hardware-defaults";
+import {
+  categoryShowcaseItemHref,
+  hydrateShowcaseItemsFromCategories,
+  resolveCategoryShowcaseItemLabel,
+} from "@/lib/storefront/blocks/category-showcase-utils";
+import type { CategoryShowcaseItem } from "@/lib/storefront/blocks/types";
+import { getHomeBlockProps, homeBlockPath } from "@/lib/storefront/home-block-content";
 import { getHomepageProducts } from "@/lib/storefront/product-plugs";
+import { useStorefront } from "@/lib/storefront/store-context";
 import { useStorefrontTheme } from "@/lib/storefront/theme-context";
 
 const arrivalFilters = ["All", "Chairs", "Tables", "Sofas", "Accessories"];
 
+type FeatureItem = { title?: string; body?: string };
+
 function FurnitureProductCard({
   product,
   index,
+  imagePath,
   editable,
 }: {
   product: StoreProduct;
   index: number;
+  imagePath?: string;
   editable: boolean;
 }) {
   const imageUrl =
@@ -44,10 +56,12 @@ function FurnitureProductCard({
       className={`group ${editable ? "pointer-events-none" : ""}`}
     >
       <div className="aspect-square overflow-hidden rounded-2xl bg-[#f4f0e8]">
-        <img
+        <EditableImage
+          path={imagePath}
           src={imageUrl}
           alt={product.name}
-          className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+          className="h-full w-full"
+          imgClassName="object-cover transition duration-500 group-hover:scale-105"
         />
       </div>
       <div className="mt-4 px-1">
@@ -80,9 +94,62 @@ export function FurnitureHardwareHome({
   storefront: StorefrontContent;
 }) {
   const { mode } = useStorefrontTheme();
+  const { categories } = useStorefront();
   const editable = mode === "edit";
-  const { products: featuredProducts } = getHomepageProducts(storefront, "furniture-hardware", 4);
+  const products = storefront.products ?? [];
+  const { products: featuredProducts, source: productSource } = getHomepageProducts(
+    storefront,
+    "furniture-hardware",
+    4,
+  );
   const brandLabel = store.business_name.toUpperCase().slice(0, 5).padEnd(5, " ");
+
+  const collections = getHomeBlockProps<{
+    title?: string;
+    cta_label?: string;
+    items?: CategoryShowcaseItem[];
+  }>(storefront, "collections");
+  const collectionFallback: CategoryShowcaseItem[] = furnitureHardwareCategories.map((category) => ({
+    label: category.name,
+    image_url: category.image,
+    cta_label: `${category.count} Products`,
+  }));
+  const collectionItems = hydrateShowcaseItemsFromCategories(
+    collections.items?.length ? collections.items : collectionFallback,
+    categories ?? [],
+    { limit: 8 },
+  );
+
+  const arrivals = getHomeBlockProps<{ title?: string }>(storefront, "new-arrivals");
+  const modernForm = getHomeBlockProps<{
+    eyebrow?: string;
+    title?: string;
+    body?: string;
+    cta_label?: string;
+    image_url?: string | null;
+  }>(storefront, "modern-form");
+  const rooms = getHomeBlockProps<{ title?: string; items?: CategoryShowcaseItem[] }>(storefront, "rooms");
+  const roomFallback: CategoryShowcaseItem[] = furnitureHardwareRooms.map((room) => ({
+    label: room.name,
+    image_url: room.image,
+    cta_label: room.copy,
+  }));
+  const roomItems = hydrateShowcaseItemsFromCategories(
+    rooms.items?.length ? rooms.items : roomFallback,
+    categories ?? [],
+    { limit: 6 },
+  );
+  const reviews = getHomeBlockProps<{ title?: string; body?: string; items?: FeatureItem[] }>(
+    storefront,
+    "reviews",
+  );
+  const reviewItems =
+    reviews.items?.length
+      ? reviews.items
+      : furnitureHardwareReviews.map((review) => ({
+          title: review.name,
+          body: review.body,
+        }));
 
   return (
     <div className="min-h-screen bg-[#f7f3eb] text-[#1c1812]">
@@ -121,57 +188,79 @@ export function FurnitureHardwareHome({
                 >
                   <EditableText path="hero.cta_label" value={storefront.hero.cta_label} as="span" />
                 </StorefrontLink>
-                <StorefrontLink
-                  href="/products"
-                  className="flex h-12 items-center rounded-full border border-[#1c1812]/30 px-6 text-sm font-medium hover:bg-[#1c1812]/5"
-                >
-                  View product
-                </StorefrontLink>
               </div>
             </div>
-          </div>
-          <div className="absolute right-8 top-8 flex size-24 rotate-[-8deg] items-center justify-center rounded-full bg-[#c43d2f] text-center text-lg font-bold leading-tight text-[#f7f3eb] shadow-lg md:right-1/2 md:top-14 md:size-28 md:translate-x-[220%] md:text-xl">
-            10%
-            <br />
-            OFF
           </div>
         </section>
 
         <section className="mx-3 mt-16 md:mx-6 md:mt-24">
           <div className="mb-8 flex items-end justify-between">
-            <h2 className="text-3xl font-semibold md:text-5xl">Discover Our Curated Collections</h2>
+            <EditableText
+              path={homeBlockPath("collections", "title")}
+              value={collections.title || "Discover Our Curated Collections"}
+              as="h2"
+              className="text-3xl font-semibold md:text-5xl"
+            />
             <StorefrontLink
               href="/products"
               className="ml-4 flex h-11 shrink-0 items-center rounded-full border border-[#1c1812]/30 px-6 text-sm font-medium hover:bg-[#1c1812]/5"
             >
-              View All
+              <EditableText
+                path={homeBlockPath("collections", "cta_label")}
+                value={collections.cta_label || "View All"}
+                as="span"
+              />
             </StorefrontLink>
           </div>
           <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-            {furnitureHardwareCategories.map((category) => (
+            {collectionItems.map((category, index) => {
+              const label = resolveCategoryShowcaseItemLabel(category, categories);
+              const href = categoryShowcaseItemHref(category);
+              return (
               <StorefrontLink
-                key={category.name}
-                href="/products"
+                key={category.category_id ?? label ?? index}
+                href={href}
                 className={`group relative aspect-[4/5] overflow-hidden rounded-2xl ${editable ? "pointer-events-none" : ""}`}
               >
-                <img
-                  src={category.image}
-                  alt={category.name}
-                  className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                <EditableImage
+                  path={homeBlockPath("collections", `items.${index}.image_url`)}
+                  src={
+                    category.image_url ||
+                    furnitureHardwareCategories[index % furnitureHardwareCategories.length]?.image
+                  }
+                  alt={label || "Collection"}
+                  className="absolute inset-0 h-full w-full"
+                  imgClassName="object-cover transition duration-500 group-hover:scale-105"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
                 <div className="absolute bottom-5 left-5 text-white">
-                  <div className="text-2xl font-semibold md:text-3xl">{category.name}</div>
-                  <div className="mt-1 text-xs opacity-80">{category.count} Products</div>
+                  <EditableText
+                    path={homeBlockPath("collections", `items.${index}.label`)}
+                    value={label || "Collection"}
+                    as="span"
+                    className="text-2xl font-semibold md:text-3xl"
+                  />
+                  <EditableText
+                    path={homeBlockPath("collections", `items.${index}.cta_label`)}
+                    value={category.cta_label || ""}
+                    as="span"
+                    className="mt-1 block text-xs opacity-80"
+                  />
                 </div>
               </StorefrontLink>
-            ))}
+              );
+            })}
           </div>
         </section>
 
         <section className="mx-3 mt-16 md:mx-6 md:mt-24">
           <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
-            <h2 className="text-3xl font-semibold md:text-5xl">New Arrivals</h2>
+            <EditableText
+              path={homeBlockPath("new-arrivals", "title")}
+              value={arrivals.title || "New Arrivals"}
+              as="h2"
+              className="text-3xl font-semibold md:text-5xl"
+            />
             <div className="flex flex-wrap gap-2 text-sm">
               {arrivalFilters.map((filter, index) => (
                 <button
@@ -190,7 +279,17 @@ export function FurnitureHardwareHome({
           </div>
           <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
             {featuredProducts.slice(0, 4).map((product, index) => (
-              <FurnitureProductCard key={product.id} product={product} index={index} editable={editable} />
+              <FurnitureProductCard
+                key={product.id}
+                product={product}
+                index={index}
+                imagePath={
+                  productSource === "merchant_products" && products[index]?.id === product.id
+                    ? `products.${index}.image_url`
+                    : undefined
+                }
+                editable={editable}
+              />
             ))}
           </div>
           <div className="mt-8 flex justify-center gap-2">
@@ -204,28 +303,46 @@ export function FurnitureHardwareHome({
         </section>
 
         <section className="relative mx-3 mt-16 min-h-[420px] overflow-hidden rounded-3xl bg-[#e8dfd0] md:mx-6 md:mt-24 md:min-h-[520px]">
-          <img
-            src={furnitureHardwareTemplateImages.collection}
-            alt="Modern Form Collection"
-            className="absolute inset-0 h-full w-full object-cover"
+          <EditableImage
+            path={homeBlockPath("modern-form", "image_url")}
+            src={modernForm.image_url || furnitureHardwareTemplateImages.collection}
+            alt={modernForm.title || "Modern Form Collection"}
+            className="absolute inset-0 h-full w-full"
+            imgClassName="object-cover"
           />
           <div className="absolute inset-0 bg-gradient-to-r from-[#f7f3eb]/70 via-[#f7f3eb]/20 to-transparent" />
           <div className="relative max-w-xl p-6 md:p-14 lg:p-20">
-            <div className="mb-4 text-xs uppercase tracking-widest text-[#1c1812]/60">New Season Edit</div>
-            <h2 className="text-4xl font-semibold leading-[0.95] md:text-6xl">
-              Modern Form
-              <br />
-              Collection
-            </h2>
-            <p className="mt-5 text-sm text-[#1c1812]/70">Designed for contemporary living.</p>
-            <p className="mt-4 max-w-md text-sm leading-relaxed text-[#1c1812]/70">
-              Minimal shapes, natural materials, and refined details come together to create furniture that feels calm, functional, and timeless. Crafted to elevate modern spaces — without excess.
-            </p>
+            <EditableText
+              path={homeBlockPath("modern-form", "eyebrow")}
+              value={modernForm.eyebrow || "New Season Edit"}
+              as="span"
+              className="mb-4 text-xs uppercase tracking-widest text-[#1c1812]/60"
+            />
+            <EditableText
+              path={homeBlockPath("modern-form", "title")}
+              value={modernForm.title || "Modern Form Collection"}
+              as="h2"
+              className="whitespace-pre-line text-4xl font-semibold leading-[0.95] md:text-6xl"
+            />
+            <EditableText
+              path={homeBlockPath("modern-form", "body")}
+              value={
+                modernForm.body ||
+                "Minimal shapes, natural materials, and refined details come together to create furniture that feels calm, functional, and timeless."
+              }
+              as="p"
+              className="mt-5 max-w-md text-sm leading-relaxed text-[#1c1812]/70"
+              multiline
+            />
             <StorefrontLink
               href="/products"
               className="mt-8 inline-flex h-12 items-center rounded-full bg-[#f7f3eb] px-6 text-sm font-medium text-[#1c1812] hover:bg-[#f7f3eb]/90"
             >
-              View All
+              <EditableText
+                path={homeBlockPath("modern-form", "cta_label")}
+                value={modernForm.cta_label || "View All"}
+                as="span"
+              />
             </StorefrontLink>
           </div>
           <div className="pointer-events-none absolute right-0 top-0 h-52 w-52 overflow-hidden">
@@ -233,19 +350,16 @@ export function FurnitureHardwareHome({
               UP TO 10% OFF • UP TO 10% OFF
             </div>
           </div>
-          <div className="absolute bottom-6 right-6 flex gap-2">
-            <button type="button" aria-label="Previous" className="flex size-10 items-center justify-center rounded-full border border-[#1c1812]/10 bg-[#f7f3eb]/80 backdrop-blur">
-              <ArrowLeft className="size-4" />
-            </button>
-            <button type="button" aria-label="Next" className="flex size-10 items-center justify-center rounded-full border border-[#1c1812]/10 bg-[#f7f3eb]/80 backdrop-blur">
-              <ArrowRight className="size-4" />
-            </button>
-          </div>
         </section>
 
         <section className="mx-3 mt-16 md:mx-6 md:mt-24">
           <div className="mb-8 flex items-center justify-between">
-            <h2 className="text-3xl font-semibold md:text-5xl">Style your space by room</h2>
+            <EditableText
+              path={homeBlockPath("rooms", "title")}
+              value={rooms.title || "Style your space by room"}
+              as="h2"
+              className="text-3xl font-semibold md:text-5xl"
+            />
             <div className="flex gap-2">
               <button type="button" aria-label="Previous" className="flex size-10 items-center justify-center rounded-full border border-[#1c1812]/20">
                 <ArrowLeft className="size-4" />
@@ -256,70 +370,110 @@ export function FurnitureHardwareHome({
             </div>
           </div>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            {furnitureHardwareRooms.map((room) => (
-              <div key={room.name} className="group relative aspect-[4/5] overflow-hidden rounded-2xl">
-                <img
-                  src={room.image}
-                  alt={room.name}
-                  className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-105"
+            {roomItems.map((room, index) => {
+              const label = resolveCategoryShowcaseItemLabel(room, categories);
+              const href = categoryShowcaseItemHref(room);
+              return (
+              <StorefrontLink
+                key={room.category_id ?? label ?? index}
+                href={href}
+                className={`group relative aspect-[4/5] overflow-hidden rounded-2xl ${editable ? "pointer-events-none" : ""}`}
+              >
+                <EditableImage
+                  path={homeBlockPath("rooms", `items.${index}.image_url`)}
+                  src={
+                    room.image_url ||
+                    furnitureHardwareRooms[index % furnitureHardwareRooms.length]?.image
+                  }
+                  alt={label || "Room"}
+                  className="absolute inset-0 h-full w-full"
+                  imgClassName="object-cover transition duration-500 group-hover:scale-105"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
                 <div className="absolute bottom-6 left-6 right-6 flex items-end justify-between gap-4 text-white">
                   <div>
-                    <div className="text-2xl font-semibold md:text-3xl">{room.name}</div>
-                    <div className="mt-1 max-w-[220px] text-xs opacity-85">{room.copy}</div>
+                    <EditableText
+                      path={homeBlockPath("rooms", `items.${index}.label`)}
+                      value={label || "Room"}
+                      as="span"
+                      className="text-2xl font-semibold md:text-3xl"
+                    />
+                    <EditableText
+                      path={homeBlockPath("rooms", `items.${index}.cta_label`)}
+                      value={room.cta_label || ""}
+                      as="span"
+                      className="mt-1 block max-w-[220px] text-xs opacity-85"
+                    />
                   </div>
                   <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-white/90 text-[#1c1812]">
                     <ArrowRight className="size-4" />
                   </span>
                 </div>
-              </div>
-            ))}
+              </StorefrontLink>
+              );
+            })}
           </div>
         </section>
 
         <section className="mx-3 mt-16 md:mx-6 md:mt-24">
           <div className="mb-8 flex items-center justify-between">
-            <h2 className="text-3xl font-semibold md:text-5xl">Crafted &amp; Loved</h2>
-            <div className="flex gap-2">
-              <button type="button" aria-label="Previous" className="flex size-10 items-center justify-center rounded-full border border-[#1c1812]/20">
-                <ArrowLeft className="size-4" />
-              </button>
-              <button type="button" aria-label="Next" className="flex size-10 items-center justify-center rounded-full border border-[#1c1812]/20">
-                <ArrowRight className="size-4" />
-              </button>
-            </div>
+            <EditableText
+              path={homeBlockPath("reviews", "title")}
+              value={reviews.title || "Crafted & Loved"}
+              as="h2"
+              className="text-3xl font-semibold md:text-5xl"
+            />
           </div>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            {furnitureHardwareReviews.map((review) => (
-              <article key={review.name} className="rounded-2xl border border-[#e8e0d4]/60 bg-white p-6">
-                <div className="flex items-center gap-3 rounded-xl border border-[#e8e0d4] p-3">
-                  <img src={review.image} alt={review.product} className="size-12 rounded-lg object-cover bg-[#f4f0e8]" />
-                  <div>
-                    <div className="text-sm font-medium">{review.product}</div>
-                    <div className="mt-0.5 text-xs text-[#7a6e5e]">${review.price.toFixed(2)}</div>
+            {reviewItems.map((review, index) => {
+              const fallback = furnitureHardwareReviews[index % furnitureHardwareReviews.length];
+              return (
+                <article key={review.title ?? index} className="rounded-2xl border border-[#e8e0d4]/60 bg-white p-6">
+                  <div className="flex items-center gap-3 rounded-xl border border-[#e8e0d4] p-3">
+                    <img
+                      src={fallback?.image ?? furnitureHardwareTemplateImages.products[0]}
+                      alt={fallback?.product ?? "Product"}
+                      className="size-12 rounded-lg object-cover bg-[#f4f0e8]"
+                    />
+                    <div>
+                      <div className="text-sm font-medium">{fallback?.product ?? "Featured piece"}</div>
+                      <div className="mt-0.5 text-xs text-[#7a6e5e]">
+                        ${fallback?.price?.toFixed(2) ?? "0.00"}
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <div className="mt-4 flex gap-0.5 text-[#c43d2f]">
-                  {Array.from({ length: 5 }).map((_, index) => (
-                    <Star key={index} className="size-4 fill-current" />
-                  ))}
-                </div>
-                <p className="mt-3 text-sm leading-relaxed text-[#1c1812]/75">{review.body}</p>
-                <div className="mt-5 flex items-center gap-3 border-t border-[#e8e0d4] pt-4">
-                  <div className="flex size-10 items-center justify-center rounded-full bg-[#f4f0e8] text-xs font-semibold">
-                    {review.name
-                      .split(" ")
-                      .map((part) => part[0])
-                      .join("")}
+                  <div className="mt-4 flex gap-0.5 text-[#c43d2f]">
+                    {Array.from({ length: 5 }).map((_, starIndex) => (
+                      <Star key={starIndex} className="size-4 fill-current" />
+                    ))}
                   </div>
-                  <div>
-                    <div className="text-sm font-medium">{review.name}</div>
-                    <div className="text-xs text-[#7a6e5e]">{review.city}</div>
+                  <EditableText
+                    path={homeBlockPath("reviews", `items.${index}.body`)}
+                    value={review.body || fallback?.body || ""}
+                    as="p"
+                    className="mt-3 text-sm leading-relaxed text-[#1c1812]/75"
+                    multiline
+                  />
+                  <div className="mt-5 flex items-center gap-3 border-t border-[#e8e0d4] pt-4">
+                    <div className="flex size-10 items-center justify-center rounded-full bg-[#f4f0e8] text-xs font-semibold">
+                      {(review.title || fallback?.name || "C")
+                        .split(" ")
+                        .map((part) => part[0])
+                        .join("")}
+                    </div>
+                    <div>
+                      <EditableText
+                        path={homeBlockPath("reviews", `items.${index}.title`)}
+                        value={review.title || fallback?.name || "Customer"}
+                        as="span"
+                        className="text-sm font-medium"
+                      />
+                      <div className="text-xs text-[#7a6e5e]">{fallback?.city ?? ""}</div>
+                    </div>
                   </div>
-                </div>
-              </article>
-            ))}
+                </article>
+              );
+            })}
           </div>
         </section>
       </main>
@@ -330,9 +484,13 @@ export function FurnitureHardwareHome({
             <div className="text-2xl font-semibold tracking-[0.35em]" style={{ fontFamily: "var(--font-display)" }}>
               {brandLabel}
             </div>
-            <p className="mt-4 max-w-sm text-sm text-[#f7f3eb]/70">
-              Furniture designed to blend timeless silhouettes with the calm of modern living.
-            </p>
+            <EditableText
+              path="about.body"
+              value={storefront.about.body}
+              as="p"
+              className="mt-4 max-w-sm text-sm text-[#f7f3eb]/70"
+              multiline
+            />
             <form className="mt-6 flex max-w-sm gap-2" onSubmit={(event) => event.preventDefault()}>
               <input
                 type="email"

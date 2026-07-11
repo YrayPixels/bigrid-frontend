@@ -13,23 +13,40 @@ import {
   hairFashionProductTags,
   hairFashionTemplateImages,
 } from "@/lib/storefront/hair-fashion-defaults";
+import {
+  categoryShowcaseItemHref,
+  hydrateShowcaseItemsFromCategories,
+  resolveCategoryShowcaseItemLabel,
+} from "@/lib/storefront/blocks/category-showcase-utils";
+import type { CategoryShowcaseItem } from "@/lib/storefront/blocks/types";
+import { getHomeBlockProps, homeBlockPath } from "@/lib/storefront/home-block-content";
 import { getHomepageProducts } from "@/lib/storefront/product-plugs";
 import { useCart } from "@/lib/storefront/cart-context";
+import { useStorefront } from "@/lib/storefront/store-context";
 import { useStorefrontTheme } from "@/lib/storefront/theme-context";
 
-const styleTiles = [
-  { image: hairFashionTemplateImages.styles[0], label: "Ponytails & buns" },
-  { image: hairFashionTemplateImages.styles[1], label: "Headband wigs" },
-  { image: hairFashionTemplateImages.styles[2], label: "Clip-ins" },
+type FeatureItem = { title?: string; body?: string };
+
+const defaultStyleItems: CategoryShowcaseItem[] = [
+  {
+    label: "Wefted hair & closures",
+    image_url: hairFashionTemplateImages.styles[2],
+    cta_label: "Shop Now",
+  },
+  { label: "Ponytails & buns", image_url: hairFashionTemplateImages.styles[0] },
+  { label: "Headband wigs", image_url: hairFashionTemplateImages.styles[1] },
+  { label: "Clip-ins", image_url: hairFashionTemplateImages.styles[2] },
 ];
 
 function HairProductCard({
   product,
   index,
+  imagePath,
   editable,
 }: {
   product: StoreProduct;
   index: number;
+  imagePath?: string;
   editable: boolean;
 }) {
   const imageUrl =
@@ -42,7 +59,13 @@ function HairProductCard({
       <span className="mb-2 font-[family-name:var(--font-script)] text-3xl text-[#1a1410]/70">{tag}</span>
       <StorefrontLink href={`/products/${product.slug}`} className={editable ? "pointer-events-none" : ""}>
         <div className="flex aspect-[3/4] w-full items-end justify-center">
-          <img src={imageUrl} alt={product.name} className="h-full w-full object-contain" />
+          <EditableImage
+            path={imagePath}
+            src={imageUrl}
+            alt={product.name}
+            className="h-full w-full"
+            imgClassName="object-contain"
+          />
         </div>
       </StorefrontLink>
       <p className="mt-4 text-xs font-medium tracking-wide text-[#1a1410]">{product.name}</p>
@@ -59,10 +82,52 @@ export function HairAndFashionHome({
   storefront: StorefrontContent;
 }) {
   const { mode } = useStorefrontTheme();
+  const { categories } = useStorefront();
   const { itemCount } = useCart();
   const editable = mode === "edit";
-  const { products: featuredProducts } = getHomepageProducts(storefront, "hair-and-fashion", 4);
+  const products = storefront.products ?? [];
+  const { products: featuredProducts, source: productSource } = getHomepageProducts(storefront, "hair-and-fashion", 4);
   const navLinks = storefront.navigation?.length ? storefront.navigation : [...hairFashionNavItems];
+
+  const perfectMatch = getHomeBlockProps<{
+    title?: string;
+    body?: string;
+    cta_label?: string;
+    image_url?: string | null;
+  }>(storefront, "perfect-match");
+  const extensionsKit = getHomeBlockProps<{
+    title?: string;
+    body?: string;
+    cta_label?: string;
+    image_url?: string | null;
+  }>(storefront, "extensions-kit");
+  const difference = getHomeBlockProps<{
+    title?: string;
+    body?: string;
+    items?: FeatureItem[];
+    image_url?: string | null;
+  }>(storefront, "difference");
+  const differenceItems =
+    difference.items?.length
+      ? difference.items
+      : hairFashionDifferences.map(({ title, body }) => ({ title, body }));
+  const chooseStyle = getHomeBlockProps<{ title?: string; items?: CategoryShowcaseItem[] }>(
+    storefront,
+    "choose-style",
+  );
+  const styleItems = hydrateShowcaseItemsFromCategories(
+    chooseStyle.items?.length ? chooseStyle.items : defaultStyleItems,
+    categories ?? [],
+    { limit: 8 },
+  );
+  const featuredTile = styleItems[0] ?? defaultStyleItems[0];
+  const styleTiles = styleItems.slice(1);
+  const bestsellers = getHomeBlockProps<{ title?: string }>(storefront, "bestsellers");
+  const newsletter = getHomeBlockProps<{
+    title?: string;
+    body?: string;
+    cta_label?: string;
+  }>(storefront, "newsletter");
 
   return (
     <main className="bg-white text-[#1a1410]">
@@ -159,113 +224,234 @@ export function HairAndFashionHome({
 
       <section className="grid md:grid-cols-2">
         <div className="flex flex-col items-center bg-[#f5f2ec] px-8 py-20 text-center lg:px-16 lg:py-28">
-          <h2 className="font-[family-name:var(--font-editorial)] text-4xl text-[#1a1410] lg:text-5xl">The perfect match.</h2>
-          <p className="mt-6 max-w-md text-sm leading-relaxed text-[#1a1410]/70">
-            Our signature textures are created to blend flawlessly with the natural curls, coils, and kinks you were born with.
-          </p>
+          <EditableText
+            path={homeBlockPath("perfect-match", "title")}
+            value={perfectMatch.title || "The perfect match."}
+            as="h2"
+            className="font-[family-name:var(--font-editorial)] text-4xl text-[#1a1410] lg:text-5xl"
+          />
+          <EditableText
+            path={homeBlockPath("perfect-match", "body")}
+            value={
+              perfectMatch.body ||
+              "Our signature textures are created to blend flawlessly with the natural curls, coils, and kinks you were born with."
+            }
+            as="p"
+            className="mt-6 max-w-md text-sm leading-relaxed text-[#1a1410]/70"
+            multiline
+          />
           <StorefrontLink
             href="/products"
             className="mt-8 inline-flex items-center justify-center bg-[#1a1410] px-8 py-3.5 text-[0.7rem] font-semibold uppercase tracking-[0.3em] text-white transition-colors hover:bg-[#1a1410]/80"
           >
-            Shop Extensions
+            <EditableText
+              path={homeBlockPath("perfect-match", "cta_label")}
+              value={perfectMatch.cta_label || "Shop Extensions"}
+              as="span"
+            />
           </StorefrontLink>
-          <img src={hairFashionTemplateImages.match} alt="Perfect match" className="mt-14 max-h-[520px] w-auto object-contain" />
+          <EditableImage
+            path={homeBlockPath("perfect-match", "image_url")}
+            src={perfectMatch.image_url || hairFashionTemplateImages.match}
+            alt="Perfect match"
+            className="mt-14 max-h-[520px] w-auto"
+            imgClassName="max-h-[520px] w-auto object-contain"
+          />
         </div>
         <div className="flex flex-col items-center bg-white px-8 py-20 text-center lg:px-16 lg:py-28">
-          <h2 className="font-[family-name:var(--font-editorial)] text-4xl text-[#1a1410] lg:text-5xl">Perfect extensions kit.</h2>
-          <p className="mt-6 max-w-md text-sm leading-relaxed text-[#1a1410]/70">
-            Our texture-tailored maintenance kits are specially formulated to meet the needs of hair extensions wearers everywhere.
-          </p>
+          <EditableText
+            path={homeBlockPath("extensions-kit", "title")}
+            value={extensionsKit.title || "Perfect extensions kit."}
+            as="h2"
+            className="font-[family-name:var(--font-editorial)] text-4xl text-[#1a1410] lg:text-5xl"
+          />
+          <EditableText
+            path={homeBlockPath("extensions-kit", "body")}
+            value={
+              extensionsKit.body ||
+              "Our texture-tailored maintenance kits are specially formulated to meet the needs of hair extensions wearers everywhere."
+            }
+            as="p"
+            className="mt-6 max-w-md text-sm leading-relaxed text-[#1a1410]/70"
+            multiline
+          />
           <StorefrontLink
             href="/products"
             className="mt-8 inline-flex items-center justify-center bg-[#1a1410] px-8 py-3.5 text-[0.7rem] font-semibold uppercase tracking-[0.3em] text-white transition-colors hover:bg-[#1a1410]/80"
           >
-            Shop Extensions Care
+            <EditableText
+              path={homeBlockPath("extensions-kit", "cta_label")}
+              value={extensionsKit.cta_label || "Shop Extensions Care"}
+              as="span"
+            />
           </StorefrontLink>
-          <img src={hairFashionTemplateImages.kit} alt="Extensions kit" className="mt-14 max-h-[520px] w-auto object-contain" />
+          <EditableImage
+            path={homeBlockPath("extensions-kit", "image_url")}
+            src={extensionsKit.image_url || hairFashionTemplateImages.kit}
+            alt="Extensions kit"
+            className="mt-14 max-h-[520px] w-auto"
+            imgClassName="max-h-[520px] w-auto object-contain"
+          />
         </div>
       </section>
 
-      <section
-        className="relative py-24 text-white lg:py-32"
-        style={{
-          backgroundImage: `linear-gradient(rgba(10,8,8,0.72),rgba(10,8,8,0.82)), url(${hairFashionTemplateImages.textureBg})`,
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-        }}
-      >
-        <div className="mx-auto max-w-[1200px] px-6 lg:px-10">
-          <h2 className="text-center font-[family-name:var(--font-script)] text-6xl text-white lg:text-7xl">
-            the lush roots difference
-          </h2>
+      <section className="relative overflow-hidden py-24 text-white lg:py-32">
+        <EditableImage
+          path={homeBlockPath("difference", "image_url")}
+          src={difference.image_url || hairFashionTemplateImages.textureBg}
+          alt=""
+          className="absolute inset-0"
+          imgClassName="object-cover"
+        />
+        <div
+          className="absolute inset-0"
+          style={{ background: "linear-gradient(rgba(10,8,8,0.72),rgba(10,8,8,0.82))" }}
+        />
+        <div className="relative mx-auto max-w-[1200px] px-6 lg:px-10">
+          <EditableText
+            path={homeBlockPath("difference", "title")}
+            value={difference.title || "the lush roots difference"}
+            as="h2"
+            className="text-center font-[family-name:var(--font-script)] text-6xl text-white lg:text-7xl"
+          />
           <div className="mt-16 grid gap-x-16 gap-y-14 md:grid-cols-2">
-            {hairFashionDifferences.map((item) => (
-              <div key={item.number} className="relative pl-24">
-                <span className="absolute left-0 top-0 font-[family-name:var(--font-editorial)] text-6xl leading-none text-white/15">
-                  {item.number}
-                </span>
-                <h3 className="text-[0.75rem] font-semibold uppercase tracking-[0.32em]">{item.title}</h3>
-                <p className="mt-4 max-w-md text-sm leading-relaxed text-white/75">{item.body}</p>
-              </div>
-            ))}
+            {differenceItems.map((item, index) => {
+              const fallback = hairFashionDifferences[index];
+              const number = String(index + 1).padStart(2, "0");
+              return (
+                <div key={`${item.title ?? "diff"}-${index}`} className="relative pl-24">
+                  <span className="absolute left-0 top-0 font-[family-name:var(--font-editorial)] text-6xl leading-none text-white/15">
+                    {number}
+                  </span>
+                  <EditableText
+                    path={homeBlockPath("difference", `items.${index}.title`)}
+                    value={item.title || fallback?.title || ""}
+                    as="h3"
+                    className="text-[0.75rem] font-semibold uppercase tracking-[0.32em]"
+                  />
+                  <EditableText
+                    path={homeBlockPath("difference", `items.${index}.body`)}
+                    value={item.body || fallback?.body || ""}
+                    as="p"
+                    className="mt-4 max-w-md text-sm leading-relaxed text-white/75"
+                    multiline
+                  />
+                </div>
+              );
+            })}
           </div>
-          <p className="mt-20 text-center text-[0.7rem] uppercase tracking-[0.3em] text-white/80">
-            <span className="underline underline-offset-4">See More Reasons</span> why over 250,000 women believe in
-            and trust the Lush Roots difference
-          </p>
+          <EditableText
+            path={homeBlockPath("difference", "body")}
+            value={
+              difference.body ||
+              "Why over 250,000 women believe in and trust the Lush Roots difference."
+            }
+            as="p"
+            className="mt-20 text-center text-[0.7rem] uppercase tracking-[0.3em] text-white/80"
+            multiline
+          />
         </div>
       </section>
 
       <section className="bg-white py-20 lg:py-28">
         <div className="mx-auto max-w-[1200px] px-6 lg:px-10">
-          <h2 className="text-center font-[family-name:var(--font-editorial)] text-4xl text-[#1a1410] lg:text-5xl">
-            Choose your style
-          </h2>
+          <EditableText
+            path={homeBlockPath("choose-style", "title")}
+            value={chooseStyle.title || "Choose your style"}
+            as="h2"
+            className="text-center font-[family-name:var(--font-editorial)] text-4xl text-[#1a1410] lg:text-5xl"
+          />
           <div className="mt-14 grid grid-cols-2 gap-4 lg:gap-6">
             <div className="relative flex aspect-square flex-col items-center justify-center overflow-hidden bg-[#1a1410] p-8 text-center text-white">
-              <img
-                src={hairFashionTemplateImages.styles[2]}
+              <EditableImage
+                path={homeBlockPath("choose-style", "items.0.image_url")}
+                src={featuredTile.image_url || hairFashionTemplateImages.styles[2]}
                 alt=""
-                className="absolute inset-0 h-full w-full object-cover opacity-30 transition group-hover:opacity-40"
+                className="absolute inset-0 h-full w-full opacity-30 transition group-hover:opacity-40"
+                imgClassName="h-full w-full object-cover"
               />
               <div className="relative">
-                <h3 className="font-[family-name:var(--font-editorial)] text-2xl lg:text-3xl">
-                  Wefted hair
-                  <br />& closures
-                </h3>
-                <p className="mx-auto mt-3 max-w-[220px] text-xs text-white/75">
-                  For protective styles that perfectly match your texture.
-                </p>
+                <EditableText
+                  path={homeBlockPath("choose-style", "items.0.label")}
+                  value={resolveCategoryShowcaseItemLabel(featuredTile, categories) || "Wefted hair & closures"}
+                  as="h3"
+                  className="font-[family-name:var(--font-editorial)] text-2xl lg:text-3xl"
+                />
+                <EditableText
+                  path={homeBlockPath("choose-style", "items.0.body")}
+                  value={
+                    featuredTile.body ||
+                    "For protective styles that perfectly match your texture."
+                  }
+                  as="p"
+                  className="mx-auto mt-3 max-w-[220px] text-xs text-white/75"
+                  multiline
+                />
                 <StorefrontLink
-                  href="/products"
-                  className="mt-5 inline-flex bg-[#f8d0c4] px-6 py-2.5 text-[0.65rem] font-semibold uppercase tracking-[0.3em] text-[#1a1410] transition hover:bg-white"
+                  href={categoryShowcaseItemHref(featuredTile)}
+                  className={`mt-5 inline-flex bg-[#f8d0c4] px-6 py-2.5 text-[0.65rem] font-semibold uppercase tracking-[0.3em] text-[#1a1410] transition hover:bg-white ${editable ? "pointer-events-none" : ""}`}
                 >
-                  Shop Now
+                  <EditableText
+                    path={homeBlockPath("choose-style", "items.0.cta_label")}
+                    value={featuredTile.cta_label || "Shop Now"}
+                    as="span"
+                  />
                 </StorefrontLink>
               </div>
             </div>
-            {styleTiles.map((tile) => (
-              <div key={tile.label} className="group relative aspect-square overflow-hidden bg-[#f8d0c4]">
-                <img
-                  src={tile.image}
-                  alt={tile.label}
-                  className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
-                />
-                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/40 to-transparent p-5">
-                  <span className="text-[0.7rem] font-semibold uppercase tracking-[0.3em] text-white">{tile.label}</span>
-                </div>
-              </div>
-            ))}
+            {styleTiles.map((tile, index) => {
+              const itemIndex = index + 1;
+              const fallback = defaultStyleItems[itemIndex];
+              const label = resolveCategoryShowcaseItemLabel(tile, categories);
+              return (
+                <StorefrontLink
+                  key={tile.category_id ?? label ?? `style-${itemIndex}`}
+                  href={categoryShowcaseItemHref(tile)}
+                  className={`group relative aspect-square overflow-hidden bg-[#f8d0c4] ${editable ? "pointer-events-none" : ""}`}
+                >
+                  <EditableImage
+                    path={homeBlockPath("choose-style", `items.${itemIndex}.image_url`)}
+                    src={tile.image_url || fallback?.image_url}
+                    alt={label || fallback?.label || "Style"}
+                    className="h-full w-full"
+                    imgClassName="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
+                  />
+                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/40 to-transparent p-5">
+                    <EditableText
+                      path={homeBlockPath("choose-style", `items.${itemIndex}.label`)}
+                      value={label || fallback?.label || ""}
+                      as="span"
+                      className="text-[0.7rem] font-semibold uppercase tracking-[0.3em] text-white"
+                    />
+                  </div>
+                </StorefrontLink>
+              );
+            })}
           </div>
         </div>
       </section>
 
       <section className="bg-white py-20 lg:py-28">
         <div className="mx-auto max-w-[1200px] px-6 lg:px-10">
-          <h2 className="text-center font-[family-name:var(--font-editorial)] text-4xl text-[#1a1410] lg:text-5xl">Best sellers</h2>
+          <EditableText
+            path={homeBlockPath("bestsellers", "title")}
+            value={bestsellers.title || "Best sellers"}
+            as="h2"
+            className="text-center font-[family-name:var(--font-editorial)] text-4xl text-[#1a1410] lg:text-5xl"
+          />
           <div className="mt-14 grid grid-cols-2 gap-8 md:grid-cols-4 lg:gap-10">
             {featuredProducts.slice(0, 4).map((product, index) => (
-              <HairProductCard key={product.id} product={product} index={index} editable={editable} />
+              <HairProductCard
+                key={product.id}
+                product={product}
+                index={index}
+                imagePath={
+                  productSource === "merchant_products" && products[index]?.id === product.id
+                    ? `products.${index}.image_url`
+                    : undefined
+                }
+                editable={editable}
+              />
             ))}
           </div>
         </div>
@@ -273,10 +459,22 @@ export function HairAndFashionHome({
 
       <section className="bg-[#f8d0c4] py-20 lg:py-24">
         <div className="mx-auto max-w-2xl px-6 text-center">
-          <h2 className="font-[family-name:var(--font-script)] text-5xl text-[#1a1410] lg:text-6xl">stay in the loop</h2>
-          <p className="mt-4 text-sm text-[#1a1410]/75">
-            Get first access to new textures, restocks, and styling tips crafted for your curls.
-          </p>
+          <EditableText
+            path={homeBlockPath("newsletter", "title")}
+            value={newsletter.title || "stay in the loop"}
+            as="h2"
+            className="font-[family-name:var(--font-script)] text-5xl text-[#1a1410] lg:text-6xl"
+          />
+          <EditableText
+            path={homeBlockPath("newsletter", "body")}
+            value={
+              newsletter.body ||
+              "Get first access to new textures, restocks, and styling tips crafted for your curls."
+            }
+            as="p"
+            className="mt-4 text-sm text-[#1a1410]/75"
+            multiline
+          />
           <form className="mx-auto mt-8 flex max-w-md flex-col gap-3 sm:flex-row" onSubmit={(event) => event.preventDefault()}>
             <input
               type="email"
@@ -288,7 +486,11 @@ export function HairAndFashionHome({
               type="submit"
               className="bg-[#1a1410] px-6 py-3 text-[0.7rem] font-semibold uppercase tracking-[0.3em] text-white transition hover:bg-[#1a1410]/80"
             >
-              Subscribe
+              <EditableText
+                path={homeBlockPath("newsletter", "cta_label")}
+                value={newsletter.cta_label || "Subscribe"}
+                as="span"
+              />
             </button>
           </form>
         </div>
@@ -305,9 +507,16 @@ export function HairAndFashionHome({
                 {store.business_name.split(" ").slice(1).join(" ") || "ROOTS"}
               </span>
             </div>
-            <p className="mt-6 text-xs leading-relaxed text-white/60">
-              Premium virgin hair extensions and care crafted exclusively for natural textures.
-            </p>
+            <EditableText
+              path="about.body"
+              value={
+                storefront.about.body ||
+                "Premium virgin hair extensions and care crafted exclusively for natural textures."
+              }
+              as="p"
+              className="mt-6 text-xs leading-relaxed text-white/60"
+              multiline
+            />
           </div>
           {hairFashionFooterColumns.map((column) => (
             <div key={column.title}>

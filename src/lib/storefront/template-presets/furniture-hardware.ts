@@ -43,6 +43,7 @@ export function buildFurnitureHardwareHomeBlocks(storefront: StorefrontContent):
       type: "category_showcase",
       props: {
         title: "Discover Our Curated Collections",
+        cta_label: "View All",
         layout: "editorial_grid",
         items: furnitureHardwareCategories.map((category) => ({
           label: category.name,

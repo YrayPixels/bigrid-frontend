@@ -21,7 +21,6 @@ import type {
 import { createThinkingLogEntry } from "./thinking-log";
 import { aiSuggestedActions, colorPresetActions } from "@/lib/storefront-builder/suggested-actions";
 import { formatBuilderHistorySnippet } from "@/lib/storefront-builder/chat-history";
-import { inferImageReplaceScope, sectionScopeHint } from "@/lib/storefront-builder/section-scope";
 import {
   createBuilderAgentRegistry,
   type BuilderAgentRegistry,
@@ -56,7 +55,6 @@ const DIRECT_EXEC_SAFE_TOOLS = new Set([
   "switch_design",
   "change_font",
   "source_website_images",
-  "replace_template_images",
   "generate_product_descriptions",
   "generate_custom_site",
   "update_store_profile",
@@ -81,11 +79,6 @@ function defaultArgsForDirectTool(
   }
   if (name === "apply_brand_color" || name === "switch_design" || name === "source_website_images") {
     return { instruction: merchantMessage.trim() || stepDescription, direction: merchantMessage.trim() };
-  }
-  if (name === "replace_template_images") {
-    const intent = merchantMessage.trim() || stepDescription;
-    const scope = inferImageReplaceScope([merchantMessage, stepDescription].filter(Boolean).join(" "));
-    return scope ? { intent, scope } : { intent };
   }
   return {};
 }
@@ -143,7 +136,6 @@ export class StorefrontBuilderManager {
     const { interpreter, planner, executor, critic } = this.agents;
     const toolDefs = websiteBuilderToolsForSession(session);
     const historySnippet = formatBuilderHistorySnippet(history ?? []);
-    const scopeHint = sectionScopeHint(message);
 
     // ── Interpreter ──────────────────────────────────────────────
     this.log({
@@ -235,7 +227,6 @@ export class StorefrontBuilderManager {
     executor.receiveBriefing({
       interpretation,
       plan,
-      scopeHint: scopeHint ?? undefined,
       session,
       toolDefs,
     });

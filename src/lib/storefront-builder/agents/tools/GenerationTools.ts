@@ -7,8 +7,12 @@ import {
   synthesizeStorefront,
 } from "@/lib/storefront-builder/local-ai";
 import { attachBoltTemplateToStorefront } from "@/lib/storefront/bolt-template-storefront";
+import { hydrateStorefrontCategoryShowcases } from "@/lib/storefront/blocks/category-showcase-utils";
+import { ensureMerchantHomepageProducts } from "@/lib/storefront/product-plugs";
 import { resolveStorefrontTemplateType } from "@/lib/storefront/template-registry";
+import { applyCategoryShowcaseImagesOnly } from "@/lib/storefront-builder/image-sourcing";
 import { isCodeWorkbenchEnabled } from "@/lib/features";
+import { api } from "@/lib/api/client";
 import type { WebsiteBuilderToolDef } from "../types";
 import { ImageTools } from "./ImageTools";
 
@@ -67,14 +71,34 @@ export class GenerationTools {
 
           ctx.storefront = storefront;
 
+          const ensured = ensureMerchantHomepageProducts(ctx.storefront, selected);
+          ctx.storefront = ensured.storefront;
+
+          const categories = await api.getCategories().catch(() => []);
+          if (categories.length) {
+            ctx.storefront = hydrateStorefrontCategoryShowcases(ctx.storefront, categories).storefront;
+          }
+
           const imageIntent =
             `${ctx.profile.business_name ?? ""} ${ctx.profile.description ?? ""} ${ctx.message}`.trim();
           const images = await ImageTools.applyBrandedTemplateImages(ctx, imageIntent);
 
+          const showcaseImages = await applyCategoryShowcaseImagesOnly(
+            ctx.storefront!,
+            imageIntent || "collection photos",
+            {
+              business_name: store.business_name,
+              industry: store.industry,
+              description: store.description,
+              tone: ctx.profile.tone,
+            },
+          );
+          ctx.storefront = showcaseImages.storefront;
+
           ctx.status = "content_generated";
           ctx.payload = {
             type: "website_generated",
-            changed_paths: images.changed_paths,
+            changed_paths: [...(images.changed_paths ?? []), ...showcaseImages.changed_paths],
             image_summary: images.summary,
             next_steps: [
               { label: "Add your products", action: "add_products_prompt", message: "Help me add my products" },

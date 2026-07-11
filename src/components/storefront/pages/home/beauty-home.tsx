@@ -11,17 +11,32 @@ import { StorefrontFaqSection } from "@/components/storefront/pages/storefront-f
 import { CategoryShowcaseBlock } from "@/components/storefront/blocks/category-showcase-block";
 import { beautyTemplateImages } from "@/lib/storefront/beauty-defaults";
 import { formatMoney } from "@/lib/storefront/format";
+import { getHomeBlockProps, homeBlockPath } from "@/lib/storefront/home-block-content";
 import { getHomepageProducts } from "@/lib/storefront/product-plugs";
 import { useCart } from "@/lib/storefront/cart-context";
 import { useStorefront } from "@/lib/storefront/store-context";
 import { useStorefrontTheme } from "@/lib/storefront/theme-context";
 
-const beautyDifference = [
-  ["01", "Undetectable closures", "Seamless finishes made to blend naturally with your hairline."],
-  ["02", "Virgin textures", "Soft, full bundles selected for movement, body, and longevity."],
-  ["03", "No-shed finishing", "Reinforced wefts and gentle care routines for longer wear."],
-  ["04", "Ready-to-style", "Curated textures, ponytails, and kits for salon-level looks."],
+const beautyDifferenceDefaults = [
+  {
+    title: "Undetectable closures",
+    body: "Seamless finishes made to blend naturally with your hairline.",
+  },
+  {
+    title: "Virgin textures",
+    body: "Soft, full bundles selected for movement, body, and longevity.",
+  },
+  {
+    title: "No-shed finishing",
+    body: "Reinforced wefts and gentle care routines for longer wear.",
+  },
+  {
+    title: "Ready-to-style",
+    body: "Curated textures, ponytails, and kits for salon-level looks.",
+  },
 ];
+
+type FeatureItem = { title?: string; body?: string };
 
 function BeautyProductCard({
   product,
@@ -102,7 +117,35 @@ export function BeautyHome({
     8,
   );
   const heroImageUrl = storefront.media?.hero_image_url ?? beautyTemplateImages.hero;
-  const aboutImageUrl = storefront.media?.about_image_url ?? beautyTemplateImages.about;
+
+  const perfectMatch = getHomeBlockProps<{
+    title?: string;
+    body?: string;
+    cta_label?: string;
+    image_url?: string | null;
+  }>(storefront, "perfect-match");
+  const extensionsKit = getHomeBlockProps<{
+    title?: string;
+    body?: string;
+    cta_label?: string;
+    image_url?: string | null;
+  }>(storefront, "extensions-kit");
+  const difference = getHomeBlockProps<{
+    title?: string;
+    body?: string;
+    items?: FeatureItem[];
+    image_url?: string | null;
+  }>(storefront, "difference");
+  const differenceItems =
+    difference.items?.length
+      ? difference.items
+      : beautyDifferenceDefaults;
+  const featuredProductsBlock = getHomeBlockProps<{ title?: string }>(storefront, "featured-products");
+
+  const matchImageUrl =
+    perfectMatch.image_url ||
+    storefront.media?.about_image_url ||
+    beautyTemplateImages.about;
 
   return (
     <div style={{ backgroundColor: theme.palette.background, color: theme.palette.text }}>
@@ -138,7 +181,7 @@ export function BeautyHome({
               className="mt-5 inline-flex px-5 py-2 text-[10px] font-bold uppercase tracking-[0.12em]"
               style={{ backgroundColor: theme.palette.primary, color: theme.palette.background }}
             >
-                {storefront.hero.cta_label}
+              <EditableText path="hero.cta_label" value={storefront.hero.cta_label} as="span" />
             </StorefrontLink>
           </div>
 
@@ -160,23 +203,39 @@ export function BeautyHome({
           style={{ backgroundColor: theme.palette.surface }}
         >
           <div>
-            <h2 className="text-3xl font-bold tracking-[-0.04em]" style={{ fontFamily: "var(--font-editorial)" }}>
-              The perfect match.
-            </h2>
-            <p className="mx-auto mt-2 max-w-xs text-[10px] leading-4" style={{ color: theme.palette.muted }}>
-              Our signature textures are created to blend flawlessly with natural curls, coils, and blowouts.
-            </p>
+            <EditableText
+              path={homeBlockPath("perfect-match", "title")}
+              value={perfectMatch.title || "The perfect match."}
+              as="h2"
+              className="text-3xl font-bold tracking-[-0.04em]"
+              style={{ fontFamily: "var(--font-editorial)" }}
+            />
+            <EditableText
+              path={homeBlockPath("perfect-match", "body")}
+              value={
+                perfectMatch.body ||
+                "Our signature textures are created to blend flawlessly with natural curls, coils, and blowouts."
+              }
+              as="p"
+              className="mx-auto mt-2 max-w-xs text-[10px] leading-4"
+              style={{ color: theme.palette.muted }}
+              multiline
+            />
             <StorefrontLink
               href="/products"
               className="mt-4 inline-flex px-5 py-2 text-[10px] font-bold uppercase tracking-[0.12em]"
               style={{ backgroundColor: theme.palette.primary, color: theme.palette.background }}
             >
-              Shop extensions
+              <EditableText
+                path={homeBlockPath("perfect-match", "cta_label")}
+                value={perfectMatch.cta_label || "Shop extensions"}
+                as="span"
+              />
             </StorefrontLink>
           </div>
           <EditableImage
-            path="media.about_image_url"
-            src={aboutImageUrl}
+            path={homeBlockPath("perfect-match", "image_url")}
+            src={matchImageUrl}
             alt={`${store.business_name} perfect texture match`}
             className="mt-7 h-56 w-full max-w-sm overflow-hidden"
             imgClassName="object-cover object-top"
@@ -188,22 +247,39 @@ export function BeautyHome({
           style={{ backgroundColor: theme.palette.background }}
         >
           <div>
-            <h2 className="text-3xl font-bold tracking-[-0.04em]" style={{ fontFamily: "var(--font-editorial)" }}>
-              Perfect extensions kit.
-            </h2>
-            <p className="mx-auto mt-2 max-w-xs text-[10px] leading-4" style={{ color: theme.palette.muted }}>
-              Care and styling essentials that keep every install soft, glossy, and ready to wear.
-            </p>
+            <EditableText
+              path={homeBlockPath("extensions-kit", "title")}
+              value={extensionsKit.title || "Perfect extensions kit."}
+              as="h2"
+              className="text-3xl font-bold tracking-[-0.04em]"
+              style={{ fontFamily: "var(--font-editorial)" }}
+            />
+            <EditableText
+              path={homeBlockPath("extensions-kit", "body")}
+              value={
+                extensionsKit.body ||
+                "Care and styling essentials that keep every install soft, glossy, and ready to wear."
+              }
+              as="p"
+              className="mx-auto mt-2 max-w-xs text-[10px] leading-4"
+              style={{ color: theme.palette.muted }}
+              multiline
+            />
             <StorefrontLink
               href="/products"
               className="mt-4 inline-flex px-5 py-2 text-[10px] font-bold uppercase tracking-[0.12em]"
               style={{ backgroundColor: theme.palette.primary, color: theme.palette.background }}
             >
-              Shop extensions care
+              <EditableText
+                path={homeBlockPath("extensions-kit", "cta_label")}
+                value={extensionsKit.cta_label || "Shop extensions care"}
+                as="span"
+              />
             </StorefrontLink>
           </div>
           <EditableImage
-            src={beautyTemplateImages.careKit}
+            path={homeBlockPath("extensions-kit", "image_url")}
+            src={extensionsKit.image_url || beautyTemplateImages.careKit}
             alt={`${store.business_name} extensions care kit`}
             className="mt-7 h-56 w-full max-w-sm overflow-hidden"
             imgClassName="object-contain"
@@ -216,37 +292,61 @@ export function BeautyHome({
         style={{ backgroundColor: theme.palette.text, color: theme.palette.background }}
       >
         <EditableImage
-          src={beautyTemplateImages.texture}
+          path={homeBlockPath("difference", "image_url")}
+          src={difference.image_url || beautyTemplateImages.texture}
           alt=""
           className="absolute inset-0 opacity-35"
           imgClassName="object-cover"
         />
         <div className="relative mx-auto max-w-5xl">
-          <h2
+          <EditableText
+            path={homeBlockPath("difference", "title")}
+            value={difference.title || "the heatfree hair difference"}
+            as="h2"
             className="text-center text-5xl leading-none sm:text-6xl"
             style={{ fontFamily: "var(--font-script)" }}
-          >
-            the heatfree hair difference
-          </h2>
+          />
           <div className="mt-10 grid gap-8 sm:grid-cols-2">
-            {beautyDifference.map(([number, title, body]) => (
-              <div key={number} className="grid grid-cols-[44px_1fr] gap-4">
-                <div
-                  className="grid h-11 w-11 place-items-center rounded-full border text-xs"
-                  style={{ borderColor: `${theme.palette.background}66` }}
-                >
-                  {number}
+            {differenceItems.map((item, index) => {
+              const fallback = beautyDifferenceDefaults[index];
+              const number = String(index + 1).padStart(2, "0");
+              return (
+                <div key={`${item.title ?? "diff"}-${index}`} className="grid grid-cols-[44px_1fr] gap-4">
+                  <div
+                    className="grid h-11 w-11 place-items-center rounded-full border text-xs"
+                    style={{ borderColor: `${theme.palette.background}66` }}
+                  >
+                    {number}
+                  </div>
+                  <div>
+                    <EditableText
+                      path={homeBlockPath("difference", `items.${index}.title`)}
+                      value={item.title || fallback?.title || ""}
+                      as="h3"
+                      className="text-[11px] font-bold uppercase tracking-[0.18em]"
+                    />
+                    <EditableText
+                      path={homeBlockPath("difference", `items.${index}.body`)}
+                      value={item.body || fallback?.body || ""}
+                      as="p"
+                      className="mt-2 text-[10px] leading-5 opacity-70"
+                      multiline
+                    />
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-[11px] font-bold uppercase tracking-[0.18em]">{title}</h3>
-                  <p className="mt-2 text-[10px] leading-5 opacity-70">{body}</p>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
-          <p className="mt-12 text-center text-[10px] font-bold uppercase tracking-[0.22em]">
-            Feel good wearing your own hair. Shop women believe in and trust.
-          </p>
+          <EditableText
+            path={homeBlockPath("difference", "body")}
+            value={
+              difference.body ||
+              "Feel good wearing your own hair. Shop women believe in and trust."
+            }
+            as="p"
+            className="mt-12 text-center text-[10px] font-bold uppercase tracking-[0.22em]"
+            multiline
+          />
         </div>
       </section>
 
@@ -257,9 +357,13 @@ export function BeautyHome({
         style={{ backgroundColor: theme.palette.background }}
       >
         <div className="mx-auto max-w-6xl">
-          <h2 className="text-3xl font-bold tracking-[-0.04em]" style={{ fontFamily: "var(--font-editorial)" }}>
-            Best sellers
-          </h2>
+          <EditableText
+            path={homeBlockPath("featured-products", "title")}
+            value={featuredProductsBlock.title || "Best sellers"}
+            as="h2"
+            className="text-3xl font-bold tracking-[-0.04em]"
+            style={{ fontFamily: "var(--font-editorial)" }}
+          />
           <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
             {featuredProducts.map((product, index) => (
               <BeautyProductCard

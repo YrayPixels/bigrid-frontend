@@ -5,10 +5,12 @@ import {
   replaceTemplateImagesForStorefront,
   sourceAndApplyWebsiteImages,
 } from "@/lib/storefront-builder/image-sourcing";
+import { hydrateStorefrontCategoryShowcases } from "@/lib/storefront/blocks/category-showcase-utils";
+import { api } from "@/lib/api/client";
 import {
   describeImageScope,
   isImageReplaceScope,
-  resolveCategoryShowcaseImageScope,
+  type ImageReplaceScope,
 } from "@/lib/storefront-builder/section-scope";
 import type { WebsiteBuilderContext, WebsiteBuilderToolDef } from "../types";
 
@@ -125,7 +127,7 @@ export class ImageTools {
       {
         name: "replace_template_images",
         description:
-          "Replace placeholder photos on the website. Use scope full_site ONLY when the merchant wants every photo refreshed. For Essentials/category showcase, homepage/landing page hero, about section, or product grid only, pass the matching scope — never refresh the whole site for a section request.",
+          "Replace photos on the website. YOU must choose scope from the merchant's intent — do not omit it. full_site = refresh photos across the site / vague 'update the images'. hero = landing page / homepage header. about = about section. category_showcase = Essentials, curated collections, rooms, choose your style. products = best sellers / product grid. Seeds draft products when empty. Product grid photos use merchant products.",
         parameters: {
           type: "object",
           properties: {
@@ -137,9 +139,10 @@ export class ImageTools {
               type: "string",
               enum: ["full_site", "category_showcase", "hero", "about", "products"],
               description:
-                "Where to apply images. Landing page / homepage header = hero. Essentials / Shop the Essentials = category_showcase. Omit only when the merchant clearly asked to refresh all website photos.",
+                "Required. Decide from the merchant message: full_site, hero, about, category_showcase, or products.",
             },
           },
+          required: ["scope"],
           additionalProperties: false,
         },
         handler: async (args, ctx) => {
@@ -153,22 +156,28 @@ export class ImageTools {
               : `${ctx.profile.business_name ?? ""} ${ctx.profile.description ?? ""} ${ctx.message}`.trim();
 
           const rawScope = typeof args.scope === "string" ? args.scope.trim() : "";
-          const explicitScope = isImageReplaceScope(rawScope) ? rawScope : null;
-          const scope = resolveCategoryShowcaseImageScope(
-            intent,
-            ctx.planIntent,
-            ctx.message,
-            explicitScope,
-          );
+          if (!isImageReplaceScope(rawScope)) {
+            return {
+              ok: false,
+              error: "scope_required",
+              message:
+                "Pass scope as one of: full_site, hero, about, category_showcase, products — based on what the merchant asked to change.",
+            };
+          }
+          const scope: ImageReplaceScope = rawScope;
 
-          if (!scope) {
-            return { ok: false, error: "scope_not_recognized" };
+          let storefront = ctx.storefront;
+          if (scope === "category_showcase" || scope === "full_site") {
+            const categories = await api.getCategories().catch(() => []);
+            if (categories.length) {
+              storefront = hydrateStorefrontCategoryShowcases(storefront, categories).storefront;
+            }
           }
 
           const replaced = await replaceScopedStorefrontImages({
             intent,
             scope,
-            storefront: ctx.storefront,
+            storefront,
             context: {
               business_name: ctx.session.store.business_name,
               industry: ctx.session.store.industry,
