@@ -4,6 +4,7 @@ import {
   furnitureHardwareCategories,
   furnitureHardwareContactDefaults,
   furnitureHardwareFaqDefaults,
+  furnitureHardwareFallbackProducts,
   furnitureHardwareRooms,
   furnitureHardwareTemplateImages,
   furnitureHardwareValueProps,
@@ -132,13 +133,20 @@ export function applyFurnitureHardwareTemplatePreset(
       ...content,
       template: { id: "furniture-hardware", source: "merchant_selected" },
       palette,
-      data_plugs: { home_products_source: "theme_products" },
+      data_plugs: { home_products_source: "merchant_products" },
       hero,
       about,
       media: {
         ...content.media,
         hero_image_url: furnitureHardwareTemplateImages.hero,
       },
+      products:
+        content.products?.length
+          ? content.products
+          : furnitureHardwareFallbackProducts.map((product, index) => ({
+              ...product,
+              id: product.id || `draft-product-${index + 1}`,
+            })),
     },
     "furniture-hardware",
     {

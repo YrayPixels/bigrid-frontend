@@ -68,6 +68,48 @@ function publicToolLabel(name: string, changedPaths?: string[]) {
       return "Updating font";
     case "add_products":
       return "Adding products";
+    case "list_products":
+      return "Listing products";
+    case "update_product":
+      return "Updating product";
+    case "archive_product":
+      return "Archiving product";
+    case "delete_product":
+      return "Deleting product";
+    case "set_product_variants":
+      return "Updating product options";
+    case "manage_categories":
+      return "Managing categories";
+    case "link_category_showcase":
+      return "Linking Essentials categories";
+    case "duplicate_product":
+      return "Duplicating product";
+    case "add_page_block":
+      return "Adding homepage section";
+    case "remove_page_block":
+      return "Removing section";
+    case "reorder_page_blocks":
+      return "Reordering sections";
+    case "update_page_section":
+      return "Updating page section";
+    case "regenerate_section":
+      return "Refreshing section";
+    case "get_storefront_readiness":
+      return "Checking publish readiness";
+    case "publish_website":
+      return "Publishing website";
+    case "update_store_profile":
+      return "Updating store profile";
+    case "get_store_metrics":
+      return "Checking store metrics";
+    case "list_orders":
+      return "Listing orders";
+    case "get_order":
+      return "Loading order details";
+    case "update_order_status":
+      return "Updating order status";
+    case "suggest_site_improvements":
+      return "Suggesting improvements";
     case "generate_product_descriptions":
       return "Generating product descriptions";
     case "process_product_image":
@@ -112,6 +154,89 @@ function ImageSourceWidget({ payload }: { payload: Record<string, unknown> }) {
       ) : null}
       {searchTerms.length > 0 ? (
         <p className="text-[11px] text-ink-soft">Search terms: {searchTerms.join(", ")}</p>
+      ) : null}
+    </div>
+  );
+}
+
+type ListedProductCard = {
+  id?: string;
+  name?: string;
+  price?: number;
+  currency?: string;
+  stock_quantity?: number | null;
+  status?: string;
+  category?: string | null;
+  image_url?: string | null;
+};
+
+function ProductsListedWidget({ payload }: { payload: Record<string, unknown> }) {
+  const products = Array.isArray(payload.products)
+    ? (payload.products as ListedProductCard[]).filter((product) => typeof product?.name === "string")
+    : [];
+  const count = typeof payload.count === "number" ? payload.count : products.length;
+
+  if (!products.length) {
+    return (
+      <div className="mt-3 rounded-xl border border-dashed border-border bg-background px-3 py-4 text-xs text-ink-soft">
+        No products in your catalog yet.
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3 space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs font-semibold uppercase tracking-wide text-ink-soft">
+          Catalog · {count} {count === 1 ? "item" : "items"}
+        </p>
+        <a
+          href="/admin/products"
+          className="text-[11px] font-medium text-primary underline-offset-2 hover:underline"
+        >
+          Manage products
+        </a>
+      </div>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        {products.slice(0, 24).map((product) => {
+          const price =
+            typeof product.price === "number"
+              ? `${product.price.toLocaleString()} ${product.currency ?? "NGN"}`
+              : null;
+          const stock =
+            typeof product.stock_quantity === "number" ? `Stock ${product.stock_quantity}` : null;
+
+          return (
+            <div
+              key={product.id ?? product.name}
+              className="overflow-hidden rounded-xl border border-border bg-background"
+            >
+              <div className="aspect-square bg-secondary/60">
+                {product.image_url ? (
+                  <img
+                    src={product.image_url}
+                    alt={product.name ?? "Product"}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <div className="grid h-full place-items-center text-[11px] text-ink-soft">No photo</div>
+                )}
+              </div>
+              <div className="space-y-0.5 p-2">
+                <p className="line-clamp-2 text-xs font-medium leading-snug text-ink">{product.name}</p>
+                {price ? <p className="text-[11px] font-semibold text-ink">{price}</p> : null}
+                <p className="truncate text-[10px] text-ink-soft">
+                  {[product.category, stock, product.status && product.status !== "active" ? product.status : null]
+                    .filter(Boolean)
+                    .join(" · ") || "Active"}
+                </p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {products.length > 24 ? (
+        <p className="text-[11px] text-ink-soft">Showing 24 of {products.length}. Open Manage products for the full list.</p>
       ) : null}
     </div>
   );
@@ -210,6 +335,10 @@ export function BuilderMessageWidgets({
 
   if (type === "agent_turn") {
     return <AgentTurnWidget payload={payload} />;
+  }
+
+  if (type === "products_listed") {
+    return <ProductsListedWidget payload={payload} />;
   }
 
   if (type === "website_generated" || type === "draft_generated") {

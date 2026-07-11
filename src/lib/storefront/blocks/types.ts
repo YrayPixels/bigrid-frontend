@@ -87,11 +87,14 @@ export type FeatureGridBlockProps = {
   title: string;
   body: string;
   items: { title: string; body: string }[];
+  /** Optional section background / accent image (difference panels, trust visuals). */
+  image_url?: string | null;
 };
 
 export type CtaBannerBlockProps = {
   title: string;
   body: string;
+  eyebrow?: string;
   bullets?: string[];
   cta_label: string;
   cta_href?: string;

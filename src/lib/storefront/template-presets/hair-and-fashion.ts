@@ -3,6 +3,7 @@ import type { StorefrontBlock } from "@/lib/storefront/blocks/types";
 import {
   hairFashionContactDefaults,
   hairFashionFaqDefaults,
+  hairFashionFallbackProducts,
   hairFashionNavItems,
   hairFashionTemplateImages,
   hairFashionValueProps,
@@ -89,6 +90,7 @@ export function buildHairFashionHomeBlocks(storefront: StorefrontContent): Store
             body: "Virgin hair from an honest, fair collection process.",
           },
         ],
+        image_url: hairFashionTemplateImages.textureBg,
       },
     },
     {
@@ -155,13 +157,20 @@ export function applyHairFashionTemplatePreset(
       ...content,
       template: { id: "hair-and-fashion", source: "merchant_selected" },
       palette,
-      data_plugs: { home_products_source: "theme_products" },
+      data_plugs: { home_products_source: "merchant_products" },
       hero,
       about,
       media: {
         ...content.media,
         hero_image_url: hairFashionTemplateImages.hero,
       },
+      products:
+        content.products?.length
+          ? content.products
+          : hairFashionFallbackProducts.map((product, index) => ({
+              ...product,
+              id: product.id || `draft-product-${index + 1}`,
+            })),
       navigation: [...hairFashionNavItems],
     },
     "hair-and-fashion",

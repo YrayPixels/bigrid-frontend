@@ -41,8 +41,9 @@ export const BUILDER_TOOL_DECISION_RULES = [
   "Draft exists + stock photos (quick template defaults): apply_stock_images.",
   "Draft exists + find/source photo ideas, brand-matched images, or what photos to use: source_website_images.",
   "Draft exists + replace ALL placeholder photos across the entire website: replace_template_images with scope full_site only.",
-  "Draft exists + replace photos on ONE section only (Essentials/category showcase, homepage hero, about, product grid): replace_template_images with the matching scope — never full_site unless the merchant asked for the whole website.",
+  "Draft exists + replace photos on ONE section only (Essentials/category showcase, homepage/landing page hero, about, product grid): replace_template_images with the matching scope — never full_site unless the merchant asked for the whole website.",
   "Essentials, Shop the Essentials, and category showcase mean the homepage category-showcase section — not the whole site.",
+  "Landing page, homepage header, and hero image mean the homepage hero — use replace_template_images with scope hero.",
   "When generating a website or switching design, photos are auto-sourced — use replace_template_images only if the merchant asks to refresh photos again.",
   ...(isCodeWorkbenchEnabled()
     ? [
@@ -76,6 +77,7 @@ export const BUILDER_INTERPRETER_SYSTEM_PROMPT =
   "return a single-step plan to welcome the merchant and invite them to describe their business or request changes. " +
   "Do NOT invent build/refine tasks from a greeting.\n\n" +
   "If the message describes a specific product (name, type, color, style, price), this is a product creation request — not a greeting or design change.\n" +
+  "If the message asks to list, show, or display products/orders/metrics, treat it as a read-only lookup — not a website build or redesign.\n" +
   "If the message asks for a new design, different look, another style, or to switch shop types — this is a FULL design switch (template + layout + colors), not a color-only change.\n" +
   "If the message ONLY mentions colors, palette, or hex values — this is a color-only change, not a design switch.\n" +
   "Focus on business goals and copy changes — not technical implementation.\n" +
@@ -94,13 +96,24 @@ export const BUILDER_PLANNER_SYSTEM_PROMPT_PREFIX =
   "Speak in terms of websites, pages, copy, and brand — never templates.\n" +
   "When the merchant scoped work to one page or section, every step must stay within that scope.\n" +
   "Do not assign replace_template_images for section-only requests — use refine_website_copy for copy and replace_template_images with a section scope for images.\n\n" +
+  "CRITICAL — every actionable step MUST include a non-empty tools array using ONLY allowed tool names.\n" +
+  "CRITICAL — match the merchant request narrowly. Do NOT invent extra website edits.\n" +
+  "- If they only ask to list/show/display products → ONE step with tools: [\"list_products\"]. Do NOT add a product grid or homepage changes.\n" +
+  "- If they only ask about sales/metrics/performance → [\"get_store_metrics\"] (and optionally [\"suggest_site_improvements\"]).\n" +
+  "- If they only ask about orders → [\"list_orders\"] (and [\"get_order\"] only when a specific order is named).\n\n" +
   "Tool assignment rules:\n" +
   "- Copy changes (headline, button text, CTA, about, FAQ, SEO, section text) → refine_website_copy\n" +
   "- Color/palette only (no mention of design/look/layout) → apply_brand_color\n" +
   "- Design/look/layout/style changes (not just colors) → switch_design\n" +
   "- Font/typography changes → change_font\n" +
   "- Image/photo requests → apply_stock_images, source_website_images, or replace_template_images depending on scope\n" +
+  "- List/show existing products → list_products\n" +
   "- Adding products → add_products\n" +
+  "- Update/archive/delete/duplicate products or set variants → update_product / archive_product / delete_product / duplicate_product / set_product_variants\n" +
+  "- Categories → manage_categories; Essentials tiles → link_category_showcase\n" +
+  "- Add/remove/reorder homepage sections or product grid → add_page_block / remove_page_block / reorder_page_blocks / update_page_section\n" +
+  "- Publish / readiness / store contact profile → get_storefront_readiness / publish_website / update_store_profile\n" +
+  "- Sales metrics / orders → get_store_metrics / list_orders / get_order / update_order_status\n" +
   "- Product descriptions → generate_product_descriptions\n" +
   "- Product image analysis → process_product_image (NEVER add a separate 'ask for details' step — this tool analyzes the image and extracts product info automatically)\n" +
   "- Product description / manual product entry / product details provided by merchant (no image URL) → add_products directly. Do NOT use process_product_image when the merchant already described the product in words.\n" +

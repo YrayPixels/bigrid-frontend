@@ -1,4 +1,5 @@
 import type { StorefrontContent, StorefrontTemplateId } from "@/lib/api/types";
+import { beautyTemplateImages } from "@/lib/storefront/beauty-defaults";
 import { cosmeticsTemplateImages } from "@/lib/storefront/cosmetics-defaults";
 import { buildFurnitureHardwareHomeBlocks } from "@/lib/storefront/template-presets/furniture-hardware";
 import { buildHairFashionHomeBlocks } from "@/lib/storefront/template-presets/hair-and-fashion";
@@ -80,6 +81,7 @@ export function buildCosmeticsHomeBlocks(storefront: StorefrontContent): Storefr
         title: "Why Choose Us",
         body: "A calm product story, premium formulas, and trust blocks that match the clean cosmetics reference.",
         items: valueProps.slice(0, 3),
+        image_url: cosmeticsTemplateImages.cactus,
       },
     },
     {
@@ -158,7 +160,64 @@ export function buildDefaultHomeBlocks(
         layout: heroLayoutForTemplate(templateId),
       },
     },
-    {
+  ];
+
+  if (templateId === "beauty") {
+    blocks.push(
+      {
+        id: "perfect-match",
+        type: "cta_banner",
+        props: {
+          title: "The perfect match.",
+          body: "Our signature textures are created to blend flawlessly with the natural curls, coils, and kinks you were born with.",
+          cta_label: "Shop extensions",
+          cta_href: "/products",
+          image_url: storefront.media?.about_image_url ?? beautyTemplateImages.about,
+          layout: "text_left",
+        },
+      },
+      {
+        id: "extensions-kit",
+        type: "cta_banner",
+        props: {
+          title: "Perfect extensions kit.",
+          body: "Care and styling essentials that keep every install soft, glossy, and ready to wear.",
+          cta_label: "Shop extensions care",
+          cta_href: "/products",
+          image_url: beautyTemplateImages.careKit,
+          layout: "text_right",
+        },
+      },
+      {
+        id: "difference",
+        type: "feature_grid",
+        props: {
+          title: "the heatfree hair difference",
+          body: "Feel good wearing your own hair. Shop women believe in and trust.",
+          items: [
+            {
+              title: "Undetectable closures",
+              body: "Seamless finishes made to blend naturally with your hairline.",
+            },
+            {
+              title: "Virgin textures",
+              body: "Soft, full bundles selected for movement, body, and longevity.",
+            },
+            {
+              title: "No-shed finishing",
+              body: "Reinforced wefts and gentle care routines for longer wear.",
+            },
+            {
+              title: "Ready-to-style",
+              body: "Curated textures, ponytails, and kits for salon-level looks.",
+            },
+          ],
+          image_url: beautyTemplateImages.texture,
+        },
+      },
+    );
+  } else {
+    blocks.push({
       id: "trust-features",
       type: "feature_grid",
       props: {
@@ -166,8 +225,8 @@ export function buildDefaultHomeBlocks(
         body: storefront.about.body,
         items: valueProps.slice(0, 3),
       },
-    },
-  ];
+    });
+  }
 
   if (templateId === "fashion_lookbook" || templateId === "beauty") {
     blocks.push(categoryShowcaseBlock(templateId));
@@ -178,7 +237,7 @@ export function buildDefaultHomeBlocks(
       id: "featured-products",
       type: "product_grid",
       props: {
-        title: templateId === "beauty" ? "Shop the collection" : "Featured products",
+        title: templateId === "beauty" ? "Best sellers" : "Featured products",
         limit: productLimitForTemplate(templateId),
       },
     },

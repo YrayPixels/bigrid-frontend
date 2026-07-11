@@ -1,6 +1,6 @@
 import { generateText, streamText, type CoreMessage, type LanguageModelV1 } from "ai";
 import { consumeAiStream } from "@/lib/ai-stream";
-import { getChatModel, getConfiguredThinkingModelName } from "@/lib/ai-sdk";
+import { getChatModel, getConfiguredChatModelName, getConfiguredThinkingModelName } from "@/lib/ai-sdk";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ?? "";
 
@@ -17,7 +17,7 @@ export type ChatCompletionResponse = {
   choices?: Array<{ message?: { role?: string; content?: string | null; tool_calls?: unknown[] } }>;
 };
 
-export { getConfiguredThinkingModelName as getThinkingModelName };
+export { getConfiguredThinkingModelName as getThinkingModelName, getConfiguredChatModelName as getChatModelName };
 
 function toCoreMessages(messages: unknown[]): CoreMessage[] {
   return messages.map((msg) => {
@@ -127,28 +127,49 @@ async function proxyChatThroughBackend(body: PostChatBody): Promise<ChatCompleti
 }
 
 export async function callOpenAiChat(body: PostChatBody): Promise<ChatCompletionResponse> {
+  const withModel = await ensureChatModel(body);
+
   if (API_BASE) {
-    return proxyChatThroughBackend(body);
+    return proxyChatThroughBackend(withModel);
   }
 
-  const hasTools = Array.isArray(body.tools) && body.tools.length > 0;
+  const hasTools = Array.isArray(withModel.tools) && withModel.tools.length > 0;
 
   if (hasTools) {
-    return rawFetchChat(body);
+    return rawFetchChat(withModel);
   }
 
-  return aiSdkChat(body);
+  return aiSdkChat(withModel);
+}
+
+async function ensureChatModel(body: PostChatBody): Promise<PostChatBody> {
+  if (typeof body.model === "string" && body.model.trim()) {
+    return body;
+  }
+  if (body.model && typeof body.model !== "string") {
+    return body;
+  }
+  return {
+    ...body,
+    model: await getConfiguredThinkingModelName(),
+  };
 }
 
 export async function postChat(body: PostChatBody): Promise<ChatCompletionResponse> {
+  const withModel = await ensureChatModel(body);
+
   if (typeof window === "undefined") {
-    return callOpenAiChat(body);
+    return callOpenAiChat(withModel);
   }
 
   const response = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    body: JSON.stringify({
+      ...withModel,
+      // Never send LanguageModelV1 objects over the wire.
+      model: typeof withModel.model === "string" ? withModel.model : await getConfiguredThinkingModelName(),
+    }),
   });
   const text = await response.text();
   if (!response.ok) throw new Error(text || `Chat failed (${response.status})`);

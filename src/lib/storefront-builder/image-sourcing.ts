@@ -21,6 +21,7 @@ import {
   searchUnsplashPhotos,
 } from "@/lib/storefront-builder/unsplash-client";
 import { resolveCategoryShowcaseProps } from "@/lib/storefront/blocks/category-showcase-utils";
+import { ensureMerchantHomepageProducts } from "@/lib/storefront/product-plugs";
 import type { ImageReplaceScope } from "@/lib/storefront-builder/section-scope";
 import { describeImageScope } from "@/lib/storefront-builder/section-scope";
 
@@ -205,9 +206,13 @@ async function resolveTemplateImagePlan(
   }
 }
 
-function patchBlockImage(block: StorefrontBlock, url: string): StorefrontBlock {
-  const props = block.props as Record<string, unknown>;
-  if (!props || !("image_url" in props)) return block;
+function patchBlockImage(
+  block: StorefrontBlock,
+  url: string,
+  options?: { force?: boolean },
+): StorefrontBlock {
+  const props = (block.props ?? {}) as Record<string, unknown>;
+  if (!options?.force && !("image_url" in props)) return block;
   return { ...block, props: { ...props, image_url: url } };
 }
 
@@ -233,14 +238,24 @@ function patchCategoryShowcaseBlocks(blocks: StorefrontBlock[], plan: TemplateIm
 }
 
 function patchHomeBlocks(blocks: StorefrontBlock[], plan: TemplateImagePlan): StorefrontBlock[] {
+  let ctaIndex = 0;
+  const ctaUrls = [plan.promo_url, plan.spotlight_url, plan.about_url, plan.hero_url].filter(Boolean);
+
   return patchCategoryShowcaseBlocks(
     blocks.map((block) => {
-    if (block.type === "hero") return patchBlockImage(block, plan.hero_url);
-    if (block.id === "about-spotlight" || (block.type === "rich_text" && block.id !== "about-main")) {
-      return patchBlockImage(block, plan.spotlight_url);
-    }
-    if (block.type === "cta_banner") return patchBlockImage(block, plan.promo_url);
-    return block;
+      if (block.type === "hero") return patchBlockImage(block, plan.hero_url, { force: true });
+      if (block.id === "about-spotlight" || (block.type === "rich_text" && block.id !== "about-main")) {
+        return patchBlockImage(block, plan.spotlight_url, { force: true });
+      }
+      if (block.type === "cta_banner") {
+        const url = ctaUrls[ctaIndex % ctaUrls.length] ?? plan.promo_url;
+        ctaIndex += 1;
+        return patchBlockImage(block, url, { force: true });
+      }
+      if (block.type === "feature_grid") {
+        return patchBlockImage(block, plan.spotlight_url || plan.about_url, { force: true });
+      }
+      return block;
     }),
     plan,
   );
@@ -259,7 +274,8 @@ export function applyTemplateImagesAcrossStorefront(
   storefront: StorefrontContent,
   plan: TemplateImagePlan,
 ): { storefront: StorefrontContent; changed_paths: string[] } {
-  const next = structuredClone(storefront);
+  const ensured = ensureMerchantHomepageProducts(storefront);
+  let next = structuredClone(ensured.storefront);
   const changedPaths = new Set<string>();
 
   ensureHomeBlocksOnStorefront(next);
@@ -307,6 +323,11 @@ export function applyTemplateImagesAcrossStorefront(
     }));
     next.products.forEach((_, index) => changedPaths.add(`products.${index}.image_url`));
   }
+
+  next.data_plugs = {
+    ...next.data_plugs,
+    home_products_source: "merchant_products",
+  };
 
   ensureHomeBlocksOnStorefront(next);
 
@@ -409,7 +430,8 @@ function applyProductImagesOnly(
   storefront: StorefrontContent,
   plan: TemplateImagePlan,
 ): { storefront: StorefrontContent; changed_paths: string[] } {
-  const next = structuredClone(storefront);
+  const ensured = ensureMerchantHomepageProducts(storefront);
+  const next = structuredClone(ensured.storefront);
   const changedPaths: string[] = [];
 
   if (!next.products?.length || !plan.product_urls.length) {
@@ -421,6 +443,10 @@ function applyProductImagesOnly(
     image_url: plan.product_urls[index % plan.product_urls.length] ?? product.image_url,
   }));
   next.products.forEach((_, index) => changedPaths.push(`products.${index}.image_url`));
+  next.data_plugs = {
+    ...next.data_plugs,
+    home_products_source: "merchant_products",
+  };
 
   return { storefront: next, changed_paths: changedPaths };
 }

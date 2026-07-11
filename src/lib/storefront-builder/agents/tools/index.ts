@@ -1,0 +1,115 @@
+import type { BuilderSession } from "@/lib/api/types";
+import { isCodeWorkbenchEnabled } from "@/lib/features";
+import type { WebsiteBuilderToolDef } from "../types";
+import { BrandingTools } from "./BrandingTools";
+import { BusinessTools } from "./BusinessTools";
+import { CatalogTools } from "./CatalogTools";
+import { ContentTools } from "./ContentTools";
+import { CustomSiteTools } from "./CustomSiteTools";
+import { GenerationTools } from "./GenerationTools";
+import { ImageTools } from "./ImageTools";
+import { InsightsTools } from "./InsightsTools";
+import { LaunchTools } from "./LaunchTools";
+import { ProductTools } from "./ProductTools";
+import { StructureTools } from "./StructureTools";
+
+const PRE_DRAFT_TOOL_NAMES = new Set([
+  "capture_business_details",
+  "design_website",
+  "generate_website",
+  "generate_custom_site",
+  // Bolt-mode seeding uses this even before a draft exists.
+  "edit_custom_site_code",
+  "change_font",
+  "ask_clarifying_question",
+  // Catalog / ops can start before a visual draft exists.
+  "list_products",
+  "add_products",
+  "manage_categories",
+  "update_store_profile",
+  "get_store_metrics",
+  "suggest_site_improvements",
+]);
+
+const DRAFT_TOOL_NAMES = new Set([
+  "switch_design",
+  "apply_brand_color",
+  "refine_website_copy",
+  "apply_stock_images",
+  "source_website_images",
+  "replace_template_images",
+  "add_products",
+  "generate_product_descriptions",
+  "process_product_image",
+  "list_products",
+  "update_product",
+  "archive_product",
+  "delete_product",
+  "set_product_variants",
+  "manage_categories",
+  "link_category_showcase",
+  "duplicate_product",
+  "update_page_section",
+  "regenerate_section",
+  "reorder_page_blocks",
+  "add_page_block",
+  "remove_page_block",
+  "get_storefront_readiness",
+  "publish_website",
+  "update_store_profile",
+  "get_store_metrics",
+  "list_orders",
+  "get_order",
+  "update_order_status",
+  "suggest_site_improvements",
+  "generate_custom_site",
+  "edit_custom_site_code",
+  "change_font",
+  "ask_clarifying_question",
+]);
+
+export function websiteBuilderTools(): WebsiteBuilderToolDef[] {
+  return [
+    ...BusinessTools.definitions(),
+    ...GenerationTools.definitions(),
+    ...BrandingTools.definitions(),
+    ...ContentTools.definitions(),
+    ...ImageTools.definitions(),
+    ...ProductTools.definitions(),
+    ...CatalogTools.definitions(),
+    ...StructureTools.definitions(),
+    ...LaunchTools.definitions(),
+    ...InsightsTools.definitions(),
+    ...CustomSiteTools.definitions(),
+  ];
+}
+
+export function websiteBuilderToolsForSession(session: BuilderSession): WebsiteBuilderToolDef[] {
+  const tools = websiteBuilderTools();
+  const allowed = session.storefront_snapshot ? DRAFT_TOOL_NAMES : PRE_DRAFT_TOOL_NAMES;
+  const workbenchEnabled = isCodeWorkbenchEnabled();
+  return tools.filter((tool) => {
+    if (!allowed.has(tool.name)) return false;
+    if (
+      !workbenchEnabled &&
+      (tool.name === "generate_custom_site" || tool.name === "edit_custom_site_code")
+    ) {
+      return false;
+    }
+    return true;
+  });
+}
+
+export {
+  BrandingTools,
+  BusinessTools,
+  CatalogTools,
+  ContentTools,
+  CustomSiteTools,
+  GenerationTools,
+  ImageTools,
+  InsightsTools,
+  LaunchTools,
+  ProductTools,
+  StructureTools,
+};

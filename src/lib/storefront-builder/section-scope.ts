@@ -1,5 +1,17 @@
 export type ImageReplaceScope = "full_site" | "category_showcase" | "hero" | "about" | "products";
 
+export const IMAGE_REPLACE_SCOPES: readonly ImageReplaceScope[] = [
+  "full_site",
+  "category_showcase",
+  "hero",
+  "about",
+  "products",
+] as const;
+
+export function isImageReplaceScope(value: string): value is ImageReplaceScope {
+  return (IMAGE_REPLACE_SCOPES as readonly string[]).includes(value);
+}
+
 const FULL_SITE_PATTERN =
   /\b(all|every|whole|entire|full|across)\b.*\b(photo|photos|image|images|picture|pictures|site|website|template|storefront)\b|\b(refresh|replace|update)\b.*\b(all|every)\b.*\b(photo|photos|image|images)\b/;
 
@@ -16,8 +28,9 @@ const PRODUCTS_PAGE_PATTERN =
 const ABOUT_PATTERN =
   /\b(about page|about section|brand story)\b/;
 
+/** Homepage header / landing hero — merchants often say "landing page" for this. */
 const HERO_PATTERN =
-  /\b(homepage hero|home hero|hero section|homepage header|home header|header image)\b/;
+  /\b(landing\s*page|homepage hero|home hero|hero section|homepage header|home header|header image|header photo|homepage (?:image|images|photo|photos)|home page (?:image|images|photo|photos)|banner image|main (?:hero )?image)\b/;
 
 export function inferImageReplaceScope(text: string): ImageReplaceScope | null {
   const lower = text.toLowerCase().trim();
@@ -68,7 +81,7 @@ export function resolveImageReplaceScope(
   text: string,
   explicitScope?: ImageReplaceScope | null,
 ): ImageReplaceScope | null {
-  if (explicitScope) return explicitScope;
+  if (explicitScope && isImageReplaceScope(explicitScope)) return explicitScope;
   const inferred = inferImageReplaceScope(text);
   if (inferred) return inferred;
   if (isExplicitFullSiteImageRequest(text)) return "full_site";

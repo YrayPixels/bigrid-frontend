@@ -62,25 +62,77 @@ export function getThemeProducts(templateId: StorefrontTemplateId): StoreProduct
   return genericThemeProducts;
 }
 
+/**
+ * Seed draft merchant products from template fallbacks when the catalog is empty.
+ * Homepage grids and AI image tools always edit these — never theme-only constants.
+ */
+export function ensureMerchantHomepageProducts(
+  storefront: StorefrontContent,
+  templateId: StorefrontTemplateId = storefront.template?.id ?? "classic",
+  minCount = 4,
+): { storefront: StorefrontContent; seeded: boolean } {
+  const existing = storefront.products ?? [];
+  if (existing.length > 0) {
+    const next: StorefrontContent = {
+      ...storefront,
+      data_plugs: {
+        ...storefront.data_plugs,
+        home_products_source: "merchant_products",
+      },
+    };
+    return { storefront: next, seeded: false };
+  }
+
+  const seeds = getThemeProducts(templateId)
+    .slice(0, Math.max(minCount, 4))
+    .map((product, index) => ({
+      ...product,
+      id: product.id?.startsWith("theme-") || !product.id ? `draft-product-${index + 1}` : product.id,
+    }));
+
+  return {
+    storefront: {
+      ...storefront,
+      products: seeds,
+      data_plugs: {
+        ...storefront.data_plugs,
+        home_products_source: "merchant_products",
+      },
+    },
+    seeded: seeds.length > 0,
+  };
+}
+
+/**
+ * Homepage product grids always prefer the merchant catalog.
+ * Theme products are only a seed source when the catalog is empty.
+ */
 export function getHomepageProducts(
   storefront: StorefrontContent,
   templateId: StorefrontTemplateId,
   limit: number,
 ): { products: StoreProduct[]; source: ProductPlugSource } {
-  const source = getProductPlugSource(storefront);
+  const catalogProducts = storefront.products ?? [];
 
-  if (source === "theme_products") {
+  if (catalogProducts.length > 0) {
     return {
-      source,
+      source: "merchant_products",
+      products: catalogProducts.slice(0, limit),
+    };
+  }
+
+  // Empty catalog: show theme seeds in the live preview, but AI image/text tools
+  // should call ensureMerchantHomepageProducts before mutating product images.
+  if (getProductPlugSource(storefront) === "theme_products") {
+    return {
+      source: "theme_products",
       products: getThemeProducts(templateId).slice(0, limit),
     };
   }
 
-  const catalogProducts = storefront.products ?? [];
-
   return {
     source: "merchant_products",
-    products: catalogProducts.slice(0, limit),
+    products: [],
   };
 }
 

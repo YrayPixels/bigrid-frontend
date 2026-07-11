@@ -1,48 +1,35 @@
 import type {
-  BuilderBusinessProfile,
   BuilderSession,
-  StorefrontContent,
   StorefrontTemplateId,
   StorefrontTemplateOption,
   StorefrontTemplateRecommendation,
 } from "@/lib/api/types";
 import type { BuilderAiTurn } from "@/lib/storefront-builder/local-ai";
-import {
-  fallbackBuilderTurn,
-  isSubstantiveBuilderMessage,
-  sanitizeBusinessProfile,
-} from "@/lib/storefront-builder/local-ai";
+import { fallbackBuilderTurn, sanitizeBusinessProfile } from "@/lib/storefront-builder/local-ai";
 import {
   appendMemory,
-  formatThinkingContext,
-  runCritic,
-  runInterpreter,
-  runPlanner,
+  INFORMATIONAL_TOOL_NAMES,
   summarizeToolResult,
-  type InterpreterResult,
-  type PlannerResult,
 } from "./agentThinking";
-import { getAssistantMessageContent, postChat } from "./openaiChat";
 import { websiteBuilderToolsForSession } from "./tools";
-import { BUILDER_EXECUTOR_SYSTEM_PROMPT } from "@/lib/storefront-builder/prompts";
-import type { AgentActivityPayload, AgentThinkingLogEntry, WebsiteBuilderContext, WebsiteBuilderToolDef } from "./types";
+import type {
+  AgentActivityPayload,
+  AgentThinkingLogEntry,
+  WebsiteBuilderContext,
+  WebsiteBuilderToolDef,
+} from "./types";
 import { createThinkingLogEntry } from "./thinking-log";
 import { aiSuggestedActions, colorPresetActions } from "@/lib/storefront-builder/suggested-actions";
 import { formatBuilderHistorySnippet } from "@/lib/storefront-builder/chat-history";
-import { sectionScopeHint } from "@/lib/storefront-builder/section-scope";
+import { inferImageReplaceScope, sectionScopeHint } from "@/lib/storefront-builder/section-scope";
+import {
+  createBuilderAgentRegistry,
+  type BuilderAgentRegistry,
+  type ExecutorChatMessage,
+  type OpenAiToolSchema,
+} from "./roles";
 
-type AssistantToolCall = {
-  id: string;
-  type: "function";
-  function: { name: string; arguments: string };
-};
-
-type ChatMessage =
-  | { role: "system" | "user"; content: string }
-  | { role: "assistant"; content: string | null; tool_calls?: AssistantToolCall[] }
-  | { role: "tool"; tool_call_id: string; content: string };
-
-function toOpenAiTools(defs: WebsiteBuilderToolDef[]) {
+function toOpenAiTools(defs: WebsiteBuilderToolDef[]): OpenAiToolSchema[] {
   return defs.map((tool) => ({
     type: "function" as const,
     function: {
@@ -53,11 +40,70 @@ function toOpenAiTools(defs: WebsiteBuilderToolDef[]) {
   }));
 }
 
+/** Tools that can run from session/message context without model-chosen arguments. */
+const DIRECT_EXEC_SAFE_TOOLS = new Set([
+  "list_products",
+  "get_store_metrics",
+  "list_orders",
+  "suggest_site_improvements",
+  "get_storefront_readiness",
+  "apply_stock_images",
+  "generate_website",
+  "design_website",
+  "capture_business_details",
+  "refine_website_copy",
+  "apply_brand_color",
+  "switch_design",
+  "change_font",
+  "source_website_images",
+  "replace_template_images",
+  "generate_product_descriptions",
+  "generate_custom_site",
+  "update_store_profile",
+  "add_page_block",
+]);
+
+function canRunToolsDirectly(toolNames: string[]): boolean {
+  return toolNames.length > 0 && toolNames.every((name) => DIRECT_EXEC_SAFE_TOOLS.has(name));
+}
+
+function defaultArgsForDirectTool(
+  name: string,
+  stepDescription: string,
+  merchantMessage: string,
+): Record<string, unknown> {
+  if (name === "add_page_block") {
+    if (/product grid|products? section/i.test(stepDescription)) return { type: "product_grid" };
+    return { type: "rich_text" };
+  }
+  if (name === "refine_website_copy") {
+    return { instruction: merchantMessage.trim() || stepDescription };
+  }
+  if (name === "apply_brand_color" || name === "switch_design" || name === "source_website_images") {
+    return { instruction: merchantMessage.trim() || stepDescription, direction: merchantMessage.trim() };
+  }
+  if (name === "replace_template_images") {
+    const intent = merchantMessage.trim() || stepDescription;
+    const scope = inferImageReplaceScope([merchantMessage, stepDescription].filter(Boolean).join(" "));
+    return scope ? { intent, scope } : { intent };
+  }
+  return {};
+}
+
+/**
+ * Waterfall orchestrator: creates role agents (with prompts ready), then feeds them
+ * Interpreter → Planner → Executor(step) → Critic. Agents do not talk to each other.
+ */
 export class StorefrontBuilderManager {
+  private readonly agents: BuilderAgentRegistry;
+
   constructor(
     private onActivity?: (payload: AgentActivityPayload) => void,
     private onLog?: (entry: AgentThinkingLogEntry) => void,
-  ) {}
+    agents?: BuilderAgentRegistry,
+  ) {
+    this.agents = agents ?? createBuilderAgentRegistry();
+  }
 
   private log(entry: Omit<AgentThinkingLogEntry, "id" | "ts">) {
     const full = createThinkingLogEntry(entry);
@@ -94,27 +140,29 @@ export class StorefrontBuilderManager {
       availableTemplateIds,
     });
 
-
-
+    const { interpreter, planner, executor, critic } = this.agents;
     const toolDefs = websiteBuilderToolsForSession(session);
     const historySnippet = formatBuilderHistorySnippet(history ?? []);
     const scopeHint = sectionScopeHint(message);
 
+    // ── Interpreter ──────────────────────────────────────────────
     this.log({
       agent: "Interpreter",
       phase: "start",
       title: "Understanding your request",
       detail: message.trim().slice(0, 280),
     });
-    const interpretation = await runInterpreter({ userText: message, historySnippet }).catch((error) => {
-      this.log({
-        agent: "Interpreter",
-        phase: "error",
-        title: "Interpreter failed",
-        detail: error instanceof Error ? error.message : "Unknown error",
+    const interpretation = await interpreter
+      .run({ userText: message, historySnippet })
+      .catch((error) => {
+        this.log({
+          agent: "Interpreter",
+          phase: "error",
+          title: "Interpreter failed",
+          detail: error instanceof Error ? error.message : "Unknown error",
+        });
+        return null;
       });
-      return null;
-    });
     if (!interpretation) return fallback;
 
     this.log({
@@ -129,20 +177,24 @@ export class StorefrontBuilderManager {
       },
     });
 
+    // ── Planner ──────────────────────────────────────────────────
     this.log({
       agent: "Planner",
       phase: "start",
       title: "Planning your website",
     });
-    const plan = await runPlanner({ userText: message, interpretation, toolDefs, historySnippet }).catch((error) => {
-      this.log({
-        agent: "Planner",
-        phase: "error",
-        title: "Planner failed",
-        detail: error instanceof Error ? error.message : "Unknown error",
+    const plan = await planner
+      .configure(toolDefs)
+      .run({ userText: message, interpretation, historySnippet })
+      .catch((error) => {
+        this.log({
+          agent: "Planner",
+          phase: "error",
+          title: "Planner failed",
+          detail: error instanceof Error ? error.message : "Unknown error",
+        });
+        return null;
       });
-      return null;
-    });
     if (!plan) return fallback;
 
     this.log({
@@ -177,37 +229,23 @@ export class StorefrontBuilderManager {
     let memory: string[] = [];
     const toolCallsLog: Array<{ name: string; arguments: Record<string, unknown> }> = [];
     const toolResultsLog: Array<Record<string, unknown>> = [];
+    const informationalReplies: string[] = [];
 
-    const messages: ChatMessage[] = [
-      {
-        role: "system",
-        content:
-          BUILDER_EXECUTOR_SYSTEM_PROMPT +
-          "\n\n" +
-          formatThinkingContext(interpretation, plan) +
-          (scopeHint ? `\n\n### Scope\n${scopeHint}\n` : "") +
-          (session.storefront_snapshot
-            ? "\n\n### Session state\nA website draft already exists in the preview. Follow the plan above — call each planned tool in order. Never reply with only prose when a tool is assigned to you. Execute tools silently and report results after.\n" +
-              `Enabled tools: ${toolDefs.map((tool) => tool.name).join(", ")}`
-            : "\n\n### Session state\nNo website draft yet. Gather business details if needed, then design and generate when the merchant is ready."),
-      },
-      ...(history ?? []).map((entry) => ({
-        role: entry.role === "assistant" ? ("assistant" as const) : ("user" as const),
-        content: entry.content,
-      })),
-      { role: "user", content: message },
-    ];
-
+    // Feed Executor its briefing, then build the shared chat transcript.
+    executor.receiveBriefing({
+      interpretation,
+      plan,
+      scopeHint: scopeHint ?? undefined,
+      session,
+      toolDefs,
+    });
+    const messages: ExecutorChatMessage[] = executor.buildInitialMessages(history, message);
     const openAiTools = toOpenAiTools(toolDefs);
     const completedStepIndices = new Set<number>();
     let criticStatus: "CONTINUE" | "DONE" | "NEED_USER" = "CONTINUE";
-
-    // Execute one plan step per iteration. Steps without tools are conversational
-    // and handled by the final reply — only tool-bearing steps go through the loop.
     const toolSteps = plan.plan_steps.filter((s) => s.tools.length > 0);
 
-    // Bolt-style fast path: if planner produced no tool steps but the merchant asked
-    // for a custom site, run the generator tool immediately.
+    // Bolt-style fast path: custom site with no planner tool steps.
     const wantsCustomSite =
       plan.intent.toLowerCase().includes("custom") ||
       interpretation.task_summary.toLowerCase().includes("custom") ||
@@ -234,14 +272,13 @@ export class StorefrontBuilderManager {
         data: { result },
       });
 
-      // Ensure payload includes tool metadata for persistence.
-      const toolMetadata = {
+      ctx.payload = {
+        type: "agent_turn",
         plan: plan.plan_steps,
         tool_calls: toolCallsLog,
         tool_results: toolResultsLog,
         profile: ctx.profile,
       };
-      ctx.payload = { type: "agent_turn", ...toolMetadata };
 
       return {
         business_profile: ctx.profile,
@@ -253,65 +290,182 @@ export class StorefrontBuilderManager {
       };
     }
 
+    const runToolsDirectly = async (stepToolNames: string[], stepDescription: string) => {
+      const lastToolSummaries: string[] = [];
+      for (const name of stepToolNames) {
+        const def = toolDefs.find((tool) => tool.name === name);
+        if (!def) continue;
+        const toolArgs = defaultArgsForDirectTool(name, stepDescription, message);
+        toolCallsLog.push({ name, arguments: toolArgs });
+        const result = await def.handler(toolArgs, ctx);
+        toolResultsLog.push({ name, ...result });
+        const summary = summarizeToolResult(name, result);
+        lastToolSummaries.push(summary);
+        memory = appendMemory(memory, summary);
+        if (INFORMATIONAL_TOOL_NAMES.has(name) && ctx.assistantMessage.trim()) {
+          informationalReplies.push(ctx.assistantMessage.trim());
+        }
+        this.log({
+          agent: "Executor",
+          phase: "complete",
+          title: `Tool finished: ${name}`,
+          detail: summary,
+          data: { name, arguments: toolArgs, result },
+        });
+      }
+      return lastToolSummaries;
+    };
+
+    const askCritic = async (lastToolSummaries: string[], remainingCount: number) => {
+      this.log({
+        agent: "Critic",
+        phase: "start",
+        title: "Reviewing progress",
+      });
+      const decision = await critic
+        .run({
+          userText: message,
+          interpretation,
+          plan,
+          memoryLines: memory,
+          lastToolSummaries,
+          completedToolNames: toolCallsLog.map((call) => call.name),
+        })
+        .catch(() => ({ status: "CONTINUE" as const, reason: "Proceeding to next step." }));
+
+      let status = decision.status;
+      if (status === "DONE" && remainingCount > 0) status = "CONTINUE";
+      memory = appendMemory(memory, `[critic] ${status}: ${decision.reason}`);
+      this.log({
+        agent: "Critic",
+        phase: "complete",
+        title: `Critic decision: ${status}`,
+        detail: decision.reason,
+        data: { status, reason: decision.reason, completed_steps: [...completedStepIndices] },
+      });
+      return { status, reason: decision.reason };
+    };
+
+    // ── Executor loop (fed one plan step at a time) ──────────────
     for (let iteration = 0; iteration < 8 && criticStatus === "CONTINUE"; iteration++) {
-      // Find the next incomplete tool step
       const nextStep = toolSteps.find((s) => !completedStepIndices.has(s.step));
       if (!nextStep) {
         criticStatus = "DONE";
         break;
       }
 
-      // Build a focused message: execute THIS step only
-      const stepPrompt =
-        `[internal] Execute ONLY step ${nextStep.step} of the plan: "${nextStep.description}". ` +
-        `Use these tools: ${nextStep.tools.join(", ")}. ` +
-        "Do NOT do anything else — just this one step.";
-
-      messages.push({ role: "user", content: stepPrompt });
+      const stepToolNames = nextStep.tools.filter((name) =>
+        toolDefs.some((tool) => tool.name === name),
+      );
+      const stepOpenAiTools =
+        stepToolNames.length > 0
+          ? openAiTools.filter((tool) => stepToolNames.includes(tool.function.name))
+          : openAiTools;
 
       this.log({
         agent: "Executor",
         phase: "start",
         title: iteration === 0 ? "Running executor" : `Executor iteration ${iteration + 1}`,
         detail: `Step ${nextStep.step}: ${nextStep.description}`,
-        data: { iteration: iteration + 1, step: nextStep.step, tools: nextStep.tools },
+        data: { iteration: iteration + 1, step: nextStep.step, tools: stepToolNames },
       });
 
-      const data = await postChat({
-        messages,
-        tools: openAiTools,
-        tool_choice: "auto",
-        temperature: 0.35,
-      }).catch((error) => {
+      // When the planner already named safe tools, run them directly.
+      // DeepSeek often returns finish_reason "stop" with prose instead of tool_calls.
+      if (canRunToolsDirectly(stepToolNames)) {
         this.log({
           agent: "Executor",
-          phase: "error",
-          title: "Executor model call failed",
-          detail: error instanceof Error ? error.message : "Unknown error",
+          phase: "info",
+          title: "Running planned tools directly",
+          detail: stepToolNames.join(", "),
         });
-        return null;
-      });
 
-      const assistant = data?.choices?.[0]?.message;
-      if (!assistant) break;
+        const lastToolSummaries = await runToolsDirectly(stepToolNames, nextStep.description);
 
-      const rawCalls = (assistant as { tool_calls?: AssistantToolCall[] }).tool_calls;
-      const assistantMessage: ChatMessage = {
-        role: "assistant",
-        content: typeof assistant.content === "string" ? assistant.content : null,
-        ...(Array.isArray(rawCalls) ? { tool_calls: rawCalls } : {}),
-      };
-      messages.push(assistantMessage);
+        const directFailed = toolResultsLog.slice(-stepToolNames.length).some((r) => r.ok === false);
+        if (directFailed && ctx.assistantMessage) {
+          criticStatus = "DONE";
+          break;
+        }
 
-      if (!assistantMessage.tool_calls?.length) {
-        if (assistantMessage.content?.trim()) ctx.assistantMessage = assistantMessage.content.trim();
+        completedStepIndices.add(nextStep.step);
+        const remainingAfterDirect = toolSteps.filter((s) => !completedStepIndices.has(s.step));
+        if (remainingAfterDirect.length === 0) {
+          criticStatus = "DONE";
+          this.log({
+            agent: "Critic",
+            phase: "complete",
+            title: "All plan steps complete",
+            detail: `${completedStepIndices.size} step(s) executed.`,
+          });
+          break;
+        }
+
+        const criticDecision = await askCritic(lastToolSummaries, remainingAfterDirect.length);
+        criticStatus = criticDecision.status;
+        if (criticStatus === "NEED_USER" && !ctx.assistantMessage) {
+          ctx.assistantMessage = criticDecision.reason;
+          ctx.payload = { type: "requirements_request", profile: ctx.profile };
+          break;
+        }
+        continue;
+      }
+
+      const decision = await executor
+        .runStep({
+          messages,
+          step: nextStep,
+          stepToolNames,
+          stepTools: stepOpenAiTools,
+          allTools: openAiTools,
+        })
+        .catch((error) => {
+          this.log({
+            agent: "Executor",
+            phase: "error",
+            title: "Executor model call failed",
+            detail: error instanceof Error ? error.message : "Unknown error",
+          });
+          return null;
+        });
+
+      if (!decision) break;
+
+      let lastToolSummaries: string[] = [];
+
+      if (!decision.toolCalls.length) {
+        // Model returned prose (finish_reason stop) — still honor planned tools if any.
+        if (stepToolNames.length > 0) {
+          this.log({
+            agent: "Executor",
+            phase: "info",
+            title: "Executor skipped tools — running planned tools directly",
+            detail: stepToolNames.join(", "),
+          });
+          lastToolSummaries = await runToolsDirectly(stepToolNames, nextStep.description);
+          const directFailed = toolResultsLog.slice(-stepToolNames.length).some((r) => r.ok === false);
+          if (directFailed && ctx.assistantMessage) {
+            criticStatus = "DONE";
+            break;
+          }
+          completedStepIndices.add(nextStep.step);
+          const remainingAfterDirect = toolSteps.filter((s) => !completedStepIndices.has(s.step));
+          if (remainingAfterDirect.length === 0) {
+            criticStatus = "DONE";
+            break;
+          }
+          const criticDecision = await askCritic(lastToolSummaries, remainingAfterDirect.length);
+          criticStatus = criticDecision.status;
+          continue;
+        }
+
+        if (decision.prose) ctx.assistantMessage = decision.prose;
         this.log({
           agent: "Executor",
           phase: "complete",
           title: "Executor replied without tools",
-          detail: assistantMessage.content?.trim().slice(0, 280) ?? undefined,
+          detail: decision.prose.slice(0, 280) || undefined,
         });
-        // If the step has tools but Executor didn't call them, ask Critic
         criticStatus = "NEED_USER";
         break;
       }
@@ -319,17 +473,16 @@ export class StorefrontBuilderManager {
       this.log({
         agent: "Executor",
         phase: "info",
-        title: `Calling ${assistantMessage.tool_calls.length} tool(s)`,
+        title: `Calling ${decision.toolCalls.length} tool(s)`,
         data: {
-          tool_calls: assistantMessage.tool_calls.map((call) => ({
+          tool_calls: decision.toolCalls.map((call) => ({
             name: call.function?.name,
             arguments: call.function?.arguments,
           })),
         },
       });
 
-      const lastToolSummaries: string[] = [];
-      for (const toolCall of assistantMessage.tool_calls) {
+      for (const toolCall of decision.toolCalls) {
         const name = toolCall.function?.name;
         const callId = toolCall.id;
         if (!name || !callId) continue;
@@ -345,33 +498,35 @@ export class StorefrontBuilderManager {
         toolCallsLog.push({ name, arguments: parsed });
 
         if (!def) {
-          const payload = JSON.stringify({ error: `Unknown tool: ${name}` });
-          messages.push({ role: "tool", tool_call_id: callId, content: payload });
+          messages.push({
+            role: "tool",
+            tool_call_id: callId,
+            content: JSON.stringify({ error: `Unknown tool: ${name}` }),
+          });
           continue;
         }
 
         const result = await def.handler(parsed, ctx);
         toolResultsLog.push({ name, ...result });
-        const payload = JSON.stringify(result);
-        messages.push({ role: "tool", tool_call_id: callId, content: payload });
+        messages.push({ role: "tool", tool_call_id: callId, content: JSON.stringify(result) });
         const summary = summarizeToolResult(name, result);
         lastToolSummaries.push(summary);
         memory = appendMemory(memory, summary);
+        if (INFORMATIONAL_TOOL_NAMES.has(name) && ctx.assistantMessage.trim()) {
+          informationalReplies.push(ctx.assistantMessage.trim());
+        }
 
         this.log({
           agent: "Executor",
           phase: "complete",
           title: `Tool finished: ${name}`,
-          detail: summarizeToolResult(name, result),
+          detail: summary,
           data: { name, arguments: parsed, result },
         });
       }
 
-      // Check if any tool in this step failed — if so, stop and report
-      const stepResults = toolResultsLog.slice(-(assistantMessage.tool_calls?.length ?? 1));
-      const stepFailed = stepResults.some((r) => r.ok === false);
-
-      if (stepFailed && ctx.assistantMessage) {
+      const stepResults = toolResultsLog.slice(-decision.toolCalls.length);
+      if (stepResults.some((r) => r.ok === false) && ctx.assistantMessage) {
         criticStatus = "DONE";
         this.log({
           agent: "Executor",
@@ -382,10 +537,7 @@ export class StorefrontBuilderManager {
         break;
       }
 
-      // Mark this step as complete — tools ran for it
       completedStepIndices.add(nextStep.step);
-
-      // Check if we have more steps to do (simple check before Critic)
       const remaining = toolSteps.filter((s) => !completedStepIndices.has(s.step));
       if (remaining.length === 0) {
         criticStatus = "DONE";
@@ -398,42 +550,25 @@ export class StorefrontBuilderManager {
         break;
       }
 
-      this.log({
-        agent: "Critic",
-        phase: "start",
-        title: "Reviewing progress",
-      });
-
-      const critic = await runCritic({
-        userText: message,
-        interpretation,
-        plan,
-        memoryLines: memory,
-        lastToolSummaries,
-        completedToolNames: toolCallsLog.map((call) => call.name),
-      }).catch(() => ({ status: "CONTINUE" as const, reason: "Proceeding to next step." }));
-
-      criticStatus = critic.status;
-      memory = appendMemory(memory, `[critic] ${critic.status}: ${critic.reason}`);
-
-      this.log({
-        agent: "Critic",
-        phase: "complete",
-        title: `Critic decision: ${critic.status}`,
-        detail: critic.reason,
-        data: { status: critic.status, reason: critic.reason, completed_steps: [...completedStepIndices] },
-      });
+      const criticDecision = await askCritic(lastToolSummaries, remaining.length);
+      criticStatus = criticDecision.status;
 
       if (criticStatus === "NEED_USER" && !ctx.assistantMessage) {
-        ctx.assistantMessage = critic.reason;
+        ctx.assistantMessage = criticDecision.reason;
         ctx.payload = { type: "requirements_request", profile: ctx.profile };
         break;
       }
+    }
 
-      // Critic says DONE but we still have steps? Override to CONTINUE
-      if (criticStatus === "DONE" && remaining.length > 0) {
-        criticStatus = "CONTINUE";
-      }
+    if (informationalReplies.length > 0) {
+      const unique = [...new Set(informationalReplies)];
+      const mutateReply =
+        ctx.assistantMessage &&
+        !unique.includes(ctx.assistantMessage.trim()) &&
+        toolCallsLog.some((call) => !INFORMATIONAL_TOOL_NAMES.has(call.name))
+          ? ctx.assistantMessage.trim()
+          : "";
+      ctx.assistantMessage = [...unique, mutateReply].filter(Boolean).join("\n\n");
     }
 
     if (!ctx.assistantMessage) {
@@ -442,42 +577,30 @@ export class StorefrontBuilderManager {
         phase: "start",
         title: "Composing merchant reply",
       });
-      const finalData = await postChat({
-        messages: [
-          ...messages,
-          {
-            role: "user",
-            content:
-              "[internal] Respond to the merchant in 1-3 warm sentences about what just happened. " +
-              "Do not mention templates, agents, or tools. " +
-              "Acknowledge the specific action that was just completed (check the tool results in the conversation). " +
-              "Never reply with a generic greeting or business-building prompt when an action was just taken. " +
-              "If a tool modified the website, tell the merchant what changed and invite them to check the preview.",
-          },
-        ],
-        tool_choice: "none",
-        temperature: 0.4,
-      }).catch(() => null);
-      ctx.assistantMessage =
-        getAssistantMessageContent(finalData ?? {}) || fallback.assistant_message;
+      const composed = await executor.composeMerchantReply(messages).catch(() => "");
+      ctx.assistantMessage = composed || fallback.assistant_message;
 
-      // Safety net: if the final reply is still empty or is the pre-build
-      // fallback, but tools just modified the website, provide a contextual reply.
       const isFallbackReply = !ctx.assistantMessage || ctx.assistantMessage === fallback.assistant_message;
-      if (toolCallsLog.length > 0 && isFallbackReply && ctx.storefront) {
+      if (toolCallsLog.length > 0 && isFallbackReply) {
         const lastTool = toolCallsLog[toolCallsLog.length - 1];
         const toolMessages: Record<string, string> = {
           refine_website_copy: "Done — I've updated the copy. Check the preview on the right!",
-          capture_business_details: "Got it! I've saved your business details. Ready to build your website — just say 'build my website' when you're ready.",
-          design_website: "I've picked the best design for your brand. Ready to build — just say 'build my website'!",
+          capture_business_details:
+            "Got it! I've saved your business details. Ready to build your website — just say 'build my website' when you're ready.",
+          design_website:
+            "I've picked the best design for your brand. Ready to build — just say 'build my website'!",
           apply_brand_color: "Done — colors updated. Check the preview!",
           change_font: "Done — font updated. Check the preview!",
           add_products: "Products added! Check your Products page.",
+          list_products: "I've pulled your product catalog — see the list above.",
           generate_product_descriptions: "Product descriptions updated! Check your Products page.",
+          add_page_block: "Done — I added that section. Check the preview!",
+          get_store_metrics: "Here's your store performance snapshot.",
+          list_orders: "Here are your recent orders.",
         };
         ctx.assistantMessage = lastTool
-          ? (toolMessages[lastTool.name] ?? "Done — your website has been updated. Check the preview!")
-          : "Done — your website has been updated. Check the preview!";
+          ? (toolMessages[lastTool.name] ?? "Done — I finished that request.")
+          : "Done — I finished that request.";
       }
       this.log({
         agent: "System",
@@ -524,7 +647,11 @@ export class StorefrontBuilderManager {
     ];
     const suggestedActions = await aiSuggestedActions({
       message,
-      session: { ...session, business_profile: ctx.profile, storefront_snapshot: ctx.storefront ?? session.storefront_snapshot },
+      session: {
+        ...session,
+        business_profile: ctx.profile,
+        storefront_snapshot: ctx.storefront ?? session.storefront_snapshot,
+      },
       assistantMessage: ctx.assistantMessage,
     });
     ctx.payload = {
