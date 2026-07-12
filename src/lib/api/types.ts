@@ -418,6 +418,19 @@ export type StorefrontEditMetadata = {
   last_generated_at?: string | null;
 };
 
+export type StorefrontThemeButtonStyle = "rounded" | "square" | "pill";
+export type StorefrontThemeButtonRadius = "none" | "md" | "full";
+export type StorefrontThemeDensity = "compact" | "default" | "airy";
+export type StorefrontThemeBodyFont = "clean-sans" | "modern-sans" | "elegant-serif";
+
+/** Optional style tokens. Unset keys keep the template’s standard look. */
+export type StorefrontThemeOverrides = {
+  button_style?: StorefrontThemeButtonStyle;
+  button_radius?: StorefrontThemeButtonRadius;
+  density?: StorefrontThemeDensity;
+  body_font?: StorefrontThemeBodyFont;
+};
+
 export type StorefrontContent = {
   template?: {
     id: StorefrontTemplateId;
@@ -425,6 +438,7 @@ export type StorefrontContent = {
   };
   palette?: StorefrontColorPalette;
   display_font?: string;
+  theme_overrides?: StorefrontThemeOverrides;
   custom_code?: string;
   custom_files?: CodeFile[];
   data_plugs?: {

@@ -102,6 +102,12 @@ export function inferToolsFromStepDescription(description: string, allowed: Set<
   if (/\b(font|typography|typeface)\b/.test(text)) {
     return pick("change_font");
   }
+  if (
+    /\b(button|buttons|spacing|densit|sharper|pill|square corners|more space|tighter)\b/.test(text) &&
+    !/\b(new design|different look|another style|switch.*(design|template))\b/.test(text)
+  ) {
+    return pick("update_theme_style");
+  }
   if (/\b(new design|different look|switch.*(design|style)|another style)\b/.test(text)) {
     return pick("switch_design");
   }
@@ -163,6 +169,8 @@ export function summarizeToolResult(name: string, result: Record<string, unknown
   if (name === "generate_website" && result.ok) return "[tool:generate_website] website generated";
   if (name === "switch_design" && result.ok) return "[tool:switch_design] design and palette applied";
   if (name === "apply_brand_color" && result.ok) return "[tool:apply_brand_color] brand color updated";
+  if (name === "change_font" && result.ok) return "[tool:change_font] font updated";
+  if (name === "update_theme_style" && result.ok) return "[tool:update_theme_style] style tokens updated";
   if (name === "apply_stock_images" && result.ok) return "[tool:apply_stock_images] stock photos applied";
   if (name === "source_website_images" && result.ok) return "[tool:source_website_images] image recommendations ready";
   if (name === "replace_template_images" && result.ok) return "[tool:replace_template_images] template photos replaced";

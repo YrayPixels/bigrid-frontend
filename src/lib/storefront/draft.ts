@@ -7,7 +7,7 @@ import type {
 import { clearBoltProjectFromStorefront } from "./bolt-template-storefront";
 import { applyFurnitureHardwareTemplatePreset } from "./template-presets/furniture-hardware";
 import { applyHairFashionTemplatePreset } from "./template-presets/hair-and-fashion";
-import { getDefaultStorefrontPalette, resolveStorefrontTemplate } from "./template";
+import { clearStorefrontStyleOverrides, getDefaultStorefrontPalette, resolveStorefrontTemplate } from "./template";
 
 type StorefrontDefaultsContext = Pick<Store, "business_name" | "description">;
 
@@ -337,17 +337,18 @@ export function applyTemplatePreset(
   brandColor?: string | null,
 ): StorefrontContent {
   const withoutBoltProject = clearBoltProjectFromStorefront(content);
+  const withoutStyleOverrides = clearStorefrontStyleOverrides(withoutBoltProject);
 
   if (templateId === "furniture-hardware") {
-    return applyFurnitureHardwareTemplatePreset(withoutBoltProject, brandColor ?? undefined);
+    return applyFurnitureHardwareTemplatePreset(withoutStyleOverrides, brandColor ?? undefined);
   }
 
   if (templateId === "hair-and-fashion") {
-    return applyHairFashionTemplatePreset(withoutBoltProject, brandColor ?? undefined);
+    return applyHairFashionTemplatePreset(withoutStyleOverrides, brandColor ?? undefined);
   }
 
   return applyTemplateToDraft(
-    withoutBoltProject,
+    withoutStyleOverrides,
     templateId,
     getDefaultStorefrontPalette(templateId, brandColor ?? undefined),
   );

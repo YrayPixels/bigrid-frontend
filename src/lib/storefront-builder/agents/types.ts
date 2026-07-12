@@ -21,6 +21,7 @@ export type WebsiteBuilderToolName =
   // Branding
   | "apply_brand_color"
   | "change_font"
+  | "update_theme_style"
   // Content
   | "refine_website_copy"
   // Images

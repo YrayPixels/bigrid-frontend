@@ -54,6 +54,7 @@ export function StorefrontGate({
     data.store.brand_color,
     data.storefront.palette,
     data.storefront.display_font,
+    data.storefront.theme_overrides,
   );
 
   return (

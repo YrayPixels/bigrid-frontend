@@ -19,6 +19,11 @@ import type {
   StorefrontContent,
   StorefrontTemplateId,
   StorefrontTemplateOption,
+  StorefrontThemeBodyFont,
+  StorefrontThemeButtonRadius,
+  StorefrontThemeButtonStyle,
+  StorefrontThemeDensity,
+  StorefrontThemeOverrides,
 } from "@/lib/api/types";
 import { STOREFRONT_TEMPLATE_OPTIONS } from "@/lib/api/types";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -43,8 +48,11 @@ import {
 } from "@/lib/storefront/draft";
 import { getProductPlugSource } from "@/lib/storefront/product-plugs";
 import {
+  clearStorefrontStyleOverrides,
   getDefaultStorefrontPalette,
   resolveStorefrontTemplate,
+  STOREFRONT_BODY_FONT_OPTIONS,
+  STOREFRONT_FONT_OPTIONS,
   STOREFRONT_PALETTE_PRESETS,
   STOREFRONT_THEME_PRESETS,
 } from "@/lib/storefront/template";
@@ -72,6 +80,37 @@ const EDITOR_PAGES: { id: EditorPage; label: string }[] = [
 ];
 
 const AUTOSAVE_DELAY_MS = 900;
+
+function fontKeyFromCss(css: string | undefined): string | null {
+  if (!css) return null;
+  const match = Object.entries(STOREFRONT_FONT_OPTIONS).find(([, option]) => option.css === css);
+  return match?.[0] ?? null;
+}
+
+function StyleOptionButton({
+  active,
+  title,
+  description,
+  onClick,
+}: {
+  active: boolean;
+  title: string;
+  description?: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`w-full rounded-lg border px-3 py-2 text-left text-sm transition ${
+        active ? "border-primary bg-primary/5" : "border-border hover:border-ink/30"
+      }`}
+    >
+      <div className="font-semibold">{title}</div>
+      {description ? <div className="text-xs leading-5 text-ink-soft">{description}</div> : null}
+    </button>
+  );
+}
 
 function EditorControlSection({
   title,
@@ -235,9 +274,108 @@ export function VisualStorefrontEditor({
     setDraft((current) => applyTemplatePreset(current, nextTemplateId, store.brand_color));
   }
 
+  function resetStyleToTemplateDefault() {
+    setDraft((current) => clearStorefrontStyleOverrides(current));
+  }
+
+  function setDisplayFont(fontKey: string | null) {
+    setDraft((current) => {
+      const next = { ...current };
+      if (!fontKey) {
+        delete next.display_font;
+        return next;
+      }
+      const option = STOREFRONT_FONT_OPTIONS[fontKey];
+      if (!option) return current;
+      next.display_font = option.css;
+      return next;
+    });
+  }
+
+  function setBodyFont(fontKey: StorefrontThemeBodyFont | null) {
+    setDraft((current) => {
+      const nextOverrides: StorefrontThemeOverrides = { ...current.theme_overrides };
+      if (!fontKey) {
+        delete nextOverrides.body_font;
+      } else {
+        nextOverrides.body_font = fontKey;
+      }
+      const next = { ...current };
+      if (Object.keys(nextOverrides).length > 0) {
+        next.theme_overrides = nextOverrides;
+      } else {
+        delete next.theme_overrides;
+      }
+      return next;
+    });
+  }
+
+  function setButtonStyle(value: StorefrontThemeButtonStyle | null) {
+    setDraft((current) => {
+      const nextOverrides: StorefrontThemeOverrides = { ...current.theme_overrides };
+      if (!value) {
+        delete nextOverrides.button_style;
+      } else {
+        nextOverrides.button_style = value;
+      }
+      const next = { ...current };
+      if (Object.keys(nextOverrides).length > 0) {
+        next.theme_overrides = nextOverrides;
+      } else {
+        delete next.theme_overrides;
+      }
+      return next;
+    });
+  }
+
+  function setButtonRadius(value: StorefrontThemeButtonRadius | null) {
+    setDraft((current) => {
+      const nextOverrides: StorefrontThemeOverrides = { ...current.theme_overrides };
+      if (!value) {
+        delete nextOverrides.button_radius;
+      } else {
+        nextOverrides.button_radius = value;
+      }
+      const next = { ...current };
+      if (Object.keys(nextOverrides).length > 0) {
+        next.theme_overrides = nextOverrides;
+      } else {
+        delete next.theme_overrides;
+      }
+      return next;
+    });
+  }
+
+  function setDensity(value: StorefrontThemeDensity | null) {
+    setDraft((current) => {
+      const nextOverrides: StorefrontThemeOverrides = { ...current.theme_overrides };
+      if (!value || value === "default") {
+        delete nextOverrides.density;
+      } else {
+        nextOverrides.density = value;
+      }
+      const next = { ...current };
+      if (Object.keys(nextOverrides).length > 0) {
+        next.theme_overrides = nextOverrides;
+      } else {
+        delete next.theme_overrides;
+      }
+      return next;
+    });
+  }
+
   function updatePaletteColor(key: keyof StorefrontColorPalette, value: string) {
     setPalette((current) => ({ ...current, [key]: value }));
   }
+
+  const displayFontKey = fontKeyFromCss(draft.display_font);
+  const bodyFontKey = draft.theme_overrides?.body_font ?? null;
+  const buttonStyle = draft.theme_overrides?.button_style ?? null;
+  const buttonRadius = draft.theme_overrides?.button_radius ?? null;
+  const density = draft.theme_overrides?.density ?? null;
+  const hasStyleOverrides =
+    Boolean(draft.display_font) ||
+    Boolean(draft.theme_overrides && Object.keys(draft.theme_overrides).length > 0);
 
   return (
     <div className="rounded-2xl border border-border bg-card shadow-soft">
@@ -441,6 +579,152 @@ export function VisualStorefrontEditor({
                     />
                   </div>
                 </label>
+              ))}
+            </div>
+          </EditorControlSection>
+
+          <EditorControlSection
+            title="Typography"
+            open={openSection === "typography"}
+            onOpenChange={(open) => setOpenSection(open ? "typography" : "")}
+          >
+            <p className="text-xs leading-5 text-ink-soft">
+              Headings and body text. Leave on template default to keep the design&apos;s standard fonts.
+            </p>
+            <div className="mt-3 space-y-2">
+              <div className="text-xs font-medium text-ink-soft">Display font (headings)</div>
+              <StyleOptionButton
+                active={!displayFontKey}
+                title="Template default"
+                onClick={() => setDisplayFont(null)}
+              />
+              {Object.entries(STOREFRONT_FONT_OPTIONS).map(([key, option]) => (
+                <StyleOptionButton
+                  key={key}
+                  active={displayFontKey === key}
+                  title={option.label}
+                  description={option.description}
+                  onClick={() => setDisplayFont(key)}
+                />
+              ))}
+            </div>
+            <div className="mt-4 space-y-2">
+              <div className="text-xs font-medium text-ink-soft">Body font</div>
+              <StyleOptionButton
+                active={!bodyFontKey}
+                title="Template default"
+                onClick={() => setBodyFont(null)}
+              />
+              {(Object.keys(STOREFRONT_BODY_FONT_OPTIONS) as StorefrontThemeBodyFont[]).map(
+                (key) => {
+                  const option = STOREFRONT_BODY_FONT_OPTIONS[key];
+                  return (
+                    <StyleOptionButton
+                      key={key}
+                      active={bodyFontKey === key}
+                      title={option.label}
+                      description={option.description}
+                      onClick={() => setBodyFont(key)}
+                    />
+                  );
+                },
+              )}
+            </div>
+          </EditorControlSection>
+
+          <EditorControlSection
+            title="Style"
+            open={openSection === "style"}
+            onOpenChange={(open) => setOpenSection(open ? "style" : "")}
+          >
+            <p className="text-xs leading-5 text-ink-soft">
+              Fine-tune buttons and spacing without changing the template layout.
+            </p>
+            {hasStyleOverrides ? (
+              <button
+                type="button"
+                onClick={resetStyleToTemplateDefault}
+                className="mt-3 w-full rounded-lg border border-border px-3 py-2 text-left text-sm font-semibold transition hover:border-ink/30"
+              >
+                Reset style to template default
+              </button>
+            ) : null}
+
+            <div className="mt-4 space-y-2">
+              <div className="text-xs font-medium text-ink-soft">Button shape</div>
+              <StyleOptionButton
+                active={!buttonStyle}
+                title="Template default"
+                onClick={() => setButtonStyle(null)}
+              />
+              {(
+                [
+                  { value: "rounded" as const, title: "Rounded", description: "Soft corners" },
+                  { value: "square" as const, title: "Square", description: "Sharp edges" },
+                  { value: "pill" as const, title: "Pill", description: "Fully rounded" },
+                ] as const
+              ).map((option) => (
+                <StyleOptionButton
+                  key={option.value}
+                  active={buttonStyle === option.value}
+                  title={option.title}
+                  description={option.description}
+                  onClick={() => setButtonStyle(option.value)}
+                />
+              ))}
+            </div>
+
+            <div className="mt-4 space-y-2">
+              <div className="text-xs font-medium text-ink-soft">Button radius</div>
+              <StyleOptionButton
+                active={!buttonRadius}
+                title="Template default"
+                onClick={() => setButtonRadius(null)}
+              />
+              {(
+                [
+                  { value: "none" as const, title: "None" },
+                  { value: "md" as const, title: "Medium" },
+                  { value: "full" as const, title: "Full" },
+                ] as const
+              ).map((option) => (
+                <StyleOptionButton
+                  key={option.value}
+                  active={buttonRadius === option.value}
+                  title={option.title}
+                  onClick={() => setButtonRadius(option.value)}
+                />
+              ))}
+            </div>
+
+            <div className="mt-4 space-y-2">
+              <div className="text-xs font-medium text-ink-soft">Density</div>
+              <StyleOptionButton
+                active={!density}
+                title="Template default"
+                onClick={() => setDensity(null)}
+              />
+              {(
+                [
+                  {
+                    value: "compact" as const,
+                    title: "Compact",
+                    description: "Tighter spacing, denser product grid",
+                  },
+                  {
+                    value: "airy" as const,
+                    title: "Airy",
+                    description: "More breathing room, wider product cards",
+                  },
+                ] as const
+              ).map((option) => (
+                <StyleOptionButton
+                  key={option.value}
+                  active={density === option.value}
+                  title={option.title}
+                  description={option.description}
+                  onClick={() => setDensity(option.value)}
+                />
               ))}
             </div>
           </EditorControlSection>

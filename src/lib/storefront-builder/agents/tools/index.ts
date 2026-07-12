@@ -65,6 +65,7 @@ const DRAFT_TOOL_NAMES = new Set([
   "generate_custom_site",
   "edit_custom_site_code",
   "change_font",
+  "update_theme_style",
   "ask_clarifying_question",
 ]);
 

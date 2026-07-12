@@ -3,6 +3,7 @@ import type {
   StorefrontColorPalette,
   StorefrontContent,
   StorefrontTemplateId,
+  StorefrontThemeOverrides,
 } from "@/lib/api/types";
 
 export type StorefrontMode = "live" | "edit" | "preview";
@@ -13,6 +14,8 @@ export type StorefrontTheme = {
   palette: StorefrontColorPalette;
   shell: "default" | "fashion" | "minimalistic" | "beauty" | "cosmetics" | "furniture" | "hair_fashion";
   displayFont: string;
+  /** Set only when merchant overrides body font; otherwise inherit default stack. */
+  bodyFont: string | null;
   pageBg: string;
   pageText: string;
   mutedText: string;
@@ -75,6 +78,22 @@ export const STOREFRONT_FONT_OPTIONS: Record<string, { css: string; label: strin
   "script": { css: "var(--font-script)", label: "Script", description: "Decorative flowing script — Allura" },
 };
 
+/** Body fonts (no script — body text must stay readable). */
+export const STOREFRONT_BODY_FONT_OPTIONS: Record<
+  "clean-sans" | "modern-sans" | "elegant-serif",
+  { css: string; label: string; description: string }
+> = {
+  "clean-sans": STOREFRONT_FONT_OPTIONS["clean-sans"],
+  "modern-sans": STOREFRONT_FONT_OPTIONS["modern-sans"],
+  "elegant-serif": STOREFRONT_FONT_OPTIONS["elegant-serif"],
+};
+
+const BUTTON_RADIUS_MAP = {
+  none: "rounded-none",
+  md: "rounded-md",
+  full: "rounded-full",
+} as const;
+
 /**
  * Resolve the display font from a storefront JSON font value.
  * Accepts CSS variable strings (e.g. "var(--font-editorial)") or font option keys (e.g. "elegant-serif").
@@ -87,17 +106,69 @@ export function resolveDisplayFont(fontValue: string | null | undefined, templat
   return STOREFRONT_FONT_OPTIONS[fontValue]?.css ?? templateDefault;
 }
 
+export function resolveBodyFont(fontKey: string | null | undefined): string | null {
+  if (!fontKey) return null;
+  return STOREFRONT_BODY_FONT_OPTIONS[fontKey as keyof typeof STOREFRONT_BODY_FONT_OPTIONS]?.css ?? null;
+}
+
+function applyThemeOverrides(
+  theme: StorefrontTheme,
+  overrides?: StorefrontThemeOverrides | null,
+): StorefrontTheme {
+  if (!overrides) return theme;
+
+  const next = { ...theme };
+
+  if (overrides.button_radius) {
+    next.buttonRadius = BUTTON_RADIUS_MAP[overrides.button_radius];
+  }
+
+  if (overrides.button_style === "square") {
+    next.buttonStyle = "square";
+    if (!overrides.button_radius) {
+      next.buttonRadius = "rounded-none";
+    }
+  } else if (overrides.button_style === "pill") {
+    next.buttonStyle = "rounded";
+    if (!overrides.button_radius) {
+      next.buttonRadius = "rounded-full";
+    }
+  } else if (overrides.button_style === "rounded") {
+    next.buttonStyle = "rounded";
+    if (!overrides.button_radius) {
+      next.buttonRadius = "rounded-md";
+    }
+  }
+
+  if (overrides.density === "compact") {
+    next.pagePadding = "px-4 py-8 sm:px-5";
+    next.productGridCols = "sm:grid-cols-2 lg:grid-cols-4";
+  } else if (overrides.density === "airy") {
+    next.pagePadding = "px-4 py-16 sm:px-8";
+    next.productGridCols = "sm:grid-cols-2 lg:grid-cols-3";
+  }
+  // density === "default" keeps template padding/cols
+
+  if (overrides.body_font) {
+    next.bodyFont = resolveBodyFont(overrides.body_font);
+  }
+
+  return next;
+}
+
 export function getStorefrontTheme(
   templateId: StorefrontTemplateId,
   brandColor: string,
   palette?: StorefrontColorPalette,
   displayFontOverride?: string | null,
+  themeOverrides?: StorefrontThemeOverrides | null,
 ): StorefrontTheme {
   const resolvedPalette = getStorefrontPalette(templateId, brandColor, palette);
   const base = {
     id: templateId,
     brandColor: resolvedPalette.primary,
     palette: resolvedPalette,
+    bodyFont: null as string | null,
     pagePadding: "px-4 py-12 sm:px-6",
     pageMaxWidth: "max-w-7xl mx-auto",
   };
@@ -174,11 +245,12 @@ export function getStorefrontTheme(
         ...base,
         shell: "furniture",
         displayFont: "var(--font-display)",
-        pageBg: "bg-[#f7f3eb]",
-        pageText: "text-[#1c1812]",
-        mutedText: "text-[#7a6e5e]",
-        borderColor: "border-[#e8e0d4]",
-        cardBg: "bg-white",
+        // Aligned to previous hard-coded hexes so defaults are visually identical.
+        pageBg: "bg-[var(--store-bg)]",
+        pageText: "text-[var(--store-text)]",
+        mutedText: "text-[var(--store-muted)]",
+        borderColor: "border-[var(--store-border)]",
+        cardBg: "bg-[var(--store-surface)]",
         buttonRadius: "rounded-full",
         buttonStyle: "rounded",
         heroAlign: "left",
@@ -190,11 +262,11 @@ export function getStorefrontTheme(
         ...base,
         shell: "hair_fashion",
         displayFont: "var(--font-editorial)",
-        pageBg: "bg-[#fdf8f3]",
-        pageText: "text-[#1a1410]",
-        mutedText: "text-[#7a6b5e]",
-        borderColor: "border-[#ede4d8]",
-        cardBg: "bg-white",
+        pageBg: "bg-[var(--store-bg)]",
+        pageText: "text-[var(--store-text)]",
+        mutedText: "text-[var(--store-muted)]",
+        borderColor: "border-[var(--store-border)]",
+        cardBg: "bg-[var(--store-surface)]",
         buttonRadius: "rounded-none",
         buttonStyle: "square",
         heroAlign: "center",
@@ -255,7 +327,7 @@ export function getStorefrontTheme(
     result.displayFont = resolveDisplayFont(displayFontOverride, result.displayFont);
   }
 
-  return result;
+  return applyThemeOverrides(result, themeOverrides);
 }
 
 export function getDefaultStorefrontPalette(
@@ -324,12 +396,13 @@ export function getDefaultStorefrontPalette(
         border: "#DCE7F2",
       };
     case "furniture-hardware":
+      // Match previous hard-coded theme paint (pageBg #f7f3eb, text #1c1812, etc.).
       return {
         primary: brandColor ?? "#2C2416",
         accent: "#C4A574",
-        background: "#FAF7F2",
+        background: "#F7F3EB",
         surface: "#FFFFFF",
-        text: "#2C2416",
+        text: "#1C1812",
         muted: "#7A6E5E",
         border: "#E8E0D4",
       };
@@ -455,3 +528,11 @@ export const STOREFRONT_PALETTE_PRESETS: {
     },
   },
 ];
+
+/** Clear merchant style customizations so a template’s standard look returns. */
+export function clearStorefrontStyleOverrides(content: StorefrontContent): StorefrontContent {
+  const next = { ...content };
+  delete next.theme_overrides;
+  delete next.display_font;
+  return next;
+}

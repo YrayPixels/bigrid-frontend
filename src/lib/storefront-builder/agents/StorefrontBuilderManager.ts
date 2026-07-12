@@ -54,6 +54,7 @@ const DIRECT_EXEC_SAFE_TOOLS = new Set([
   "apply_brand_color",
   "switch_design",
   "change_font",
+  "update_theme_style",
   "source_website_images",
   "generate_product_descriptions",
   "generate_custom_site",
@@ -79,6 +80,17 @@ function defaultArgsForDirectTool(
   }
   if (name === "apply_brand_color" || name === "switch_design" || name === "source_website_images") {
     return { instruction: merchantMessage.trim() || stepDescription, direction: merchantMessage.trim() };
+  }
+  if (name === "update_theme_style") {
+    const text = `${merchantMessage} ${stepDescription}`.toLowerCase();
+    const args: Record<string, unknown> = {};
+    if (/\bpill\b/.test(text)) args.button_style = "pill";
+    else if (/\bsquare|sharp(er)?\b/.test(text)) args.button_style = "square";
+    else if (/\brounded\b/.test(text)) args.button_style = "rounded";
+    if (/\b(airy|more space|breathing room|looser)\b/.test(text)) args.density = "airy";
+    else if (/\b(compact|tighter|denser)\b/.test(text)) args.density = "compact";
+    if (/\breset\b/.test(text)) args.reset = true;
+    return args;
   }
   return {};
 }
@@ -582,6 +594,7 @@ export class StorefrontBuilderManager {
             "I've picked the best design for your brand. Ready to build — just say 'build my website'!",
           apply_brand_color: "Done — colors updated. Check the preview!",
           change_font: "Done — font updated. Check the preview!",
+          update_theme_style: "Done — style updated. Check the preview!",
           add_products: "Products added! Check your Products page.",
           list_products: "I've pulled your product catalog — see the list above.",
           generate_product_descriptions: "Product descriptions updated! Check your Products page.",

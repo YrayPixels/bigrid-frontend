@@ -34,9 +34,10 @@ export const BUILDER_TOOL_DECISION_RULES = [
     : [
         "No draft yet + custom code / from scratch requests: use design_website + generate_website with a template storefront. Custom code workbench is not available.",
       ]),
-  "Draft exists + new design, different look, switch shop type, different layout, another style, or need something else: switch_design. The words design, look, layout, style, and vibe mean switch_design — not apply_brand_color.",
+  "Draft exists + new design, different look, switch shop type, different layout, another style, or need something else: switch_design. The words design, look, layout, style, and vibe mean switch_design — not apply_brand_color — except when the merchant only wants small style tweaks (buttons, spacing density).",
   "Draft exists + color, palette, shade, or hex only (no mention of design/look/layout/style): apply_brand_color — updates colors only, never switch_design.",
-  "Font/typography (any context): change_font. Pick the font that matches the merchant's brand personality — elegant serif for luxury/editorial brands, modern sans for tech/minimal brands, clean sans for readable/service brands, script for decorative/artistic brands. Proactively prescribe a font during design, not just when asked.",
+  "Font/typography (any context): change_font. Use target=display for headings (default) or target=body for body text. Pick the font that matches the merchant's brand personality — elegant serif for luxury/editorial brands, modern sans for tech/minimal brands, clean sans for readable/service brands, script for decorative/artistic headings only (not body). Proactively prescribe a font during design, not just when asked.",
+  "Draft exists + sharper/square/pill buttons, more spacing, tighter layout, denser grid, reset style tokens: update_theme_style — does NOT change template or layout structure. Prefer this over switch_design for small style tweaks.",
   "Draft exists + copy/headline/about/FAQ/SEO edits, or updates to ANY page/section text (Essentials, category showcase, hero, about, promo panels, collections, rooms, best sellers titles): refine_website_copy — use pages.home.blocks.{id}.props.* for section copy.",
   "Draft exists + stock photos (quick template defaults): apply_stock_images.",
   "Draft exists + find/source photo ideas, brand-matched images, or what photos to use: source_website_images.",
@@ -107,7 +108,8 @@ export const BUILDER_PLANNER_SYSTEM_PROMPT_PREFIX =
   "Tool assignment rules:\n" +
   "- Copy changes (headline, button text, CTA, about, FAQ, SEO, section text) → refine_website_copy\n" +
   "- Color/palette only (no mention of design/look/layout) → apply_brand_color\n" +
-  "- Design/look/layout/style changes (not just colors) → switch_design\n" +
+  "- Small style tweaks (sharper/square/pill buttons, more/less spacing, density) → update_theme_style (NOT switch_design)\n" +
+  "- Design/look/layout changes that need a different shop template → switch_design\n" +
   "- Font/typography changes → change_font\n" +
   "- Image/photo requests → replace_template_images (preferred), or source_website_images / apply_stock_images. Executor picks scope.\n" +
   "- List/show existing products → list_products\n" +
