@@ -43,6 +43,51 @@ export function parseJsonObject<T>(content: string, fallback: T): T {
   }
 }
 
+/** Greeting / thanks — no tools. */
+export function isGreetingOrSmallTalk(message: string): boolean {
+  const text = message.trim().toLowerCase();
+  if (!text || text.length > 80) return false;
+  return /^(hi|hello|hey|thanks|thank you|thx|yo|good (morning|afternoon|evening)|how are you|how's it going)[\s!.?]*$/i.test(
+    text,
+  );
+}
+
+/**
+ * Capability / help questions — explain what the assistant can do; do NOT capture
+ * business details or invent a design from existing store profile.
+ */
+export function isCapabilityOrMetaQuestion(message: string): boolean {
+  const text = message.trim().toLowerCase();
+  if (!text || text.length > 160) return false;
+  if (/^(help|help me)[\s!.?]*$/.test(text)) return true;
+  if (/\bwhat can you (do|help)\b/.test(text)) return true;
+  if (/\bwhat do you (do|help with)\b/.test(text)) return true;
+  if (/\b(how can you help|how do you help)\b/.test(text)) return true;
+  if (/\b(what are you|who are you)\b/.test(text)) return true;
+  if (
+    /\b(capabilities|what.*(possible|able to))\b/.test(text) &&
+    /\b(you|this|here|chat|assistant)\b/.test(text)
+  ) {
+    return true;
+  }
+  return false;
+}
+
+export function builderCapabilitiesReply(hasDraft: boolean): string {
+  if (hasDraft) {
+    return (
+      "I can refine your live website in this chat — change copy, colors, fonts, button style and spacing, photos, products, categories, and homepage sections. " +
+      "I can also check orders and store performance, or help you publish when you're ready. " +
+      "Tell me what you'd like to update."
+    );
+  }
+  return (
+    "I design and build your online store from this chat. Tell me what you sell and the vibe you want, then say \"build my website\". " +
+    "After that I can update copy, colors, fonts, photos, products, and layout — and help you get ready to publish. " +
+    "What do you sell, and who is it for?"
+  );
+}
+
 /** Infer tools from a step description when the planner left tools empty. */
 export function inferToolsFromStepDescription(description: string, allowed: Set<string>): string[] {
   const text = description.toLowerCase();

@@ -2,12 +2,28 @@ import { BUILDER_HISTORY_SNIPPET_MAX_CHARS } from "@/lib/storefront-builder/chat
 import { BUILDER_INTERPRETER_SYSTEM_PROMPT } from "@/lib/storefront-builder/prompts";
 import { getAssistantMessageContent, getThinkingModelName, postChat } from "../openaiChat";
 import {
+  isCapabilityOrMetaQuestion,
+  isGreetingOrSmallTalk,
   parseJsonObject,
   type InterpreterResult,
 } from "../agentThinking";
 import { BuilderAgent } from "./BuilderAgent";
 
 function fallbackInterpreter(userText: string): InterpreterResult {
+  if (isCapabilityOrMetaQuestion(userText)) {
+    return {
+      task_summary: "Explain what the website assistant can help with.",
+      steps: ["Reply with capabilities in plain language. Do not capture business details or pick a design."],
+      constraints: ["no_tools", "capability_question"],
+    };
+  }
+  if (isGreetingOrSmallTalk(userText)) {
+    return {
+      task_summary: "Welcome the merchant.",
+      steps: ["Reply warmly and invite them to describe their business or request website changes."],
+      constraints: ["no_tools", "greeting"],
+    };
+  }
   return {
     task_summary: userText.trim().slice(0, 500),
     steps: [

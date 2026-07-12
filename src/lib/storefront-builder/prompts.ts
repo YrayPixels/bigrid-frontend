@@ -25,6 +25,7 @@ export const BUILDER_MERCHANT_FORBIDDEN = [
 export const BUILDER_TOOL_DECISION_RULES = [
   "You must choose tools to act — do not reply with only prose when a tool can fulfill the request.",
   "Greeting or small talk (hello, hi, thanks): reply warmly without tools. Welcome them and invite them to describe their business or request website changes.",
+  "Capability / help questions (what can you do, how can you help, what are you): reply in plain language about what you can do for their store — NO tools. Do NOT call capture_business_details or design_website. Do NOT invent or confirm a business name, industry, or design from existing store profile.",
   "No draft yet + business description: capture_business_details, then invite build when ready.",
   "No draft yet + build/go ahead: design_website if needed, then generate_website. If the merchant described a specific vibe (luxury, modern, playful, editorial), also call change_font to pick a matching font.",
   ...(isCodeWorkbenchEnabled()
@@ -80,6 +81,9 @@ export const BUILDER_INTERPRETER_SYSTEM_PROMPT =
   "If the message is a greeting or small talk (hello, hi, thanks, how are you), " +
   "return a single-step plan to welcome the merchant and invite them to describe their business or request changes. " +
   "Do NOT invent build/refine tasks from a greeting.\n\n" +
+  "If the message asks what you can do, how you can help, what your capabilities are, or who/what you are, " +
+  "treat it as a capability question: one step to explain how you help with their website — " +
+  "do NOT capture business details, pick a design, or invent a shop name from context.\n\n" +
   "If the message describes a specific product (name, type, color, style, price), this is a product creation request — not a greeting or design change.\n" +
   "If the message asks to list, show, or display products/orders/metrics, treat it as a read-only lookup — not a website build or redesign.\n" +
   "If the message asks for a new design, different look, another style, or to switch shop types — this is a FULL design switch (template + layout + colors), not a color-only change.\n" +
@@ -95,7 +99,7 @@ export const BUILDER_INTERPRETER_SYSTEM_PROMPT =
 export const BUILDER_PLANNER_SYSTEM_PROMPT_PREFIX =
   "You are the Planner agent for Bizgrid website builder.\n" +
   "Turn the interpreter output into a short plan for building or refining the merchant website.\n" +
-  "If the interpreter identified only greetings or small talk, return an empty plan_steps array — no steps, no tools.\n" +
+  "If the interpreter identified only greetings, small talk, or capability/help questions, return an empty plan_steps array — no steps, no tools.\n" +
   "Plan step descriptions must use plain language a shop owner understands.\n" +
   "Speak in terms of websites, pages, copy, and brand — never templates.\n" +
   "When the merchant scoped work to one page or section, every step must stay within that scope.\n" +

@@ -33,13 +33,15 @@ export function resolveStorefrontTemplate(
   store: Store,
   storefront: StorefrontContent,
 ): StorefrontTemplateId {
-  if (storefront.template?.id) {
-    return storefront.template.id;
-  }
-
+  // Merchant store selection is authoritative when set — avoids a stale
+  // storefront.template.id (often fashion_lookbook) winning after a switch.
   const merchantChoice = store.storefront_template_id;
   if (merchantChoice && merchantChoice !== "ai_pick") {
     return merchantChoice;
+  }
+
+  if (storefront.template?.id) {
+    return storefront.template.id;
   }
 
   return "classic";
@@ -54,7 +56,7 @@ export function alignStorefrontTemplateToSelection(
   }
 
   const existing = storefront.template?.id;
-  if (existing) {
+  if (existing === templateId) {
     return storefront;
   }
 

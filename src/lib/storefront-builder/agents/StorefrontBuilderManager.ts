@@ -8,7 +8,10 @@ import type { BuilderAiTurn } from "@/lib/storefront-builder/local-ai";
 import { fallbackBuilderTurn, sanitizeBusinessProfile } from "@/lib/storefront-builder/local-ai";
 import {
   appendMemory,
+  builderCapabilitiesReply,
   INFORMATIONAL_TOOL_NAMES,
+  isCapabilityOrMetaQuestion,
+  isGreetingOrSmallTalk,
   summarizeToolResult,
 } from "./agentThinking";
 import { websiteBuilderToolsForSession } from "./tools";
@@ -144,6 +147,38 @@ export class StorefrontBuilderManager {
       recommendations,
       availableTemplateIds,
     });
+
+    // Capability / meta questions must never invent a business brief from store profile.
+    if (isCapabilityOrMetaQuestion(message) || isGreetingOrSmallTalk(message)) {
+      const hasDraft = Boolean(session.storefront_snapshot);
+      const assistantMessage = isCapabilityOrMetaQuestion(message)
+        ? builderCapabilitiesReply(hasDraft)
+        : hasDraft
+          ? "Hi! Tell me what you'd like to change on your website — copy, colors, products, photos, or layout."
+          : "Hi! Tell me about your business — what you sell, who it's for, and the vibe you want. I'll design and build your website.";
+      this.log({
+        agent: "System",
+        phase: "complete",
+        title: isCapabilityOrMetaQuestion(message) ? "Answered capabilities question" : "Greeting reply",
+        detail: assistantMessage.slice(0, 280),
+      });
+      return {
+        business_profile: sanitizeBusinessProfile(session.business_profile ?? {}),
+        status: session.status,
+        selected_template_id:
+          session.selected_template_id && session.selected_template_id !== "ai_pick"
+            ? session.selected_template_id
+            : null,
+        storefront: session.storefront_snapshot ?? undefined,
+        assistant_message: assistantMessage,
+        assistant_payload: {
+          type: "agent_turn",
+          plan: [],
+          tool_calls: [],
+          tool_results: [],
+        },
+      };
+    }
 
     const { interpreter, planner, executor, critic } = this.agents;
     const toolDefs = websiteBuilderToolsForSession(session);

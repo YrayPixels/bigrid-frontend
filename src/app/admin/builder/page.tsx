@@ -89,10 +89,23 @@ export default function AdminBuilderPage() {
   }, [loading, user, router]);
 
   useEffect(() => {
-    if (session?.storefront_snapshot) {
-      setLocalStorefront(session.storefront_snapshot);
-    }
-  }, [session?.storefront_snapshot]);
+    if (!session?.storefront_snapshot) return;
+    const templateId =
+      asConcreteTemplateId(session.selected_template_id) ??
+      asConcreteTemplateId(session.store?.storefront_template_id) ??
+      asConcreteTemplateId(session.storefront_snapshot.template?.id) ??
+      null;
+    setLocalStorefront(
+      templateId
+        ? (alignStorefrontTemplateToSelection(session.storefront_snapshot, templateId) ??
+          session.storefront_snapshot)
+        : session.storefront_snapshot,
+    );
+  }, [
+    session?.storefront_snapshot,
+    session?.selected_template_id,
+    session?.store?.storefront_template_id,
+  ]);
 
   const handleSessionResponse = async (
     data: Awaited<ReturnType<typeof processBuilderMessage>>,
@@ -101,9 +114,9 @@ export default function AdminBuilderPage() {
     const nextStorefront = data.storefront ?? data.session?.storefront_snapshot ?? null;
     if (nextStorefront) {
       const templateId =
-        asConcreteTemplateId(nextStorefront.template?.id) ??
         asConcreteTemplateId(data.session?.selected_template_id) ??
         asConcreteTemplateId(data.session?.store?.storefront_template_id) ??
+        asConcreteTemplateId(nextStorefront.template?.id) ??
         null;
       setLocalStorefront(
         templateId
@@ -268,6 +281,24 @@ export default function AdminBuilderPage() {
       }
     : null;
 
+  const previewTemplateId =
+    asConcreteTemplateId(session.selected_template_id) ??
+    asConcreteTemplateId(session.store?.storefront_template_id) ??
+    asConcreteTemplateId(localStorefront?.template?.id) ??
+    null;
+
+  const previewStore = session.store
+    ? {
+        ...session.store,
+        ...(previewTemplateId ? { storefront_template_id: previewTemplateId } : {}),
+      }
+    : null;
+
+  const previewStorefront =
+    localStorefront && previewTemplateId
+      ? (alignStorefrontTemplateToSelection(localStorefront, previewTemplateId) ?? localStorefront)
+      : localStorefront;
+
   return (
     <div className="flex h-[calc(100vh-3.5rem)] flex-col overflow-hidden px-6 py-8">
         <div className="mb-6 shrink-0 space-y-4">
@@ -324,8 +355,8 @@ export default function AdminBuilderPage() {
           onClearChat={() => clearChat.mutate()}
         />
         <BuilderPreviewPanel
-          store={session.store}
-          storefront={localStorefront}
+          store={previewStore}
+          storefront={previewStorefront}
           publish={publishState}
           publishing={publishStorefront.isPending}
           onPublish={() => publishStorefront.mutate()}

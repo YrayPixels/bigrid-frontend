@@ -281,6 +281,16 @@ export function migrateHomeBlocks(storefront: StorefrontContent): StorefrontBloc
   const templateId = storefront.template?.id ?? "classic";
 
   if (existing?.length) {
+    // Recipe-driven templates need their own block trees when switching designs.
+    if (templateId === "cosmetics" && !existing.some((block) => block.id === "serum-promo")) {
+      return buildCosmeticsHomeBlocks(storefront);
+    }
+    if (templateId === "furniture-hardware" && !existing.some((block) => block.id === "collections")) {
+      return buildFurnitureHardwareHomeBlocks(storefront);
+    }
+    if (templateId === "hair-and-fashion" && !existing.some((block) => block.id === "choose-style")) {
+      return buildHairFashionHomeBlocks(storefront);
+    }
     if (templateId === "fashion_lookbook" || templateId === "beauty") {
       return ensureCategoryShowcaseBlock(existing, storefront);
     }

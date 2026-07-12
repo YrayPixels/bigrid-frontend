@@ -225,8 +225,9 @@ async function persistAgentTurn({
   const snapshot = mergeLiveCodeFsIntoStorefront(
     turn.storefront ?? session.storefront_snapshot,
   ) as StorefrontContent | undefined;
+  // Prefer merchant/agent selection over a stale snapshot template id.
   const templateId =
-    asConcreteTemplateId(snapshot?.template?.id) ?? selectedTemplateId ?? null;
+    selectedTemplateId ?? asConcreteTemplateId(snapshot?.template?.id) ?? null;
 
   return api.sendBuilderMessage(session.id, message, {
     business_profile: turn.business_profile,

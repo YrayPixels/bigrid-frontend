@@ -433,11 +433,29 @@ export function resolveSelectedTemplateId(
     return fromSession;
   }
 
+  const fromStore =
+    session.store?.storefront_template_id && session.store.storefront_template_id !== "ai_pick"
+      ? session.store.storefront_template_id
+      : null;
+  if (fromStore && availableTemplateIds.includes(fromStore)) {
+    return fromStore;
+  }
+
   const recommended = recommendations[0]?.template_id;
   if (recommended && availableTemplateIds.includes(recommended)) {
     return recommended;
   }
 
+  const industry = session.business_profile?.industry ?? session.store?.industry;
+  if (industry === "beauty_and_skincare") {
+    if (availableTemplateIds.includes("cosmetics")) return "cosmetics";
+    if (availableTemplateIds.includes("beauty")) return "beauty";
+  }
+  if (industry === "fashion_and_apparel" && availableTemplateIds.includes("fashion_lookbook")) {
+    return "fashion_lookbook";
+  }
+
+  if (availableTemplateIds.includes("minimalistic")) return "minimalistic";
   return availableTemplateIds[0] ?? null;
 }
 
