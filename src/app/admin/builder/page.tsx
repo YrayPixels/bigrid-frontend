@@ -90,15 +90,19 @@ export default function AdminBuilderPage() {
 
   useEffect(() => {
     if (!session?.storefront_snapshot) return;
+    // Prefer the shared store template (website editor) over a stale session pick.
     const templateId =
-      asConcreteTemplateId(session.selected_template_id) ??
       asConcreteTemplateId(session.store?.storefront_template_id) ??
+      asConcreteTemplateId(session.selected_template_id) ??
       asConcreteTemplateId(session.storefront_snapshot.template?.id) ??
       null;
     setLocalStorefront(
       templateId
-        ? (alignStorefrontTemplateToSelection(session.storefront_snapshot, templateId) ??
-          session.storefront_snapshot)
+        ? (alignStorefrontTemplateToSelection(
+            session.storefront_snapshot,
+            templateId,
+            session.store?.brand_color,
+          ) ?? session.storefront_snapshot)
         : session.storefront_snapshot,
     );
   }, [
@@ -114,13 +118,17 @@ export default function AdminBuilderPage() {
     const nextStorefront = data.storefront ?? data.session?.storefront_snapshot ?? null;
     if (nextStorefront) {
       const templateId =
-        asConcreteTemplateId(data.session?.selected_template_id) ??
         asConcreteTemplateId(data.session?.store?.storefront_template_id) ??
+        asConcreteTemplateId(data.session?.selected_template_id) ??
         asConcreteTemplateId(nextStorefront.template?.id) ??
         null;
       setLocalStorefront(
         templateId
-          ? (alignStorefrontTemplateToSelection(nextStorefront, templateId) ?? nextStorefront)
+          ? (alignStorefrontTemplateToSelection(
+              nextStorefront,
+              templateId,
+              data.session?.store?.brand_color,
+            ) ?? nextStorefront)
           : nextStorefront,
       );
     }
@@ -145,16 +153,27 @@ export default function AdminBuilderPage() {
           session: activeSession as BuilderSession,
           message,
           templateOptions,
+          onLog: (entry) => {
+            thinkingRunRef.current = [...thinkingRunRef.current, entry];
+            setThinkingEntries(thinkingRunRef.current);
+          },
         });
       } finally {
-        setThinkingEntries([]);
         setThinkingStreaming(false);
-        setPendingUserMessage("");
-        thinkingRunRef.current = [];
       }
     },
-    onSuccess: handleSessionResponse,
-    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not send message"),
+    onSuccess: async (data) => {
+      await handleSessionResponse(data);
+      setThinkingEntries([]);
+      setPendingUserMessage("");
+      thinkingRunRef.current = [];
+    },
+    onError: (error) => {
+      setThinkingEntries([]);
+      setPendingUserMessage("");
+      thinkingRunRef.current = [];
+      toast.error(error instanceof Error ? error.message : "Could not send message");
+    },
   });
 
   const applyColor = useMutation({
@@ -282,8 +301,8 @@ export default function AdminBuilderPage() {
     : null;
 
   const previewTemplateId =
-    asConcreteTemplateId(session.selected_template_id) ??
     asConcreteTemplateId(session.store?.storefront_template_id) ??
+    asConcreteTemplateId(session.selected_template_id) ??
     asConcreteTemplateId(localStorefront?.template?.id) ??
     null;
 
@@ -296,7 +315,11 @@ export default function AdminBuilderPage() {
 
   const previewStorefront =
     localStorefront && previewTemplateId
-      ? (alignStorefrontTemplateToSelection(localStorefront, previewTemplateId) ?? localStorefront)
+      ? (alignStorefrontTemplateToSelection(
+          localStorefront,
+          previewTemplateId,
+          session.store?.brand_color,
+        ) ?? localStorefront)
       : localStorefront;
 
   return (

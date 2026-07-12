@@ -122,7 +122,7 @@ function extractEntriesFromAssistantMessage(message: BuilderMessage): AgentThink
   const payload = message.payload ?? {};
   const type = typeof payload.type === "string" ? payload.type : "";
 
-  if (Array.isArray(payload.thinking_log)) {
+  if (Array.isArray(payload.thinking_log) && payload.thinking_log.length > 0) {
     return payload.thinking_log.filter(isThinkingLogEntry);
   }
 
@@ -130,9 +130,16 @@ function extractEntriesFromAssistantMessage(message: BuilderMessage): AgentThink
     type === "agent_turn" ||
     type === "website_generated" ||
     type === "website_refined" ||
-    type === "brand_color_applied"
+    type === "brand_color_applied" ||
+    type === "design_selected" ||
+    type === "conversation"
   ) {
     return synthesizeThinkingFromPayload(payload, message.content, type);
+  }
+
+  // Still show a minimal trail when the assistant replied without a typed payload.
+  if (message.content.trim()) {
+    return synthesizeThinkingFromPayload(payload, message.content, type || "conversation");
   }
 
   return [];

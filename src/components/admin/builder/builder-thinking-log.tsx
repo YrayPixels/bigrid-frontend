@@ -102,9 +102,17 @@ export function BuilderThinkingLog({
                   <p className="mt-1 text-sm font-medium text-ink">{turn.userMessage || "Chat message"}</p>
                 </div>
                 <ol className="space-y-3">
-                  {turn.entries.map((entry) => (
-                    <ThinkingEntry key={entry.id} entry={entry} />
-                  ))}
+                  {turn.entries.length > 0 ? (
+                    turn.entries.map((entry) => (
+                      <ThinkingEntry key={entry.id} entry={entry} />
+                    ))
+                  ) : (
+                    <li className="rounded-xl border border-dashed border-border/80 bg-background px-3 py-3 text-xs text-ink-soft">
+                      {streaming
+                        ? "Waiting for Interpreter → Planner → Executor → Critic…"
+                        : "No agent steps were recorded for this turn."}
+                    </li>
+                  )}
                 </ol>
               </li>
             ))}

@@ -60,7 +60,7 @@ export class StructureTools {
             block_id: { type: "string" },
             section: {
               type: "string",
-              description: "Alias when block_id unknown: hero, essentials, products, faq, trust, promo",
+              description: "Alias when block_id unknown: hero, essentials, products, faq, trust, promo, stats",
             },
             props: { type: "object", additionalProperties: true },
           },

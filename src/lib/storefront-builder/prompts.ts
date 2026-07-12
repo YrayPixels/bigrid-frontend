@@ -148,22 +148,22 @@ export const BUILDER_EXECUTOR_CONTEXT_SUFFIX =
 export const BUILDER_EDITOR_HOME_SECTIONS =
   "Homepage sections — use update_block OR matching flat paths (works across all templates):\n" +
   '- hero-main: eyebrow, headline, subheadline, cta_label — or hero.headline / hero.subheadline / hero.cta_label / pages.home.blocks.hero-main.props.eyebrow\n' +
-  '- home-stats: props.items[{value,label}] — or home_stats[N].value / home_stats[N].label\n' +
-  '- about-spotlight: title, body, badges — or about.title / about.body / value_props[N].title / value_props[N].body\n' +
+  '- home-stats: props.items[{value,label}] — or home_stats.0.value / home_stats.0.label (rewrite placeholder client/sale/rating stats for the merchant)\n' +
+  '- about-spotlight: title, body, badges — or about.title / about.body / value_props.0.title / value_props.0.body\n' +
   '- serum-promo / modern-form / perfect-match / extensions-kit / newsletter: title, body, bullets[], cta_label, image_url — or pages.home.blocks.{id}.props.*\n' +
   '- trust-features / difference / reviews: title, body, image_url, items[{title,body}] — or pages.home.blocks.{id}.props.*\n' +
   '- category-showcase / collections / rooms / choose-style: title, eyebrow, layout, items[{label,image_url,category_id,cta_label}] — also called "Essentials" or "Shop the Essentials"\n' +
   '- product_grid (featured-products / bestsellers / new-arrivals): title — product photos come from storefront.products, not theme stock\n' +
-  "- testimonials: home_testimonials_title, home_testimonials_intro, home_testimonials[N].quote, home_testimonials[N].author\n" +
-  "- homepage FAQ preview: pages.faq.title and pages.faq.items[N].question / answer\n" +
-  'Example update_block: {"op":"update_block","page":"home","block_id":"serum-promo","props":{"title":"Glow Serums","bullets":["...","..."]}}';
+  "- testimonials: home_testimonials_title, home_testimonials_intro, home_testimonials.0.quote, home_testimonials.0.author\n" +
+  "- homepage FAQ preview: pages.faq.title and pages.faq.items.0.question / answer\n" +
+  'Example update_block: {"op":"update_block","page":"home","block_id":"home-stats","props":{"items":[{"value":"Local favorites","label":"loved by regulars"},{"value":"Fast pickup","label":"same-day options"},{"value":"4.9","label":"customer rating"}]}}\n';
 
 export const BUILDER_EDITOR_SYSTEM_PROMPT =
   "You are the Bizgrid Storefront Editor agent.\n" +
   "Apply the merchant instruction as a structured patch across any page: home, about, contact, or FAQ.\n" +
   'Return ONLY valid JSON: {"updates": object, "operations": array, "changed_paths": string[], "assistant_message": string}.\n' +
-  "Flat copy paths (updates) — dot-path keys, e.g. {\"hero.headline\": \"...\", \"pages.contact.body\": \"...\"}.\n" +
-  "Allowed flat paths include: hero.headline, hero.subheadline, hero.cta_label, about.title, about.body, pages.about.title, pages.about.body, pages.contact.title, pages.contact.body, pages.contact.email, pages.contact.phone, seo.title, seo.description, media.hero_image_url, media.about_image_url, pages.faq.title, pages.faq.items[N].question, pages.faq.items[N].answer, value_props[N].title, value_props[N].body, home_stats[N].value, home_stats[N].label, home_testimonials_title, home_testimonials_intro, home_testimonials[N].quote, home_testimonials[N].author, pages.home.blocks.{block_id}.props.{field}.\n" +
+  "Flat copy paths (updates) — dotted path keys, e.g. {\"hero.headline\": \"...\", \"home_stats.0.value\": \"...\", \"pages.contact.body\": \"...\"}. Nested arrays are also accepted: {\"home_stats\":[{\"value\":\"...\",\"label\":\"...\"}]}.\n" +
+  "Allowed flat paths include: hero.headline, hero.subheadline, hero.cta_label, about.title, about.body, pages.about.title, pages.about.body, pages.contact.title, pages.contact.body, pages.contact.email, pages.contact.phone, seo.title, seo.description, media.hero_image_url, media.about_image_url, pages.faq.title, pages.faq.items.N.question, pages.faq.items.N.answer, value_props.N.title, value_props.N.body, home_stats.N.value, home_stats.N.label, home_testimonials_title, home_testimonials_intro, home_testimonials.N.quote, home_testimonials.N.author, pages.home.blocks.{block_id}.props.{field}.\n" +
   BUILDER_EDITOR_HOME_SECTIONS +
   "\nBlock operations (operations) — prefer for multi-field section rewrites:\n" +
   '- update_block: {"op":"update_block","page":"home|about|contact|faq","block_id":"...","props":{...}}\n' +
@@ -174,7 +174,8 @@ export const BUILDER_EDITOR_SYSTEM_PROMPT =
   "Common home block ids: hero-main, home-stats, about-spotlight, serum-promo, trust-features, category-showcase, perfect-match, extensions-kit, difference, collections, modern-form, rooms, reviews, choose-style, bestsellers, new-arrivals, featured-products, newsletter, home-faq.\n" +
   "Respect edit_metadata.locked on blocks.\n" +
   "If the merchant asks to remove placeholder or test header text, replace hero.headline with on-brand copy using the business name and industry tone from context.\n" +
-  "If the merchant asks to update, refresh, or improve a named section (Essentials, category showcase, hero, about, products page, collections, promo panels), change only that section — not the whole website.\n" +
+  "If the merchant asks to rewrite, refresh, rebrand, or improve the website/copy, update EVERY visible text field that still looks like template placeholder copy — including home_stats trust/stat rows, testimonials, promo panels, trust/feature grids, and section titles — not only the hero.\n" +
+  "If the merchant asks to update, refresh, or improve a named section (Essentials, category showcase, hero, about, products page, collections, promo panels, stats), change only that section — not the whole website.\n" +
   "If the merchant asks to update, refresh, or improve FAQ questions or answers without specifics, rewrite all FAQ items tailored to their business.\n" +
   "Never append filler like 'Updated to match your request.' — rewrite copy cleanly.\n" +
   "Do not change palette or template. Product catalog images for best sellers / product grids are updated via replace_template_images (products or full_site), not this editor — but section titles for those grids ARE editable here.\n" +

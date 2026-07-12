@@ -114,11 +114,17 @@ const EDITABLE_PATH_PATTERNS = [
 export const EDITABLE_STOREFRONT_PATHS = BASE_EDITABLE_STOREFRONT_PATHS;
 
 export function isEditableStorefrontPath(path: string): boolean {
-  if (BASE_EDITABLE_STOREFRONT_PATHS.includes(path as (typeof BASE_EDITABLE_STOREFRONT_PATHS)[number])) {
+  const normalized = normalizeEditableStorefrontPath(path);
+  if (BASE_EDITABLE_STOREFRONT_PATHS.includes(normalized as (typeof BASE_EDITABLE_STOREFRONT_PATHS)[number])) {
     return true;
   }
 
-  return EDITABLE_PATH_PATTERNS.some((pattern) => pattern.test(path));
+  return EDITABLE_PATH_PATTERNS.some((pattern) => pattern.test(normalized));
+}
+
+/** Convert prompt-style bracket indexes (`home_stats[0].value`) to dotted paths. */
+export function normalizeEditableStorefrontPath(path: string): string {
+  return path.replace(/\[(\d+)\]/g, ".$1");
 }
 
 export function storefrontPathLabel(path: string): string {
@@ -258,6 +264,7 @@ export function setEditableStorefrontPath(
   path: string,
   value: string,
 ): boolean {
+  path = normalizeEditableStorefrontPath(path);
   if (!isEditableStorefrontPath(path)) return false;
 
   const trimmed =

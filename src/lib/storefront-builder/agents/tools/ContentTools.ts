@@ -8,7 +8,7 @@ export class ContentTools {
       {
         name: "refine_website_copy",
         description:
-          "Refine website copy or a specific page/section across any template (Essentials/category showcase, hero, about, FAQ, CTA/promo panels, collections, rooms, difference features, product grid titles, SEO). Use pages.home.blocks.{id}.props.* for section text. Do not use for whole-site photo replacement or design switches.",
+          "Refine website copy or a specific page/section across any template (Essentials/category showcase, hero, about, FAQ, CTA/promo panels, home-stats trust row, collections, rooms, difference features, product grid titles, SEO). Use home_stats.N.value/label or pages.home.blocks.{id}.props.* for section text. Do not use for whole-site photo replacement or design switches.",
         parameters: {
           type: "object",
           properties: {

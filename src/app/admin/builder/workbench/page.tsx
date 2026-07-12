@@ -665,10 +665,7 @@ export default function AdminBuilderWorkbenchPage() {
         });
       } finally {
         setAiStreaming(false);
-        setThinkingEntries([]);
         setThinkingStreaming(false);
-        setPendingUserMessage("");
-        thinkingRunRef.current = [];
       }
     },
     onSuccess: (data) => {
@@ -677,8 +674,16 @@ export default function AdminBuilderWorkbenchPage() {
       setAgentSteps([]);
       liveActionsRef.current = new Map();
       setLiveActions([]);
+      setThinkingEntries([]);
+      setPendingUserMessage("");
+      thinkingRunRef.current = [];
     },
-    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not send message"),
+    onError: (error) => {
+      setThinkingEntries([]);
+      setPendingUserMessage("");
+      thinkingRunRef.current = [];
+      toast.error(error instanceof Error ? error.message : "Could not send message");
+    },
   });
 
   const applyColor = useMutation({

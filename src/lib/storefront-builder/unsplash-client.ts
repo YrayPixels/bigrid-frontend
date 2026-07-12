@@ -201,7 +201,7 @@ export async function inferUnsplashSearchPlanWithAi(
   return fallback;
 }
 
-export async function searchUnsplashPhotos(query: string, count = 5): Promise<UnsplashPhoto[]> {
+export async function searchUnsplashPhotosDirect(query: string, count = 5): Promise<UnsplashPhoto[]> {
   const accessKey = getUnsplashAccessKey();
   const trimmed = query.trim();
   if (!accessKey || !trimmed) return [];
@@ -234,6 +234,50 @@ export async function searchUnsplashPhotos(query: string, count = 5): Promise<Un
     console.warn("[unsplash] search error", message, trimmed);
     return [];
   }
+}
+
+async function searchUnsplashPhotosViaProxy(query: string, count: number): Promise<UnsplashPhoto[]> {
+  const trimmed = query.trim();
+  if (!trimmed) return [];
+
+  try {
+    const url = new URL("/api/unsplash/search", window.location.origin);
+    url.searchParams.set("query", trimmed);
+    url.searchParams.set("count", String(Math.min(Math.max(count, 1), 30)));
+
+    const response = await fetch(url.toString(), {
+      signal: AbortSignal.timeout(SEARCH_TIMEOUT_MS + 2000),
+    });
+
+    if (!response.ok) {
+      console.warn("[unsplash] proxy search failed", response.status, trimmed);
+      return [];
+    }
+
+    const payload = (await response.json()) as {
+      results?: Array<UnsplashPhoto & { url?: string }>;
+    };
+    const results = Array.isArray(payload.results) ? payload.results : [];
+    return results.map((photo) => ({
+      id: photo.id,
+      urls: photo.urls ?? (photo.url ? { regular: photo.url } : undefined),
+    }));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn("[unsplash] proxy search error", message, trimmed);
+    return [];
+  }
+}
+
+/**
+ * Search Unsplash. From the browser this goes through `/api/unsplash/search`
+ * so UNSPLASH_ACCESS_KEY stays server-side. On the server it calls Unsplash directly.
+ */
+export async function searchUnsplashPhotos(query: string, count = 5): Promise<UnsplashPhoto[]> {
+  if (typeof window !== "undefined") {
+    return searchUnsplashPhotosViaProxy(query, count);
+  }
+  return searchUnsplashPhotosDirect(query, count);
 }
 
 async function searchUnsplashWithFallbacks(candidates: string[], count: number): Promise<UnsplashPhoto[]> {

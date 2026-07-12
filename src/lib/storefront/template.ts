@@ -50,6 +50,7 @@ export function resolveStorefrontTemplate(
 export function alignStorefrontTemplateToSelection(
   storefront: StorefrontContent | null | undefined,
   templateId: StorefrontTemplateId | null | undefined,
+  brandColor?: string | null,
 ): StorefrontContent | null | undefined {
   if (!storefront || !templateId) {
     return storefront;
@@ -66,6 +67,10 @@ export function alignStorefrontTemplateToSelection(
       id: templateId,
       source: "merchant_selected",
     },
+    palette: getDefaultStorefrontPalette(
+      templateId,
+      brandColor ?? storefront.palette?.primary ?? undefined,
+    ),
   };
 }
 

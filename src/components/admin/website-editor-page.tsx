@@ -13,6 +13,7 @@ import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api/client";
 import {
   merchantCache,
+  merchantInvalidators,
   useStorefront,
   useStorefrontTemplates,
   useStoreMe,
@@ -443,6 +444,8 @@ export default function WebsiteEditorPage() {
       }),
     onSuccess: (data) => {
       if (store) merchantCache.setStorefront(queryClient, store.id, data);
+      merchantInvalidators.builderSession(queryClient);
+      merchantInvalidators.store(queryClient);
       toast.success("Draft saved.");
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : "Could not save edits"),

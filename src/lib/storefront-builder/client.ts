@@ -9,6 +9,7 @@ import type {
 } from "@/lib/api/types";
 import { STOREFRONT_TEMPLATE_OPTIONS } from "@/lib/api/types";
 import type { AgentThinkingLogEntry } from "@/lib/storefront-builder/agents/types";
+import { createThinkingLogEntry } from "@/lib/storefront-builder/agents/thinking-log";
 import { StorefrontBuilderManager } from "@/lib/storefront-builder/agents/StorefrontBuilderManager";
 import type { BuilderAiTurn } from "@/lib/storefront-builder/local-ai";
 import {
@@ -240,7 +241,11 @@ async function persistAgentTurn({
     },
     ...(selectedTemplateId ? { selected_template_id: selectedTemplateId } : {}),
     storefront_snapshot: templateId
-      ? alignStorefrontTemplateToSelection(snapshot ?? null, templateId) ?? snapshot
+      ? alignStorefrontTemplateToSelection(
+          snapshot ?? null,
+          templateId,
+          session.store?.brand_color,
+        ) ?? snapshot
       : snapshot,
   });
 }
@@ -257,16 +262,21 @@ export async function runBuilderAgentTurn({
   templateOptions: StorefrontTemplateOption[];
   history?: Array<{ role: "user" | "assistant"; content: string }>;
   onLog?: (entry: AgentThinkingLogEntry) => void;
-}): Promise<BuilderAiTurn> {
+}): Promise<{ turn: BuilderAiTurn; thinkingLog: AgentThinkingLogEntry[] }> {
   const recommendations = await loadRecommendations(session);
-  const manager = new StorefrontBuilderManager(undefined, onLog);
-  return manager.runTurn({
+  const thinkingLog: AgentThinkingLogEntry[] = [];
+  const manager = new StorefrontBuilderManager(undefined, (entry) => {
+    thinkingLog.push(entry);
+    onLog?.(entry);
+  });
+  const turn = await manager.runTurn({
     message,
     session,
     recommendations,
     templateOptions,
     history,
   });
+  return { turn, thinkingLog };
 }
 
 export async function streamAndPersistBuilderMessage({
@@ -276,6 +286,7 @@ export async function streamAndPersistBuilderMessage({
   boltStream,
   lockedPaths,
   contextHints,
+  onLog,
 }: {
   session: BuilderSession;
   message: string;
@@ -293,6 +304,19 @@ export async function streamAndPersistBuilderMessage({
 
   const recommendations = await loadRecommendations(enrichedSession);
   const chatHistory = buildBuilderChatHistory(enrichedSession.messages);
+  const thinkingLog: AgentThinkingLogEntry[] = [];
+  const pushLog = (entry: Omit<AgentThinkingLogEntry, "id" | "ts">) => {
+    const full = createThinkingLogEntry(entry);
+    thinkingLog.push(full);
+    onLog?.(full);
+  };
+
+  pushLog({
+    agent: "Executor",
+    phase: "start",
+    title: "Running custom site tools",
+    detail: message.trim().slice(0, 280),
+  });
 
   const turn = await runBoltCustomTurn({
     session: enrichedSession,
@@ -305,11 +329,18 @@ export async function streamAndPersistBuilderMessage({
     contextHints,
   });
 
+  pushLog({
+    agent: "Executor",
+    phase: "complete",
+    title: "Custom site turn finished",
+    detail: turn.assistant_message?.slice(0, 280),
+  });
+
   return persistAgentTurn({
     session,
     message,
     turn,
-    thinkingLog: [],
+    thinkingLog,
   });
 }
 
@@ -320,6 +351,7 @@ export async function processBuilderMessage({
   brandColor,
   mediaUpdates,
   logoUrl,
+  onLog,
 }: {
   session: BuilderSession;
   message: string;
@@ -327,6 +359,7 @@ export async function processBuilderMessage({
   brandColor?: string;
   mediaUpdates?: Partial<Record<BuilderMediaTarget, string>>;
   logoUrl?: string | null;
+  onLog?: (entry: AgentThinkingLogEntry) => void;
 }): Promise<BuilderSessionResponse> {
   const enrichedSession: BuilderSession = {
     ...session,
@@ -361,7 +394,10 @@ export async function processBuilderMessage({
       business_profile: fallback.business_profile,
       status: fallback.status,
       assistant_message: fallback.assistant_message,
-      assistant_payload: fallback.assistant_payload,
+      assistant_payload: {
+        ...fallback.assistant_payload,
+        user_message: message,
+      },
       ...(fallbackTemplateId ?? sessionTemplateId
         ? { selected_template_id: fallbackTemplateId ?? sessionTemplateId }
         : {}),
@@ -371,13 +407,14 @@ export async function processBuilderMessage({
   const history = buildBuilderChatHistory(session.messages);
 
   try {
-    const turn = await runBuilderAgentTurn({
+    const { turn, thinkingLog } = await runBuilderAgentTurn({
       session: enrichedSession,
       message,
       templateOptions,
       history,
+      onLog,
     });
-    return persistAgentTurn({ session, message, turn });
+    return persistAgentTurn({ session, message, turn, thinkingLog });
   } catch {
     if (!session.storefront_snapshot) {
       return generateBuilderDraftForSession({
@@ -391,7 +428,7 @@ export async function processBuilderMessage({
     return api.sendBuilderMessage(session.id, message, {
       assistant_message:
         "I hit a snag running that update — try again, or tell me more specifically what you'd like to change.",
-      assistant_payload: { type: "conversation" },
+      assistant_payload: { type: "conversation", user_message: message },
       status: session.status,
     });
   }

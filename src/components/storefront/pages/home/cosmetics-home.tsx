@@ -11,9 +11,9 @@ import type { StorefrontBlock } from "@/lib/storefront/blocks/types";
 import { useStorefrontTheme } from "@/lib/storefront/theme-context";
 
 const DEFAULT_STATS = [
-  { value: "Trusted by over 350,000+ Clients", label: "worldwide since 2008" },
-  { value: "6M+", label: "Worldwide Product sale per year" },
-  { value: "4.6", label: "3,350 Rating Worldwide" },
+  { value: "Crafted for everyday routines", label: "calm care, clean formulas" },
+  { value: "Everyday glow", label: "simple steps that layer easily" },
+  { value: "Gentle care", label: "formulas chosen for comfort" },
 ];
 
 const DEFAULT_TRUST_ITEMS = [
@@ -41,9 +41,9 @@ const DEFAULT_PROMO_BULLETS = [
 ];
 
 const DEFAULT_TESTIMONIALS = [
-  { quote: "A perfect daily routine.", author: "Customer 1" },
-  { quote: "Soft, clean, and easy.", author: "Customer 2" },
-  { quote: "The cleanser feels fresh.", author: "Customer 3" },
+  { quote: "A perfect daily routine.", author: "Ada" },
+  { quote: "Soft, clean, and easy.", author: "Tomi" },
+  { quote: "The cleanser feels fresh.", author: "Chioma" },
 ];
 
 function blockProps(storefront: StorefrontContent, blockId: string): Record<string, unknown> {
@@ -150,10 +150,12 @@ export function CosmeticsHome({
   const promoBlock = blockProps(storefront, "serum-promo");
   const trustBlock = blockProps(storefront, "trust-features");
 
-  const stats =
-    storefront.home_stats?.length === 3
-      ? storefront.home_stats
-      : DEFAULT_STATS;
+  const stats = (storefront.home_stats?.length ? storefront.home_stats : DEFAULT_STATS).map(
+    (stat, index) => ({
+      value: stat.value?.trim() || DEFAULT_STATS[index]?.value || "",
+      label: stat.label?.trim() || DEFAULT_STATS[index]?.label || "",
+    }),
+  );
 
   const badgeProps = storefront.value_props?.length
     ? storefront.value_props.slice(0, 3)
@@ -171,10 +173,12 @@ export function CosmeticsHome({
     ? (trustBlock.items as { title: string; body: string }[])
     : DEFAULT_TRUST_ITEMS.map(({ title, body }) => ({ title, body }));
 
-  const testimonials =
-    storefront.home_testimonials?.length === 3
-      ? storefront.home_testimonials
-      : DEFAULT_TESTIMONIALS;
+  const testimonials = (
+    storefront.home_testimonials?.length ? storefront.home_testimonials : DEFAULT_TESTIMONIALS
+  ).map((item, index) => ({
+    quote: item.quote?.trim() || DEFAULT_TESTIMONIALS[index]?.quote || "",
+    author: item.author?.trim() || DEFAULT_TESTIMONIALS[index]?.author || "",
+  }));
 
   const faqTitle = storefront.pages?.faq?.title ?? "Frequently Ask Questions";
 

@@ -70,9 +70,9 @@ export function defaultHomeBlockProps(
         items: storefront.home_stats?.length
           ? storefront.home_stats
           : [
-              { value: "Trusted by over 350,000+ Clients", label: "worldwide since 2008" },
-              { value: "6M+", label: "Worldwide Product sale per year" },
-              { value: "4.6", label: "3,350 Rating Worldwide" },
+              { value: "Crafted for everyday routines", label: "calm care, clean formulas" },
+              { value: "Everyday glow", label: "simple steps that layer easily" },
+              { value: "Gentle care", label: "formulas chosen for comfort" },
             ],
       };
     case "rich_text":

@@ -10,9 +10,9 @@ import {
 import type { HeroBlockProps, StorefrontBlock } from "@/lib/storefront/blocks/types";
 
 const DEFAULT_HOME_STATS = [
-  { value: "Trusted by over 350,000+ Clients", label: "worldwide since 2008" },
-  { value: "6M+", label: "Worldwide Product sale per year" },
-  { value: "4.6", label: "3,350 Rating Worldwide" },
+  { value: "Crafted for everyday routines", label: "calm care, clean formulas" },
+  { value: "Everyday glow", label: "simple steps that layer easily" },
+  { value: "Gentle care", label: "formulas chosen for comfort" },
 ];
 
 export function buildCosmeticsHomeBlocks(storefront: StorefrontContent): StorefrontBlock[] {
@@ -276,21 +276,27 @@ function ensureCategoryShowcaseBlock(
   return [categoryBlock, ...blocks];
 }
 
+function homeBlocksMatchTemplate(
+  blocks: StorefrontBlock[],
+  templateId: StorefrontTemplateId,
+): boolean {
+  const hasCosmeticsRecipe = blocks.some((block) => block.id === "serum-promo");
+  const hasFurnitureRecipe = blocks.some((block) => block.id === "collections");
+  const hasHairRecipe = blocks.some((block) => block.id === "choose-style");
+
+  if (templateId === "cosmetics") return hasCosmeticsRecipe;
+  if (templateId === "furniture-hardware") return hasFurnitureRecipe;
+  if (templateId === "hair-and-fashion") return hasHairRecipe;
+
+  // Shared default / fashion / beauty recipes must not keep specialty trees.
+  return !hasCosmeticsRecipe && !hasFurnitureRecipe && !hasHairRecipe;
+}
+
 export function migrateHomeBlocks(storefront: StorefrontContent): StorefrontBlock[] {
   const existing = storefront.pages?.home?.blocks;
   const templateId = storefront.template?.id ?? "classic";
 
-  if (existing?.length) {
-    // Recipe-driven templates need their own block trees when switching designs.
-    if (templateId === "cosmetics" && !existing.some((block) => block.id === "serum-promo")) {
-      return buildCosmeticsHomeBlocks(storefront);
-    }
-    if (templateId === "furniture-hardware" && !existing.some((block) => block.id === "collections")) {
-      return buildFurnitureHardwareHomeBlocks(storefront);
-    }
-    if (templateId === "hair-and-fashion" && !existing.some((block) => block.id === "choose-style")) {
-      return buildHairFashionHomeBlocks(storefront);
-    }
+  if (existing?.length && homeBlocksMatchTemplate(existing, templateId)) {
     if (templateId === "fashion_lookbook" || templateId === "beauty") {
       return ensureCategoryShowcaseBlock(existing, storefront);
     }

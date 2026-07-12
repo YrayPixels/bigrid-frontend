@@ -547,17 +547,20 @@ export async function replaceScopedStorefrontImages(args: {
 
   if (args.scope === "category_showcase") {
     const applied = await applyCategoryShowcaseImagesOnly(args.storefront, args.intent, args.context ?? {});
+    const showcaseItems =
+      resolveCategoryShowcaseProps(applied.storefront).items?.map((item, index) => ({
+        target: "template_block" as const,
+        url: item.image_url?.trim() || "",
+        label: item.label?.trim() || `Category image ${index + 1}`,
+        reason: describeImageScope("category_showcase"),
+        path: `pages.home.blocks.category-showcase.props.items.${index}.image_url`,
+      })) ?? [];
+
     return {
       storefront: applied.storefront,
       changed_paths: applied.changed_paths,
       result: {
-        recommendations: applied.changed_paths.map((path, index) => ({
-          target: "template_block" as const,
-          url: "",
-          label: `Category image ${index + 1}`,
-          reason: describeImageScope("category_showcase"),
-          path,
-        })),
+        recommendations: showcaseItems.filter((item) => item.url),
         search_terms: applied.search_terms,
         source_links: buildImageSearchLinks(applied.search_terms),
         summary: applied.summary,

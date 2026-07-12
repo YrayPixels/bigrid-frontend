@@ -17,6 +17,7 @@ import { BUILDER_WELCOME_MESSAGE } from "@/lib/storefront-builder/copy";
 import { describeStorefrontEdit } from "@/lib/storefront-builder/edit-summary";
 import {
   isEditableStorefrontPath,
+  normalizeEditableStorefrontPath,
   setEditableStorefrontPath,
   tryAppendFaqItem,
 } from "@/lib/storefront-builder/editable-paths";
@@ -591,8 +592,8 @@ export function fallbackBuilderTurn({
     availableTemplateIds,
   );
   const shouldGenerate = wantsWebsite && !!selectedTemplateId;
-  const recommendedTemplateLabel = recommendations[0]
-    ? STOREFRONT_TEMPLATE_OPTIONS.find((option) => option.value === recommendations[0].template_id)?.label
+  const selectedTemplateLabel = selectedTemplateId
+    ? STOREFRONT_TEMPLATE_OPTIONS.find((option) => option.value === selectedTemplateId)?.label
     : undefined;
 
   return {
@@ -604,8 +605,8 @@ export function fallbackBuilderTurn({
       : undefined,
     assistant_message: shouldGenerate
       ? "Your website draft is ready — check the preview on the right. Tell me anything you'd like to change."
-      : recommendations.length
-        ? `Got it — a ${recommendedTemplateLabel ?? "website"} style site for ${profile.business_name}. Say "build my website" when you're ready.`
+      : selectedTemplateLabel
+        ? `Got it — a ${selectedTemplateLabel} style site for ${profile.business_name}. Say "build my website" when you're ready.`
         : 'Tell me a bit more about your business, then say "build my website" and I\'ll create your first draft.',
     assistant_payload: {
       type: shouldGenerate ? "website_generated" : "agent_turn",
@@ -675,13 +676,17 @@ export function synthesizeStorefront(
         : STOREFRONT_NAV_ITEMS.map((item) => ({ label: item.label, href: item.href }))),
     home_stats:
       copy?.home_stats ??
+      (templateId === "cosmetics" ? homeStatsForStore(name, store.industry) : []),
+    home_testimonials_title:
+      copy?.home_testimonials_title ?? (templateId === "cosmetics" ? "Testimonials" : undefined),
+    home_testimonials_intro:
+      copy?.home_testimonials_intro ??
       (templateId === "cosmetics"
-        ? [
-            { value: "Trusted by over 350,000+ Clients", label: "worldwide since 2008" },
-            { value: "6M+", label: "Worldwide Product sale per year" },
-            { value: "4.6", label: "3,350 Rating Worldwide" },
-          ]
-        : []),
+        ? `Real feedback from people who shop ${name} for everyday ${industryLabel.toLowerCase()}.`
+        : undefined),
+    home_testimonials:
+      copy?.home_testimonials ??
+      (templateId === "cosmetics" ? homeTestimonialsForStore(name, store.industry) : undefined),
     pages: copy?.pages ?? {
       about: { title: about.title, body: about.body, source: "ai_generated" },
       contact: {
@@ -728,6 +733,10 @@ export function synthesizeStorefront(
         "about.title",
         "about.body",
         "value_props",
+        "home_stats",
+        "home_testimonials_title",
+        "home_testimonials_intro",
+        "home_testimonials",
         "pages",
         "seo.title",
         "seo.description",
@@ -1272,6 +1281,51 @@ function valuePropsForIndustry(industry: Industry) {
   ];
 }
 
+/** Honest default trust/stat copy — never invent fake client counts or ratings. */
+function homeStatsForStore(name: string, industry: Industry) {
+  if (industry === "beauty_and_skincare") {
+    return [
+      { value: `Crafted for ${name} customers`, label: "calm routines, clean formulas" },
+      { value: "Everyday glow", label: "simple steps that layer easily" },
+      { value: "Gentle care", label: "formulas chosen for comfort" },
+    ];
+  }
+  if (industry === "fashion_and_apparel") {
+    return [
+      { value: `Styled by ${name}`, label: "looks made to wear on repeat" },
+      { value: "Season-ready", label: "fresh edits for everyday dressing" },
+      { value: "Easy fit", label: "pieces chosen for comfort and movement" },
+    ];
+  }
+  return [
+    { value: `Welcome to ${name}`, label: "thoughtful products, clear shopping" },
+    { value: "Made with care", label: "checked before they reach you" },
+    { value: "Human support", label: "real help when you need it" },
+  ];
+}
+
+function homeTestimonialsForStore(name: string, industry: Industry) {
+  if (industry === "beauty_and_skincare") {
+    return [
+      { quote: `My routine feels simpler with ${name}. Soft finish, no fuss.`, author: "Ada" },
+      { quote: "Clean textures and clear product pages made shopping easy.", author: "Tomi" },
+      { quote: "A calm everyday set I actually stick with.", author: "Chioma" },
+    ];
+  }
+  if (industry === "fashion_and_apparel") {
+    return [
+      { quote: `${name} pieces layer easily and feel made for real days.`, author: "Maya" },
+      { quote: "Clear sizing and a lookbook that helps me decide fast.", author: "Jordan" },
+      { quote: "Simple staples I reach for every week.", author: "Amara" },
+    ];
+  }
+  return [
+    { quote: `${name} made shopping feel personal and straightforward.`, author: "Sam" },
+    { quote: "Clear product details and helpful support when I needed it.", author: "Riley" },
+    { quote: "Quality I trust and an easy checkout experience.", author: "Alex" },
+  ];
+}
+
 function productsForIndustry(name: string, industry: Industry, slugBase: string) {
   if (industry === "fashion_and_apparel") {
     return [
@@ -1411,11 +1465,37 @@ function defaultFaqItemsForStore(
 function flattenAiEditUpdates(raw: Record<string, unknown>): Record<string, string> {
   const flat: Record<string, string> = {};
 
+  const write = (path: string, value: string) => {
+    const normalized = normalizeEditableStorefrontPath(path);
+    if (value.trim()) flat[normalized] = value.trim();
+  };
+
   for (const [path, value] of Object.entries(raw)) {
     if (typeof value === "string" && value.trim()) {
-      flat[path] = value.trim();
+      write(path, value);
     }
   }
+
+  const flattenList = (
+    key: string,
+    fields: string[],
+  ) => {
+    const nested = raw[key];
+    if (!Array.isArray(nested)) return;
+    nested.forEach((item, index) => {
+      if (!item || typeof item !== "object") return;
+      const row = item as Record<string, unknown>;
+      for (const field of fields) {
+        if (typeof row[field] === "string" && row[field].trim()) {
+          write(`${key}.${index}.${field}`, row[field]);
+        }
+      }
+    });
+  };
+
+  flattenList("home_stats", ["value", "label"]);
+  flattenList("value_props", ["title", "body"]);
+  flattenList("home_testimonials", ["quote", "author"]);
 
   const nestedFaq = raw["pages.faq.items"];
   if (Array.isArray(nestedFaq)) {
@@ -1423,10 +1503,10 @@ function flattenAiEditUpdates(raw: Record<string, unknown>): Record<string, stri
       if (!item || typeof item !== "object") return;
       const row = item as Record<string, unknown>;
       if (typeof row.question === "string" && row.question.trim()) {
-        flat[`pages.faq.items.${index}.question`] = row.question.trim();
+        write(`pages.faq.items.${index}.question`, row.question);
       }
       if (typeof row.answer === "string" && row.answer.trim()) {
-        flat[`pages.faq.items.${index}.answer`] = row.answer.trim();
+        write(`pages.faq.items.${index}.answer`, row.answer);
       }
     });
   }

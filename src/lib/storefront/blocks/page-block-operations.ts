@@ -244,9 +244,9 @@ export function regenerateSectionProps(
     case "stats_row":
       return {
         items: [
-          { value: "Trusted by thousands", label: "of happy customers" },
-          { value: "Fast delivery", label: "across Nigeria" },
-          { value: "4.8★", label: "average customer rating" },
+          { value: `Crafted for ${businessName}`, label: "thoughtful products, clear shopping" },
+          { value: "Made with care", label: "checked before they reach you" },
+          { value: "Human support", label: "real help when you need it" },
         ],
       };
     case "rich_text":
