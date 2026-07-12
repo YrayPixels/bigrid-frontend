@@ -2,9 +2,16 @@
 
 import Link from "next/link";
 import { useMemo, useState, type CSSProperties } from "react";
-import { ChevronDown, Minus, Plane, Plus, Star } from "lucide-react";
+import { ChevronDown, Minus, Plane, Plus } from "lucide-react";
 import { toast } from "sonner";
 import type { StoreProduct } from "@/lib/api/types";
+import { ProductReviewsModule } from "@/components/storefront/product-reviews-module";
+import {
+  ProductVariantSelector,
+  defaultSelectedOptions,
+} from "@/components/storefront/product-variant-selector";
+import { requireVariantSelection } from "@/lib/storefront/cart-line";
+import { mergeProductPerks, productUnitPrice } from "@/lib/storefront/pricing";
 import { useCart } from "@/lib/storefront/cart-context";
 import { useStorefront } from "@/lib/storefront/store-context";
 import { beautyTemplateImages } from "@/lib/storefront/beauty-defaults";
@@ -16,38 +23,20 @@ import { PageContainer } from "@/components/storefront/theme/page-container";
 import { PrimaryButton } from "@/components/storefront/theme/primary-button";
 import { StorefrontFaqSection } from "@/components/storefront/pages/storefront-faq-section";
 import { useStorefrontTheme } from "@/lib/storefront/theme-context";
-import { cn } from "@/lib/utils";
 
-const fashionSizeFallbacks = [
-  "38",
-  "39",
-  "40",
-  "40.5",
-  "41",
-  "41.5",
-  "42",
-  "42.5",
-  "43",
-  "43.5",
-  "44",
-  "45",
-];
 const fashionPaymentMethods = ["VISA", "MC", "Pay", "G Pay", "PayPal", "AmEx"];
-const fashionReviewImages = [
-  "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=240&q=80",
-  "https://images.unsplash.com/photo-1487222477894-8943e31ef7b2?auto=format&fit=crop&w=240&q=80",
-];
+
 function FashionProductDetail({ product }: { product: StoreProduct }) {
   const { addItem } = useCart();
-  const { storefront } = useStorefront();
+  const { store, storefront, discounts } = useStorefront();
   const { theme } = useStorefrontTheme();
   const [quantity, setQuantity] = useState(1);
-  const sizeVariant = product.variants?.find((variant) => /size/i.test(variant.name));
-  const displayVariant = sizeVariant ?? product.variants?.[0];
-  const sizeOptions = displayVariant?.options?.length
-    ? displayVariant.options
-    : fashionSizeFallbacks;
-  const [selectedSize, setSelectedSize] = useState(sizeOptions[0]);
+  const variantGroups = product.variants ?? [];
+  const perks = mergeProductPerks(product, store.store_perks);
+  const priced = productUnitPrice(product, discounts ?? []);
+  const [selectedOptions, setSelectedOptions] = useState(() =>
+    defaultSelectedOptions(variantGroups),
+  );
   const faqPage = storefront.pages?.faq;
   const galleryImages = useMemo(
     () => [
@@ -60,7 +49,12 @@ function FashionProductDetail({ product }: { product: StoreProduct }) {
   );
 
   function addToCart(label = "Added to cart") {
-    addItem(product, quantity);
+    const error = requireVariantSelection(product, selectedOptions);
+    if (error) {
+      toast.error(error);
+      return;
+    }
+    addItem(product, quantity, selectedOptions);
     toast.success(label);
   }
 
@@ -106,54 +100,40 @@ function FashionProductDetail({ product }: { product: StoreProduct }) {
 
           <div className="mt-5 flex items-baseline gap-2">
             <span className="text-sm font-bold">
-              {formatMoney(product.price, product.currency)}
+              {formatMoney(priced.unitPrice, product.currency)}
             </span>
-            <span className="text-[11px]" style={{ color: theme.palette.muted }}>
-              Vat included
-            </span>
+            {priced.compareAtPrice != null ? (
+              <span className="text-sm line-through" style={{ color: theme.palette.muted }}>
+                {formatMoney(priced.compareAtPrice, product.currency)}
+              </span>
+            ) : null}
+            {priced.discountLabel ? (
+              <span className="text-[11px] font-bold uppercase" style={{ color: theme.palette.accent }}>
+                {priced.discountLabel}
+              </span>
+            ) : null}
           </div>
 
-          <div className="mt-7">
-            <div className="flex items-center justify-between text-[11px] font-semibold">
-              <span>Select {displayVariant?.name?.toLowerCase() ?? "size"} (USA)</span>
-              <button
-                type="button"
-                className="border-b font-bold"
-                style={{ borderColor: theme.palette.text }}
-              >
-                Size guide
-              </button>
+          {variantGroups.length ? (
+            <div className="mt-7">
+              <div className="mb-3 text-[11px] font-semibold">Select options</div>
+              <ProductVariantSelector
+                variants={variantGroups}
+                selectedOptions={selectedOptions}
+                onChange={setSelectedOptions}
+                appearance="square"
+              />
             </div>
-            <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-6">
-              {sizeOptions.map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  onClick={() => setSelectedSize(option)}
-                  className={cn(
-                    "border px-3 py-3 text-xs font-medium transition",
-                    selectedSize === option ? "" : "hover:opacity-80",
-                  )}
-                  style={{
-                    borderColor:
-                      selectedSize === option ? theme.palette.primary : theme.palette.border,
-                    backgroundColor:
-                      selectedSize === option ? theme.palette.primary : theme.palette.surface,
-                    color: selectedSize === option ? theme.palette.background : theme.palette.text,
-                  }}
-                >
-                  {option}
-                </button>
-              ))}
-            </div>
-          </div>
+          ) : null}
 
-          <div
-            className="mt-6 px-4 py-4 text-center text-[10px] font-extrabold uppercase tracking-[0.08em]"
-            style={{ backgroundColor: theme.palette.surface }}
-          >
-            1 day delivery in USA · same day delivery in the UAE · free shipping and returns
-          </div>
+          {perks.length ? (
+            <div
+              className="mt-6 px-4 py-4 text-center text-[10px] font-extrabold uppercase tracking-[0.08em]"
+              style={{ backgroundColor: theme.palette.surface }}
+            >
+              {perks.join(" · ")}
+            </div>
+          ) : null}
 
           <div
             className="mt-6 flex w-fit items-center border"
@@ -219,28 +199,26 @@ function FashionProductDetail({ product }: { product: StoreProduct }) {
             ))}
           </div>
 
-          <div
-            className="mt-6 flex gap-3 border-b pb-5"
-            style={{ borderColor: theme.palette.border }}
-          >
-            <Plane className="mt-0.5 h-5 w-5" strokeWidth={1.5} />
-            <div>
-              <p className="text-sm font-bold">Free Shipping</p>
-              <p className="mt-1 text-[11px]" style={{ color: theme.palette.muted }}>
-                Estimated Delivery: Thu, May 9
-              </p>
+          {perks.length ? (
+            <div
+              className="mt-6 space-y-3 border-b pb-5"
+              style={{ borderColor: theme.palette.border }}
+            >
+              {perks.map((perk) => (
+                <div key={perk} className="flex gap-3">
+                  <Plane className="mt-0.5 h-5 w-5 shrink-0" strokeWidth={1.5} />
+                  <p className="text-sm font-bold">{perk}</p>
+                </div>
+              ))}
             </div>
-          </div>
+          ) : null}
 
           <div className="divide-y border-b" style={{ borderColor: theme.palette.border }}>
             {[
-              ["What's it do?", product.description],
-              ["Shipping & returns", "Free standard shipping, easy returns, and secure checkout."],
-              [
-                "Product DNA",
-                product.perks?.join(" ") ||
-                  "Designed for everyday comfort with a refined fashion fit.",
-              ],
+              ["Description", product.description],
+              ...(perks.length
+                ? ([["Highlights", perks.join(" · ")]] as [string, string][])
+                : []),
             ].map(([title, body]) => (
               <details key={title} className="group py-4">
                 <summary className="flex cursor-pointer list-none items-center justify-between text-xs font-semibold">
@@ -256,83 +234,11 @@ function FashionProductDetail({ product }: { product: StoreProduct }) {
         </section>
       </div>
 
-      <section className="mx-auto grid max-w-7xl gap-8 px-4 pb-14 pt-10 sm:px-6 lg:grid-cols-[320px_minmax(0,1fr)]">
-        <div>
-          <h2
-            className="border-b pb-3 text-sm font-bold"
-            style={{ borderColor: theme.palette.text }}
-          >
-            Reviews (3)
-          </h2>
-          <div className="mt-6 flex items-end gap-1">
-            <span className="text-6xl font-light leading-none text-[#236c42]">4.9</span>
-            <span className="pb-2 text-xl text-[#777777]">/5</span>
-          </div>
-          <div className="mt-2 flex items-center gap-1 text-[#f5d24c]">
-            {Array.from({ length: 5 }).map((_, index) => (
-              <Star key={index} className="h-4 w-4 fill-current" />
-            ))}
-            <span className="ml-2 text-xs font-bold" style={{ color: theme.palette.text }}>
-              3 Review
-            </span>
-          </div>
-        </div>
-
-        <div className="space-y-4">
-          {[
-            {
-              name: "Jhon Mitchel",
-              date: "27/04/2024",
-              text: "I love the style and comfort of the shoe. I wish it was just a tad easier to slip on but once it's in it fits like a glove.",
-            },
-            {
-              name: "Amelia Rose",
-              date: "18/04/2024",
-              text: "Clean fit, premium feel, and easy to pair with my everyday outfits.",
-            },
-          ].map((review, index) => (
-            <article
-              key={review.name}
-              className="grid gap-4 p-5 sm:grid-cols-[1fr_96px]"
-              style={{ backgroundColor: theme.palette.surface }}
-            >
-              <div>
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-center gap-3">
-                    <img
-                      src={fashionReviewImages[index]}
-                      alt=""
-                      className="h-9 w-9 rounded-full object-cover"
-                    />
-                    <div>
-                      <h3 className="text-sm font-bold">{review.name}</h3>
-                      <div className="mt-1 flex text-[#f5d24c]">
-                        {Array.from({ length: 5 }).map((_, starIndex) => (
-                          <Star key={starIndex} className="h-3.5 w-3.5 fill-current" />
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                  <span className="text-xs" style={{ color: theme.palette.muted }}>
-                    {review.date}
-                  </span>
-                </div>
-                <p
-                  className="mt-4 max-w-2xl text-sm leading-6"
-                  style={{ color: theme.palette.muted }}
-                >
-                  {review.text}
-                </p>
-              </div>
-              <img
-                src={galleryImages[index % galleryImages.length]}
-                alt=""
-                className="hidden h-24 w-24 object-cover sm:block"
-              />
-            </article>
-          ))}
-        </div>
-      </section>
+      <ProductReviewsModule
+        productId={product.id}
+        productName={product.name}
+        appearance="fashion"
+      />
 
       <StorefrontFaqSection faqPage={faqPage} />
     </div>
@@ -341,9 +247,14 @@ function FashionProductDetail({ product }: { product: StoreProduct }) {
 
 function MinimalisticProductDetail({ product }: { product: StoreProduct }) {
   const { addItem } = useCart();
-  const { storefront } = useStorefront();
+  const { store, storefront, discounts } = useStorefront();
   const { theme } = useStorefrontTheme();
   const [quantity, setQuantity] = useState(1);
+  const perks = mergeProductPerks(product, store.store_perks);
+  const priced = productUnitPrice(product, discounts ?? []);
+  const [selectedOptions, setSelectedOptions] = useState(() =>
+    defaultSelectedOptions(product.variants),
+  );
   const faqPage = storefront.pages?.faq;
   const galleryImages = useMemo(
     () => [
@@ -356,7 +267,12 @@ function MinimalisticProductDetail({ product }: { product: StoreProduct }) {
   );
 
   function addToCart(label = "Added to cart") {
-    addItem(product, quantity);
+    const error = requireVariantSelection(product, selectedOptions);
+    if (error) {
+      toast.error(error);
+      return;
+    }
+    addItem(product, quantity, selectedOptions);
     toast.success(label);
   }
 
@@ -424,48 +340,27 @@ function MinimalisticProductDetail({ product }: { product: StoreProduct }) {
             </span>
           ) : null}
 
-          <div className="mt-5 flex items-center gap-3">
-            <div className="flex text-[#efc64b]">
-              {Array.from({ length: 5 }).map((_, index) => (
-                <Star key={index} className="h-4 w-4 fill-current" />
-              ))}
-            </div>
-            <span className="text-xs font-semibold" style={{ color: theme.palette.muted }}>
-              4.9 customer rating
-            </span>
-          </div>
-
           <p className="mt-5 max-w-xl text-sm leading-7" style={{ color: theme.palette.muted }}>
             {product.description}
           </p>
 
           <div className="mt-6 text-3xl font-semibold tracking-[-0.04em]">
-            {formatMoney(product.price, product.currency)}
+            {formatMoney(priced.unitPrice, product.currency)}
+            {priced.compareAtPrice != null ? (
+              <span className="ml-3 text-lg font-normal line-through" style={{ color: theme.palette.muted }}>
+                {formatMoney(priced.compareAtPrice, product.currency)}
+              </span>
+            ) : null}
           </div>
 
           {product.variants?.length ? (
-            <div className="mt-7 space-y-4">
-              {product.variants.map((variant) => (
-                <div key={variant.name}>
-                  <div className="text-sm font-bold">{variant.name}</div>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {variant.options.map((option) => (
-                      <span
-                        key={option}
-                        className="rounded-full border px-4 py-2 text-xs font-semibold"
-                        style={{
-                          backgroundColor: theme.palette.background,
-                          borderColor: theme.palette.border,
-                          color: theme.palette.muted,
-                        }}
-                      >
-                        {option}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
+            <ProductVariantSelector
+              className="mt-7"
+              variants={product.variants}
+              selectedOptions={selectedOptions}
+              onChange={setSelectedOptions}
+              appearance="soft"
+            />
           ) : null}
 
           <div
@@ -516,31 +411,26 @@ function MinimalisticProductDetail({ product }: { product: StoreProduct }) {
             </button>
           </div>
 
-          <div
-            className="mt-6 flex gap-3 rounded-2xl p-4"
-            style={{ backgroundColor: theme.palette.background }}
-          >
-            <Plane className="mt-0.5 h-5 w-5" strokeWidth={1.5} />
-            <div>
-              <p className="text-sm font-bold">Free Shipping</p>
-              <p className="mt-1 text-xs" style={{ color: theme.palette.muted }}>
-                Estimated delivery in 2-4 business days.
-              </p>
+          {perks.length ? (
+            <div
+              className="mt-6 space-y-3 rounded-2xl p-4"
+              style={{ backgroundColor: theme.palette.background }}
+            >
+              {perks.map((perk) => (
+                <div key={perk} className="flex gap-3">
+                  <Plane className="mt-0.5 h-5 w-5 shrink-0" strokeWidth={1.5} />
+                  <p className="text-sm font-bold">{perk}</p>
+                </div>
+              ))}
             </div>
-          </div>
+          ) : null}
 
           <div className="mt-6 divide-y border-y" style={{ borderColor: theme.palette.border }}>
             {[
-              ["What's it do?", product.description],
-              [
-                "Clean formula",
-                "Made for a simple daily wellness routine with trusted ingredients.",
-              ],
-              [
-                "Product benefits",
-                product.perks?.join(" ") ||
-                  "Supports daily balance, consistency, and feel-good routines.",
-              ],
+              ["Description", product.description],
+              ...(perks.length
+                ? ([["Highlights", perks.join(" · ")]] as [string, string][])
+                : []),
             ].map(([title, body]) => (
               <details key={title} className="group py-4">
                 <summary className="flex cursor-pointer list-none items-center justify-between text-sm font-semibold">
@@ -556,26 +446,31 @@ function MinimalisticProductDetail({ product }: { product: StoreProduct }) {
         </section>
       </div>
 
-      <section className="px-4 pb-14 sm:px-6">
-        <div className="mx-auto grid max-w-7xl gap-5 sm:grid-cols-3">
-          {["Science backed", "Clean ingredients", "Trusted quality"].map((label) => (
-            <div
-              key={label}
-              className="rounded-[1.5rem] p-6 text-center shadow-sm"
-              style={{ backgroundColor: `${theme.palette.surface}cc` }}
-            >
+      {perks.length ? (
+        <section className="px-4 pb-6 sm:px-6">
+          <div className="mx-auto grid max-w-7xl gap-5 sm:grid-cols-3">
+            {perks.slice(0, 3).map((label) => (
               <div
-                className="mx-auto mb-4 h-2 w-10 rounded-full"
-                style={{ backgroundColor: theme.palette.primary }}
-              />
-              <h2 className="font-bold">{label}</h2>
-              <p className="mt-2 text-sm leading-6" style={{ color: theme.palette.muted }}>
-                Designed to make daily wellness feel simple, calm, and consistent.
-              </p>
-            </div>
-          ))}
-        </div>
-      </section>
+                key={label}
+                className="rounded-[1.5rem] p-6 text-center shadow-sm"
+                style={{ backgroundColor: `${theme.palette.surface}cc` }}
+              >
+                <div
+                  className="mx-auto mb-4 h-2 w-10 rounded-full"
+                  style={{ backgroundColor: theme.palette.primary }}
+                />
+                <h2 className="font-bold">{label}</h2>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      <ProductReviewsModule
+        productId={product.id}
+        productName={product.name}
+        appearance="minimal"
+      />
 
       <StorefrontFaqSection faqPage={faqPage} />
     </div>
@@ -584,9 +479,14 @@ function MinimalisticProductDetail({ product }: { product: StoreProduct }) {
 
 function BeautyProductDetail({ product }: { product: StoreProduct }) {
   const { addItem } = useCart();
-  const { storefront } = useStorefront();
+  const { store, storefront, discounts } = useStorefront();
   const { theme } = useStorefrontTheme();
   const [quantity, setQuantity] = useState(1);
+  const perks = mergeProductPerks(product, store.store_perks);
+  const priced = productUnitPrice(product, discounts ?? []);
+  const [selectedOptions, setSelectedOptions] = useState(() =>
+    defaultSelectedOptions(product.variants),
+  );
   const faqPage = storefront.pages?.faq;
   const isCosmetics = theme.id === "cosmetics";
   const templateImages = isCosmetics ? cosmeticsTemplateImages : beautyTemplateImages;
@@ -601,7 +501,12 @@ function BeautyProductDetail({ product }: { product: StoreProduct }) {
   );
 
   function addToCart(label = "Added to cart") {
-    addItem(product, quantity);
+    const error = requireVariantSelection(product, selectedOptions);
+    if (error) {
+      toast.error(error);
+      return;
+    }
+    addItem(product, quantity, selectedOptions);
     toast.success(label);
   }
 
@@ -641,29 +546,23 @@ function BeautyProductDetail({ product }: { product: StoreProduct }) {
           </p>
           <div className="mt-6 flex items-center gap-3">
             <span className="font-display text-3xl font-semibold">
-              {formatMoney(product.price, product.currency)}
+              {formatMoney(priced.unitPrice, product.currency)}
             </span>
-            <span className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold" style={{ backgroundColor: theme.palette.surface }}>
-              <Star className="h-3.5 w-3.5 fill-current" style={{ color: theme.palette.accent }} />
-              4.9 loved by customers
-            </span>
+            {priced.compareAtPrice != null ? (
+              <span className="text-lg line-through" style={{ color: theme.palette.muted }}>
+                {formatMoney(priced.compareAtPrice, product.currency)}
+              </span>
+            ) : null}
           </div>
 
           {product.variants?.length ? (
-            <div className="mt-8 space-y-5">
-              {product.variants.map((variant) => (
-                <div key={variant.name}>
-                  <div className="text-sm font-semibold">{variant.name}</div>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {variant.options.map((option) => (
-                      <span key={option} className="rounded-full border px-4 py-2 text-sm" style={{ borderColor: theme.palette.border }}>
-                        {option}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
+            <ProductVariantSelector
+              className="mt-8"
+              variants={product.variants}
+              selectedOptions={selectedOptions}
+              onChange={setSelectedOptions}
+              appearance="pill"
+            />
           ) : null}
 
           <div className="mt-8 flex flex-wrap items-center gap-3">
@@ -689,18 +588,27 @@ function BeautyProductDetail({ product }: { product: StoreProduct }) {
             </button>
           </div>
 
-          <div className="mt-8 grid gap-3 sm:grid-cols-3">
-            {(isCosmetics
-              ? ["Botanical actives", "Routine ready", "Fast delivery"]
-              : ["Premium quality", "Routine ready", "Fast delivery"]
-            ).map((label) => (
-              <div key={label} className="rounded-2xl border p-4 text-sm font-semibold" style={{ borderColor: theme.palette.border, backgroundColor: theme.palette.surface }}>
-                {label}
-              </div>
-            ))}
-          </div>
+          {perks.length ? (
+            <div className="mt-8 grid gap-3 sm:grid-cols-3">
+              {perks.slice(0, 3).map((label) => (
+                <div
+                  key={label}
+                  className="rounded-2xl border p-4 text-sm font-semibold"
+                  style={{ borderColor: theme.palette.border, backgroundColor: theme.palette.surface }}
+                >
+                  {label}
+                </div>
+              ))}
+            </div>
+          ) : null}
         </section>
       </section>
+
+      <ProductReviewsModule
+        productId={product.id}
+        productName={product.name}
+        appearance="soft"
+      />
 
       <StorefrontFaqSection faqPage={faqPage} />
     </div>
@@ -709,7 +617,13 @@ function BeautyProductDetail({ product }: { product: StoreProduct }) {
 
 export function ProductDetailPageView({ product }: { product: StoreProduct | null }) {
   const { theme, mode } = useStorefrontTheme();
+  const { store, discounts } = useStorefront();
   const { addItem } = useCart();
+  const [selectedOptions, setSelectedOptions] = useState(() =>
+    defaultSelectedOptions(product?.variants),
+  );
+  const perks = product ? mergeProductPerks(product, store.store_perks) : [];
+  const priced = product ? productUnitPrice(product, discounts ?? []) : null;
 
   if (!product) {
     return (
@@ -791,36 +705,30 @@ export function ProductDetailPageView({ product }: { product: StoreProduct | nul
             {product.description}
           </p>
           <div className="mt-6 text-2xl font-semibold" style={{ color: theme.palette.primary }}>
-            {formatMoney(product.price, product.currency)}
+            {formatMoney(priced?.unitPrice ?? product.price, product.currency)}
+            {priced?.compareAtPrice != null ? (
+              <span className="ml-3 text-lg font-normal line-through" style={{ color: theme.palette.muted }}>
+                {formatMoney(priced.compareAtPrice, product.currency)}
+              </span>
+            ) : null}
           </div>
           {product.variants?.length ? (
-            <div className="mt-6 space-y-4">
-              {product.variants.map((variant) => (
-                <div key={variant.name}>
-                  <div className="text-sm font-semibold">{variant.name}</div>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {variant.options.map((option) => (
-                      <span
-                        key={option}
-                        className="rounded-full border px-3 py-1 text-sm"
-                        style={{ borderColor: theme.palette.border, color: theme.palette.muted }}
-                      >
-                        {option}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
+            <ProductVariantSelector
+              className="mt-6"
+              variants={product.variants}
+              selectedOptions={selectedOptions}
+              onChange={setSelectedOptions}
+              appearance="soft"
+            />
           ) : null}
-          {product.perks?.length ? (
+          {perks.length ? (
             <div className={`mt-6 rounded-2xl border ${theme.borderColor} ${theme.cardBg} p-4`}>
               <h2 className="text-sm font-semibold">Why customers like it</h2>
               <ul
                 className="mt-3 list-disc space-y-2 pl-5 text-sm"
                 style={{ color: theme.palette.muted }}
               >
-                {product.perks.map((perk) => (
+                {perks.map((perk) => (
                   <li key={perk}>{perk}</li>
                 ))}
               </ul>
@@ -829,7 +737,12 @@ export function ProductDetailPageView({ product }: { product: StoreProduct | nul
           <PrimaryButton
             className="mt-8"
             onClick={() => {
-              addItem(product);
+              const error = requireVariantSelection(product, selectedOptions);
+              if (error) {
+                toast.error(error);
+                return;
+              }
+              addItem(product, 1, selectedOptions);
               toast.success("Added to cart");
             }}
           >
@@ -837,6 +750,13 @@ export function ProductDetailPageView({ product }: { product: StoreProduct | nul
           </PrimaryButton>
         </div>
       </div>
+
+      <ProductReviewsModule
+        className="mt-14 !px-0"
+        productId={product.id}
+        productName={product.name}
+        appearance="soft"
+      />
     </PageContainer>
   );
 }

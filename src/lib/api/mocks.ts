@@ -83,6 +83,19 @@ type MockDB = {
     string,
     { block_id?: string | null; fields: Record<string, string>; submitted_at: string }[]
   >;
+  product_reviews?: Record<
+    string,
+    {
+      id: string;
+      product_id: string;
+      author_name: string;
+      author_email?: string | null;
+      rating: number;
+      body: string;
+      status: string;
+      created_at: string;
+    }[]
+  >;
   sessions: Record<string, string>;
   builderSessions: Record<string, BuilderSession>;
 };
@@ -1071,6 +1084,71 @@ export const mockApi = {
     ];
     save(db);
     return { message: "Message sent." };
+  },
+
+  async listProductReviews(slug: string, productId: string) {
+    const db = load();
+    const store = Object.values(db.stores).find((entry) => entry.slug === slug);
+    if (!store) throw { status: 404, message: "Storefront not found" };
+    const reviews = (db.product_reviews?.[store.id] ?? []).filter(
+      (review) => review.product_id === productId && review.status === "approved",
+    );
+    const average =
+      reviews.length === 0
+        ? 0
+        : Math.round(
+            (reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length) * 10,
+          ) / 10;
+    return {
+      average_rating: average,
+      review_count: reviews.length,
+      reviews: reviews
+        .slice()
+        .sort((a, b) => b.created_at.localeCompare(a.created_at))
+        .map((review) => ({
+          id: review.id,
+          author_name: review.author_name,
+          rating: review.rating,
+          body: review.body,
+          created_at: review.created_at,
+        })),
+    };
+  },
+
+  async submitProductReview(
+    slug: string,
+    productId: string,
+    body: { author_name: string; author_email?: string; rating: number; body: string },
+  ) {
+    const db = load();
+    const store = Object.values(db.stores).find((entry) => entry.slug === slug);
+    if (!store) throw { status: 404, message: "Storefront not found" };
+    const product = (db.products[store.id] ?? []).find((entry) => entry.id === productId);
+    if (!product) throw { status: 404, message: "Product not found" };
+
+    const review = {
+      id: crypto.randomUUID(),
+      product_id: productId,
+      author_name: body.author_name.trim(),
+      author_email: body.author_email?.trim() || null,
+      rating: body.rating,
+      body: body.body.trim(),
+      status: "approved",
+      created_at: new Date().toISOString(),
+    };
+    db.product_reviews = db.product_reviews ?? {};
+    db.product_reviews[store.id] = [...(db.product_reviews[store.id] ?? []), review];
+    save(db);
+    return {
+      message: "Review submitted.",
+      review: {
+        id: review.id,
+        author_name: review.author_name,
+        rating: review.rating,
+        body: review.body,
+        created_at: review.created_at,
+      },
+    };
   },
 
   async getCurrentBuilderSession(token: string): Promise<BuilderSessionResponse> {

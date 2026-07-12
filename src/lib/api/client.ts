@@ -697,6 +697,76 @@ export const api = {
     await http(`${STOREHAUSE_API_PREFIX}/products/${productId}`, { method: "DELETE" });
   },
 
+  async listDiscounts(): Promise<
+    import("./types").StoreDiscount[]
+  > {
+    requireToken();
+    if (USE_MOCKS) return [];
+    const res = await http<{ data: import("./types").StoreDiscount[] }>(
+      `${STOREHAUSE_API_PREFIX}/discounts`,
+    );
+    return res.data;
+  },
+
+  async createDiscount(
+    body: import("./types").CreateStoreDiscountInput,
+  ): Promise<import("./types").StoreDiscount> {
+    requireToken();
+    if (USE_MOCKS) {
+      return {
+        id: crypto.randomUUID(),
+        name: body.name,
+        type: body.type,
+        discount_type: body.discount_type,
+        discount_value: body.discount_value,
+        min_subtotal: body.min_subtotal ?? null,
+        product_ids: body.product_ids ?? [],
+        starts_at: body.starts_at ?? null,
+        ends_at: body.ends_at ?? null,
+        status: body.status ?? "active",
+        priority: body.priority ?? 0,
+      };
+    }
+    const res = await http<{ discount: import("./types").StoreDiscount }>(
+      `${STOREHAUSE_API_PREFIX}/discounts`,
+      { method: "POST", body: JSON.stringify(body) },
+    );
+    return res.discount;
+  },
+
+  async updateDiscount(
+    discountId: string,
+    body: import("./types").UpdateStoreDiscountInput,
+  ): Promise<import("./types").StoreDiscount> {
+    requireToken();
+    if (USE_MOCKS) {
+      return {
+        id: discountId,
+        name: body.name ?? "Discount",
+        type: body.type ?? "seasonal",
+        discount_type: body.discount_type ?? "percent",
+        discount_value: body.discount_value ?? 0,
+        min_subtotal: body.min_subtotal ?? null,
+        product_ids: body.product_ids ?? [],
+        starts_at: body.starts_at ?? null,
+        ends_at: body.ends_at ?? null,
+        status: body.status ?? "active",
+        priority: body.priority ?? 0,
+      };
+    }
+    const res = await http<{ discount: import("./types").StoreDiscount }>(
+      `${STOREHAUSE_API_PREFIX}/discounts/${discountId}`,
+      { method: "PATCH", body: JSON.stringify(body) },
+    );
+    return res.discount;
+  },
+
+  async deleteDiscount(discountId: string): Promise<void> {
+    requireToken();
+    if (USE_MOCKS) return;
+    await http(`${STOREHAUSE_API_PREFIX}/discounts/${discountId}`, { method: "DELETE" });
+  },
+
   async importProducts(products: StoreProduct[]): Promise<ProductImportReport> {
     requireToken();
     if (USE_MOCKS) return mockApi.importProducts(requireToken(), products);

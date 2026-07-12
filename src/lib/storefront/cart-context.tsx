@@ -10,19 +10,25 @@ import {
   type ReactNode,
 } from "react";
 import type { StoreProduct } from "@/lib/api/types";
+import {
+  cartLineKey,
+  defaultSelectedOptions,
+  type SelectedOptions,
+} from "@/lib/storefront/cart-line";
 
 export type CartLine = {
   product: StoreProduct;
   quantity: number;
+  selectedOptions?: SelectedOptions;
 };
 
 type CartContextValue = {
   lines: CartLine[];
   itemCount: number;
   subtotal: number;
-  addItem: (product: StoreProduct, quantity?: number) => void;
-  removeItem: (productId: string) => void;
-  setQuantity: (productId: string, quantity: number) => void;
+  addItem: (product: StoreProduct, quantity?: number, selectedOptions?: SelectedOptions) => void;
+  removeItem: (lineKey: string) => void;
+  setQuantity: (lineKey: string, quantity: number) => void;
   clear: () => void;
 };
 
@@ -30,6 +36,49 @@ const CartContext = createContext<CartContextValue | null>(null);
 
 function storageKey(storeId: string) {
   return `storehaus_cart_${storeId}`;
+}
+
+function lineIdentity(line: CartLine) {
+  return cartLineKey(line.product.id, line.selectedOptions);
+}
+
+function resolveOptions(
+  product: StoreProduct,
+  selectedOptions?: SelectedOptions,
+): SelectedOptions | undefined {
+  const groups = product.variants ?? [];
+  if (!groups.length) return undefined;
+  if (selectedOptions && Object.keys(selectedOptions).length > 0) {
+    return selectedOptions;
+  }
+  const defaults = defaultSelectedOptions(groups);
+  return Object.keys(defaults).length > 0 ? defaults : undefined;
+}
+
+function normalizeLines(raw: unknown): CartLine[] {
+  if (!Array.isArray(raw)) return [];
+  const lines: CartLine[] = [];
+  for (const entry of raw) {
+    if (!entry || typeof entry !== "object") continue;
+    const line = entry as CartLine;
+    if (!line.product?.id || typeof line.quantity !== "number") continue;
+    const selectedOptions =
+      line.selectedOptions && typeof line.selectedOptions === "object"
+        ? Object.fromEntries(
+            Object.entries(line.selectedOptions).filter(
+              ([name, value]) => typeof name === "string" && typeof value === "string",
+            ),
+          )
+        : undefined;
+    lines.push({
+      product: line.product,
+      quantity: line.quantity,
+      ...(selectedOptions && Object.keys(selectedOptions).length > 0
+        ? { selectedOptions }
+        : {}),
+    });
+  }
+  return lines;
 }
 
 export function CartProvider({ storeId, children }: { storeId: string; children: ReactNode }) {
@@ -43,7 +92,7 @@ export function CartProvider({ storeId, children }: { storeId: string; children:
       return;
     }
     try {
-      setLines(JSON.parse(raw) as CartLine[]);
+      setLines(normalizeLines(JSON.parse(raw)));
     } catch {
       setLines([]);
     }
@@ -54,29 +103,34 @@ export function CartProvider({ storeId, children }: { storeId: string; children:
     window.localStorage.setItem(storageKey(storeId), JSON.stringify(lines));
   }, [lines, storeId]);
 
-  const addItem = useCallback((product: StoreProduct, quantity = 1) => {
-    setLines((current) => {
-      const existing = current.find((line) => line.product.id === product.id);
-      if (existing) {
-        return current.map((line) =>
-          line.product.id === product.id ? { ...line, quantity: line.quantity + quantity } : line,
-        );
-      }
-      return [...current, { product, quantity }];
-    });
+  const addItem = useCallback(
+    (product: StoreProduct, quantity = 1, selectedOptions?: SelectedOptions) => {
+      const options = resolveOptions(product, selectedOptions);
+      const key = cartLineKey(product.id, options);
+      setLines((current) => {
+        const existing = current.find((line) => lineIdentity(line) === key);
+        if (existing) {
+          return current.map((line) =>
+            lineIdentity(line) === key ? { ...line, quantity: line.quantity + quantity } : line,
+          );
+        }
+        return [...current, { product, quantity, selectedOptions: options }];
+      });
+    },
+    [],
+  );
+
+  const removeItem = useCallback((lineKey: string) => {
+    setLines((current) => current.filter((line) => lineIdentity(line) !== lineKey));
   }, []);
 
-  const removeItem = useCallback((productId: string) => {
-    setLines((current) => current.filter((line) => line.product.id !== productId));
-  }, []);
-
-  const setQuantity = useCallback((productId: string, quantity: number) => {
+  const setQuantity = useCallback((lineKey: string, quantity: number) => {
     if (quantity <= 0) {
-      setLines((current) => current.filter((line) => line.product.id !== productId));
+      setLines((current) => current.filter((line) => lineIdentity(line) !== lineKey));
       return;
     }
     setLines((current) =>
-      current.map((line) => (line.product.id === productId ? { ...line, quantity } : line)),
+      current.map((line) => (lineIdentity(line) === lineKey ? { ...line, quantity } : line)),
     );
   }, []);
 
@@ -84,7 +138,17 @@ export function CartProvider({ storeId, children }: { storeId: string; children:
 
   const value = useMemo<CartContextValue>(() => {
     const itemCount = lines.reduce((sum, line) => sum + line.quantity, 0);
-    const subtotal = lines.reduce((sum, line) => sum + line.product.price * line.quantity, 0);
+    const subtotal = lines.reduce((sum, line) => {
+      const unit =
+        typeof line.product.effective_price === "number"
+          ? line.product.effective_price
+          : line.product.sale_price != null &&
+              line.product.sale_price >= 0 &&
+              line.product.sale_price < line.product.price
+            ? line.product.sale_price
+            : line.product.price;
+      return sum + unit * line.quantity;
+    }, 0);
     return { lines, itemCount, subtotal, addItem, removeItem, setQuantity, clear };
   }, [addItem, clear, lines, removeItem, setQuantity]);
 
@@ -96,3 +160,5 @@ export function useCart() {
   if (!context) throw new Error("useCart must be used within CartProvider");
   return context;
 }
+
+export { cartLineKey };

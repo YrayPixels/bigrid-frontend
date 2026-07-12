@@ -102,6 +102,7 @@ export type Store = {
   payout_bank_name?: string | null;
   payout_account_number?: string | null;
   notifications?: StoreNotificationSettings;
+  store_perks?: string[];
 };
 
 export type StoreDomainVerification = {
@@ -195,6 +196,7 @@ export type UpdateStoreInput = {
   notification_email?: string | null;
   customer_order_note?: string | null;
   sms_sender_name?: string | null;
+  store_perks?: string[];
 };
 
 export type SubscriptionPlanId = "starter" | "growth" | "scale";
@@ -319,6 +321,10 @@ export type StoreProduct = {
   name: string;
   description: string;
   price: number;
+  sale_price?: number | null;
+  effective_price?: number;
+  compare_at_price?: number | null;
+  discount_label?: string | null;
   currency: string;
   image_url: string | null;
   sku?: string;
@@ -381,6 +387,27 @@ export type StorefrontPages = {
 export type StoreContactInquiryInput = {
   block_id?: string;
   fields: Record<string, string>;
+};
+
+export type StoreProductReview = {
+  id: string;
+  author_name: string;
+  rating: number;
+  body: string;
+  created_at: string;
+};
+
+export type StoreProductReviewsResponse = {
+  average_rating: number;
+  review_count: number;
+  reviews: StoreProductReview[];
+};
+
+export type StoreProductReviewInput = {
+  author_name: string;
+  author_email?: string;
+  rating: number;
+  body: string;
 };
 
 export type StorefrontEditMetadata = {
@@ -481,11 +508,47 @@ export type PublicStorefront = {
   storefront: StorefrontContent;
   generation_id: string | null;
   categories?: StoreCategory[];
+  discounts?: StoreDiscount[];
   checkout?: {
     payments_enabled: boolean;
     paystack_public_key: string | null;
   };
 };
+
+export type StoreDiscountType = "product" | "cart_threshold" | "seasonal";
+export type StoreDiscountValueType = "percent" | "fixed";
+export type StoreDiscountStatus = "active" | "draft" | "archived";
+
+export type StoreDiscount = {
+  id: string;
+  name: string;
+  type: StoreDiscountType;
+  discount_type: StoreDiscountValueType;
+  discount_value: number;
+  min_subtotal?: number | null;
+  product_ids?: string[];
+  starts_at?: string | null;
+  ends_at?: string | null;
+  status: StoreDiscountStatus;
+  priority?: number;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+export type CreateStoreDiscountInput = {
+  name: string;
+  type: StoreDiscountType;
+  discount_type: StoreDiscountValueType;
+  discount_value: number;
+  min_subtotal?: number | null;
+  product_ids?: string[];
+  starts_at?: string | null;
+  ends_at?: string | null;
+  status?: StoreDiscountStatus;
+  priority?: number;
+};
+
+export type UpdateStoreDiscountInput = Partial<CreateStoreDiscountInput>;
 
 export type PublishedStorefrontIndexEntry = {
   slug: string;
@@ -502,6 +565,8 @@ export type StoreOrderItem = {
   unit_price: number;
   total: number;
   currency: string;
+  image_url?: string | null;
+  selected_options?: Record<string, string>;
 };
 
 export type StoreOrder = {
@@ -516,6 +581,8 @@ export type StoreOrder = {
   settlement_status?: string | null;
   currency: string;
   subtotal: number;
+  discount_amount?: number;
+  discount_label?: string | null;
   total_amount: number;
   items: StoreOrderItem[];
   notes: string | null;
@@ -563,7 +630,11 @@ export type CreateStoreOrderInput = {
   notes?: string;
   callback_url?: string;
   session_token?: string;
-  items: { product_id: string; quantity: number }[];
+  items: {
+    product_id: string;
+    quantity: number;
+    selected_options?: Record<string, string>;
+  }[];
 };
 
 export type PaystackCheckoutPayment = {

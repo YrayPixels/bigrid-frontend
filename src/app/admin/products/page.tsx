@@ -70,6 +70,7 @@ type ProductForm = {
   slug: string;
   description: string;
   price: string;
+  sale_price: string;
   currency: string;
   image_url: string;
   sku: string;
@@ -104,6 +105,7 @@ const blankForm: ProductForm = {
   slug: "",
   description: "",
   price: "",
+  sale_price: "",
   currency: "NGN",
   image_url: "",
   sku: "",
@@ -164,6 +166,7 @@ function formFromProduct(product?: StoreProduct): ProductForm {
     slug: product.slug,
     description: product.description,
     price: String(product.price),
+    sale_price: product.sale_price != null ? String(product.sale_price) : "",
     currency: product.currency || "NGN",
     image_url: product.image_url ?? "",
     sku: product.sku ?? "",
@@ -185,6 +188,7 @@ function productFromForm(form: ProductForm, existing?: StoreProduct): StoreProdu
   const name = form.name.trim();
   const slug = slugify(form.slug || name);
   const price = Number(form.price);
+  const salePrice = form.sale_price.trim() ? Number(form.sale_price) : undefined;
   const stock = form.stock_quantity.trim() ? Number(form.stock_quantity) : undefined;
   const variants = form.variants
     .map((variant) => ({
@@ -203,6 +207,7 @@ function productFromForm(form: ProductForm, existing?: StoreProduct): StoreProdu
     name,
     description: form.description.trim(),
     price: Number.isFinite(price) ? price : 0,
+    sale_price: Number.isFinite(salePrice) ? salePrice : null,
     currency: form.currency.trim().toUpperCase() || "NGN",
     image_url: form.image_url.trim() || null,
     sku: form.sku.trim() || undefined,
@@ -1175,7 +1180,7 @@ export default function AdminProductsPage() {
             </label>
 
             <div className="grid gap-4 md:grid-cols-4">
-              <label className="space-y-2 text-sm font-medium md:col-span-2">
+              <label className="space-y-2 text-sm font-medium">
                 Price
                 <Input
                   type="number"
@@ -1186,6 +1191,18 @@ export default function AdminProductsPage() {
                   }
                   placeholder="28500"
                   required
+                />
+              </label>
+              <label className="space-y-2 text-sm font-medium">
+                Sale price
+                <Input
+                  type="number"
+                  min="0"
+                  value={form.sale_price}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, sale_price: event.target.value }))
+                  }
+                  placeholder="Optional"
                 />
               </label>
               <label className="space-y-2 text-sm font-medium">

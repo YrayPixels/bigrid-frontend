@@ -49,6 +49,7 @@ type StoreProfileForm = {
   contact_email: string;
   contact_phone: string;
   brand_color: string;
+  store_perks: string[];
   business_profile: BusinessProfileInput;
 };
 
@@ -61,6 +62,7 @@ function storeProfileFromStore(
     contact_email: store.contact_email ?? "",
     contact_phone: store.contact_phone ?? "",
     brand_color: store.brand_color,
+    store_perks: store.store_perks?.length ? [...store.store_perks] : [""],
     business_profile: {
       business_location: store.business_location ?? null,
       weekly_orders: store.weekly_orders ?? null,
@@ -116,6 +118,7 @@ export default function AdminSettingsStorePage() {
       contact_email: storeForm.contact_email.trim() || null,
       contact_phone: storeForm.contact_phone.trim() || null,
       brand_color: storeForm.brand_color,
+      store_perks: storeForm.store_perks.map((perk) => perk.trim()).filter(Boolean),
       ...(storeForm.business_profile.business_location
         ? { business_location: storeForm.business_profile.business_location }
         : {}),
@@ -278,6 +281,70 @@ export default function AdminSettingsStorePage() {
                     }
                     className="min-h-28"
                   />
+                </Field>
+              </div>
+              <div className="lg:col-span-2">
+                <Field
+                  label="Store-wide perks"
+                  hint="Shown on every product page (for example Free delivery in Lagos). Product-specific perks still apply too."
+                >
+                  <div className="space-y-3">
+                    {storeForm.store_perks.map((perk, index) => (
+                      <div key={index} className="grid gap-3 md:grid-cols-[1fr_auto]">
+                        <Input
+                          value={perk}
+                          onChange={(event) =>
+                            setStoreForm((current) =>
+                              current
+                                ? {
+                                    ...current,
+                                    store_perks: current.store_perks.map((item, itemIndex) =>
+                                      itemIndex === index ? event.target.value : item,
+                                    ),
+                                  }
+                                : current,
+                            )
+                          }
+                          placeholder="Free delivery in Lagos"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() =>
+                            setStoreForm((current) =>
+                              current
+                                ? {
+                                    ...current,
+                                    store_perks:
+                                      current.store_perks.length === 1
+                                        ? [""]
+                                        : current.store_perks.filter(
+                                            (_, itemIndex) => itemIndex !== index,
+                                          ),
+                                  }
+                                : current,
+                            )
+                          }
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    ))}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        setStoreForm((current) =>
+                          current
+                            ? { ...current, store_perks: [...current.store_perks, ""] }
+                            : current,
+                        )
+                      }
+                    >
+                      Add perk
+                    </Button>
+                  </div>
                 </Field>
               </div>
               <div className="lg:col-span-2 rounded-2xl border border-border bg-background p-5">

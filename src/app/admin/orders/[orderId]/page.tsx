@@ -179,6 +179,13 @@ export default function AdminOrderDetailPage() {
                 >
                   <div>
                     <div className="font-medium">{item.name}</div>
+                    {item.selected_options && Object.keys(item.selected_options).length > 0 ? (
+                      <div className="mt-0.5 text-xs text-ink-soft">
+                        {Object.entries(item.selected_options)
+                          .map(([name, value]) => `${name}: ${value}`)
+                          .join(" · ")}
+                      </div>
+                    ) : null}
                     <div className="text-sm text-ink-soft">
                       {item.quantity} × {formatMoney(item.unit_price, item.currency)}
                     </div>

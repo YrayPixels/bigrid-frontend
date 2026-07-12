@@ -6,6 +6,9 @@ import type {
   PublishedStorefrontIndexEntry,
   StoreContactInquiryInput,
   StoreOrder,
+  StoreProductReview,
+  StoreProductReviewInput,
+  StoreProductReviewsResponse,
 } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ?? "";
@@ -41,6 +44,18 @@ async function publicWrite<T>(path: string, body: unknown): Promise<T> {
       Accept: "application/json",
     },
     body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new StorefrontApiError(res.status, data?.message ?? "Request failed");
+  }
+  return data as T;
+}
+
+async function publicHttpFresh<T>(path: string): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    headers: { Accept: "application/json" },
+    cache: "no-store",
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
@@ -115,6 +130,25 @@ export const storefrontApi = {
     if (USE_MOCKS) return mockApi.submitContact(slug, body);
     return publicWrite<{ message: string }>(
       `${STOREHAUSE_API_PREFIX}/public/storefronts/${slug}/contact`,
+      body,
+    );
+  },
+
+  async listProductReviews(slug: string, productId: string): Promise<StoreProductReviewsResponse> {
+    if (USE_MOCKS) return mockApi.listProductReviews(slug, productId);
+    return publicHttpFresh<StoreProductReviewsResponse>(
+      `${STOREHAUSE_API_PREFIX}/public/storefronts/${slug}/products/${productId}/reviews`,
+    );
+  },
+
+  async submitProductReview(
+    slug: string,
+    productId: string,
+    body: StoreProductReviewInput,
+  ): Promise<{ message: string; review: StoreProductReview }> {
+    if (USE_MOCKS) return mockApi.submitProductReview(slug, productId, body);
+    return publicWrite<{ message: string; review: StoreProductReview }>(
+      `${STOREHAUSE_API_PREFIX}/public/storefronts/${slug}/products/${productId}/reviews`,
       body,
     );
   },

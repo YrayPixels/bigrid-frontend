@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { FormEvent, useRef, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
-import { useCart } from "@/lib/storefront/cart-context";
+import { cartLineKey, useCart } from "@/lib/storefront/cart-context";
+import { formatSelectedOptions } from "@/lib/storefront/cart-line";
+import { cartThresholdDiscount } from "@/lib/storefront/pricing";
 import { storefrontApi } from "@/lib/api/storefront";
 import { openPaystackCheckout } from "@/lib/paystack";
 import { formatMoney } from "@/lib/storefront/format";
@@ -17,13 +19,15 @@ import { minimalisticTemplateImages } from "@/lib/storefront/minimalistic-defaul
 
 export function CheckoutPageView() {
   const router = useRouter();
-  const { store, checkout } = useStorefront();
+  const { store, checkout, discounts } = useStorefront();
   const paymentsEnabled = checkout?.payments_enabled ?? false;
   const paymentHint = paymentsEnabled
     ? "Pay securely by card or bank transfer via Paystack after you submit."
     : "Online payment is not active yet. The store will contact you to arrange payment.";
   const { lines, subtotal, clear } = useCart();
   const { theme, mode } = useStorefrontTheme();
+  const cartDiscount = cartThresholdDiscount(subtotal, discounts ?? []);
+  const payableTotal = Math.max(0, subtotal - cartDiscount.amount);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const submitLabel = paymentsEnabled
@@ -131,6 +135,7 @@ export function CheckoutPageView() {
         items: lines.map((line) => ({
           product_id: line.product.id,
           quantity: line.quantity,
+          selected_options: line.selectedOptions,
         })),
       });
 
@@ -367,7 +372,7 @@ export function CheckoutPageView() {
 
                 return (
                   <div
-                    key={line.product.id}
+                    key={cartLineKey(line.product.id, line.selectedOptions)}
                     className="grid grid-cols-[72px_minmax(0,1fr)_auto] items-center gap-3 rounded-2xl p-3 text-sm"
                     style={{ backgroundColor: theme.palette.background }}
                   >
@@ -382,10 +387,13 @@ export function CheckoutPageView() {
                       <div className="line-clamp-1 font-bold">{line.product.name}</div>
                       <div className="mt-1 text-xs" style={{ color: theme.palette.muted }}>
                         Qty {line.quantity}
+                        {formatSelectedOptions(line.selectedOptions)
+                          ? ` · ${formatSelectedOptions(line.selectedOptions)}`
+                          : ""}
                       </div>
                     </div>
                     <span className="font-semibold">
-                      {formatMoney(line.product.price * line.quantity, line.product.currency)}
+                      {formatMoney(((typeof line.product.effective_price === 'number' ? line.product.effective_price : line.product.sale_price != null && line.product.sale_price < line.product.price ? line.product.sale_price : line.product.price) * line.quantity), line.product.currency)}
                     </span>
                   </div>
                 );
@@ -400,13 +408,19 @@ export function CheckoutPageView() {
                 <span>Subtotal</span>
                 <strong>{formatMoney(subtotal, currency)}</strong>
               </div>
+              {cartDiscount.amount > 0 ? (
+                <div className="flex items-center justify-between">
+                  <span>{cartDiscount.label ?? "Discount"}</span>
+                  <strong>-{formatMoney(cartDiscount.amount, currency)}</strong>
+                </div>
+              ) : null}
               <div className="flex items-center justify-between">
                 <span>Shipping</span>
                 <strong>Free</strong>
               </div>
               <div className="flex items-center justify-between text-base">
                 <span>Total</span>
-                <strong>{formatMoney(subtotal, currency)}</strong>
+                <strong>{formatMoney(payableTotal, currency)}</strong>
               </div>
             </div>
           </aside>
@@ -506,21 +520,30 @@ export function CheckoutPageView() {
           </h2>
           <div className="mt-4 space-y-3">
             {lines.map((line) => (
-              <div key={line.product.id} className="flex items-start justify-between gap-4 text-sm">
+              <div key={cartLineKey(line.product.id, line.selectedOptions)} className="flex items-start justify-between gap-4 text-sm">
                 <span>
                   {line.product.name} x {line.quantity}
+                  {formatSelectedOptions(line.selectedOptions)
+                    ? ` (${formatSelectedOptions(line.selectedOptions)})`
+                    : ""}
                 </span>
                 <span>
-                  {formatMoney(line.product.price * line.quantity, line.product.currency)}
+                  {formatMoney(((typeof line.product.effective_price === 'number' ? line.product.effective_price : line.product.sale_price != null && line.product.sale_price < line.product.price ? line.product.sale_price : line.product.price) * line.quantity), line.product.currency)}
                 </span>
               </div>
             ))}
           </div>
+          {cartDiscount.amount > 0 ? (
+            <div className="mt-4 flex items-center justify-between gap-4 text-sm">
+              <span>{cartDiscount.label ?? "Discount"}</span>
+              <span>-{formatMoney(cartDiscount.amount)}</span>
+            </div>
+          ) : null}
           <div
             className={`mt-6 flex items-center justify-between border-t ${theme.borderColor} pt-4 font-semibold`}
           >
             <span>Total</span>
-            <span>{formatMoney(subtotal)}</span>
+            <span>{formatMoney(payableTotal)}</span>
           </div>
         </aside>
       </div>

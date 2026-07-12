@@ -3,7 +3,10 @@
 import Link from "next/link";
 import type { CSSProperties } from "react";
 import { Minus, Pencil, Plus, Trash2 } from "lucide-react";
-import { useCart } from "@/lib/storefront/cart-context";
+import { cartLineKey, useCart } from "@/lib/storefront/cart-context";
+import { formatSelectedOptions } from "@/lib/storefront/cart-line";
+import { cartThresholdDiscount } from "@/lib/storefront/pricing";
+import { useStorefront } from "@/lib/storefront/store-context";
 import { beautyTemplateImages } from "@/lib/storefront/beauty-defaults";
 import { cosmeticsTemplateImages } from "@/lib/storefront/cosmetics-defaults";
 import { fashionTemplateImages } from "@/lib/storefront/fashion-defaults";
@@ -15,9 +18,14 @@ import { useStorefrontTheme } from "@/lib/storefront/theme-context";
 
 function FashionCartPageView() {
   const { lines, subtotal, setQuantity, removeItem } = useCart();
+  const { discounts } = useStorefront();
   const { theme, mode } = useStorefrontTheme();
   const isBeauty = theme.id === "beauty";
   const isCosmetics = theme.id === "cosmetics";
+  const cartDiscount = cartThresholdDiscount(subtotal, discounts ?? []);
+  const shipping = 0;
+  const tax = 0;
+  const total = Math.max(0, subtotal - cartDiscount.amount) + shipping + tax;
 
   if (lines.length === 0) {
     return (
@@ -71,9 +79,6 @@ function FashionCartPageView() {
   }
 
   const currency = lines[0]?.product.currency;
-  const shipping = 0;
-  const tax = 0;
-  const total = subtotal + shipping + tax;
 
   return (
     <div
@@ -140,10 +145,11 @@ function FashionCartPageView() {
                     : isBeauty
                     ? beautyTemplateImages.products[index % beautyTemplateImages.products.length]
                     : fashionTemplateImages.products[index % fashionTemplateImages.products.length]);
-                const variantSummary = line.product.variants?.slice(0, 2) ?? [];
+                const lineKey = cartLineKey(line.product.id, line.selectedOptions);
+                const selectedSummary = formatSelectedOptions(line.selectedOptions);
 
                 return (
-                  <article key={line.product.id} className="py-6 first:pt-0">
+                  <article key={lineKey} className="py-6 first:pt-0">
                     <div className="grid gap-5 sm:grid-cols-[128px_minmax(0,1fr)]">
                       <div
                         className="aspect-square overflow-hidden rounded-2xl"
@@ -166,19 +172,16 @@ function FashionCartPageView() {
                             {line.product.description}
                           </p>
 
-                          {variantSummary.length ? (
+                          {selectedSummary ? (
                             <div
                               className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-sm"
                               style={{ color: theme.palette.muted }}
                             >
-                              {variantSummary.map((variant) => (
-                                <span key={variant.name}>
-                                  {variant.name}{" "}
-                                  <strong style={{ color: theme.palette.text }}>
-                                    {variant.options[0] ?? "Default"}
-                                  </strong>
-                                </span>
-                              ))}
+                              <span>
+                                <strong style={{ color: theme.palette.text }}>
+                                  {selectedSummary}
+                                </strong>
+                              </span>
                             </div>
                           ) : null}
 
@@ -205,7 +208,7 @@ function FashionCartPageView() {
                                 borderColor: theme.palette.border,
                                 color: theme.palette.text,
                               }}
-                              onClick={() => setQuantity(line.product.id, line.quantity - 1)}
+                              onClick={() => setQuantity(cartLineKey(line.product.id, line.selectedOptions), line.quantity - 1)}
                               disabled={mode === "edit"}
                               aria-label={`Decrease ${line.product.name} quantity`}
                             >
@@ -222,7 +225,7 @@ function FashionCartPageView() {
                                 borderColor: theme.palette.border,
                                 color: theme.palette.text,
                               }}
-                              onClick={() => setQuantity(line.product.id, line.quantity + 1)}
+                              onClick={() => setQuantity(cartLineKey(line.product.id, line.selectedOptions), line.quantity + 1)}
                               disabled={mode === "edit"}
                               aria-label={`Increase ${line.product.name} quantity`}
                             >
@@ -239,7 +242,7 @@ function FashionCartPageView() {
                                 borderColor: theme.palette.border,
                                 color: theme.palette.text,
                               }}
-                              onClick={() => removeItem(line.product.id)}
+                              onClick={() => removeItem(cartLineKey(line.product.id, line.selectedOptions))}
                               disabled={mode === "edit"}
                               aria-label={`Remove ${line.product.name}`}
                             >
@@ -297,10 +300,14 @@ function FashionCartPageView() {
                   <span>Sub Total</span>
                   <strong>{formatMoney(subtotal, currency)}</strong>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span>Discount</span>
-                  <strong>{formatMoney(0, currency)}</strong>
-                </div>
+                {cartDiscount.amount > 0 ? (
+                  <div className="flex items-center justify-between">
+                    <span>{cartDiscount.label ?? "Discount"}</span>
+                    <strong style={{ color: theme.palette.accent }}>
+                      -{formatMoney(cartDiscount.amount, currency)}
+                    </strong>
+                  </div>
+                ) : null}
                 <div className="flex items-center justify-between">
                   <span>Tax</span>
                   <strong>{formatMoney(tax, currency)}</strong>
@@ -384,7 +391,9 @@ function FashionCartPageView() {
 
 function MinimalisticCartPageView() {
   const { lines, subtotal, setQuantity, removeItem } = useCart();
+  const { discounts } = useStorefront();
   const { theme, mode } = useStorefrontTheme();
+  const cartDiscount = cartThresholdDiscount(subtotal, discounts ?? []);
 
   if (lines.length === 0) {
     return (
@@ -443,7 +452,7 @@ function MinimalisticCartPageView() {
   const currency = lines[0]?.product.currency;
   const shipping = 0;
   const tax = 0;
-  const total = subtotal + shipping + tax;
+  const total = Math.max(0, subtotal - cartDiscount.amount) + shipping + tax;
 
   return (
     <div
@@ -517,10 +526,11 @@ function MinimalisticCartPageView() {
                   minimalisticTemplateImages.products[
                     index % minimalisticTemplateImages.products.length
                   ];
-                const variantSummary = line.product.variants?.slice(0, 2) ?? [];
+                const lineKey = cartLineKey(line.product.id, line.selectedOptions);
+                const selectedSummary = formatSelectedOptions(line.selectedOptions);
 
                 return (
-                  <article key={line.product.id} className="py-6 first:pt-0">
+                  <article key={lineKey} className="py-6 first:pt-0">
                     <div className="grid gap-5 sm:grid-cols-[132px_minmax(0,1fr)]">
                       <div
                         className="flex aspect-square items-center justify-center overflow-hidden rounded-2xl p-5"
@@ -543,19 +553,16 @@ function MinimalisticCartPageView() {
                             {line.product.description}
                           </p>
 
-                          {variantSummary.length ? (
+                          {selectedSummary ? (
                             <div
                               className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-sm"
                               style={{ color: theme.palette.muted }}
                             >
-                              {variantSummary.map((variant) => (
-                                <span key={variant.name}>
-                                  {variant.name}{" "}
-                                  <strong style={{ color: theme.palette.text }}>
-                                    {variant.options[0] ?? "Default"}
-                                  </strong>
-                                </span>
-                              ))}
+                              <span>
+                                <strong style={{ color: theme.palette.text }}>
+                                  {selectedSummary}
+                                </strong>
+                              </span>
                             </div>
                           ) : null}
 
@@ -584,7 +591,7 @@ function MinimalisticCartPageView() {
                                 backgroundColor: theme.palette.surface,
                                 color: theme.palette.text,
                               }}
-                              onClick={() => setQuantity(line.product.id, line.quantity - 1)}
+                              onClick={() => setQuantity(cartLineKey(line.product.id, line.selectedOptions), line.quantity - 1)}
                               disabled={mode === "edit"}
                               aria-label={`Decrease ${line.product.name} quantity`}
                             >
@@ -600,7 +607,7 @@ function MinimalisticCartPageView() {
                                 backgroundColor: theme.palette.surface,
                                 color: theme.palette.text,
                               }}
-                              onClick={() => setQuantity(line.product.id, line.quantity + 1)}
+                              onClick={() => setQuantity(cartLineKey(line.product.id, line.selectedOptions), line.quantity + 1)}
                               disabled={mode === "edit"}
                               aria-label={`Increase ${line.product.name} quantity`}
                             >
@@ -616,7 +623,7 @@ function MinimalisticCartPageView() {
                                 backgroundColor: theme.palette.background,
                                 color: theme.palette.text,
                               }}
-                              onClick={() => removeItem(line.product.id)}
+                              onClick={() => removeItem(cartLineKey(line.product.id, line.selectedOptions))}
                               disabled={mode === "edit"}
                               aria-label={`Remove ${line.product.name}`}
                             >
@@ -666,10 +673,19 @@ function MinimalisticCartPageView() {
                   <span>Sub Total</span>
                   <strong>{formatMoney(subtotal, currency)}</strong>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span>Discount</span>
-                  <strong>{formatMoney(0, currency)}</strong>
-                </div>
+                {cartDiscount.amount > 0 ? (
+                  <div className="flex items-center justify-between">
+                    <span>{cartDiscount.label ?? "Discount"}</span>
+                    <strong style={{ color: theme.palette.accent }}>
+                      -{formatMoney(cartDiscount.amount, currency)}
+                    </strong>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between">
+                    <span>Discount</span>
+                    <strong>{formatMoney(0, currency)}</strong>
+                  </div>
+                )}
                 <div className="flex items-center justify-between">
                   <span>Tax</span>
                   <strong>{formatMoney(tax, currency)}</strong>
@@ -761,7 +777,10 @@ function MinimalisticCartPageView() {
 
 export function CartPageView() {
   const { lines, subtotal, setQuantity, removeItem } = useCart();
+  const { discounts } = useStorefront();
   const { theme, mode } = useStorefrontTheme();
+  const cartDiscount = cartThresholdDiscount(subtotal, discounts ?? []);
+  const payable = Math.max(0, subtotal - cartDiscount.amount);
 
   if (theme.id === "fashion_lookbook") {
     return <FashionCartPageView />;
@@ -805,22 +824,26 @@ export function CartPageView() {
         Cart
       </h1>
       <div className="mt-8 space-y-4">
-        {lines.map((line) => (
+        {lines.map((line) => {
+          const lineKey = cartLineKey(line.product.id, line.selectedOptions);
+          const selectedSummary = formatSelectedOptions(line.selectedOptions);
+          return (
           <div
-            key={line.product.id}
+            key={lineKey}
             className={`flex flex-col gap-4 rounded-2xl border ${theme.borderColor} ${theme.cardBg} p-5 sm:flex-row sm:items-center sm:justify-between`}
           >
             <div>
               <div className="font-semibold">{line.product.name}</div>
               <div className="text-sm" style={{ color: theme.palette.muted }}>
                 {formatMoney(line.product.price, line.product.currency)} each
+                {selectedSummary ? ` · ${selectedSummary}` : ""}
               </div>
             </div>
             <div className="flex items-center gap-3">
               <button
                 type="button"
                 className={`grid h-8 w-8 place-items-center rounded-md border ${theme.borderColor}`}
-                onClick={() => setQuantity(line.product.id, line.quantity - 1)}
+                onClick={() => setQuantity(cartLineKey(line.product.id, line.selectedOptions), line.quantity - 1)}
                 disabled={mode === "edit"}
               >
                 <Minus className="h-4 w-4" />
@@ -829,7 +852,7 @@ export function CartPageView() {
               <button
                 type="button"
                 className={`grid h-8 w-8 place-items-center rounded-md border ${theme.borderColor}`}
-                onClick={() => setQuantity(line.product.id, line.quantity + 1)}
+                onClick={() => setQuantity(cartLineKey(line.product.id, line.selectedOptions), line.quantity + 1)}
                 disabled={mode === "edit"}
               >
                 <Plus className="h-4 w-4" />
@@ -838,7 +861,7 @@ export function CartPageView() {
                 type="button"
                 className="ml-2 hover:text-destructive"
                 style={{ color: theme.palette.muted }}
-                onClick={() => removeItem(line.product.id)}
+                onClick={() => removeItem(cartLineKey(line.product.id, line.selectedOptions))}
                 disabled={mode === "edit"}
                 aria-label="Remove item"
               >
@@ -846,7 +869,8 @@ export function CartPageView() {
               </button>
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
 
       <div
@@ -856,7 +880,12 @@ export function CartPageView() {
           <div className="text-sm" style={{ color: theme.palette.muted }}>
             Subtotal
           </div>
-          <div className="text-2xl font-semibold">{formatMoney(subtotal)}</div>
+          <div className="text-2xl font-semibold">{formatMoney(payable)}</div>
+          {cartDiscount.amount > 0 ? (
+            <div className="mt-1 text-sm" style={{ color: theme.palette.muted }}>
+              Includes {cartDiscount.label ?? "discount"} of {formatMoney(cartDiscount.amount)}
+            </div>
+          ) : null}
         </div>
         {mode === "edit" ? (
           <span

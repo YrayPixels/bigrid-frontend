@@ -11,6 +11,7 @@ import {
   Megaphone,
   MessageSquare,
   Package,
+  Percent,
   ShoppingBag,
   ShoppingCart,
   Sparkles,
@@ -67,6 +68,7 @@ const navGroups: NavGroup[] = [
     items: [
       { href: "/admin/products", label: "Products", icon: Package },
       { href: "/admin/categories", label: "Categories", icon: FolderTree },
+      { href: "/admin/discounts", label: "Discounts", icon: Percent },
     ],
   },
   {
