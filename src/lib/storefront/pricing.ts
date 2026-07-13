@@ -45,8 +45,8 @@ export function productUnitPrice(
     product.sale_price != null && product.sale_price >= 0 && product.sale_price < regular
       ? product.sale_price
       : null;
-  let unit = sale ?? regular;
-  let label: string | null = sale != null ? "Sale" : null;
+  const unit = sale ?? regular;
+  const label: string | null = sale != null ? "Sale" : null;
 
   let best = unit;
   let bestLabel = label;

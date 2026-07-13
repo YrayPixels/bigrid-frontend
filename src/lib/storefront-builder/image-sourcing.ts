@@ -279,7 +279,7 @@ export function applyTemplateImagesAcrossStorefront(
   plan: TemplateImagePlan,
 ): { storefront: StorefrontContent; changed_paths: string[] } {
   const ensured = ensureMerchantHomepageProducts(storefront);
-  let next = structuredClone(ensured.storefront);
+  const next = structuredClone(ensured.storefront);
   const changedPaths = new Set<string>();
 
   ensureHomeBlocksOnStorefront(next);
