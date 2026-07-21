@@ -7,12 +7,12 @@ import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api/client";
-import { isEmailVerified } from "@/lib/api/types";
+import { isEmailVerified, type User } from "@/lib/api/types";
 import { AuthShell, AuthSubmitButton, Field } from "@/components/auth-shell";
 
 export default function VerifyEmailPage() {
   const router = useRouter();
-  const { user, loading, refresh, setUser, signOut } = useAuth();
+  const { user, loading, setUser, signOut } = useAuth();
   const [code, setCode] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [resending, setResending] = useState(false);
@@ -24,6 +24,12 @@ export default function VerifyEmailPage() {
     }
   }, [loading, user, router]);
 
+  function finishVerified(nextUser: User, message = "Email verified") {
+    setUser(nextUser);
+    toast.success(message);
+    router.replace(nextUser.has_store ? "/admin" : "/admin/onboarding");
+  }
+
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     if (code.trim().length !== 6) {
@@ -33,10 +39,10 @@ export default function VerifyEmailPage() {
     setSubmitting(true);
     try {
       const res = await api.verifyEmail({ code: code.trim() });
-      setUser(res.user);
-      await refresh();
-      toast.success("Email verified");
-      router.replace(res.user.has_store ? "/admin" : "/admin/onboarding");
+      finishVerified(
+        res.user,
+        res.message === "Email already verified." ? "Email already verified" : "Email verified",
+      );
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not verify email");
     } finally {
@@ -47,7 +53,11 @@ export default function VerifyEmailPage() {
   async function handleResend() {
     setResending(true);
     try {
-      await api.resendEmailVerification();
+      const res = await api.resendEmailVerification();
+      if (res.user && isEmailVerified(res.user)) {
+        finishVerified(res.user, "Email already verified");
+        return;
+      }
       toast.success("Verification code sent — check your inbox");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not resend code");

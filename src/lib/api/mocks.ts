@@ -398,7 +398,7 @@ export const mockApi = {
     return { message: "Email verified.", user: record.user };
   },
 
-  async resendEmailVerification(token: string): Promise<{ message: string }> {
+  async resendEmailVerification(token: string): Promise<{ message: string; user?: User }> {
     await delay(200);
     const db = load();
     const userId = db.sessions[token];
@@ -406,7 +406,7 @@ export const mockApi = {
     const record = db.users[userId];
     if (!record) throw { status: 401, message: "Unauthenticated" };
     if (record.user.email_verified_at) {
-      return { message: "Email already verified." };
+      return { message: "Email already verified.", user: record.user };
     }
     (record as { verification_code?: string }).verification_code = "123456";
     save(db);
