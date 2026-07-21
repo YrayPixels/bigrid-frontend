@@ -19,7 +19,7 @@ import {
 export default function LoginPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { user, setUser } = useAuth();
+  const { user, loading, setUser } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(true);
@@ -27,8 +27,10 @@ export default function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (user) router.replace(user.has_store ? "/admin" : "/admin/onboarding");
-  }, [user, router]);
+    if (!loading && user) {
+      router.replace(user.has_store ? "/admin" : "/admin/onboarding");
+    }
+  }, [user, loading, router]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();

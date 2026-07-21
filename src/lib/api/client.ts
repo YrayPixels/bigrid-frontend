@@ -53,6 +53,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ?? "";
 const STOREHAUSE_API_PREFIX = "/storehause";
 const USE_MOCKS = process.env.NEXT_PUBLIC_USE_MOCKS === "true" || !API_BASE;
 const TOKEN_KEY = "storehaus_auth_token";
+const AUTH_LOGOUT_EVENT = "storehaus-auth-logout";
 
 export type PersistBuilderMessageInput = {
   business_profile?: BuilderBusinessProfile;
@@ -88,6 +89,17 @@ export function setToken(token: string | null) {
   if (typeof window === "undefined") return;
   if (token) window.localStorage.setItem(TOKEN_KEY, token);
   else window.localStorage.removeItem(TOKEN_KEY);
+}
+
+function emitLogoutEvent() {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent(AUTH_LOGOUT_EVENT));
+}
+
+export function onAuthLogout(listener: () => void): () => void {
+  if (typeof window === "undefined") return () => {};
+  window.addEventListener(AUTH_LOGOUT_EVENT, listener);
+  return () => window.removeEventListener(AUTH_LOGOUT_EVENT, listener);
 }
 
 class ApiError extends Error {
@@ -130,7 +142,13 @@ async function http<T>(path: string, init: RequestInit = {}): Promise<T> {
   });
   if (res.status === 204) return undefined as T;
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new ApiError(res.status, apiErrorMessage(data));
+  if (!res.ok) {
+    if (res.status === 401) {
+      setToken(null);
+      emitLogoutEvent();
+    }
+    throw new ApiError(res.status, apiErrorMessage(data));
+  }
   return data as T;
 }
 
@@ -145,7 +163,13 @@ async function httpForm<T>(path: string, body: FormData): Promise<T> {
     body,
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new ApiError(res.status, apiErrorMessage(data));
+  if (!res.ok) {
+    if (res.status === 401) {
+      setToken(null);
+      emitLogoutEvent();
+    }
+    throw new ApiError(res.status, apiErrorMessage(data));
+  }
   return data as T;
 }
 
@@ -200,13 +224,41 @@ export const api = {
 
   async logout(): Promise<void> {
     const token = getToken();
+    setToken(null);
     if (!token) return;
     try {
-      if (USE_MOCKS) await mockApi.logout(token);
-      else await http<void>(`${STOREHAUSE_API_PREFIX}/auth/logout`, { method: "POST" });
-    } finally {
-      setToken(null);
+      if (USE_MOCKS) {
+        await mockApi.logout(token);
+        return;
+      }
+      await fetch(`${API_BASE}${STOREHAUSE_API_PREFIX}/auth/logout`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+    } catch {
+      // Best-effort revoke; local session is already cleared.
     }
+  },
+
+  async verifyEmail(body: { code: string }): Promise<{ message: string; user: User }> {
+    const token = requireToken();
+    if (USE_MOCKS) return mockApi.verifyEmail(token, body);
+    return http<{ message: string; user: User }>(`${STOREHAUSE_API_PREFIX}/auth/verify-email`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  async resendEmailVerification(): Promise<{ message: string }> {
+    const token = requireToken();
+    if (USE_MOCKS) return mockApi.resendEmailVerification(token);
+    return http<{ message: string }>(`${STOREHAUSE_API_PREFIX}/auth/resend-email-verification`, {
+      method: "POST",
+    });
   },
 
   async me(): Promise<User> {
@@ -456,6 +508,14 @@ export const api = {
   async updatePaymentSettings(body: UpdateStorePaymentSettingsInput): Promise<StorePaymentSettings> {
     const token = requireToken();
     if (USE_MOCKS) {
+      const me = await mockApi.me(token);
+      if (!me.user.email_verified_at) {
+        throw {
+          status: 403,
+          message: "Verify your email before adding payout details.",
+          code: "email_unverified",
+        };
+      }
       return {
         checkout_enabled: true,
         payouts_configured: Boolean(

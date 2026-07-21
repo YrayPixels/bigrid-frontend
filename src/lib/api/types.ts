@@ -20,8 +20,14 @@ export type User = {
   id: string;
   name: string;
   email: string;
+  email_verified_at?: string | null;
   has_store: boolean;
+  impersonating?: boolean;
 };
+
+export function isEmailVerified(user: User | null | undefined): boolean {
+  return Boolean(user?.email_verified_at);
+}
 
 export type AuthResponse = {
   token: string;
@@ -101,6 +107,8 @@ export type Store = {
   payout_account_name?: string | null;
   payout_bank_name?: string | null;
   payout_account_number?: string | null;
+  subscription_plan?: string | null;
+  subscription_status?: string | null;
   notifications?: StoreNotificationSettings;
   store_perks?: string[];
 };
@@ -327,7 +335,10 @@ export type StoreProduct = {
   discount_label?: string | null;
   currency: string;
   image_url: string | null;
+  /** Gallery URLs; first entry mirrors image_url (cover). */
+  images?: string[] | null;
   sku?: string;
+  brand?: string | null;
   category?: string;
   category_id?: string | null;
   stock_quantity?: number;

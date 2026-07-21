@@ -119,9 +119,9 @@ export function BuilderChatPanel({
   const showInitialTemplatePicker =
     !isCodeVariant &&
     !session.storefront_snapshot &&
-    session.recommendations.length > 0 &&
     concreteTemplateOptions.length > 0 &&
-    onSelectTemplate;
+    !!onSelectTemplate &&
+    (session.recommendations.length > 0 || Boolean(session.store));
   const showDesignSwitcher =
     !isCodeVariant && !!session.storefront_snapshot && concreteTemplateOptions.length > 0 && onSelectTemplate;
   const showTemplatePicker = showInitialTemplatePicker || (showDesignSwitcher && designPickerOpen);
@@ -381,23 +381,27 @@ export function BuilderChatPanel({
           ) : null}
 
           {showTemplatePicker ? (
-            <BuilderTemplateRecommendations
-              brandColor={brandColor}
-              recommendations={session.recommendations}
-              templateOptions={concreteTemplateOptions}
-              selectedTemplateId={selectedTemplateId}
-              title={session.storefront_snapshot ? "Switch website design" : "Pick a website design"}
-              subtitle={
-                session.storefront_snapshot
-                  ? "Choose a look below. Your business details and brand color stay the same."
-                  : undefined
-              }
-              disabled={busy}
-              onSelect={(templateId) => {
-                onSelectTemplate?.(templateId);
-                if (session.storefront_snapshot) setDesignPickerOpen(false);
-              }}
-            />
+            <div data-builder-templates>
+              <BuilderTemplateRecommendations
+                brandColor={brandColor}
+                recommendations={session.recommendations}
+                templateOptions={concreteTemplateOptions}
+                selectedTemplateId={selectedTemplateId}
+                title={session.storefront_snapshot ? "Switch website design" : "Pick a website design"}
+                subtitle={
+                  session.storefront_snapshot
+                    ? "Choose a look below. Your business details and brand color stay the same."
+                    : session.store
+                      ? "Recommended looks for your store. Pick one to generate a draft."
+                      : undefined
+                }
+                disabled={busy}
+                onSelect={(templateId) => {
+                  onSelectTemplate?.(templateId);
+                  if (session.storefront_snapshot) setDesignPickerOpen(false);
+                }}
+              />
+            </div>
           ) : null}
 
           <div ref={endRef} className="h-px shrink-0" aria-hidden />
@@ -447,6 +451,7 @@ export function BuilderChatPanel({
             />
           ) : (
             <textarea
+              data-builder-chat-input
               value={input}
               onChange={(event) => setInput(event.target.value)}
               onKeyDown={handleKeyDown}

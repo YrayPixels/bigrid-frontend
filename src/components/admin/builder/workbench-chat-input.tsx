@@ -142,6 +142,7 @@ export function WorkbenchChatInput({
 
       <textarea
         ref={textareaRef}
+        data-builder-chat-input
         value={value}
         disabled={busy}
         onChange={(event) => {

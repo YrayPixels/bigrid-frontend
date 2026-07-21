@@ -10,6 +10,8 @@ const RESERVED = new Set([
   "status",
   "blog",
   "privacy",
+  "terms",
+  "verify-email",
   "mail",
   "static",
   "assets",

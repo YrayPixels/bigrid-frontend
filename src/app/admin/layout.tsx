@@ -1,25 +1,38 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { Loader2 } from "lucide-react";
 import { MerchantShell } from "@/components/merchant-shell";
+import { OnboardingShell } from "@/components/admin/onboarding-shell";
 import { useAuth } from "@/lib/auth-context";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const { user, loading } = useAuth();
+  const isOnboarding = pathname === "/admin/onboarding" || pathname.startsWith("/admin/onboarding/");
 
   useEffect(() => {
     if (!loading && !user) router.replace("/login");
   }, [loading, user, router]);
 
-  if (loading || !user) {
+  // Only block on the initial auth check. After sign-out (`!user`), render nothing
+  // while redirecting — a spinner here used to leave the UI stuck on /admin/*.
+  if (loading) {
     return (
       <div className="grid min-h-screen place-items-center bg-canvas">
         <Loader2 className="h-6 w-6 animate-spin text-primary" />
       </div>
     );
+  }
+
+  if (!user) {
+    return null;
+  }
+
+  if (isOnboarding) {
+    return <OnboardingShell>{children}</OnboardingShell>;
   }
 
   return <MerchantShell>{children}</MerchantShell>;

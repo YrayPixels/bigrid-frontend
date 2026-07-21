@@ -4,47 +4,69 @@ import { BizgridLogo } from "@/components/bizgrid-logo";
 
 const FEATURES = [
   {
-    num: "01 / Catalog",
-    title: "AI Catalog Management",
-    body: "Upload a single photo and Bizgrid generates descriptions, tags, and variants for every product in your niche.",
+    num: "01 / Website",
+    title: "Build your store by chat",
+    body: "Describe what you sell and the look you want. Bizgrid designs a storefront you can preview, refine in plain language, and publish when you’re ready.",
   },
   {
-    num: "02 / Identity",
-    title: "Instant Art Direction",
-    body: "Our models don't just pick colors; they build custom design systems tailored to your brand's unique energy.",
+    num: "02 / Sell",
+    title: "Catalog, orders & Paystack",
+    body: "Add products and discounts, manage orders from one dashboard, and take payment with Paystack — earnings settle to your bank.",
   },
   {
-    num: "03 / Scale",
-    title: "Global Operations",
-    body: "Built-in tax compliance, multicurrency checkout, and integrated shipping partners for immediate scaling.",
+    num: "03 / Grow",
+    title: "Marketing that follows up",
+    body: "Draft posts with AI, connect WhatsApp and social channels, and recover abandoned carts so more browsers become buyers.",
+  },
+] as const;
+
+const PLANS = [
+  {
+    name: "Starter",
+    price: "₦5,000",
+    description: "Launch your first storefront and start selling.",
+    features: ["1 storefront", "Up to ₦1M monthly processing", "Up to 500 customers", "SMS & WhatsApp units included"],
+  },
+  {
+    name: "Growth",
+    price: "₦15,000",
+    description: "For brands selling more and needing a custom domain.",
+    features: ["Up to 3 storefronts", "Up to ₦10M monthly processing", "1 custom domain", "Higher SMS & WhatsApp limits"],
+    highlighted: true,
+  },
+  {
+    name: "Scale",
+    price: "₦30,000",
+    description: "Higher volume, more stores, and room to expand.",
+    features: ["Up to 10 storefronts", "Up to ₦50M monthly processing", "Up to 5 custom domains", "Unlimited customers"],
   },
 ] as const;
 
 const SHOWCASE_SHOPS = [
   {
     name: "Sable & Stitch",
-    category: "LUXURY RETAIL",
+    category: "FASHION",
     image: "/landing/shop-leather.jpg",
-    alt: "Sable & Stitch storefront",
+    alt: "Fashion storefront example",
   },
   {
     name: "Forma Studio",
     category: "HOME & OBJECTS",
     image: "/landing/shop-ceramic.jpg",
-    alt: "Forma Studio storefront",
+    alt: "Home goods storefront example",
   },
 ] as const;
 
 const PREVIEW_IMAGES = [
   {
     src: "/landing/preview-candle.jpg",
-    alt: "Generated candle product",
+    alt: "Product page preview",
     className: "aspect-[3/4] bg-muted rounded-lg overflow-hidden relative group",
     showProgress: true,
   },
   {
     src: "/landing/preview-perfume.jpg",
-    alt: "Editorial perfume layout",
+    alt: "Editorial product layout",
     className: "aspect-[3/4] bg-muted rounded-lg overflow-hidden hidden md:block",
     showProgress: false,
   },
@@ -56,7 +78,7 @@ const PREVIEW_IMAGES = [
   },
   {
     src: "/landing/preview-checkout.jpg",
-    alt: "Checkout flow interface",
+    alt: "Checkout flow preview",
     className: "aspect-[3/4] bg-muted rounded-lg overflow-hidden",
     showProgress: false,
   },
@@ -75,7 +97,7 @@ export function LandingPage() {
               Platform
             </a>
             <a href="#showcase" className="transition-colors hover:text-ink">
-              Showcase
+              Examples
             </a>
             <a href="#pricing" className="transition-colors hover:text-ink">
               Pricing
@@ -90,7 +112,7 @@ export function LandingPage() {
             href="/signup"
             className="rounded-full bg-primary px-5 py-2 text-sm font-medium text-primary-foreground shadow-soft transition hover:opacity-90"
           >
-            Get Started
+            Start free
           </Link>
         </div>
       </nav>
@@ -99,32 +121,32 @@ export function LandingPage() {
         <section className="relative overflow-hidden">
           <div className="pointer-events-none absolute inset-0 bg-gradient-mesh opacity-50" />
           <div className="relative mx-auto max-w-6xl px-6 pt-20 pb-12 text-center">
-            <div className="animate-reveal mb-8 inline-flex items-center gap-2 rounded-full border border-border bg-card/60 px-3 py-1 font-mono text-[10px] tracking-widest uppercase backdrop-blur-sm">
-              <span className="size-1.5 animate-pulse rounded-full bg-primary" />
-              AI Commerce Engine v2.0
-            </div>
-            <h1 className="animate-reveal font-display mb-8 text-6xl leading-[0.95] font-bold tracking-tight text-balance [animation-delay:100ms] md:text-8xl">
-              Your product idea, <br />
-              <span className="bg-gradient-hero bg-clip-text text-transparent">instantly</span> retail-ready.
+            <h1 className="animate-reveal font-display mb-8 text-6xl leading-[0.95] font-bold tracking-tight text-balance md:text-8xl">
+              Describe your shop.
+              <br />
+              <span className="bg-gradient-hero bg-clip-text text-transparent">Get a live storefront.</span>
             </h1>
-            <p className="animate-reveal mx-auto mb-10 max-w-xl text-lg text-pretty text-ink-soft [animation-delay:200ms]">
-              Bizgrid generates high-conversion storefronts, handles your global payments, and
-              scales your inventory automatically.
+            <p className="animate-reveal mx-auto mb-10 max-w-xl text-lg text-pretty text-ink-soft [animation-delay:100ms]">
+              Bizgrid helps sellers open an online store with AI — then take payments, manage orders, and grow
+              with marketing tools built in.
             </p>
-            <div className="animate-reveal flex flex-col items-center justify-center gap-4 [animation-delay:300ms] sm:flex-row">
+            <div className="animate-reveal flex flex-col items-center justify-center gap-4 [animation-delay:200ms] sm:flex-row">
               <Link
                 href="/signup"
                 className="w-full rounded-full bg-primary px-8 py-4 text-lg font-semibold text-primary-foreground shadow-soft transition-all hover:opacity-90 hover:shadow-glow sm:w-auto"
               >
-                Generate your store
+                Build your store
               </Link>
               <a
                 href="#showcase"
                 className="w-full rounded-full border border-border bg-card/60 px-8 py-4 text-lg font-medium backdrop-blur-sm transition-all hover:bg-muted sm:w-auto"
               >
-                View examples
+                See examples
               </a>
             </div>
+            <p className="animate-reveal mt-5 text-sm text-ink-soft [animation-delay:300ms]">
+              Free during the MVP — no card required.
+            </p>
           </div>
         </section>
 
@@ -136,12 +158,13 @@ export function LandingPage() {
                 <input
                   type="text"
                   readOnly
-                  value="A luxury candle brand called 'Lueur' inspired by brutalist architecture"
+                  value="I sell handmade soy candles. Warm, cozy, gift-friendly."
                   className="w-full border-none bg-transparent font-sans text-sm text-ink outline-none"
+                  aria-label="Example store description"
                 />
               </div>
               <div className="flex items-center gap-2 font-mono text-xs whitespace-nowrap text-ink-soft uppercase">
-                Processing <span className="text-primary">Styles…</span>
+                Building <span className="text-primary">storefront…</span>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4 p-4 md:grid-cols-4">
@@ -167,10 +190,15 @@ export function LandingPage() {
           </div>
         </section>
 
-        <section
-          id="platform"
-          className="mx-auto max-w-6xl border-t border-border px-6 py-24"
-        >
+        <section id="platform" className="mx-auto max-w-6xl border-t border-border px-6 py-24">
+          <div className="mb-14 max-w-2xl">
+            <h2 className="font-display text-4xl font-bold tracking-tight md:text-5xl">
+              Everything to open and run your shop
+            </h2>
+            <p className="mt-4 text-lg text-ink-soft">
+              From first draft to paid orders — without hiring a developer or stitching five tools together.
+            </p>
+          </div>
           <div className="grid gap-12 md:grid-cols-3">
             {FEATURES.map((feature) => (
               <div key={feature.num} className="space-y-4">
@@ -188,15 +216,15 @@ export function LandingPage() {
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,oklch(1_0_0/0.1),transparent_45%)]" />
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_80%_80%,oklch(0.35_0.08_260/0.3),transparent_50%)]" />
           <div className="relative mx-auto max-w-6xl px-6">
-            <div className="mb-12 flex items-end justify-between">
-              <h2 className="font-display text-5xl leading-none font-bold">Live Shops</h2>
-              <p className="max-w-[24ch] font-mono text-sm text-white/70">
-                Join 12,000+ brands selling with Bizgrid technology.
+            <div className="mb-12 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+              <h2 className="font-display text-5xl leading-none font-bold">Storefront examples</h2>
+              <p className="max-w-[32ch] text-sm text-white/70">
+                Fashion, beauty, home, and more — pick a template, then make it yours in chat.
               </p>
             </div>
             <div className="grid gap-8 md:grid-cols-2">
               {SHOWCASE_SHOPS.map((shop) => (
-                <div key={shop.name} className="group cursor-crosshair">
+                <div key={shop.name} className="group">
                   <div className="aspect-video w-full overflow-hidden rounded-lg border border-white/10 bg-white/5 shadow-elevated">
                     <Image
                       src={shop.image}
@@ -215,19 +243,74 @@ export function LandingPage() {
             </div>
           </div>
         </section>
+
+        <section id="pricing" className="mx-auto max-w-6xl border-t border-border px-6 py-24">
+          <div className="mb-14 max-w-2xl">
+            <h2 className="font-display text-4xl font-bold tracking-tight md:text-5xl">Simple monthly plans</h2>
+            <p className="mt-4 text-lg text-ink-soft">
+              Start free while we&apos;re in MVP. Upgrade when you need more volume or a custom domain.
+            </p>
+          </div>
+          <div className="grid gap-6 md:grid-cols-3">
+            {PLANS.map((plan) => (
+              <div
+                key={plan.name}
+                className={
+                  "flex flex-col rounded-2xl border p-6 " +
+                  (plan.highlighted
+                    ? "border-primary bg-card shadow-elevated"
+                    : "border-border bg-canvas-raised")
+                }
+              >
+                <div className="flex items-baseline justify-between gap-3">
+                  <h3 className="font-display text-xl font-semibold">{plan.name}</h3>
+                  {plan.highlighted ? (
+                    <span className="font-mono text-[10px] tracking-widest text-primary uppercase">Popular</span>
+                  ) : null}
+                </div>
+                <p className="mt-4 font-display text-3xl font-bold tracking-tight">
+                  {plan.price}
+                  <span className="text-sm font-medium text-ink-soft">/mo</span>
+                </p>
+                <p className="mt-2 text-sm text-ink-soft">{plan.description}</p>
+                <ul className="mt-6 flex-1 space-y-2 text-sm text-ink-soft">
+                  {plan.features.map((feature) => (
+                    <li key={feature} className="flex gap-2">
+                      <span className="text-primary" aria-hidden>
+                        ·
+                      </span>
+                      <span>{feature}</span>
+                    </li>
+                  ))}
+                </ul>
+                <Link
+                  href="/signup"
+                  className={
+                    "mt-8 inline-flex items-center justify-center rounded-full px-5 py-2.5 text-sm font-semibold transition " +
+                    (plan.highlighted
+                      ? "bg-primary text-primary-foreground hover:opacity-90"
+                      : "border border-border bg-card hover:bg-muted")
+                  }
+                >
+                  Start free
+                </Link>
+              </div>
+            ))}
+          </div>
+        </section>
       </main>
 
-      <footer id="pricing" className="border-t border-border bg-canvas-raised px-6 py-12">
+      <footer className="border-t border-border bg-canvas-raised px-6 py-12">
         <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-12 md:flex-row">
           <div className="space-y-4">
             <BizgridLogo size={28} showWordmark wordmarkClassName="text-xl font-bold tracking-tight" />
-            <p className="max-w-[30ch] text-xs text-ink-soft">
-              The future of autonomous commerce. Built for the next generation of merchants.
+            <p className="max-w-[34ch] text-sm text-ink-soft">
+              AI storefronts for sellers who want to open shop online — without the agency bill.
             </p>
           </div>
           <div className="grid grid-cols-2 gap-16">
             <div className="space-y-3">
-              <span className="font-mono text-[10px] text-ink-soft uppercase">Platform</span>
+              <span className="font-mono text-[10px] text-ink-soft uppercase">Product</span>
               <ul className="space-y-2 text-sm">
                 <li>
                   <a href="#platform" className="transition-colors hover:text-primary">
@@ -236,7 +319,7 @@ export function LandingPage() {
                 </li>
                 <li>
                   <a href="#showcase" className="transition-colors hover:text-primary">
-                    Integrations
+                    Examples
                   </a>
                 </li>
                 <li>
@@ -247,17 +330,17 @@ export function LandingPage() {
               </ul>
             </div>
             <div className="space-y-3">
-              <span className="font-mono text-[10px] text-ink-soft uppercase">Support</span>
+              <span className="font-mono text-[10px] text-ink-soft uppercase">Company</span>
               <ul className="space-y-2 text-sm">
-                <li>
-                  <a href="#platform" className="transition-colors hover:text-primary">
-                    Documentation
-                  </a>
-                </li>
                 <li>
                   <a href="mailto:support@bizgrid.ai" className="transition-colors hover:text-primary">
                     Contact
                   </a>
+                </li>
+                <li>
+                  <Link href="/terms" className="transition-colors hover:text-primary">
+                    Terms of service
+                  </Link>
                 </li>
                 <li>
                   <Link href="/privacy" className="transition-colors hover:text-primary">
@@ -268,9 +351,8 @@ export function LandingPage() {
             </div>
           </div>
         </div>
-        <div className="mx-auto mt-12 flex max-w-6xl items-center justify-between border-t border-border pt-8 font-mono text-[10px] text-ink-soft">
-          <span>© {new Date().getFullYear()} BIZGRID INC.</span>
-          <span>EST. BERLIN / NYC</span>
+        <div className="mx-auto mt-12 border-t border-border pt-8 font-mono text-[10px] text-ink-soft">
+          <span>© {new Date().getFullYear()} Bizgrid</span>
         </div>
       </footer>
     </div>

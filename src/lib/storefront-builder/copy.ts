@@ -40,9 +40,9 @@ const ONBOARDING_STEPS = {
     'Say "build my website" when you want your first draft',
   ],
   ready: [
-    "Your business details are saved",
-    'Say "build my website" to create your first draft',
-    "Check the preview on the right when it's ready",
+    "Pick a look or say \"build my website\"",
+    "Add a few products from the Products page",
+    "Publish when you're happy with the preview",
   ],
   refine: [
     "Your draft is in the preview panel",
@@ -108,7 +108,7 @@ export function getBuilderChatCopy(session: BuilderSession): BuilderChatCopy {
     return {
       phase,
       showOnboarding,
-      onboardingTitle: "Ready to build",
+      onboardingTitle: session.store ? "Next steps to launch" : "Ready to build",
       onboardingSteps: ONBOARDING_STEPS.ready,
       suggestedPrompts: BUILD_PROMPTS,
       suggestedPromptsLabel: "Ready? Try one of these",
