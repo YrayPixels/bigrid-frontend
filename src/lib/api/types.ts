@@ -629,18 +629,46 @@ export type StoreOrdersResponse = {
 export type MerchantDashboardMetrics = {
   total_orders: number;
   pending_orders: number;
+  processing_orders?: number;
   fulfilled_orders: number;
+  cancelled_orders?: number;
   total_sales: number;
   average_order_value: number;
   total_visits: number;
   visits_today: number;
+  visits_last_30_days?: number;
   conversion_rate: number;
   products_count: number;
+};
+
+export type MerchantDashboardTopProduct = {
+  product_id: string;
+  name: string;
+  image_url?: string | null;
+  unit_price: number;
+  currency: string;
+  quantity_sold: number;
+  total_earning: number;
+};
+
+export type MerchantDashboardTrafficSource = {
+  source: string;
+  count: number;
+  percentage: number;
+};
+
+export type MerchantDashboardStatusCount = {
+  status: string;
+  label: string;
+  count: number;
 };
 
 export type MerchantDashboardOverview = {
   metrics: MerchantDashboardMetrics;
   sales_by_day: { date: string; orders: number; sales: number }[];
+  top_products?: MerchantDashboardTopProduct[];
+  traffic_sources?: MerchantDashboardTrafficSource[];
+  orders_by_status?: MerchantDashboardStatusCount[];
   recent_orders: StoreOrder[];
 };
 

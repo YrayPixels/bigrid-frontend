@@ -468,9 +468,12 @@ export const mockApi = {
     );
     const totalSales = activeOrders.reduce((sum, order) => sum + order.total_amount, 0);
     const today = new Date().toISOString().slice(0, 10);
-    const salesByDay = Array.from({ length: 14 }, (_, index) => {
+    const thirtyDaysAgoDate = new Date();
+    thirtyDaysAgoDate.setDate(thirtyDaysAgoDate.getDate() - 29);
+    const thirtyDaysAgo = thirtyDaysAgoDate.toISOString().slice(0, 10);
+    const salesByDay = Array.from({ length: 30 }, (_, index) => {
       const date = new Date();
-      date.setDate(date.getDate() - (13 - index));
+      date.setDate(date.getDate() - (29 - index));
       const key = date.toISOString().slice(0, 10);
       const dayOrders = activeOrders.filter((order) => order.placed_at?.slice(0, 10) === key);
       return {
@@ -480,21 +483,78 @@ export const mockApi = {
       };
     });
 
+    const productMap = new Map<
+      string,
+      {
+        product_id: string;
+        name: string;
+        image_url?: string | null;
+        unit_price: number;
+        currency: string;
+        quantity_sold: number;
+        total_earning: number;
+      }
+    >();
+    for (const order of activeOrders) {
+      for (const item of order.items ?? []) {
+        const key = item.product_id || item.name;
+        const existing = productMap.get(key) ?? {
+          product_id: item.product_id,
+          name: item.name,
+          image_url: item.image_url ?? null,
+          unit_price: item.unit_price,
+          currency: item.currency,
+          quantity_sold: 0,
+          total_earning: 0,
+        };
+        existing.quantity_sold += item.quantity;
+        existing.total_earning += item.total;
+        productMap.set(key, existing);
+      }
+    }
+    const topProducts = [...productMap.values()]
+      .sort((a, b) => b.total_earning - a.total_earning)
+      .slice(0, 5);
+
     return {
       metrics: {
         total_orders: orders.length,
         pending_orders: orders.filter((order) => order.status === "pending").length,
+        processing_orders: orders.filter((order) => order.status === "processing").length,
         fulfilled_orders: orders.filter((order) => order.status === "fulfilled").length,
+        cancelled_orders: orders.filter((order) => order.status === "cancelled").length,
         total_sales: totalSales,
         average_order_value: orders.length ? totalSales / orders.length : 0,
         total_visits: visits.length,
         visits_today: visits.filter((visit) => visit.visited_at.slice(0, 10) === today).length,
+        visits_last_30_days: visits.filter((visit) => visit.visited_at.slice(0, 10) >= thirtyDaysAgo).length,
         conversion_rate: visits.length
           ? Number(((orders.length / visits.length) * 100).toFixed(2))
           : 0,
         products_count: (db.products[store.id] ?? []).length,
       },
       sales_by_day: salesByDay,
+      top_products: topProducts,
+      traffic_sources: [
+        { source: "Direct", count: Math.max(visits.length, 1), percentage: 100 },
+      ],
+      orders_by_status: [
+        {
+          status: "pending",
+          label: "Pending",
+          count: orders.filter((order) => order.status === "pending").length,
+        },
+        {
+          status: "processing",
+          label: "Processing",
+          count: orders.filter((order) => order.status === "processing").length,
+        },
+        {
+          status: "fulfilled",
+          label: "Fulfilled",
+          count: orders.filter((order) => order.status === "fulfilled").length,
+        },
+      ],
       recent_orders: [...orders].sort(byLatestOrder).slice(0, 5),
     };
   },
