@@ -4,7 +4,7 @@ import { createContext, useContext, useEffect, useState, Suspense, type ReactNod
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { api, getToken, setToken } from "@/lib/api/client";
+import { api, getToken, onAuthLogout, setToken } from "@/lib/api/client";
 import { merchantKeys } from "@/lib/query-keys";
 import type { User } from "@/lib/api/types";
 
@@ -69,14 +69,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refresh = async () => {
     if (!getToken()) {
       setUser(null);
+      setImpersonating(false);
       setLoading(false);
       return;
     }
     try {
       const freshUser = await api.me();
       setUser(freshUser);
+      setImpersonating(Boolean(freshUser.impersonating));
     } catch {
       setUser(null);
+      setImpersonating(false);
     } finally {
       setLoading(false);
     }
@@ -89,6 +92,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const freshUser = await api.me();
       setUser(freshUser);
+      setImpersonating(Boolean(freshUser.impersonating) || impersonation);
       if (freshUser.has_store) {
         await Promise.all([
           qc.prefetchQuery({
@@ -133,7 +137,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     void refresh();
-  }, []);
+    return onAuthLogout(() => {
+      setUser(null);
+      setImpersonating(false);
+      setLoading(false);
+      qc.clear();
+      router.replace("/login");
+    });
+  }, [qc, router]);
 
   const signOut = async () => {
     await api.logout();

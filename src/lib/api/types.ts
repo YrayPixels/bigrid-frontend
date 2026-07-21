@@ -21,6 +21,7 @@ export type User = {
   name: string;
   email: string;
   has_store: boolean;
+  impersonating?: boolean;
 };
 
 export type AuthResponse = {

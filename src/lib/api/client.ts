@@ -53,6 +53,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ?? "";
 const STOREHAUSE_API_PREFIX = "/storehause";
 const USE_MOCKS = process.env.NEXT_PUBLIC_USE_MOCKS === "true" || !API_BASE;
 const TOKEN_KEY = "storehaus_auth_token";
+const AUTH_LOGOUT_EVENT = "storehaus-auth-logout";
 
 export type PersistBuilderMessageInput = {
   business_profile?: BuilderBusinessProfile;
@@ -88,6 +89,17 @@ export function setToken(token: string | null) {
   if (typeof window === "undefined") return;
   if (token) window.localStorage.setItem(TOKEN_KEY, token);
   else window.localStorage.removeItem(TOKEN_KEY);
+}
+
+function emitLogoutEvent() {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent(AUTH_LOGOUT_EVENT));
+}
+
+export function onAuthLogout(listener: () => void): () => void {
+  if (typeof window === "undefined") return () => {};
+  window.addEventListener(AUTH_LOGOUT_EVENT, listener);
+  return () => window.removeEventListener(AUTH_LOGOUT_EVENT, listener);
 }
 
 class ApiError extends Error {
@@ -130,7 +142,13 @@ async function http<T>(path: string, init: RequestInit = {}): Promise<T> {
   });
   if (res.status === 204) return undefined as T;
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new ApiError(res.status, apiErrorMessage(data));
+  if (!res.ok) {
+    if (res.status === 401) {
+      setToken(null);
+      emitLogoutEvent();
+    }
+    throw new ApiError(res.status, apiErrorMessage(data));
+  }
   return data as T;
 }
 
@@ -145,7 +163,13 @@ async function httpForm<T>(path: string, body: FormData): Promise<T> {
     body,
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new ApiError(res.status, apiErrorMessage(data));
+  if (!res.ok) {
+    if (res.status === 401) {
+      setToken(null);
+      emitLogoutEvent();
+    }
+    throw new ApiError(res.status, apiErrorMessage(data));
+  }
   return data as T;
 }
 
