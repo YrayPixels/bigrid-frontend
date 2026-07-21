@@ -1,14 +1,17 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { Loader2 } from "lucide-react";
 import { MerchantShell } from "@/components/merchant-shell";
+import { OnboardingShell } from "@/components/admin/onboarding-shell";
 import { useAuth } from "@/lib/auth-context";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const { user, loading } = useAuth();
+  const isOnboarding = pathname === "/admin/onboarding" || pathname.startsWith("/admin/onboarding/");
 
   useEffect(() => {
     if (!loading && !user) router.replace("/login");
@@ -20,6 +23,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <Loader2 className="h-6 w-6 animate-spin text-primary" />
       </div>
     );
+  }
+
+  if (isOnboarding) {
+    return <OnboardingShell>{children}</OnboardingShell>;
   }
 
   return <MerchantShell>{children}</MerchantShell>;

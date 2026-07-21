@@ -260,6 +260,11 @@ export function LandingPage() {
                   </a>
                 </li>
                 <li>
+                  <Link href="/terms" className="transition-colors hover:text-primary">
+                    Terms of service
+                  </Link>
+                </li>
+                <li>
                   <Link href="/privacy" className="transition-colors hover:text-primary">
                     Privacy policy
                   </Link>

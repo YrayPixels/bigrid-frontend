@@ -102,6 +102,8 @@ export type Store = {
   payout_account_name?: string | null;
   payout_bank_name?: string | null;
   payout_account_number?: string | null;
+  subscription_plan?: string | null;
+  subscription_status?: string | null;
   notifications?: StoreNotificationSettings;
   store_perks?: string[];
 };

@@ -26,7 +26,7 @@ export default function SignupPage() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (user) router.replace("/admin/onboarding");
+    if (user) router.replace(user.has_store ? "/admin" : "/admin/onboarding");
   }, [user, router]);
 
   const handleSubmit = async (e: FormEvent) => {
@@ -59,6 +59,10 @@ export default function SignupPage() {
       footer={
         <p className="text-center text-xs leading-relaxed text-ink-soft">
           By signing up, I confirm that I have read and agree to Bizgrid&apos;s{" "}
+          <Link href="/terms" className="font-medium text-primary hover:underline">
+            Terms of Service
+          </Link>{" "}
+          and{" "}
           <Link href="/privacy" className="font-medium text-primary hover:underline">
             Privacy Policy
           </Link>

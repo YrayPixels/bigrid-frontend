@@ -60,8 +60,8 @@ export default function AdminOnboardingPage() {
     (step === 1 && isBusinessProfileComplete(businessProfile)) ||
     (step === 2 && !!industry);
 
-  async function submit(selectedIndustry: Industry | null = industry) {
-    if (!selectedIndustry) {
+  async function submit() {
+    if (!industry) {
       toast.error("Choose an industry to continue");
       return;
     }
@@ -76,7 +76,7 @@ export default function AdminOnboardingPage() {
       await api.createStore({
         business_name: businessName.trim(),
         slug: storeSlug,
-        industry: selectedIndustry,
+        industry,
         description: description.trim(),
         brand_color: DEFAULT_BRAND_COLOR,
         logo_url: null,
@@ -87,8 +87,8 @@ export default function AdminOnboardingPage() {
         physical_store_count: businessProfile.physical_store_count!,
       });
       await refresh();
-      toast.success("Store created. Opening your dashboard...");
-      router.replace("/admin");
+      toast.success("Store created. Let's build your website.");
+      router.replace("/admin/builder");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not create store");
     } finally {
@@ -219,10 +219,7 @@ export default function AdminOnboardingPage() {
                     <button
                       key={option.value}
                       type="button"
-                      onClick={() => {
-                        setIndustry(option.value);
-                        void submit(option.value);
-                      }}
+                      onClick={() => setIndustry(option.value)}
                       disabled={submitting}
                       className={`rounded-lg border px-4 py-3 text-left text-sm transition ${
                         active
@@ -242,7 +239,7 @@ export default function AdminOnboardingPage() {
             <button
               type="button"
               onClick={() => setStep((currentStep) => Math.max(0, currentStep - 1))}
-              disabled={step === 0}
+              disabled={step === 0 || submitting}
               className="inline-flex items-center gap-1 rounded-md px-3 py-2 text-sm font-medium text-ink-soft hover:text-ink disabled:invisible"
             >
               <ArrowLeft className="h-4 w-4" /> Back
@@ -256,13 +253,24 @@ export default function AdminOnboardingPage() {
               >
                 Continue <ArrowRight className="h-4 w-4" />
               </button>
-            ) : submitting ? (
-              <span className="inline-flex items-center gap-2 rounded-md bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-soft">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Creating store...
-              </span>
             ) : (
-              <span className="text-sm text-ink-soft">Select an industry to finish setup.</span>
+              <button
+                type="button"
+                onClick={() => void submit()}
+                disabled={!canNext || submitting}
+                className="inline-flex items-center gap-2 rounded-md bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-soft hover:bg-primary/90 disabled:opacity-50"
+              >
+                {submitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Creating store...
+                  </>
+                ) : (
+                  <>
+                    Create store <ArrowRight className="h-4 w-4" />
+                  </>
+                )}
+              </button>
             )}
           </div>
         </div>

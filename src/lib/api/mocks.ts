@@ -388,6 +388,8 @@ export const mockApi = {
       storefront_template_id: body.storefront_template_id ?? "classic",
       status: "draft",
       published_at: null,
+      subscription_plan: "starter",
+      subscription_status: "trialing",
       ...body,
     };
     db.stores[userId] = store;
