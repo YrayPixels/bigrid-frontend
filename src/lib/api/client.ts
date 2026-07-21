@@ -253,10 +253,10 @@ export const api = {
     });
   },
 
-  async resendEmailVerification(): Promise<{ message: string }> {
+  async resendEmailVerification(): Promise<{ message: string; user?: User }> {
     const token = requireToken();
     if (USE_MOCKS) return mockApi.resendEmailVerification(token);
-    return http<{ message: string }>(`${STOREHAUSE_API_PREFIX}/auth/resend-email-verification`, {
+    return http<{ message: string; user?: User }>(`${STOREHAUSE_API_PREFIX}/auth/resend-email-verification`, {
       method: "POST",
     });
   },
