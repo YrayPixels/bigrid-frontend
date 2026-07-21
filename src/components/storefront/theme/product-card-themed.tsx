@@ -3,6 +3,8 @@
 import Link from "next/link";
 import type { StoreProduct } from "@/lib/api/types";
 import { formatMoney } from "@/lib/storefront/format";
+import { productUnitPrice } from "@/lib/storefront/pricing";
+import { useStorefront } from "@/lib/storefront/store-context";
 import { useStorefrontTheme } from "@/lib/storefront/theme-context";
 import { cn } from "@/lib/utils";
 import { EditableImage } from "./editable-image";
@@ -15,6 +17,8 @@ export function ProductCardThemed({
   imagePath?: string;
 }) {
   const { theme, mode } = useStorefrontTheme();
+  const { discounts } = useStorefront();
+  const priced = productUnitPrice(product, discounts ?? []);
   const isFashion = theme.id === "fashion_lookbook";
 
   const card = (
@@ -70,10 +74,18 @@ export function ProductCardThemed({
           {product.description}
         </p>
         <div
-          className={cn("mt-4 font-semibold", isFashion ? "text-xs" : "text-base")}
+          className={cn(
+            "mt-4 flex items-center gap-2 font-semibold",
+            isFashion ? "text-xs" : "text-base",
+          )}
           style={{ color: theme.palette.primary }}
         >
-          {formatMoney(product.price, product.currency)}
+          <span>{formatMoney(priced.unitPrice, product.currency)}</span>
+          {priced.compareAtPrice != null ? (
+            <span className="font-medium line-through" style={{ color: theme.palette.muted }}>
+              {formatMoney(priced.compareAtPrice, product.currency)}
+            </span>
+          ) : null}
         </div>
       </div>
     </div>

@@ -46,7 +46,7 @@ export function resolveCategoryShowcaseProps(
 export function categoryShowcaseItemHref(item: CategoryShowcaseItem): string {
   if (item.href) return item.href;
   if (item.category_id) return `/products?category_id=${encodeURIComponent(item.category_id)}`;
-  if (item.category_slug) return `/products?category_id=${encodeURIComponent(item.category_slug)}`;
+  if (item.category_slug) return `/products?category=${encodeURIComponent(item.category_slug)}`;
   return "/products";
 }
 

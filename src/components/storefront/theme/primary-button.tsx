@@ -10,16 +10,18 @@ export function PrimaryButton({
   className,
   onClick,
   type = "button",
+  disabled = false,
 }: {
   href?: string;
   children: React.ReactNode;
   className?: string;
   onClick?: () => void;
   type?: "button" | "submit";
+  disabled?: boolean;
 }) {
   const { theme, mode } = useStorefrontTheme();
   const classes = cn(
-    "inline-flex items-center justify-center px-6 py-3 text-sm font-semibold text-white transition",
+    "inline-flex items-center justify-center px-6 py-3 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-50",
     theme.buttonRadius,
     className,
   );
@@ -42,7 +44,7 @@ export function PrimaryButton({
   }
 
   return (
-    <button type={type} onClick={onClick} className={classes} style={style}>
+    <button type={type} onClick={onClick} className={classes} style={style} disabled={disabled}>
       {children}
     </button>
   );

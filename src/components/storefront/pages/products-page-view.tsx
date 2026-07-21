@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { ChevronDown, Star, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ChevronDown, X } from "lucide-react";
 import { toast } from "sonner";
 import type { StoreCategory, StoreProduct } from "@/lib/api/types";
 import { useCart } from "@/lib/storefront/cart-context";
@@ -12,7 +12,12 @@ import {
   categoryLabel,
   productMatchesCategoryFilter,
   resolveStorefrontFilterCategories,
+  sortCatalogProducts,
 } from "@/lib/storefront/category-filters";
+import { useCategoryFilter } from "@/lib/storefront/use-category-filter";
+import { requireVariantSelection } from "@/lib/storefront/cart-line";
+import { productUnitPrice } from "@/lib/storefront/pricing";
+import { isProductInStock } from "@/lib/storefront/product-availability";
 import { PageContainer } from "@/components/storefront/theme/page-container";
 import { PageTitle } from "@/components/storefront/theme/page-title";
 import { ProductCardThemed } from "@/components/storefront/theme/product-card-themed";
@@ -94,8 +99,12 @@ function FashionProductsCard({
   editable: boolean;
 }) {
   const { theme } = useStorefrontTheme();
-  const discount = [15, 10, 15, 30, 25, 25, 25, 20][index % 8];
-  const compareAt = Math.round(product.price / (1 - discount / 100));
+  const { discounts } = useStorefront();
+  const priced = productUnitPrice(product, discounts ?? []);
+  const discountPct =
+    priced.compareAtPrice != null && priced.compareAtPrice > priced.unitPrice
+      ? Math.round((1 - priced.unitPrice / priced.compareAtPrice) * 100)
+      : null;
   const category = product.category ?? "Fashion";
   const imageUrl =
     product.image_url ??
@@ -113,31 +122,29 @@ function FashionProductsCard({
           className="h-full w-full"
           imgClassName="object-center transition duration-500 group-hover:scale-105"
         />
-        <span
-          className="absolute left-3 top-3 px-2.5 py-1.5 text-[11px] font-extrabold shadow-sm"
-          style={{ backgroundColor: theme.palette.background, color: theme.palette.accent }}
-        >
-          {discount}% OFF
-        </span>
+        {discountPct != null && discountPct > 0 ? (
+          <span
+            className="absolute left-3 top-3 px-2.5 py-1.5 text-[11px] font-extrabold shadow-sm"
+            style={{ backgroundColor: theme.palette.background, color: theme.palette.accent }}
+          >
+            {discountPct}% OFF
+          </span>
+        ) : null}
       </div>
       <div className="mt-3">
-        <div className="flex items-center justify-between gap-3">
-          <p className="text-[11px]" style={{ color: theme.palette.muted }}>
-            {category}
-          </p>
-          <span className="inline-flex items-center gap-1 text-[11px] font-semibold">
-            <Star className="h-3.5 w-3.5 fill-[#f3bd3d] text-[#f3bd3d]" />
-            4.9
-          </span>
-        </div>
+        <p className="text-[11px]" style={{ color: theme.palette.muted }}>
+          {category}
+        </p>
         <h3 className="mt-2 line-clamp-1 text-[13px] font-extrabold leading-tight">
           {product.name}
         </h3>
         <div className="mt-2 flex items-center gap-2 text-[13px] font-bold">
-          <span>{formatMoney(product.price, product.currency)}</span>
-          <span className="text-[12px] font-medium text-[#b0aaa6] line-through">
-            {formatMoney(compareAt, product.currency)}
-          </span>
+          <span>{formatMoney(priced.unitPrice, product.currency)}</span>
+          {priced.compareAtPrice != null ? (
+            <span className="text-[12px] font-medium text-[#b0aaa6] line-through">
+              {formatMoney(priced.compareAtPrice, product.currency)}
+            </span>
+          ) : null}
         </div>
       </div>
     </article>
@@ -148,33 +155,16 @@ function FashionProductsCard({
   return <Link href={`/products/${product.slug}`}>{card}</Link>;
 }
 
-function useInitialCategoryId(categories: StoreCategory[]): string | null {
-  const searchParams = useSearchParams();
-  const raw = searchParams.get("category_id");
-
-  return useMemo(() => {
-    if (!raw) return null;
-    return categories.some((category) => category.id === raw) ? raw : null;
-  }, [categories, raw]);
-}
-
 function FashionProductsPage({
   products,
   categories,
-  initialCategoryId = null,
 }: {
   products: StoreProduct[];
   categories: StoreCategory[];
-  initialCategoryId?: string | null;
 }) {
   const { theme, mode } = useStorefrontTheme();
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(initialCategoryId);
+  const [selectedCategoryId, setSelectedCategoryId] = useCategoryFilter(categories);
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
-
-  useEffect(() => {
-    setSelectedCategoryId(initialCategoryId);
-  }, [initialCategoryId]);
-
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [priceLimit, setPriceLimit] = useState(0);
   const [sortBy, setSortBy] = useState<"newest" | "price-low" | "price-high">("newest");
@@ -206,27 +196,42 @@ function FashionProductsPage({
       return matchesCategory && matchesColor && matchesSize && product.price <= priceLimit;
     });
 
-    return [...next].sort((a, b) => {
-      if (sortBy === "price-low") return a.price - b.price;
-      if (sortBy === "price-high") return b.price - a.price;
-      return 0;
-    });
+    return sortCatalogProducts(next, sortBy, products);
   }, [categories, priceLimit, products, selectedCategoryId, selectedColor, selectedSize, sortBy]);
 
   const selectedCategoryName = selectedCategoryId
     ? categories.find((category) => category.id === selectedCategoryId)?.name
     : null;
 
-  const activeFilters = [
-    selectedCategoryName,
+  type ActiveFilter = { key: string; label: string; clear: () => void };
+  const activeFilters: ActiveFilter[] = [
+    selectedCategoryName
+      ? {
+          key: "category",
+          label: selectedCategoryName,
+          clear: () => setSelectedCategoryId(null),
+        }
+      : null,
     selectedColor
-      ? fashionColorOptions.find((color) => color.value === selectedColor)?.label
+      ? {
+          key: "color",
+          label:
+            fashionColorOptions.find((color) => color.value === selectedColor)?.label ??
+            selectedColor,
+          clear: () => setSelectedColor(null),
+        }
       : null,
-    selectedSize,
+    selectedSize
+      ? { key: "size", label: selectedSize, clear: () => setSelectedSize(null) }
+      : null,
     maxPrice > 0 && priceLimit < maxPrice
-      ? `Price: ${formatMoney(minPrice, products[0]?.currency ?? "NGN")} - ${formatMoney(priceLimit, products[0]?.currency ?? "NGN")}`
+      ? {
+          key: "price",
+          label: `Price: ${formatMoney(minPrice, products[0]?.currency ?? "NGN")} - ${formatMoney(priceLimit, products[0]?.currency ?? "NGN")}`,
+          clear: () => setPriceLimit(maxPrice),
+        }
       : null,
-  ].filter((filter): filter is string => Boolean(filter));
+  ].filter((filter): filter is ActiveFilter => Boolean(filter));
 
   function clearFilters() {
     setSelectedCategoryId(null);
@@ -250,11 +255,13 @@ function FashionProductsPage({
         <div className="mt-5 flex items-center justify-center gap-3 text-[11px] font-semibold">
           <Link href="/">Home</Link>
           <span>/</span>
-          <Link href="/about">About</Link>
-          <span>/</span>
           <span>Shop</span>
-          <span>/</span>
-          <span>Details</span>
+          {selectedCategoryName ? (
+            <>
+              <span>/</span>
+              <span>{selectedCategoryName}</span>
+            </>
+          ) : null}
         </div>
       </section>
 
@@ -393,17 +400,20 @@ function FashionProductsPage({
                 <span className="text-[13px]">Active Filter</span>
                 {activeFilters.length ? (
                   activeFilters.map((filter) => (
-                    <span
-                      key={filter}
+                    <button
+                      key={filter.key}
+                      type="button"
+                      onClick={filter.clear}
                       className="inline-flex items-center gap-2 rounded-full px-5 py-3 text-[12px] font-semibold"
                       style={{
                         backgroundColor: theme.palette.primary,
                         color: theme.palette.background,
                       }}
+                      aria-label={`Clear ${filter.label} filter`}
                     >
-                      {filter}
+                      {filter.label}
                       <X className="h-3.5 w-3.5" />
-                    </span>
+                    </button>
                   ))
                 ) : (
                   <span className="text-[12px] text-[#8b837f]">None</span>
@@ -466,19 +476,14 @@ function FashionProductsPage({
 function BeautyProductsPage({
   products,
   categories,
-  initialCategoryId = null,
 }: {
   products: StoreProduct[];
   categories: StoreCategory[];
-  initialCategoryId?: string | null;
 }) {
   const { theme, mode } = useStorefrontTheme();
+  const { discounts } = useStorefront();
   const isCosmetics = theme.id === "cosmetics";
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(initialCategoryId);
-
-  useEffect(() => {
-    setSelectedCategoryId(initialCategoryId);
-  }, [initialCategoryId]);
+  const [selectedCategoryId, setSelectedCategoryId] = useCategoryFilter(categories);
 
   const templateImages = isCosmetics ? cosmeticsTemplateImages : beautyTemplateImages;
   const filteredProducts = products.filter((product) =>
@@ -522,7 +527,7 @@ function BeautyProductsPage({
                 <button
                   key={category.id}
                   type="button"
-                  onClick={() => setSelectedCategoryId(category.id)}
+                  onClick={() => setSelectedCategoryId(active ? null : category.id)}
                   className="rounded-full border px-4 py-2 text-xs font-semibold transition"
                   style={{
                     borderColor: active ? theme.palette.primary : theme.palette.border,
@@ -537,11 +542,12 @@ function BeautyProductsPage({
           </div>
 
           <div className="grid gap-x-5 gap-y-10 sm:grid-cols-2 lg:grid-cols-4">
-            {filteredProducts.map((product, index) => {
+            {filteredProducts.map((product) => {
               const originalIndex = products.findIndex((entry) => entry.id === product.id);
               const image =
                 product.image_url ??
                 templateImages.products[Math.max(originalIndex, 0) % templateImages.products.length];
+              const priced = productUnitPrice(product, discounts ?? []);
               const card = (
                 <article className="group">
                   <div
@@ -549,32 +555,32 @@ function BeautyProductsPage({
                     style={{ borderColor: theme.palette.border, backgroundColor: theme.palette.surface }}
                   >
                     <EditableImage
-                      path={`products.${Math.max(originalIndex, 0)}.image_url`}
+                      path={
+                        originalIndex >= 0 ? `products.${originalIndex}.image_url` : undefined
+                      }
                       src={image}
                       alt={product.name}
                       className="h-full w-full overflow-hidden rounded-[1.5rem]"
                       imgClassName="object-cover transition duration-500 group-hover:scale-105"
                     />
                   </div>
-                  <div className="mt-4 flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.16em]" style={{ color: theme.palette.muted }}>
-                        {product.category ?? (isCosmetics ? "Skincare" : "Beauty")}
-                      </p>
-                      <h2 className="mt-1 line-clamp-1 font-display text-lg font-semibold">{product.name}</h2>
-                    </div>
-                    <span className="inline-flex items-center gap-1 text-xs font-semibold">
-                      <Star
-                        className="h-3.5 w-3.5 fill-current"
-                        style={{ color: theme.palette.accent }}
-                      />
-                      4.9
-                    </span>
+                  <div className="mt-4">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em]" style={{ color: theme.palette.muted }}>
+                      {product.category ?? (isCosmetics ? "Skincare" : "Beauty")}
+                    </p>
+                    <h2 className="mt-1 line-clamp-1 font-display text-lg font-semibold">{product.name}</h2>
                   </div>
                   <p className="mt-2 line-clamp-2 text-sm leading-6" style={{ color: theme.palette.muted }}>
                     {product.description}
                   </p>
-                  <div className="mt-4 font-semibold">{formatMoney(product.price, product.currency)}</div>
+                  <div className="mt-4 flex items-center gap-2 font-semibold">
+                    <span>{formatMoney(priced.unitPrice, product.currency)}</span>
+                    {priced.compareAtPrice != null ? (
+                      <span className="text-sm font-medium line-through" style={{ color: theme.palette.muted }}>
+                        {formatMoney(priced.compareAtPrice, product.currency)}
+                      </span>
+                    ) : null}
+                  </div>
                 </article>
               );
               return mode === "edit" ? (
@@ -595,21 +601,16 @@ function BeautyProductsPage({
 function MinimalisticProductsPage({
   products,
   categories,
-  initialCategoryId = null,
 }: {
   products: StoreProduct[];
   categories: StoreCategory[];
-  initialCategoryId?: string | null;
 }) {
   const { theme, mode } = useStorefrontTheme();
   const { addItem } = useCart();
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(initialCategoryId);
+  const { discounts } = useStorefront();
+  const router = useRouter();
+  const [selectedCategoryId, setSelectedCategoryId] = useCategoryFilter(categories);
   const [priceLimit, setPriceLimit] = useState(0);
-
-  useEffect(() => {
-    setSelectedCategoryId(initialCategoryId);
-  }, [initialCategoryId]);
-
   const [sortBy, setSortBy] = useState<"newest" | "price-low" | "price-high">("newest");
   const productPrices = useMemo(() => products.map((product) => product.price), [products]);
   const maxPrice = useMemo(() => Math.max(...productPrices, 0), [productPrices]);
@@ -636,28 +637,49 @@ function MinimalisticProductsPage({
       return matchesCategory && matchesPrice;
     });
 
-    return [...next].sort((a, b) => {
-      if (sortBy === "price-low") return a.price - b.price;
-      if (sortBy === "price-high") return b.price - a.price;
-      return 0;
-    });
+    return sortCatalogProducts(next, sortBy, products);
   }, [categories, priceLimit, products, selectedCategoryId, sortBy]);
 
   const selectedCategoryName = selectedCategoryId
     ? categories.find((category) => category.id === selectedCategoryId)?.name
     : null;
 
-  const activeFilters = [
-    selectedCategoryName,
-    maxPrice > 0 && priceLimit < maxPrice
-      ? `Price: ${formatMoney(minPrice, products[0]?.currency ?? "NGN")} - ${formatMoney(
-          priceLimit,
-          products[0]?.currency ?? "NGN",
-        )}`
+  type ActiveFilter = { key: string; label: string; clear: () => void };
+  const activeFilters: ActiveFilter[] = [
+    selectedCategoryName
+      ? {
+          key: "category",
+          label: selectedCategoryName,
+          clear: () => setSelectedCategoryId(null),
+        }
       : null,
-  ].filter((filter): filter is string => Boolean(filter));
+    maxPrice > 0 && priceLimit < maxPrice
+      ? {
+          key: "price",
+          label: `Price: ${formatMoney(minPrice, products[0]?.currency ?? "NGN")} - ${formatMoney(
+            priceLimit,
+            products[0]?.currency ?? "NGN",
+          )}`,
+          clear: () => setPriceLimit(maxPrice),
+        }
+      : null,
+  ].filter((filter): filter is ActiveFilter => Boolean(filter));
 
   function addToCart(product: StoreProduct) {
+    if (!isProductInStock(product)) {
+      toast.error("This product is out of stock.");
+      return;
+    }
+    if (product.variants?.some((group) => group.options?.length)) {
+      router.push(`/products/${product.slug}`);
+      toast.message("Choose options on the product page");
+      return;
+    }
+    const error = requireVariantSelection(product, {});
+    if (error) {
+      toast.error(error);
+      return;
+    }
     addItem(product, 1);
     toast.success("Added to cart");
   }
@@ -829,17 +851,20 @@ function MinimalisticProductsPage({
                 </span>
                 {activeFilters.length ? (
                   activeFilters.map((filter) => (
-                    <span
-                      key={filter}
+                    <button
+                      key={filter.key}
+                      type="button"
+                      onClick={filter.clear}
                       className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold"
                       style={{
                         backgroundColor: theme.palette.primary,
                         color: theme.palette.background,
                       }}
+                      aria-label={`Clear ${filter.label} filter`}
                     >
-                      {filter}
+                      {filter.label}
                       <X className="h-3.5 w-3.5" />
-                    </span>
+                    </button>
                   ))
                 ) : (
                   <span
@@ -892,6 +917,8 @@ function MinimalisticProductsPage({
                 minimalisticTemplateImages.products[
                   Math.max(originalIndex, 0) % minimalisticTemplateImages.products.length
                 ];
+              const priced = productUnitPrice(product, discounts ?? []);
+              const inStock = isProductInStock(product);
               const productImage = (
                 <div className="flex aspect-square items-center justify-center overflow-hidden rounded-xl bg-[#f0f0f0] p-7">
                   <EditableImage
@@ -910,36 +937,38 @@ function MinimalisticProductsPage({
                   ) : (
                     <Link href={`/products/${product.slug}`}>{productImage}</Link>
                   )}
-                  <div className="mt-3 flex items-start justify-between gap-3">
-                    <div>
-                      <h3 className="line-clamp-1 text-sm font-bold">{product.name}</h3>
-                      <p
-                        className="mt-1 line-clamp-1 text-[11px]"
-                        style={{ color: theme.palette.muted }}
-                      >
-                        {product.description}
-                      </p>
-                    </div>
-                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold">
-                      <Star className="h-3 w-3 fill-[#efc64b] text-[#efc64b]" />
-                      {originalIndex % 3 === 0 ? "4.9" : "4.8"}
-                    </span>
+                  <div className="mt-3">
+                    <h3 className="line-clamp-1 text-sm font-bold">{product.name}</h3>
+                    <p
+                      className="mt-1 line-clamp-1 text-[11px]"
+                      style={{ color: theme.palette.muted }}
+                    >
+                      {product.description}
+                    </p>
                   </div>
                   <div className="mt-3 flex items-center justify-between gap-3">
-                    <span className="text-sm font-bold">
-                      {formatMoney(product.price, product.currency)}
-                    </span>
+                    <div className="flex items-center gap-2 text-sm font-bold">
+                      <span>{formatMoney(priced.unitPrice, product.currency)}</span>
+                      {priced.compareAtPrice != null ? (
+                        <span
+                          className="text-[11px] font-medium line-through"
+                          style={{ color: theme.palette.muted }}
+                        >
+                          {formatMoney(priced.compareAtPrice, product.currency)}
+                        </span>
+                      ) : null}
+                    </div>
                     <button
                       type="button"
                       onClick={() => addToCart(product)}
-                      disabled={mode === "edit"}
+                      disabled={mode === "edit" || !inStock}
                       className="rounded-full px-3 py-1.5 text-[10px] font-semibold transition disabled:cursor-default disabled:opacity-70"
                       style={{
                         backgroundColor: theme.palette.primary,
                         color: theme.palette.background,
                       }}
                     >
-                      Add to Cart
+                      {inStock ? "Add to Cart" : "Sold out"}
                     </button>
                   </div>
                 </article>
@@ -976,12 +1005,7 @@ export function ProductsPageView() {
     () => resolveStorefrontFilterCategories(apiCategories, products),
     [apiCategories, products],
   );
-  const initialCategoryId = useInitialCategoryId(filterCategories);
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(initialCategoryId);
-
-  useEffect(() => {
-    setSelectedCategoryId(initialCategoryId);
-  }, [initialCategoryId]);
+  const [selectedCategoryId, setSelectedCategoryId] = useCategoryFilter(filterCategories);
 
   const defaultFilteredProducts = useMemo(
     () =>
@@ -992,53 +1016,19 @@ export function ProductsPageView() {
   );
 
   if (theme.id === "fashion_lookbook") {
-    return (
-      <FashionProductsPage
-        products={products}
-        categories={filterCategories}
-        initialCategoryId={initialCategoryId}
-      />
-    );
+    return <FashionProductsPage products={products} categories={filterCategories} />;
   }
 
   if (theme.id === "minimalistic") {
-    return (
-      <MinimalisticProductsPage
-        products={products}
-        categories={filterCategories}
-        initialCategoryId={initialCategoryId}
-      />
-    );
+    return <MinimalisticProductsPage products={products} categories={filterCategories} />;
   }
 
-  if (theme.id === "beauty") {
-    return (
-      <BeautyProductsPage
-        products={products}
-        categories={filterCategories}
-        initialCategoryId={initialCategoryId}
-      />
-    );
-  }
-
-  if (theme.id === "cosmetics") {
-    return (
-      <BeautyProductsPage
-        products={products}
-        categories={filterCategories}
-        initialCategoryId={initialCategoryId}
-      />
-    );
+  if (theme.id === "beauty" || theme.id === "cosmetics") {
+    return <BeautyProductsPage products={products} categories={filterCategories} />;
   }
 
   if (theme.id === "furniture-hardware" || theme.id === "hair-and-fashion") {
-    return (
-      <FashionProductsPage
-        products={products}
-        categories={filterCategories}
-        initialCategoryId={initialCategoryId}
-      />
-    );
+    return <FashionProductsPage products={products} categories={filterCategories} />;
   }
 
   return (
@@ -1062,7 +1052,9 @@ export function ProductsPageView() {
             <button
               key={category.id}
               type="button"
-              onClick={() => setSelectedCategoryId(category.id)}
+              onClick={() =>
+                setSelectedCategoryId(selectedCategoryId === category.id ? null : category.id)
+              }
               className={cn(
                 "rounded-full border px-4 py-2 text-xs font-semibold transition",
                 selectedCategoryId === category.id
@@ -1076,13 +1068,18 @@ export function ProductsPageView() {
         </div>
       ) : null}
       <div className={`mt-10 grid gap-6 ${theme.productGridCols}`}>
-        {defaultFilteredProducts.map((product, index) => (
-          <ProductCardThemed
-            key={product.id}
-            product={product}
-            imagePath={`products.${index}.image_url`}
-          />
-        ))}
+        {defaultFilteredProducts.map((product) => {
+          const originalIndex = products.findIndex((item) => item.id === product.id);
+          return (
+            <ProductCardThemed
+              key={product.id}
+              product={product}
+              imagePath={
+                originalIndex >= 0 ? `products.${originalIndex}.image_url` : undefined
+              }
+            />
+          );
+        })}
       </div>
     </PageContainer>
   );

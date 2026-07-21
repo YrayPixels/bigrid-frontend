@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Sparkles } from "lucide-react";
@@ -10,6 +10,7 @@ import { BuilderChatPanel } from "@/components/admin/builder/builder-chat-panel"
 import { BuilderPreviewPanel } from "@/components/admin/builder/builder-preview-panel";
 import { BuilderProgress } from "@/components/admin/builder/builder-progress";
 import { BuilderThinkingLogSheet } from "@/components/admin/builder/builder-thinking-log-sheet";
+import { BuilderOnboardingHandoff } from "@/components/admin/builder/builder-onboarding-handoff";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api/client";
 import {
@@ -28,6 +29,7 @@ import {
 } from "@/lib/storefront-builder/client";
 import {
   STOREFRONT_TEMPLATE_OPTIONS,
+  isEmailVerified,
   type BuilderMediaTarget,
   type BuilderSession,
   type StorefrontContent,
@@ -260,6 +262,9 @@ export default function AdminBuilderPage() {
     mutationFn: () => {
       const storeId = session?.store?.id;
       if (!storeId) throw new Error("No store to publish");
+      if (!isEmailVerified(user)) {
+        throw new Error("Verify your email before publishing your storefront.");
+      }
       return api.publishStorefront(storeId);
     },
     onSuccess: async (data) => {
@@ -353,6 +358,18 @@ export default function AdminBuilderPage() {
           </div>
         </div>
         <BuilderProgress status={session.status} />
+        <Suspense fallback={null}>
+          <BuilderOnboardingHandoff
+            storeName={session.store?.business_name ?? session.business_profile?.business_name}
+            onBrowseLooks={() => {
+              document.querySelector<HTMLElement>("[data-builder-templates]")?.scrollIntoView({
+                behavior: "smooth",
+                block: "center",
+              });
+            }}
+            onBuildWebsite={() => sendMessage.mutate("build my website")}
+          />
+        </Suspense>
       </div>
 
       <div className="grid min-h-0 flex-1 gap-6 xl:grid-cols-[minmax(0,420px)_1fr]">

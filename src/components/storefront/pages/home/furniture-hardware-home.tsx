@@ -481,7 +481,7 @@ export function FurnitureHardwareHome({
       <footer className="mx-3 mb-6 mt-20 rounded-3xl bg-[#1c1812] p-8 text-[#f7f3eb] md:mx-6 md:mt-28 md:p-14">
         <div className="grid gap-10 md:grid-cols-4">
           <div className="md:col-span-2">
-            <div className="text-2xl font-semibold tracking-[0.35em]" style={{ fontFamily: "var(--font-display)" }}>
+            <div className="text-2xl font-semibold tracking-[0.35em]" style={{ fontFamily: "var(--font-modern-sans)" }}>
               {brandLabel}
             </div>
             <EditableText

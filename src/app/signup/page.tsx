@@ -7,6 +7,7 @@ import { Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api/client";
+import { isEmailVerified } from "@/lib/api/types";
 import {
   AuthShell,
   AuthSubmitButton,
@@ -16,7 +17,7 @@ import {
 
 export default function SignupPage() {
   const router = useRouter();
-  const { user, refresh } = useAuth();
+  const { user, loading, refresh } = useAuth();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -26,8 +27,14 @@ export default function SignupPage() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (user) router.replace("/admin/onboarding");
-  }, [user, router]);
+    if (!loading && user) {
+      if (!isEmailVerified(user)) {
+        router.replace("/verify-email");
+        return;
+      }
+      router.replace(user.has_store ? "/admin" : "/admin/onboarding");
+    }
+  }, [user, loading, router]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -43,8 +50,8 @@ export default function SignupPage() {
     try {
       await api.register({ name, email, password });
       await refresh();
-      toast.success("Account created. Let's set up your store.");
-      router.replace("/admin/onboarding");
+      toast.success("Account created. Check your email for a verification code.");
+      router.replace("/verify-email");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Registration failed");
     } finally {
@@ -59,6 +66,10 @@ export default function SignupPage() {
       footer={
         <p className="text-center text-xs leading-relaxed text-ink-soft">
           By signing up, I confirm that I have read and agree to Bizgrid&apos;s{" "}
+          <Link href="/terms" className="font-medium text-primary hover:underline">
+            Terms of Service
+          </Link>{" "}
+          and{" "}
           <Link href="/privacy" className="font-medium text-primary hover:underline">
             Privacy Policy
           </Link>

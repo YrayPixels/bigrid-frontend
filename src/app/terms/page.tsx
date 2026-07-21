@@ -1,18 +1,18 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { BizgridLogo } from "@/components/bizgrid-logo";
-import { PLATFORM_PRIVACY_POLICY } from "@/lib/legal/platform-privacy-policy";
+import { PLATFORM_TERMS_OF_SERVICE } from "@/lib/legal/platform-terms-of-service";
 
 export const metadata: Metadata = {
-  title: "Privacy Policy — Bizgrid",
+  title: "Terms of Service — Bizgrid",
   description:
-    "Learn how Bizgrid collects, uses, and protects information when you use our merchant platform and website.",
-  alternates: { canonical: "/privacy" },
+    "Terms that govern your use of the Bizgrid merchant platform, storefront hosting, and related services.",
+  alternates: { canonical: "/terms" },
   robots: { index: true, follow: true },
 };
 
-export default function PrivacyPage() {
-  const { title, lastUpdated, sections } = PLATFORM_PRIVACY_POLICY;
+export default function TermsPage() {
+  const { title, lastUpdated, sections } = PLATFORM_TERMS_OF_SERVICE;
 
   return (
     <div className="min-h-screen bg-canvas text-ink font-sans selection:bg-primary/20">
@@ -43,10 +43,11 @@ export default function PrivacyPage() {
               </section>
             ))}
           </div>
+
           <p className="mt-12 text-sm text-ink-soft">
             Also see our{" "}
-            <Link href="/terms" className="font-medium text-primary hover:underline">
-              Terms of Service
+            <Link href="/privacy" className="font-medium text-primary hover:underline">
+              Privacy Policy
             </Link>
             .
           </p>

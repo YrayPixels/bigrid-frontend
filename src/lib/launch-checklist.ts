@@ -5,7 +5,6 @@ import {
   CreditCard,
   Package,
   Store,
-  Truck,
 } from "lucide-react";
 import type { MerchantDashboardMetrics, Store as MerchantStore } from "@/lib/api/types";
 import { isBusinessProfileComplete } from "@/lib/business-profile";
@@ -13,7 +12,6 @@ import { isBusinessProfileComplete } from "@/lib/business-profile";
 export type LaunchChecklistStepId =
   | "payouts"
   | "store_info"
-  | "shipping"
   | "products"
   | "publish"
   | "subscription";
@@ -45,13 +43,6 @@ export const LAUNCH_CHECKLIST_STEPS: LaunchChecklistStep[] = [
     autoComplete: true,
   },
   {
-    id: "shipping",
-    title: "Add delivery and shipping prices",
-    description: "Add shipping prices on your website so customers can checkout.",
-    href: "/admin/settings?tab=operations",
-    icon: Truck,
-  },
-  {
     id: "products",
     title: "Add products to your store",
     description: "You can always add more products later from the Products page.",
@@ -69,10 +60,11 @@ export const LAUNCH_CHECKLIST_STEPS: LaunchChecklistStep[] = [
   },
   {
     id: "subscription",
-    title: "Choose a subscription plan",
-    description: "Unlock higher limits, SMS campaigns, and growth features.",
+    title: "Review your subscription plan",
+    description: "You're on a Starter trial. Upgrade anytime for higher limits and growth tools.",
     href: "/admin/settings/plan",
     icon: CreditCard,
+    autoComplete: true,
   },
 ];
 
@@ -131,6 +123,10 @@ export function isLaunchChecklistStepComplete(
       return store.is_published ?? false;
     case "payouts":
       return Boolean(store.payouts_configured);
+    case "subscription": {
+      const status = store.subscription_status ?? "trialing";
+      return status === "trialing" || status === "trial" || status === "active";
+    }
     default:
       return false;
   }

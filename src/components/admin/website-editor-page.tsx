@@ -25,6 +25,7 @@ import {
 } from "@/components/admin/publish-storefront-button";
 import {
   STOREFRONT_TEMPLATE_OPTIONS,
+  isEmailVerified,
   type Store,
   type StorefrontContent,
   type StorefrontPublishState,
@@ -452,7 +453,12 @@ export default function WebsiteEditorPage() {
   });
 
   const publishStorefront = useMutation({
-    mutationFn: () => api.publishStorefront(store!.id),
+    mutationFn: () => {
+      if (!isEmailVerified(user)) {
+        throw new Error("Verify your email before publishing your storefront.");
+      }
+      return api.publishStorefront(store!.id);
+    },
     onSuccess: (data) => {
       merchantCache.setStoreMe(queryClient, data.store);
       if (store) {

@@ -20,6 +20,7 @@ import {
 import { SettingsNavMenu } from "@/components/admin/settings-nav-tree";
 import { BizgridLogo } from "@/components/bizgrid-logo";
 import { LaunchChecklistReminder } from "@/components/admin/launch-checklist-reminder";
+import { EmailVerificationBanner } from "@/components/admin/email-verification-banner";
 import { useAuth } from "@/lib/auth-context";
 import {
   Sidebar,
@@ -215,6 +216,7 @@ export function MerchantShell({ children }: { children: React.ReactNode }) {
           <SidebarTrigger className="md:hidden" />
           <span className="text-sm font-medium text-ink-soft">Merchant dashboard</span>
         </header>
+        <EmailVerificationBanner />
         <LaunchChecklistReminder />
         <div className="min-w-0 flex-1">{children}</div>
       </SidebarInset>
