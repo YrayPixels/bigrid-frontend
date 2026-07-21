@@ -127,8 +127,8 @@ export function LandingPage() {
               <span className="bg-gradient-hero bg-clip-text text-transparent">Get a live storefront.</span>
             </h1>
             <p className="animate-reveal mx-auto mb-10 max-w-xl text-lg text-pretty text-ink-soft [animation-delay:100ms]">
-              Bizgrid helps sellers in Nigeria and Kenya open an online store with AI — then take payments,
-              manage orders, and grow with marketing tools built in.
+              Bizgrid helps sellers open an online store with AI — then take payments, manage orders, and grow
+              with marketing tools built in.
             </p>
             <div className="animate-reveal flex flex-col items-center justify-center gap-4 [animation-delay:200ms] sm:flex-row">
               <Link
@@ -158,7 +158,7 @@ export function LandingPage() {
                 <input
                   type="text"
                   readOnly
-                  value="I sell handmade soy candles in Lagos. Warm, cozy, gift-friendly."
+                  value="I sell handmade soy candles. Warm, cozy, gift-friendly."
                   className="w-full border-none bg-transparent font-sans text-sm text-ink outline-none"
                   aria-label="Example store description"
                 />
@@ -246,7 +246,7 @@ export function LandingPage() {
 
         <section id="pricing" className="mx-auto max-w-6xl border-t border-border px-6 py-24">
           <div className="mb-14 max-w-2xl">
-            <h2 className="font-display text-4xl font-bold tracking-tight md:text-5xl">Simple plans in Naira</h2>
+            <h2 className="font-display text-4xl font-bold tracking-tight md:text-5xl">Simple monthly plans</h2>
             <p className="mt-4 text-lg text-ink-soft">
               Start free while we&apos;re in MVP. Upgrade when you need more volume or a custom domain.
             </p>
@@ -351,9 +351,8 @@ export function LandingPage() {
             </div>
           </div>
         </div>
-        <div className="mx-auto mt-12 flex max-w-6xl items-center justify-between border-t border-border pt-8 font-mono text-[10px] text-ink-soft">
+        <div className="mx-auto mt-12 border-t border-border pt-8 font-mono text-[10px] text-ink-soft">
           <span>© {new Date().getFullYear()} Bizgrid</span>
-          <span>Nigeria · Kenya</span>
         </div>
       </footer>
     </div>
