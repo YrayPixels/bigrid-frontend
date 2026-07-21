@@ -84,7 +84,7 @@ function visiblePageNumbers(current: number, total: number, windowSize = 5): num
   }
   const half = Math.floor(windowSize / 2);
   let start = Math.max(1, current - half);
-  let end = Math.min(total, start + windowSize - 1);
+  const end = Math.min(total, start + windowSize - 1);
   start = Math.max(1, end - windowSize + 1);
   return Array.from({ length: end - start + 1 }, (_, index) => start + index);
 }

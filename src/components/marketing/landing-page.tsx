@@ -26,6 +26,7 @@ const PLANS = [
     price: "₦5,000",
     description: "Launch your first storefront and start selling.",
     features: ["1 storefront", "Up to ₦1M monthly processing", "Up to 500 customers", "SMS & WhatsApp units included"],
+    highlighted: false,
   },
   {
     name: "Growth",
@@ -39,6 +40,7 @@ const PLANS = [
     price: "₦30,000",
     description: "Higher volume, more stores, and room to expand.",
     features: ["Up to 10 storefronts", "Up to ₦50M monthly processing", "Up to 5 custom domains", "Unlimited customers"],
+    highlighted: false,
   },
 ] as const;
 
