@@ -79,10 +79,16 @@ export function alignStorefrontTemplateToSelection(
  * Key = machine ID used in prompts, value = CSS variable + human label.
  */
 export const STOREFRONT_FONT_OPTIONS: Record<string, { css: string; label: string; description: string }> = {
-  "modern-sans": { css: "var(--font-display)", label: "Modern Sans", description: "Clean modern sans-serif — Space Grotesk" },
+  "modern-sans": { css: "var(--font-modern-sans)", label: "Modern Sans", description: "Clean modern sans-serif — Space Grotesk" },
   "elegant-serif": { css: "var(--font-editorial)", label: "Elegant Serif", description: "Sophisticated editorial serif — Playfair Display" },
-  "clean-sans": { css: "var(--font-sans)", label: "Clean Sans", description: "Simple readable sans-serif — Inter" },
+  "clean-sans": { css: "var(--font-clean-sans)", label: "Clean Sans", description: "Simple readable sans-serif — Inter" },
   "script": { css: "var(--font-script)", label: "Script", description: "Decorative flowing script — Allura" },
+};
+
+/** Legacy CSS vars from before platform/template font split. */
+const LEGACY_STOREFRONT_FONT_VARS: Record<string, string> = {
+  "var(--font-display)": "var(--font-modern-sans)",
+  "var(--font-sans)": "var(--font-clean-sans)",
 };
 
 /** Body fonts (no script — body text must stay readable). */
@@ -107,6 +113,7 @@ const BUTTON_RADIUS_MAP = {
  */
 export function resolveDisplayFont(fontValue: string | null | undefined, templateDefault: string): string {
   if (!fontValue) return templateDefault;
+  if (LEGACY_STOREFRONT_FONT_VARS[fontValue]) return LEGACY_STOREFRONT_FONT_VARS[fontValue];
   // Direct CSS variable match
   if (fontValue.startsWith("var(--")) return fontValue;
   // Font option key lookup
@@ -115,6 +122,7 @@ export function resolveDisplayFont(fontValue: string | null | undefined, templat
 
 export function resolveBodyFont(fontKey: string | null | undefined): string | null {
   if (!fontKey) return null;
+  if (LEGACY_STOREFRONT_FONT_VARS[fontKey]) return LEGACY_STOREFRONT_FONT_VARS[fontKey];
   return STOREFRONT_BODY_FONT_OPTIONS[fontKey as keyof typeof STOREFRONT_BODY_FONT_OPTIONS]?.css ?? null;
 }
 
@@ -187,7 +195,7 @@ export function getStorefrontTheme(
       result = {
         ...base,
         shell: "cosmetics",
-        displayFont: "var(--font-display)",
+        displayFont: "var(--font-modern-sans)",
         pageBg: "bg-[var(--store-bg)]",
         pageText: "text-[var(--store-text)]",
         mutedText: "text-[var(--store-muted)]",
@@ -219,7 +227,7 @@ export function getStorefrontTheme(
       result = {
         ...base,
         shell: "minimalistic",
-        displayFont: "var(--font-display)",
+        displayFont: "var(--font-modern-sans)",
         pageBg: "bg-[var(--store-bg)]",
         pageText: "text-[var(--store-text)]",
         mutedText: "text-[var(--store-muted)]",
@@ -251,7 +259,7 @@ export function getStorefrontTheme(
       result = {
         ...base,
         shell: "furniture",
-        displayFont: "var(--font-display)",
+        displayFont: "var(--font-modern-sans)",
         // Aligned to previous hard-coded hexes so defaults are visually identical.
         pageBg: "bg-[var(--store-bg)]",
         pageText: "text-[var(--store-text)]",
@@ -284,7 +292,7 @@ export function getStorefrontTheme(
       result = {
         ...base,
         shell: "default",
-        displayFont: "var(--font-display)",
+        displayFont: "var(--font-modern-sans)",
         pageBg: "bg-[var(--store-bg)]",
         pageText: "text-[var(--store-text)]",
         mutedText: "text-[var(--store-muted)]",
@@ -300,7 +308,7 @@ export function getStorefrontTheme(
       result = {
         ...base,
         shell: "default",
-        displayFont: "var(--font-display)",
+        displayFont: "var(--font-modern-sans)",
         pageBg: "bg-[var(--store-bg)]",
         pageText: "text-[var(--store-text)]",
         mutedText: "text-[var(--store-muted)]",
@@ -316,7 +324,7 @@ export function getStorefrontTheme(
       result = {
         ...base,
         shell: "default",
-        displayFont: "var(--font-display)",
+        displayFont: "var(--font-modern-sans)",
         pageBg: "bg-[var(--store-bg)]",
         pageText: "text-[var(--store-text)]",
         mutedText: "text-[var(--store-muted)]",

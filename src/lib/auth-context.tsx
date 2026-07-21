@@ -147,11 +147,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [qc, router]);
 
   const signOut = async () => {
-    await api.logout();
+    // Clear local session and leave admin routes immediately so sign-out never
+    // gets stuck behind a slow/failed logout request or an admin-layout spinner.
     setUser(null);
     setImpersonating(false);
     qc.clear();
-    router.push("/login");
+    void api.logout();
+    router.replace("/login");
   };
 
   return (

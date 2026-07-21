@@ -20,9 +20,14 @@ export type User = {
   id: string;
   name: string;
   email: string;
+  email_verified_at?: string | null;
   has_store: boolean;
   impersonating?: boolean;
 };
+
+export function isEmailVerified(user: User | null | undefined): boolean {
+  return Boolean(user?.email_verified_at);
+}
 
 export type AuthResponse = {
   token: string;

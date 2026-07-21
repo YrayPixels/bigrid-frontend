@@ -68,7 +68,7 @@ const STORAGE_KEY = "storehaus_mock_db_v1";
 const mockStoreDomains: Record<string, StoreDomain[]> = {};
 
 type MockDB = {
-  users: Record<string, { user: User; password: string }>;
+  users: Record<string, { user: User; password: string; verification_code?: string }>;
   stores: Record<string, Store>;
   storefronts: Record<string, StorefrontContent>;
   publishedStorefronts: Record<string, StorefrontContent>;
@@ -299,8 +299,18 @@ export const mockApi = {
     const db = load();
     const existing = Object.values(db.users).find((u) => u.user.email === body.email);
     if (existing) throw { status: 422, message: "Email already registered" };
-    const user: User = { id: uid(), name: body.name, email: body.email, has_store: false };
-    db.users[user.id] = { user, password: body.password };
+    const user: User = {
+      id: uid(),
+      name: body.name,
+      email: body.email,
+      email_verified_at: null,
+      has_store: false,
+    };
+    db.users[user.id] = {
+      user,
+      password: body.password,
+      verification_code: "123456",
+    };
     const token = `mock_${uid()}`;
     db.sessions[token] = user.id;
     save(db);
@@ -360,6 +370,47 @@ export const mockApi = {
     const db = load();
     delete db.sessions[token];
     save(db);
+  },
+
+  async verifyEmail(
+    token: string,
+    body: { code: string },
+  ): Promise<{ message: string; user: User }> {
+    await delay(250);
+    const db = load();
+    const userId = db.sessions[token];
+    if (!userId) throw { status: 401, message: "Unauthenticated" };
+    const record = db.users[userId];
+    if (!record) throw { status: 401, message: "Unauthenticated" };
+    if (record.user.email_verified_at) {
+      return { message: "Email already verified.", user: record.user };
+    }
+    const expected =
+      (record as { verification_code?: string }).verification_code ??
+      (record.user as unknown as { verification_code?: string }).verification_code ??
+      "123456";
+    if (body.code !== expected) {
+      throw { status: 422, message: "Invalid or expired verification code." };
+    }
+    record.user.email_verified_at = new Date().toISOString();
+    delete (record as { verification_code?: string }).verification_code;
+    save(db);
+    return { message: "Email verified.", user: record.user };
+  },
+
+  async resendEmailVerification(token: string): Promise<{ message: string }> {
+    await delay(200);
+    const db = load();
+    const userId = db.sessions[token];
+    if (!userId) throw { status: 401, message: "Unauthenticated" };
+    const record = db.users[userId];
+    if (!record) throw { status: 401, message: "Unauthenticated" };
+    if (record.user.email_verified_at) {
+      return { message: "Email already verified." };
+    }
+    (record as { verification_code?: string }).verification_code = "123456";
+    save(db);
+    return { message: "Verification code sent." };
   },
 
   async me(token: string): Promise<{ user: User }> {
@@ -574,6 +625,10 @@ export const mockApi = {
     const db = load();
     const userId = db.sessions[token];
     if (!userId) throw { status: 401, message: "Unauthenticated" };
+    const record = db.users[userId];
+    if (record && !record.user.email_verified_at) {
+      throw { status: 403, message: "Verify your email before publishing your storefront.", code: "email_unverified" };
+    }
     const store = db.stores[userId];
     if (!store || store.id !== storeId) throw { status: 404, message: "Store not found" };
     const draft = db.storefronts[storeId];

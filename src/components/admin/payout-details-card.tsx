@@ -9,6 +9,8 @@ import {
   merchantInvalidators,
   usePaymentSettings,
 } from "@/hooks/use-merchant-queries";
+import { useAuth } from "@/lib/auth-context";
+import { isEmailVerified } from "@/lib/api/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -18,7 +20,9 @@ import { Banknote, Save } from "lucide-react";
 
 export function PayoutDetailsCard() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const { data, isLoading } = usePaymentSettings();
+  const emailVerified = isEmailVerified(user);
 
   const [accountName, setAccountName] = useState("");
   const [bankName, setBankName] = useState("");
@@ -32,12 +36,16 @@ export function PayoutDetailsCard() {
   }, [data]);
 
   const saveMutation = useMutation({
-    mutationFn: () =>
-      api.updatePaymentSettings({
+    mutationFn: () => {
+      if (!emailVerified) {
+        throw new Error("Verify your email before adding payout details.");
+      }
+      return api.updatePaymentSettings({
         payout_account_name: accountName.trim(),
         payout_bank_name: bankName.trim(),
         payout_account_number: accountNumber.trim(),
-      }),
+      });
+    },
     onSuccess: (payments) => {
       merchantCache.setPaymentSettings(queryClient, payments);
       merchantInvalidators.store(queryClient);
@@ -62,11 +70,26 @@ export function PayoutDetailsCard() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {!emailVerified ? (
+          <div className="rounded-xl border border-amber-600/25 bg-amber-500/10 p-4 text-sm text-ink">
+            <p className="font-medium">Verify your email to save payout details</p>
+            <p className="mt-1 text-ink-soft">
+              Check the banner at the top of the dashboard for your verification code.
+            </p>
+          </div>
+        ) : null}
+
         <div className="rounded-xl border border-border bg-background p-4 text-sm text-ink-soft">
           {data?.checkout_enabled ? (
-            <p>Online checkout is active on your storefront. Customers pay Bizgrid; you receive settlements after payment clears.</p>
+            <p>
+              Online checkout is active on your storefront. Customers pay Bizgrid; you receive
+              settlements after payment clears.
+            </p>
           ) : (
-            <p>Platform checkout is not configured yet. Contact support if checkout is unavailable on your live store.</p>
+            <p>
+              Platform checkout is not configured yet. Contact support if checkout is unavailable on
+              your live store.
+            </p>
           )}
         </div>
 
@@ -78,7 +101,7 @@ export function PayoutDetailsCard() {
               placeholder="Business or owner name"
               value={accountName}
               onChange={(e) => setAccountName(e.target.value)}
-              disabled={isLoading}
+              disabled={isLoading || !emailVerified}
             />
           </div>
           <div className="space-y-2">
@@ -88,7 +111,7 @@ export function PayoutDetailsCard() {
               placeholder="e.g. Access Bank"
               value={bankName}
               onChange={(e) => setBankName(e.target.value)}
-              disabled={isLoading}
+              disabled={isLoading || !emailVerified}
             />
           </div>
           <div className="space-y-2">
@@ -99,13 +122,19 @@ export function PayoutDetailsCard() {
               placeholder="0123456789"
               value={accountNumber}
               onChange={(e) => setAccountNumber(e.target.value)}
-              disabled={isLoading}
+              disabled={isLoading || !emailVerified}
             />
           </div>
         </div>
 
         <Button
-          disabled={saveMutation.isPending || !accountName.trim() || !bankName.trim() || !accountNumber.trim()}
+          disabled={
+            saveMutation.isPending ||
+            !emailVerified ||
+            !accountName.trim() ||
+            !bankName.trim() ||
+            !accountNumber.trim()
+          }
           onClick={() => saveMutation.mutate()}
         >
           <Save className="mr-2 h-4 w-4" />

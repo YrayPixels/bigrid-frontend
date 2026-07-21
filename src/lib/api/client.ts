@@ -224,13 +224,41 @@ export const api = {
 
   async logout(): Promise<void> {
     const token = getToken();
+    setToken(null);
     if (!token) return;
     try {
-      if (USE_MOCKS) await mockApi.logout(token);
-      else await http<void>(`${STOREHAUSE_API_PREFIX}/auth/logout`, { method: "POST" });
-    } finally {
-      setToken(null);
+      if (USE_MOCKS) {
+        await mockApi.logout(token);
+        return;
+      }
+      await fetch(`${API_BASE}${STOREHAUSE_API_PREFIX}/auth/logout`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+    } catch {
+      // Best-effort revoke; local session is already cleared.
     }
+  },
+
+  async verifyEmail(body: { code: string }): Promise<{ message: string; user: User }> {
+    const token = requireToken();
+    if (USE_MOCKS) return mockApi.verifyEmail(token, body);
+    return http<{ message: string; user: User }>(`${STOREHAUSE_API_PREFIX}/auth/verify-email`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  async resendEmailVerification(): Promise<{ message: string }> {
+    const token = requireToken();
+    if (USE_MOCKS) return mockApi.resendEmailVerification(token);
+    return http<{ message: string }>(`${STOREHAUSE_API_PREFIX}/auth/resend-email-verification`, {
+      method: "POST",
+    });
   },
 
   async me(): Promise<User> {
@@ -480,6 +508,14 @@ export const api = {
   async updatePaymentSettings(body: UpdateStorePaymentSettingsInput): Promise<StorePaymentSettings> {
     const token = requireToken();
     if (USE_MOCKS) {
+      const me = await mockApi.me(token);
+      if (!me.user.email_verified_at) {
+        throw {
+          status: 403,
+          message: "Verify your email before adding payout details.",
+          code: "email_unverified",
+        };
+      }
       return {
         checkout_enabled: true,
         payouts_configured: Boolean(

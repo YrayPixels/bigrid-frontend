@@ -17,12 +17,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     if (!loading && !user) router.replace("/login");
   }, [loading, user, router]);
 
-  if (loading || !user) {
+  // Only block on the initial auth check. After sign-out (`!user`), render nothing
+  // while redirecting — a spinner here used to leave the UI stuck on /admin/*.
+  if (loading) {
     return (
       <div className="grid min-h-screen place-items-center bg-canvas">
         <Loader2 className="h-6 w-6 animate-spin text-primary" />
       </div>
     );
+  }
+
+  if (!user) {
+    return null;
   }
 
   if (isOnboarding) {

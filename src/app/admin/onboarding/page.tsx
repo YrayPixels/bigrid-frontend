@@ -88,7 +88,7 @@ export default function AdminOnboardingPage() {
       });
       await refresh();
       toast.success("Store created. Let's build your website.");
-      router.replace("/admin/builder");
+      router.replace("/admin/builder?from=onboarding");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not create store");
     } finally {
@@ -96,12 +96,16 @@ export default function AdminOnboardingPage() {
     }
   }
 
-  if (loading || !user) {
+  if (loading) {
     return (
       <div className="grid min-h-screen place-items-center bg-canvas">
         <Loader2 className="h-6 w-6 animate-spin text-primary" />
       </div>
     );
+  }
+
+  if (!user) {
+    return null;
   }
 
   return (

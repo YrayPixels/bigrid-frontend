@@ -51,7 +51,7 @@ export function FurnitureHeader() {
         <StorefrontLink
           href="/"
           className="shrink-0 text-lg font-semibold tracking-[0.35em] md:text-xl"
-          style={{ fontFamily: "var(--font-display)" }}
+          style={{ fontFamily: "var(--font-modern-sans)" }}
         >
           {brandLabel}
         </StorefrontLink>

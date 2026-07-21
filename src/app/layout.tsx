@@ -5,9 +5,9 @@ import { SITE_URL } from "@/lib/site-seo";
 import { Providers } from "./providers";
 import "./globals.css";
 
-const SITE_TITLE = "Bizgrid — AI-generated storefronts, instantly retail-ready";
+const SITE_TITLE = "Bizgrid — AI storefronts for African sellers";
 const SITE_DESCRIPTION =
-  "Bizgrid turns a product idea into a high-conversion storefront with AI catalog, instant theming, and global payments.";
+  "Describe your shop and get a live storefront. Bizgrid helps sellers in Nigeria and Kenya build with AI, take Paystack payments, manage orders, and grow with marketing tools.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -20,10 +20,10 @@ export const metadata: Metadata = {
   keywords: [
     "AI storefront",
     "ecommerce builder",
-    "online store",
-    "AI commerce",
-    "storefront generator",
-    "small business ecommerce",
+    "online store Nigeria",
+    "online store Kenya",
+    "Paystack store",
+    "sell online Africa",
     "Bizgrid",
   ],
   robots: {

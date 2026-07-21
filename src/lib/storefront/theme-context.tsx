@@ -115,12 +115,18 @@ export function StorefrontThemeProvider({
   }, [mode, paletteVars, theme.bodyFont, theme.id]);
 
   const wrapperStyle = useMemo(() => {
-    const style = { ...paletteVars } as CSSProperties;
+    const style = {
+      ...paletteVars,
+      // Remap platform font tokens so storefront `font-display` / `font-sans`
+      // utilities never pick up Plus Jakarta Sans.
+      "--font-display": theme.displayFont,
+      "--font-sans": theme.bodyFont ?? "var(--font-clean-sans)",
+    } as CSSProperties;
     if (theme.bodyFont) {
       style.fontFamily = "var(--store-body-font)";
     }
     return style;
-  }, [paletteVars, theme.bodyFont]);
+  }, [paletteVars, theme.bodyFont, theme.displayFont]);
 
   return (
     <StorefrontThemeContext.Provider value={{ theme, mode, editable, shellChrome }}>
