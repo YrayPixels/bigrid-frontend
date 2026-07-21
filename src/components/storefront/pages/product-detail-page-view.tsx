@@ -3,91 +3,154 @@
 import Link from "next/link";
 import { useMemo, useState, type CSSProperties } from "react";
 import { ChevronDown, Minus, Plane, Plus } from "lucide-react";
-import { toast } from "sonner";
 import type { StoreProduct } from "@/lib/api/types";
 import { ProductReviewsModule } from "@/components/storefront/product-reviews-module";
-import {
-  ProductVariantSelector,
-  defaultSelectedOptions,
-} from "@/components/storefront/product-variant-selector";
-import { requireVariantSelection } from "@/lib/storefront/cart-line";
+import { RelatedProductsSection } from "@/components/storefront/related-products-section";
+import { ProductVariantSelector } from "@/components/storefront/product-variant-selector";
 import { mergeProductPerks, productUnitPrice } from "@/lib/storefront/pricing";
-import { useCart } from "@/lib/storefront/cart-context";
 import { useStorefront } from "@/lib/storefront/store-context";
 import { beautyTemplateImages } from "@/lib/storefront/beauty-defaults";
 import { cosmeticsTemplateImages } from "@/lib/storefront/cosmetics-defaults";
 import { fashionTemplateImages } from "@/lib/storefront/fashion-defaults";
 import { minimalisticTemplateImages } from "@/lib/storefront/minimalistic-defaults";
 import { formatMoney } from "@/lib/storefront/format";
+import { resolveProductGalleryImages } from "@/lib/storefront/product-gallery";
+import { useProductPurchase } from "@/lib/storefront/use-product-purchase";
 import { PageContainer } from "@/components/storefront/theme/page-container";
 import { PrimaryButton } from "@/components/storefront/theme/primary-button";
 import { StorefrontFaqSection } from "@/components/storefront/pages/storefront-faq-section";
 import { useStorefrontTheme } from "@/lib/storefront/theme-context";
+import { cn } from "@/lib/utils";
 
-const fashionPaymentMethods = ["VISA", "MC", "Pay", "G Pay", "PayPal", "AmEx"];
+function ProductGallery({
+  productName,
+  images,
+  className,
+  thumbClassName,
+  mainClassName,
+  imgClassName,
+  surfaceColor,
+}: {
+  productName: string;
+  images: string[];
+  className?: string;
+  thumbClassName?: string;
+  mainClassName?: string;
+  imgClassName?: string;
+  surfaceColor: string;
+}) {
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const safeIndex = images.length ? Math.min(selectedIndex, images.length - 1) : 0;
+  const mainSrc = images[safeIndex];
+
+  if (!images.length) {
+    return (
+      <div
+        className={cn("flex min-h-[430px] items-center justify-center text-5xl font-bold text-white", mainClassName)}
+        style={{
+          background: `linear-gradient(135deg, ${surfaceColor}, ${surfaceColor}88)`,
+        }}
+      >
+        {productName.slice(0, 1)}
+      </div>
+    );
+  }
+
+  return (
+    <div className={cn("grid gap-2 sm:grid-cols-[112px_minmax(0,1fr)]", className)}>
+      {images.length > 1 ? (
+        <div className="order-2 grid grid-cols-4 gap-2 sm:order-1 sm:grid-cols-1">
+          {images.map((image, index) => (
+            <button
+              key={`${image}-${index}`}
+              type="button"
+              onClick={() => setSelectedIndex(index)}
+              className={cn(
+                "aspect-square overflow-hidden transition ring-offset-2",
+                thumbClassName,
+                index === safeIndex ? "ring-2 opacity-100" : "opacity-80 hover:opacity-100",
+              )}
+              style={{
+                backgroundColor: surfaceColor,
+                ...(index === safeIndex
+                  ? ({ ["--tw-ring-color"]: "currentColor", color: "inherit" } as CSSProperties)
+                  : {}),
+              }}
+              aria-label={`View ${productName} image ${index + 1}`}
+              aria-pressed={index === safeIndex}
+            >
+              <img
+                src={image}
+                alt=""
+                className="h-full w-full object-contain object-center"
+              />
+            </button>
+          ))}
+        </div>
+      ) : null}
+      <div
+        className={cn(
+          "order-1 flex min-h-[430px] items-center justify-center overflow-hidden sm:order-2 lg:min-h-[610px]",
+          images.length === 1 && "sm:col-span-2",
+          mainClassName,
+        )}
+        style={{ backgroundColor: surfaceColor }}
+      >
+        <img
+          src={mainSrc}
+          alt={productName}
+          className={cn("h-full w-full object-contain object-center", imgClassName)}
+        />
+      </div>
+    </div>
+  );
+}
 
 function FashionProductDetail({ product }: { product: StoreProduct }) {
-  const { addItem } = useCart();
   const { store, storefront, discounts } = useStorefront();
   const { theme } = useStorefrontTheme();
-  const [quantity, setQuantity] = useState(1);
+  const {
+    quantity,
+    setQuantity,
+    selectedOptions,
+    setSelectedOptions,
+    addToCart,
+    buyNow,
+    outOfStock,
+  } = useProductPurchase(product);
   const variantGroups = product.variants ?? [];
   const perks = mergeProductPerks(product, store.store_perks);
   const priced = productUnitPrice(product, discounts ?? []);
-  const [selectedOptions, setSelectedOptions] = useState(() =>
-    defaultSelectedOptions(variantGroups),
-  );
   const faqPage = storefront.pages?.faq;
   const galleryImages = useMemo(
-    () => [
-      product.image_url ?? fashionTemplateImages.products[0],
-      ...(product.image_url
-        ? [product.image_url, product.image_url, product.image_url]
-        : fashionTemplateImages.products.slice(1)),
-    ],
-    [product.image_url],
+    () =>
+      resolveProductGalleryImages(
+        product.image_url,
+        fashionTemplateImages.products,
+        8,
+        product.images,
+      ),
+    [product.image_url, product.images],
   );
-
-  function addToCart(label = "Added to cart") {
-    const error = requireVariantSelection(product, selectedOptions);
-    if (error) {
-      toast.error(error);
-      return;
-    }
-    addItem(product, quantity, selectedOptions);
-    toast.success(label);
-  }
 
   return (
     <div style={{ backgroundColor: theme.palette.background, color: theme.palette.text }}>
       <div className="mx-auto grid max-w-7xl gap-10 px-4 py-8 sm:px-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)] lg:gap-12 lg:py-12">
-        <div className="grid gap-2 sm:grid-cols-[112px_minmax(0,1fr)]">
-          <div className="order-2 grid grid-cols-4 gap-2 sm:order-1 sm:grid-cols-1">
-            {galleryImages.map((image, index) => (
-              <button
-                key={`${image}-${index}`}
-                type="button"
-                className="aspect-square overflow-hidden"
-                style={{ backgroundColor: theme.palette.surface }}
-                aria-label={`View ${product.name} image ${index + 1}`}
-              >
-                <img src={image} alt="" className="h-full w-full object-cover object-center" />
-              </button>
-            ))}
-          </div>
-          <div
-            className="order-1 flex min-h-[430px] items-center justify-center sm:order-2 lg:min-h-[610px]"
-            style={{ backgroundColor: theme.palette.surface }}
-          >
-            <img
-              src={galleryImages[0]}
-              alt={product.name}
-              className="h-full w-full object-contain object-center p-8 sm:p-12"
-            />
-          </div>
-        </div>
+        <ProductGallery
+          productName={product.name}
+          images={galleryImages}
+          surfaceColor={theme.palette.surface}
+        />
 
         <section className="lg:pt-1">
+          <nav className="mb-4 flex flex-wrap items-center gap-2 text-[11px] font-semibold" style={{ color: theme.palette.muted }}>
+            <Link href="/">Home</Link>
+            <span>/</span>
+            <Link href="/products">Products</Link>
+            <span>/</span>
+            <span style={{ color: theme.palette.text }}>{product.name}</span>
+          </nav>
+
           <h1 className="max-w-xl text-xl font-bold leading-tight sm:text-2xl">{product.name}</h1>
           {product.category ? (
             <span
@@ -113,6 +176,12 @@ function FashionProductDetail({ product }: { product: StoreProduct }) {
               </span>
             ) : null}
           </div>
+
+          {outOfStock ? (
+            <p className="mt-4 text-sm font-semibold" style={{ color: theme.palette.accent }}>
+              Out of stock
+            </p>
+          ) : null}
 
           {variantGroups.length ? (
             <div className="mt-7">
@@ -144,6 +213,7 @@ function FashionProductDetail({ product }: { product: StoreProduct }) {
               className="grid h-9 w-9 place-items-center"
               onClick={() => setQuantity((current) => Math.max(1, current - 1))}
               aria-label="Decrease quantity"
+              disabled={outOfStock}
             >
               <Minus className="h-3.5 w-3.5" />
             </button>
@@ -155,6 +225,7 @@ function FashionProductDetail({ product }: { product: StoreProduct }) {
               className="grid h-9 w-9 place-items-center"
               onClick={() => setQuantity((current) => current + 1)}
               aria-label="Increase quantity"
+              disabled={outOfStock}
             >
               <Plus className="h-3.5 w-3.5" />
             </button>
@@ -163,8 +234,9 @@ function FashionProductDetail({ product }: { product: StoreProduct }) {
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <button
               type="button"
-              onClick={() => addToCart("Ready for checkout")}
-              className="px-6 py-3 text-xs font-semibold uppercase tracking-[0.08em] transition"
+              onClick={buyNow}
+              disabled={outOfStock}
+              className="px-6 py-3 text-xs font-semibold uppercase tracking-[0.08em] transition disabled:cursor-not-allowed disabled:opacity-50"
               style={{ backgroundColor: theme.palette.primary, color: theme.palette.background }}
             >
               Buy now
@@ -172,7 +244,8 @@ function FashionProductDetail({ product }: { product: StoreProduct }) {
             <button
               type="button"
               onClick={() => addToCart()}
-              className="border px-6 py-3 text-xs font-semibold uppercase tracking-[0.08em] transition"
+              disabled={outOfStock}
+              className="border px-6 py-3 text-xs font-semibold uppercase tracking-[0.08em] transition disabled:cursor-not-allowed disabled:opacity-50"
               style={{
                 backgroundColor: theme.palette.surface,
                 borderColor: theme.palette.primary,
@@ -181,22 +254,6 @@ function FashionProductDetail({ product }: { product: StoreProduct }) {
             >
               Add to cart
             </button>
-          </div>
-
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            {fashionPaymentMethods.map((method) => (
-              <span
-                key={method}
-                className="rounded-[3px] border px-2 py-1 text-[9px] font-bold shadow-sm"
-                style={{
-                  backgroundColor: theme.palette.surface,
-                  borderColor: theme.palette.border,
-                  color: theme.palette.primary,
-                }}
-              >
-                {method}
-              </span>
-            ))}
           </div>
 
           {perks.length ? (
@@ -240,70 +297,50 @@ function FashionProductDetail({ product }: { product: StoreProduct }) {
         appearance="fashion"
       />
 
+      <RelatedProductsSection product={product} appearance="fashion" />
+
       <StorefrontFaqSection faqPage={faqPage} />
     </div>
   );
 }
 
 function MinimalisticProductDetail({ product }: { product: StoreProduct }) {
-  const { addItem } = useCart();
   const { store, storefront, discounts } = useStorefront();
   const { theme } = useStorefrontTheme();
-  const [quantity, setQuantity] = useState(1);
+  const {
+    quantity,
+    setQuantity,
+    selectedOptions,
+    setSelectedOptions,
+    addToCart,
+    buyNow,
+    outOfStock,
+  } = useProductPurchase(product);
   const perks = mergeProductPerks(product, store.store_perks);
   const priced = productUnitPrice(product, discounts ?? []);
-  const [selectedOptions, setSelectedOptions] = useState(() =>
-    defaultSelectedOptions(product.variants),
-  );
   const faqPage = storefront.pages?.faq;
   const galleryImages = useMemo(
-    () => [
-      product.image_url ?? minimalisticTemplateImages.products[0],
-      ...(product.image_url
-        ? [product.image_url, product.image_url, product.image_url]
-        : minimalisticTemplateImages.products.slice(1, 4)),
-    ],
-    [product.image_url],
+    () =>
+      resolveProductGalleryImages(
+        product.image_url,
+        minimalisticTemplateImages.products,
+        8,
+        product.images,
+      ),
+    [product.image_url, product.images],
   );
-
-  function addToCart(label = "Added to cart") {
-    const error = requireVariantSelection(product, selectedOptions);
-    if (error) {
-      toast.error(error);
-      return;
-    }
-    addItem(product, quantity, selectedOptions);
-    toast.success(label);
-  }
 
   return (
     <div style={{ backgroundColor: theme.palette.background, color: theme.palette.text }}>
       <div className="mx-auto grid max-w-7xl gap-8 px-4 py-10 sm:px-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(360px,0.95fr)] lg:py-14">
-        <div className="grid gap-3 sm:grid-cols-[96px_minmax(0,1fr)]">
-          <div className="order-2 grid grid-cols-4 gap-3 sm:order-1 sm:grid-cols-1">
-            {galleryImages.map((image, index) => (
-              <button
-                key={`${image}-${index}`}
-                type="button"
-                className="flex aspect-square items-center justify-center overflow-hidden rounded-2xl p-3 shadow-sm"
-                style={{ backgroundColor: `${theme.palette.surface}cc` }}
-                aria-label={`View ${product.name} image ${index + 1}`}
-              >
-                <img src={image} alt="" className="h-full w-full object-contain object-center" />
-              </button>
-            ))}
-          </div>
-          <div
-            className="order-1 flex min-h-[430px] items-center justify-center overflow-hidden rounded-[2rem] p-10 shadow-[0_24px_80px_rgba(7,62,63,0.08)] sm:order-2 lg:min-h-[610px]"
-            style={{ backgroundColor: `${theme.palette.surface}cc` }}
-          >
-            <img
-              src={galleryImages[0]}
-              alt={product.name}
-              className="h-full w-full object-contain object-center"
-            />
-          </div>
-        </div>
+        <ProductGallery
+          productName={product.name}
+          images={galleryImages}
+          surfaceColor={`${theme.palette.surface}cc`}
+          thumbClassName="rounded-2xl shadow-sm"
+          mainClassName="overflow-hidden rounded-[2rem] shadow-[0_24px_80px_rgba(7,62,63,0.08)]"
+          className="sm:grid-cols-[96px_minmax(0,1fr)]"
+        />
 
         <section
           className="rounded-[2rem] p-6 shadow-[0_24px_80px_rgba(7,62,63,0.08)] ring-1 sm:p-8"
@@ -353,6 +390,12 @@ function MinimalisticProductDetail({ product }: { product: StoreProduct }) {
             ) : null}
           </div>
 
+          {outOfStock ? (
+            <p className="mt-4 text-sm font-semibold" style={{ color: theme.palette.accent }}>
+              Out of stock
+            </p>
+          ) : null}
+
           {product.variants?.length ? (
             <ProductVariantSelector
               className="mt-7"
@@ -373,6 +416,7 @@ function MinimalisticProductDetail({ product }: { product: StoreProduct }) {
               style={{ backgroundColor: theme.palette.surface, color: theme.palette.text }}
               onClick={() => setQuantity((current) => Math.max(1, current - 1))}
               aria-label="Decrease quantity"
+              disabled={outOfStock}
             >
               <Minus className="h-3.5 w-3.5" />
             </button>
@@ -383,6 +427,7 @@ function MinimalisticProductDetail({ product }: { product: StoreProduct }) {
               style={{ backgroundColor: theme.palette.surface, color: theme.palette.text }}
               onClick={() => setQuantity((current) => current + 1)}
               aria-label="Increase quantity"
+              disabled={outOfStock}
             >
               <Plus className="h-3.5 w-3.5" />
             </button>
@@ -391,8 +436,9 @@ function MinimalisticProductDetail({ product }: { product: StoreProduct }) {
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
             <button
               type="button"
-              onClick={() => addToCart("Ready for checkout")}
-              className="rounded-full px-6 py-3 text-sm font-semibold transition"
+              onClick={buyNow}
+              disabled={outOfStock}
+              className="rounded-full px-6 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50"
               style={{ backgroundColor: theme.palette.primary, color: theme.palette.background }}
             >
               Buy now
@@ -400,7 +446,8 @@ function MinimalisticProductDetail({ product }: { product: StoreProduct }) {
             <button
               type="button"
               onClick={() => addToCart()}
-              className="rounded-full border px-6 py-3 text-sm font-semibold transition"
+              disabled={outOfStock}
+              className="rounded-full border px-6 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50"
               style={{
                 backgroundColor: theme.palette.surface,
                 borderColor: theme.palette.border,
@@ -472,64 +519,47 @@ function MinimalisticProductDetail({ product }: { product: StoreProduct }) {
         appearance="minimal"
       />
 
+      <RelatedProductsSection product={product} appearance="minimal" />
+
       <StorefrontFaqSection faqPage={faqPage} />
     </div>
   );
 }
 
 function BeautyProductDetail({ product }: { product: StoreProduct }) {
-  const { addItem } = useCart();
   const { store, storefront, discounts } = useStorefront();
   const { theme } = useStorefrontTheme();
-  const [quantity, setQuantity] = useState(1);
+  const {
+    quantity,
+    setQuantity,
+    selectedOptions,
+    setSelectedOptions,
+    addToCart,
+    buyNow,
+    outOfStock,
+  } = useProductPurchase(product);
   const perks = mergeProductPerks(product, store.store_perks);
   const priced = productUnitPrice(product, discounts ?? []);
-  const [selectedOptions, setSelectedOptions] = useState(() =>
-    defaultSelectedOptions(product.variants),
-  );
   const faqPage = storefront.pages?.faq;
   const isCosmetics = theme.id === "cosmetics";
   const templateImages = isCosmetics ? cosmeticsTemplateImages : beautyTemplateImages;
   const galleryImages = useMemo(
-    () => [
-      product.image_url ?? templateImages.products[0],
-      ...(product.image_url
-        ? [product.image_url, product.image_url, product.image_url]
-        : templateImages.products.slice(1, 4)),
-    ],
-    [product.image_url, templateImages],
+    () =>
+      resolveProductGalleryImages(product.image_url, templateImages.products, 8, product.images),
+    [product.image_url, product.images, templateImages],
   );
-
-  function addToCart(label = "Added to cart") {
-    const error = requireVariantSelection(product, selectedOptions);
-    if (error) {
-      toast.error(error);
-      return;
-    }
-    addItem(product, quantity, selectedOptions);
-    toast.success(label);
-  }
 
   return (
     <div style={{ backgroundColor: theme.palette.background, color: theme.palette.text }}>
       <section className="mx-auto grid max-w-7xl gap-10 px-4 py-10 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:py-16">
-        <div className="grid gap-4 sm:grid-cols-[96px_minmax(0,1fr)]">
-          <div className="order-2 grid grid-cols-4 gap-3 sm:order-1 sm:grid-cols-1">
-            {galleryImages.map((image, index) => (
-              <button
-                key={`${image}-${index}`}
-                type="button"
-                className="aspect-square overflow-hidden rounded-2xl border p-1"
-                style={{ borderColor: theme.palette.border, backgroundColor: theme.palette.surface }}
-              >
-                <img src={image} alt="" className="h-full w-full rounded-xl object-cover" />
-              </button>
-            ))}
-          </div>
-          <div className="order-1 overflow-hidden rounded-[2.5rem] border p-3 sm:order-2" style={{ borderColor: theme.palette.border, backgroundColor: theme.palette.surface }}>
-            <img src={galleryImages[0]} alt={product.name} className="aspect-[4/5] w-full rounded-[2rem] object-cover" />
-          </div>
-        </div>
+        <ProductGallery
+          productName={product.name}
+          images={galleryImages}
+          surfaceColor={theme.palette.surface}
+          className="sm:grid-cols-[96px_minmax(0,1fr)] gap-4"
+          thumbClassName="rounded-2xl border"
+          mainClassName="overflow-hidden rounded-[2.5rem] border"
+        />
 
         <section className="lg:py-8">
           <Link href="/products" className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: theme.palette.muted }}>
@@ -555,6 +585,12 @@ function BeautyProductDetail({ product }: { product: StoreProduct }) {
             ) : null}
           </div>
 
+          {outOfStock ? (
+            <p className="mt-4 text-sm font-semibold" style={{ color: theme.palette.accent }}>
+              Out of stock
+            </p>
+          ) : null}
+
           {product.variants?.length ? (
             <ProductVariantSelector
               className="mt-8"
@@ -567,23 +603,30 @@ function BeautyProductDetail({ product }: { product: StoreProduct }) {
 
           <div className="mt-8 flex flex-wrap items-center gap-3">
             <div className="flex items-center rounded-full border" style={{ borderColor: theme.palette.border }}>
-              <button type="button" className="grid h-11 w-11 place-items-center" onClick={() => setQuantity((current) => Math.max(1, current - 1))}>
+              <button type="button" className="grid h-11 w-11 place-items-center" onClick={() => setQuantity((current) => Math.max(1, current - 1))} disabled={outOfStock}>
                 <Minus className="h-4 w-4" />
               </button>
               <span className="grid h-11 w-9 place-items-center text-sm font-semibold">{quantity}</span>
-              <button type="button" className="grid h-11 w-11 place-items-center" onClick={() => setQuantity((current) => current + 1)}>
+              <button type="button" className="grid h-11 w-11 place-items-center" onClick={() => setQuantity((current) => current + 1)} disabled={outOfStock}>
                 <Plus className="h-4 w-4" />
               </button>
             </div>
             <button
               type="button"
               onClick={() => addToCart()}
-              className="rounded-full px-8 py-3 text-sm font-semibold"
+              disabled={outOfStock}
+              className="rounded-full px-8 py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
               style={{ backgroundColor: theme.palette.primary, color: theme.palette.background }}
             >
               Add to cart
             </button>
-            <button type="button" onClick={() => addToCart("Ready for checkout")} className="rounded-full border px-8 py-3 text-sm font-semibold" style={{ borderColor: theme.palette.primary, color: theme.palette.primary }}>
+            <button
+              type="button"
+              onClick={buyNow}
+              disabled={outOfStock}
+              className="rounded-full border px-8 py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+              style={{ borderColor: theme.palette.primary, color: theme.palette.primary }}
+            >
               Buy now
             </button>
           </div>
@@ -610,20 +653,145 @@ function BeautyProductDetail({ product }: { product: StoreProduct }) {
         appearance="soft"
       />
 
+      <RelatedProductsSection product={product} appearance="soft" />
+
       <StorefrontFaqSection faqPage={faqPage} />
     </div>
   );
 }
 
-export function ProductDetailPageView({ product }: { product: StoreProduct | null }) {
+function DefaultProductDetail({ product }: { product: StoreProduct }) {
   const { theme, mode } = useStorefrontTheme();
   const { store, discounts } = useStorefront();
-  const { addItem } = useCart();
-  const [selectedOptions, setSelectedOptions] = useState(() =>
-    defaultSelectedOptions(product?.variants),
+  const {
+    selectedOptions,
+    setSelectedOptions,
+    addToCart,
+    buyNow,
+    outOfStock,
+  } = useProductPurchase(product);
+  const perks = mergeProductPerks(product, store.store_perks);
+  const priced = productUnitPrice(product, discounts ?? []);
+  const galleryImages = useMemo(
+    () => resolveProductGalleryImages(product.image_url, [], 8, product.images),
+    [product.image_url, product.images],
   );
-  const perks = product ? mergeProductPerks(product, store.store_perks) : [];
-  const priced = product ? productUnitPrice(product, discounts ?? []) : null;
+
+  return (
+    <PageContainer>
+      <div className="grid gap-10 lg:grid-cols-2">
+        {galleryImages.length > 1 ? (
+          <ProductGallery
+            productName={product.name}
+            images={galleryImages}
+            surfaceColor={theme.palette.surface}
+            thumbClassName="rounded-2xl"
+            mainClassName="rounded-3xl"
+            imgClassName="rounded-3xl"
+          />
+        ) : (
+          <div
+            className="flex aspect-square items-center justify-center rounded-3xl text-6xl font-bold text-white"
+            style={{
+              background: `linear-gradient(135deg, ${theme.palette.primary}, ${theme.palette.primary}88)`,
+            }}
+          >
+            {galleryImages[0] ? (
+              <img
+                src={galleryImages[0]}
+                alt={product.name}
+                className="h-full w-full rounded-3xl object-contain object-center"
+              />
+            ) : (
+              product.name.slice(0, 1)
+            )}
+          </div>
+        )}
+        <div>
+          {mode !== "edit" ? (
+            <Link
+              href="/products"
+              className="text-sm hover:opacity-80"
+              style={{ color: theme.palette.muted }}
+            >
+              Back to products
+            </Link>
+          ) : null}
+          <h1
+            className="mt-4 text-4xl font-bold tracking-tight"
+            style={{ fontFamily: theme.displayFont }}
+          >
+            {product.name}
+          </h1>
+          <p className="mt-4 text-sm leading-7" style={{ color: theme.palette.muted }}>
+            {product.description}
+          </p>
+          <div className="mt-6 text-2xl font-semibold" style={{ color: theme.palette.primary }}>
+            {formatMoney(priced.unitPrice, product.currency)}
+            {priced.compareAtPrice != null ? (
+              <span className="ml-3 text-lg font-normal line-through" style={{ color: theme.palette.muted }}>
+                {formatMoney(priced.compareAtPrice, product.currency)}
+              </span>
+            ) : null}
+          </div>
+          {outOfStock ? (
+            <p className="mt-4 text-sm font-semibold" style={{ color: theme.palette.accent }}>
+              Out of stock
+            </p>
+          ) : null}
+          {product.variants?.length ? (
+            <ProductVariantSelector
+              className="mt-6"
+              variants={product.variants}
+              selectedOptions={selectedOptions}
+              onChange={setSelectedOptions}
+              appearance="soft"
+            />
+          ) : null}
+          {perks.length ? (
+            <div className={`mt-6 rounded-2xl border ${theme.borderColor} ${theme.cardBg} p-4`}>
+              <h2 className="text-sm font-semibold">Why customers like it</h2>
+              <ul
+                className="mt-3 list-disc space-y-2 pl-5 text-sm"
+                style={{ color: theme.palette.muted }}
+              >
+                {perks.map((perk) => (
+                  <li key={perk}>{perk}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          <div className="mt-8 flex flex-wrap gap-3">
+            <PrimaryButton disabled={outOfStock} onClick={() => addToCart()}>
+              Add to cart
+            </PrimaryButton>
+            <button
+              type="button"
+              disabled={outOfStock}
+              onClick={buyNow}
+              className="rounded-full border px-6 py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+              style={{ borderColor: theme.palette.primary, color: theme.palette.primary }}
+            >
+              Buy now
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <ProductReviewsModule
+        className="mt-14 !px-0"
+        productId={product.id}
+        productName={product.name}
+        appearance="soft"
+      />
+
+      <RelatedProductsSection product={product} appearance="soft" />
+    </PageContainer>
+  );
+}
+
+export function ProductDetailPageView({ product }: { product: StoreProduct | null }) {
+  const { theme, mode } = useStorefrontTheme();
 
   if (!product) {
     return (
@@ -652,11 +820,7 @@ export function ProductDetailPageView({ product }: { product: StoreProduct | nul
     return <MinimalisticProductDetail product={product} />;
   }
 
-  if (theme.id === "beauty") {
-    return <BeautyProductDetail product={product} />;
-  }
-
-  if (theme.id === "cosmetics") {
+  if (theme.id === "beauty" || theme.id === "cosmetics") {
     return <BeautyProductDetail product={product} />;
   }
 
@@ -664,99 +828,5 @@ export function ProductDetailPageView({ product }: { product: StoreProduct | nul
     return <FashionProductDetail product={product} />;
   }
 
-  const productImageUrl = product.image_url;
-
-  return (
-    <PageContainer>
-      <div className="grid gap-10 lg:grid-cols-2">
-        <div
-          className="flex aspect-square items-center justify-center rounded-3xl text-6xl font-bold text-white"
-          style={{
-            background: `linear-gradient(135deg, ${theme.palette.primary}, ${theme.palette.primary}88)`,
-          }}
-        >
-          {productImageUrl ? (
-            <img
-              src={productImageUrl}
-              alt={product.name}
-              className="h-full w-full rounded-3xl object-cover"
-            />
-          ) : (
-            product.name.slice(0, 1)
-          )}
-        </div>
-        <div>
-          {mode !== "edit" ? (
-            <Link
-              href="/products"
-              className="text-sm hover:opacity-80"
-              style={{ color: theme.palette.muted }}
-            >
-              Back to products
-            </Link>
-          ) : null}
-          <h1
-            className="mt-4 text-4xl font-bold tracking-tight"
-            style={{ fontFamily: theme.displayFont }}
-          >
-            {product.name}
-          </h1>
-          <p className="mt-4 text-sm leading-7" style={{ color: theme.palette.muted }}>
-            {product.description}
-          </p>
-          <div className="mt-6 text-2xl font-semibold" style={{ color: theme.palette.primary }}>
-            {formatMoney(priced?.unitPrice ?? product.price, product.currency)}
-            {priced?.compareAtPrice != null ? (
-              <span className="ml-3 text-lg font-normal line-through" style={{ color: theme.palette.muted }}>
-                {formatMoney(priced.compareAtPrice, product.currency)}
-              </span>
-            ) : null}
-          </div>
-          {product.variants?.length ? (
-            <ProductVariantSelector
-              className="mt-6"
-              variants={product.variants}
-              selectedOptions={selectedOptions}
-              onChange={setSelectedOptions}
-              appearance="soft"
-            />
-          ) : null}
-          {perks.length ? (
-            <div className={`mt-6 rounded-2xl border ${theme.borderColor} ${theme.cardBg} p-4`}>
-              <h2 className="text-sm font-semibold">Why customers like it</h2>
-              <ul
-                className="mt-3 list-disc space-y-2 pl-5 text-sm"
-                style={{ color: theme.palette.muted }}
-              >
-                {perks.map((perk) => (
-                  <li key={perk}>{perk}</li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-          <PrimaryButton
-            className="mt-8"
-            onClick={() => {
-              const error = requireVariantSelection(product, selectedOptions);
-              if (error) {
-                toast.error(error);
-                return;
-              }
-              addItem(product, 1, selectedOptions);
-              toast.success("Added to cart");
-            }}
-          >
-            Add to cart
-          </PrimaryButton>
-        </div>
-      </div>
-
-      <ProductReviewsModule
-        className="mt-14 !px-0"
-        productId={product.id}
-        productName={product.name}
-        appearance="soft"
-      />
-    </PageContainer>
-  );
+  return <DefaultProductDetail product={product} />;
 }

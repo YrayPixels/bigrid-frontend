@@ -335,7 +335,10 @@ export type StoreProduct = {
   discount_label?: string | null;
   currency: string;
   image_url: string | null;
+  /** Gallery URLs; first entry mirrors image_url (cover). */
+  images?: string[] | null;
   sku?: string;
+  brand?: string | null;
   category?: string;
   category_id?: string | null;
   stock_quantity?: number;

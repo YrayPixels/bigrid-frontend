@@ -753,7 +753,13 @@ export const mockApi = {
       id: body.id ?? uid(),
       slug: body.slug || slugify(body.name),
       currency: body.currency || "NGN",
-      image_url: body.image_url ?? null,
+      image_url: body.images?.[0] ?? body.image_url ?? null,
+      images: body.images?.length
+        ? body.images
+        : body.image_url
+          ? [body.image_url]
+          : null,
+      brand: body.brand ?? null,
       status: body.status ?? "active",
     };
     db.products[store.id] = [product, ...(db.products[store.id] ?? [])];
@@ -771,11 +777,22 @@ export const mockApi = {
     const products = db.products[store.id] ?? [];
     const index = products.findIndex((item) => item.id === productId);
     if (index === -1) throw { status: 404, message: "Product not found" };
-    const updated = {
+    const merged = {
       ...products[index],
       ...body,
       ...resolveMockProductCategory(db, store.id, body),
       id: productId,
+    };
+    const images =
+      merged.images?.length
+        ? merged.images
+        : merged.image_url
+          ? [merged.image_url]
+          : null;
+    const updated = {
+      ...merged,
+      images,
+      image_url: images?.[0] ?? merged.image_url ?? null,
     };
     products[index] = updated;
     db.products[store.id] = products;
