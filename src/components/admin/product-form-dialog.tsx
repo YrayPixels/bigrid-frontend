@@ -736,20 +736,20 @@ export function ProductFormDialog({
     <Dialog open={open} onOpenChange={handleDialogOpenChange}>
       <DialogContent
         showCloseButton={false}
-        className="fixed inset-0 left-0 top-0 z-50 flex h-[100dvh] w-screen max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-none border-0 bg-canvas p-0 shadow-none sm:rounded-none data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95"
+        className="flex max-h-[min(92dvh,900px)] w-[calc(100%-1.5rem)] max-w-5xl flex-col gap-0 overflow-hidden bg-canvas p-0 sm:rounded-2xl"
       >
         <form
           onSubmit={(event) => void handleSubmit(event)}
-          className="flex h-full min-h-0 flex-col"
+          className="flex min-h-0 flex-1 flex-col"
         >
-          <header className="shrink-0 border-b border-border bg-white px-4 py-4 sm:px-8">
-            <div className="mx-auto flex w-full max-w-6xl flex-wrap items-start justify-between gap-3">
+          <header className="shrink-0 border-b border-border bg-white px-4 py-4 sm:px-6">
+            <div className="flex w-full flex-wrap items-start justify-between gap-3">
               <div className="min-w-0 pr-4">
-                <DialogTitle className="font-display text-2xl font-bold tracking-tight">
+                <DialogTitle className="font-display text-xl font-bold tracking-tight sm:text-2xl">
                   {editingProduct ? "Edit product" : "Add product"}
                 </DialogTitle>
                 <DialogDescription className="mt-1 text-sm text-ink-soft">
-                  Full editor · save as draft anytime, or publish when ready.
+                  Save as draft anytime, or publish when ready.
                   {isDirty ? (
                     <span className="ml-2 text-amber-700">Unsaved changes</span>
                   ) : null}
@@ -767,10 +767,10 @@ export function ProductFormDialog({
             </div>
           </header>
 
-          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-8">
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6">
             <div
               key={`${editingProduct?.id ?? "new"}-${sessionKey}`}
-              className="mx-auto grid w-full max-w-6xl gap-6 lg:grid-cols-[minmax(0,1fr)_280px]"
+              className="grid w-full gap-6 lg:grid-cols-[minmax(0,1fr)_240px]"
             >
               <div className="space-y-4">
                 <FormSection title="Basics" description="Name, description, and catalog details.">
@@ -1472,8 +1472,8 @@ export function ProductFormDialog({
             </div>
           </div>
 
-          <footer className="shrink-0 border-t border-border bg-white px-4 py-4 sm:px-8">
-            <div className="mx-auto flex w-full max-w-6xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <footer className="shrink-0 border-t border-border bg-white px-4 py-4 sm:px-6">
+            <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <Button type="button" variant="outline" onClick={() => void requestClose()}>
                 Cancel
               </Button>
