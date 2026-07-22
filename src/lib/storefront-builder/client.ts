@@ -1,3 +1,12 @@
+/**
+ * Website builder client orchestration.
+ *
+ * Architecture (intentional):
+ * - Agents + tools live in Next.js (`StorefrontBuilderManager`, tool handlers).
+ * - LLM calls go through Next `/api/chat` (proxied to Laravel only for keys/provider).
+ * - Laravel storefront-builder endpoints persist sessions, drafts, products, publish.
+ * - Do not move tool orchestration into PHP agents for the merchant builder.
+ */
 import { api } from "@/lib/api/client";
 import type {
   BuilderMediaTarget,
@@ -13,6 +22,7 @@ import { createThinkingLogEntry } from "@/lib/storefront-builder/agents/thinking
 import { StorefrontBuilderManager } from "@/lib/storefront-builder/agents/StorefrontBuilderManager";
 import type { BuilderAiTurn } from "@/lib/storefront-builder/local-ai";
 import {
+  applyStorefrontEditAsync,
   fallbackBuilderTurn,
   hasMinimumBusinessProfile,
   mergeSessionProfile,
@@ -488,7 +498,17 @@ export async function applyBuilderChatEditForSession({
     throw new Error("Generate a draft before applying chat edits.");
   }
 
-  return api.applyBuilderChatEdit(session.id, instruction);
+  // Edit with Next.js tools/LLM, then persist the result through Laravel.
+  const edit = await applyStorefrontEditAsync(session.storefront_snapshot, instruction, {
+    store: session.store,
+    message: instruction,
+  });
+
+  return api.applyBuilderChatEdit(session.id, instruction, {
+    storefront: edit.storefront,
+    changed_paths: edit.changed_paths,
+    assistant_message: edit.assistant_message,
+  });
 }
 
 export async function applyBuilderBrandColor({

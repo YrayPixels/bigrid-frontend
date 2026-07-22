@@ -25,7 +25,7 @@ import {
 } from "@/lib/storefront/blocks/block-draft";
 import type { StorefrontContentPageSlug } from "@/lib/storefront/blocks/types";
 import { ensureHomeBlocksOnStorefront } from "@/lib/storefront/blocks/sync-legacy";
-import { applyTemplateToDraft, cloneStorefrontContent, normalizeStorefrontContent } from "@/lib/storefront/draft";
+import { applyTemplateToDraft, cloneStorefrontContent, normalizeStorefrontContent, setDraftField } from "@/lib/storefront/draft";
 import { setEditableStorefrontPath } from "@/lib/storefront-builder/editable-paths";
 import { getStorefrontTheme } from "@/lib/storefront/template";
 import { getStorefrontUrl } from "@/lib/store-host";
@@ -107,6 +107,11 @@ export function StorefrontEditorCanvas({
     if (path === "media.hero_video_url") {
       next.media = { ...next.media, hero_video_url: url };
       onDraftChange(next);
+      return;
+    }
+
+    if (/^products\.\d+\.image_url$/.test(path)) {
+      onDraftChange(setDraftField(next, path, url));
       return;
     }
 

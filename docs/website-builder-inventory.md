@@ -12,29 +12,28 @@
 
 ```text
 Merchant UI (storehause)
-  /admin/builder              → Chat + JSON template preview (classic builder)
-  /admin/builder/workbench    → WebContainer + CodeMirror + live preview (Bolt workbench)
+  /admin/website              → Unified create (chat) + refine (visual editor)
+  /admin/builder/workbench    → WebContainer + CodeMirror (flagged)
   /admin/builder/thinking     → Agent thinking log viewer
         │
-        ├── Next.js API routes  /api/storefront-builder/ai/*
-        ├── Next.js API routes  /api/chat, /api/chat/stream
-        └── Laravel API         /api/storefront-builder/*
-                                    │
-                                    ├── StorefrontBuilderService
-                                    ├── StorefrontAiAgentService
-                                    └── PHP Agents (orchestrator, writer, design, color, code…)
+        ├── Next.js agents + tools  (StorefrontBuilderManager, tools/*)
+        ├── Next.js LLM proxy       /api/chat → Laravel /ai/chat (keys only)
+        └── Laravel API             /api/storefront-builder/*  (persist session/draft/publish)
+                                    └── products, categories, orders, store settings
         │
         ▼
-Storefront runtime (JSON templates + Bolt code templates)
-  → Preview in builder panel → Publish → Public storefront
+Storefront runtime (JSON templates + optional Bolt code templates)
+  → Preview → Publish → Public storefront
 ```
+
+**Architecture rule:** Builder **agents and tools run in Next.js**. Laravel is the data/API layer (sessions, drafts, catalog, publish). Do not reintroduce PHP tool orchestration for the merchant website builder.
 
 **Two builder modes:**
 
 | Mode | Entry page | Output | Key libs |
 |------|------------|--------|----------|
-| Classic AI builder | `/admin/builder` | Store JSON snapshot (headline, about, products, colors…) | `storefront-builder/`, backend agents |
-| Workbench (Bolt) | `/admin/builder/workbench` | Live React/Vite project in WebContainer | `bolt/`, `StorefrontCodeAgent`, code templates |
+| Classic AI builder | `/admin/website` (create) | Store JSON snapshot (headline, about, products, colors…) | `storefront-builder/` Next agents + Laravel persist |
+| Workbench (Bolt) | `/admin/builder/workbench` | Live React/Vite project in WebContainer | `bolt/`, code templates |
 
 ---
 

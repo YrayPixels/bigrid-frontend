@@ -38,6 +38,7 @@ export function syncLegacyFieldsFromHomeBlocks(
       headline: props.headline,
       subheadline: props.subheadline,
       cta_label: props.cta_label,
+      eyebrow: props.eyebrow ?? storefront.hero?.eyebrow ?? null,
     };
     if (props.image_url) {
       storefront.media = { ...storefront.media, hero_image_url: props.image_url };
@@ -118,6 +119,7 @@ export function syncHomeBlocksFromLegacyFields(storefront: StorefrontContent): v
     if (block.type === "hero") {
       block.props = {
         ...block.props,
+        eyebrow: storefront.hero.eyebrow ?? block.props.eyebrow ?? null,
         headline: storefront.hero.headline,
         subheadline: storefront.hero.subheadline,
         cta_label: storefront.hero.cta_label,
