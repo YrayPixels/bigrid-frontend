@@ -89,7 +89,7 @@ const blankForm: ProductForm = {
   brand: "",
   category_id: "",
   stock_quantity: "",
-  status: "draft",
+  status: "active",
   variants: [],
   perks: [],
 };
@@ -726,7 +726,8 @@ export function ProductFormDialog({
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    await submit();
+    // New products go live as active unless the merchant chose "Save as draft".
+    await submit(editingProduct ? undefined : { statusOverride: "active" });
   }
 
   const selectClassName =
@@ -1494,7 +1495,7 @@ export function ProductFormDialog({
                     type="button"
                     variant="outline"
                     disabled={isSaving || uploadingImage}
-                    onClick={() => void submit({ addAnother: true })}
+                    onClick={() => void submit({ addAnother: true, statusOverride: "active" })}
                   >
                     {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                     Save & add another

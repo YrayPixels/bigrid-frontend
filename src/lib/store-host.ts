@@ -125,7 +125,7 @@ export async function resolveCustomDomainSlug(host: string | undefined | null): 
       `${apiBase}/storehause/public/storefronts/resolve-host?host=${encodeURIComponent(hostname)}`,
       {
         headers: { Accept: "application/json" },
-        next: { revalidate: 300 },
+        cache: "no-store",
       },
     );
 
@@ -133,9 +133,10 @@ export async function resolveCustomDomainSlug(host: string | undefined | null): 
       ? ((await res.json().catch(() => null)) as { slug?: string } | null)?.slug ?? null
       : null;
 
+    // Keep a short in-memory hit cache, but allow faster recovery after domain changes.
     customDomainSlugCache.set(hostname, {
       slug: typeof slug === "string" ? slug : null,
-      expiresAt: Date.now() + 5 * 60 * 1000,
+      expiresAt: Date.now() + 30 * 1000,
     });
 
     return typeof slug === "string" ? slug : null;
