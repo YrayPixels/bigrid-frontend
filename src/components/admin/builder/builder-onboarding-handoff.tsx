@@ -47,7 +47,7 @@ export function BuilderOnboardingHandoff({
     }
     setVisible(false);
     if (fromOnboarding) {
-      router.replace("/admin/builder");
+      router.replace("/admin/website?mode=create");
     }
   }
 

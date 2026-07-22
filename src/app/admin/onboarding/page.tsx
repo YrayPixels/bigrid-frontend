@@ -88,7 +88,7 @@ export default function AdminOnboardingPage() {
       });
       await refresh();
       toast.success("Store created. Let's build your website.");
-      router.replace("/admin/builder?from=onboarding");
+      router.replace("/admin/website?from=onboarding&mode=create");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not create store");
     } finally {

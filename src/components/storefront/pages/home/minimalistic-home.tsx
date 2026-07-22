@@ -54,24 +54,24 @@ function MinimalProductCard({
   }
 
   return (
-    <article className="group text-left">
+    <article className="group flex h-full flex-col text-left">
       <Link
         href={editable ? "#" : `/products/${product.slug}`}
         className={editable ? "pointer-events-none block" : "block"}
         aria-disabled={editable}
       >
-        <div className="flex aspect-square items-center justify-center overflow-hidden rounded-xl bg-[#f0f0f0] p-7">
+        <div className="aspect-square overflow-hidden rounded-xl bg-[#f0f0f0]">
           <EditableImage
             path={imagePath}
             src={imageUrl}
             alt={product.name}
             className="h-full w-full"
-            imgClassName="object-contain transition duration-500 group-hover:scale-105"
+            imgClassName="object-cover object-center transition duration-500 group-hover:scale-105"
           />
         </div>
       </Link>
-      <div className="mt-3 flex items-start justify-between gap-3">
-        <div>
+      <div className="mt-3 flex min-h-[2.75rem] items-start justify-between gap-3">
+        <div className="min-w-0">
           <h3 className="line-clamp-1 text-sm font-bold" style={{ color: theme.palette.text }}>
             {product.name}
           </h3>
@@ -80,14 +80,14 @@ function MinimalProductCard({
           </p>
         </div>
         <span
-          className="inline-flex items-center gap-1 text-[11px] font-semibold"
+          className="inline-flex shrink-0 items-center gap-1 text-[11px] font-semibold"
           style={{ color: theme.palette.text }}
         >
           <Star className="h-3 w-3 fill-[#efc64b] text-[#efc64b]" />
           {index % 3 === 0 ? "4.9" : "4.8"}
         </span>
       </div>
-      <div className="mt-3 flex items-center justify-between gap-3">
+      <div className="mt-auto flex items-center justify-between gap-3 pt-3">
         <span className="text-sm font-bold" style={{ color: theme.palette.text }}>
           {formatMoney(product.price, product.currency)}
         </span>
@@ -95,7 +95,7 @@ function MinimalProductCard({
           type="button"
           onClick={addToCart}
           disabled={editable}
-          className="rounded-full px-3 py-1.5 text-[10px] font-semibold transition disabled:cursor-default disabled:opacity-70"
+          className="shrink-0 rounded-full px-3 py-1.5 text-[10px] font-semibold transition disabled:cursor-default disabled:opacity-70"
           style={{ backgroundColor: theme.palette.primary, color: theme.palette.background }}
         >
           Add to Cart
@@ -192,7 +192,7 @@ export function MinimalisticHome({
             ))}
           </div>
 
-          <div className="grid gap-x-5 gap-y-9 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-x-5 gap-y-8 sm:grid-cols-2 lg:grid-cols-3">
             {featuredProducts.map((product, index) => (
               <MinimalProductCard
                 key={product.id}
@@ -206,60 +206,6 @@ export function MinimalisticHome({
                 editable={mode === "edit"}
               />
             ))}
-          </div>
-        </div>
-      </section>
-
-      <section
-        className="px-4 py-12 text-center sm:px-6 lg:py-16"
-        style={{ backgroundColor: theme.palette.surface }}
-      >
-        <div className="mx-auto max-w-5xl">
-          <h2 className="text-2xl font-semibold leading-tight tracking-[-0.035em] sm:text-3xl">
-            A Smarter Approach to Daily
-            <br className="hidden sm:block" /> Wellness
-          </h2>
-          <div className="relative mx-auto mt-10 grid min-h-[360px] max-w-xl place-items-center">
-            <div
-              className="absolute h-72 w-72 rounded-full border"
-              style={{ borderColor: theme.palette.border }}
-            />
-            <div
-              className="absolute h-48 w-48 rounded-full border"
-              style={{ borderColor: theme.palette.border }}
-            />
-            {[
-              "Science backed",
-              "Clean ingredients",
-              "Trusted quality",
-              "Pure formulation",
-              "Targeted wellness",
-            ].map((label, index) => {
-              const angle = index * 72 - 90;
-              return (
-                <span
-                  key={label}
-                  className="absolute grid h-20 w-20 place-items-center rounded-full bg-white text-[10px] font-semibold leading-tight shadow-[0_10px_30px_rgba(7,62,63,0.08)]"
-                  style={{
-                    transform: `rotate(${angle}deg) translate(148px) rotate(${-angle}deg)`,
-                  }}
-                >
-                  {label}
-                </span>
-              );
-            })}
-            <div
-              className="z-10 flex h-56 w-36 items-center justify-center rounded-[2rem] p-4 shadow-[0_24px_70px_rgba(7,62,63,0.18)]"
-              style={{ backgroundColor: theme.palette.primary }}
-            >
-              <EditableImage
-                path="media.about_image_url"
-                src={aboutImageUrl}
-                alt={`${store.business_name} supplement bottle`}
-                className="h-full w-full"
-                imgClassName="object-contain"
-              />
-            </div>
           </div>
         </div>
       </section>
@@ -301,21 +247,6 @@ export function MinimalisticHome({
               <ArrowUpRight className="h-4 w-4" />
             </StorefrontLink>
           </div>
-        </div>
-      </section>
-
-      <section className="px-4 py-8 sm:px-6" style={{ backgroundColor: theme.palette.background }}>
-        <div
-          className="mx-auto flex max-w-7xl items-center justify-between gap-6 border-y py-6"
-          style={{ borderColor: theme.palette.border }}
-        >
-          <h2 className="text-4xl font-light tracking-[-0.06em] sm:text-5xl">Subscribe Now</h2>
-          <span
-            className="grid h-12 w-12 place-items-center rounded-full shadow-sm"
-            style={{ backgroundColor: theme.palette.surface, color: theme.palette.text }}
-          >
-            <ArrowUpRight className="h-5 w-5" />
-          </span>
         </div>
       </section>
 

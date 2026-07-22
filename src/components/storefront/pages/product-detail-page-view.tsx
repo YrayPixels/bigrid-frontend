@@ -30,6 +30,7 @@ function ProductGallery({
   mainClassName,
   imgClassName,
   surfaceColor,
+  mainFit = "contain",
 }: {
   productName: string;
   images: string[];
@@ -38,15 +39,21 @@ function ProductGallery({
   mainClassName?: string;
   imgClassName?: string;
   surfaceColor: string;
+  /** Use cover + fixed frame for templates where mixed aspect ratios look shaky. */
+  mainFit?: "contain" | "cover";
 }) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const safeIndex = images.length ? Math.min(selectedIndex, images.length - 1) : 0;
   const mainSrc = images[safeIndex];
+  const fitClass = mainFit === "cover" ? "object-cover" : "object-contain";
 
   if (!images.length) {
     return (
       <div
-        className={cn("flex min-h-[430px] items-center justify-center text-5xl font-bold text-white", mainClassName)}
+        className={cn(
+          "flex h-[min(70vw,380px)] items-center justify-center text-5xl font-bold text-white sm:h-[430px] lg:h-[520px]",
+          mainClassName,
+        )}
         style={{
           background: `linear-gradient(135deg, ${surfaceColor}, ${surfaceColor}88)`,
         }}
@@ -57,9 +64,9 @@ function ProductGallery({
   }
 
   return (
-    <div className={cn("grid gap-2 sm:grid-cols-[112px_minmax(0,1fr)]", className)}>
+    <div className={cn("grid gap-2 sm:grid-cols-[88px_minmax(0,1fr)] sm:gap-3", className)}>
       {images.length > 1 ? (
-        <div className="order-2 grid grid-cols-4 gap-2 sm:order-1 sm:grid-cols-1">
+        <div className="order-2 grid grid-cols-4 gap-2 sm:order-1 sm:grid-cols-1 sm:self-start">
           {images.map((image, index) => (
             <button
               key={`${image}-${index}`}
@@ -82,7 +89,7 @@ function ProductGallery({
               <img
                 src={image}
                 alt=""
-                className="h-full w-full object-contain object-center"
+                className={cn("h-full w-full object-center", fitClass)}
               />
             </button>
           ))}
@@ -90,7 +97,7 @@ function ProductGallery({
       ) : null}
       <div
         className={cn(
-          "order-1 flex min-h-[430px] items-center justify-center overflow-hidden sm:order-2 lg:min-h-[610px]",
+          "order-1 h-[min(70vw,380px)] overflow-hidden sm:order-2 sm:h-[430px] lg:h-[520px]",
           images.length === 1 && "sm:col-span-2",
           mainClassName,
         )}
@@ -99,7 +106,7 @@ function ProductGallery({
         <img
           src={mainSrc}
           alt={productName}
-          className={cn("h-full w-full object-contain object-center", imgClassName)}
+          className={cn("h-full w-full object-center", fitClass, imgClassName)}
         />
       </div>
     </div>
@@ -332,18 +339,19 @@ function MinimalisticProductDetail({ product }: { product: StoreProduct }) {
 
   return (
     <div style={{ backgroundColor: theme.palette.background, color: theme.palette.text }}>
-      <div className="mx-auto grid max-w-7xl gap-8 px-4 py-10 sm:px-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(360px,0.95fr)] lg:py-14">
+      <div className="mx-auto grid max-w-7xl gap-6 px-4 py-8 sm:gap-8 sm:px-6 sm:py-10 lg:grid-cols-[minmax(0,1.05fr)_minmax(280px,0.95fr)] lg:py-14">
         <ProductGallery
           productName={product.name}
           images={galleryImages}
           surfaceColor={`${theme.palette.surface}cc`}
           thumbClassName="rounded-2xl shadow-sm"
-          mainClassName="overflow-hidden rounded-[2rem] shadow-[0_24px_80px_rgba(7,62,63,0.08)]"
-          className="sm:grid-cols-[96px_minmax(0,1fr)]"
+          mainClassName="overflow-hidden rounded-[1.5rem] shadow-[0_24px_80px_rgba(7,62,63,0.08)] sm:rounded-[2rem]"
+          className="sm:grid-cols-[72px_minmax(0,1fr)] lg:grid-cols-[88px_minmax(0,1fr)]"
+          mainFit="cover"
         />
 
         <section
-          className="rounded-[2rem] p-6 shadow-[0_24px_80px_rgba(7,62,63,0.08)] ring-1 sm:p-8"
+          className="rounded-[1.5rem] p-5 shadow-[0_24px_80px_rgba(7,62,63,0.08)] ring-1 sm:rounded-[2rem] sm:p-8"
           style={
             {
               backgroundColor: `${theme.palette.surface}cc`,
@@ -365,7 +373,7 @@ function MinimalisticProductDetail({ product }: { product: StoreProduct }) {
               style={{ backgroundColor: theme.palette.primary }}
             />
           </div>
-          <h1 className="mt-5 max-w-xl text-4xl font-semibold leading-tight tracking-[-0.045em]">
+          <h1 className="mt-4 max-w-xl text-3xl font-semibold leading-tight tracking-[-0.045em] sm:mt-5 sm:text-4xl">
             {product.name}
           </h1>
           {product.category ? (

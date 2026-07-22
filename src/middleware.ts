@@ -37,7 +37,8 @@ export async function middleware(request: NextRequest) {
 
   if (!isCodeWorkbenchEnabled() && isWorkbenchPath(pathname)) {
     const url = request.nextUrl.clone();
-    url.pathname = "/admin/builder";
+    url.pathname = "/admin/website";
+    url.searchParams.set("mode", "create");
     return NextResponse.redirect(url);
   }
 
