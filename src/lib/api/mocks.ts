@@ -1689,7 +1689,7 @@ export const mockApi = {
   async generateBuilderDraft(
     token: string,
     sessionId: string,
-    draft?: { storefront?: StorefrontContent; selected_template_id?: StorefrontTemplateId | null },
+    draft?: { storefront?: StorefrontContent; selected_template_id?: StorefrontTemplateId | null; skip_assistant_message?: boolean },
   ): Promise<BuilderSessionResponse> {
     await delay(1800);
     const db = load();

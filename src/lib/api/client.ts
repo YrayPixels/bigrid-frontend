@@ -74,8 +74,10 @@ export type PersistBuilderMessageInput = {
 };
 
 export type PersistBuilderDraftInput = {
-  storefront: StorefrontContent;
+  storefront?: StorefrontContent;
   selected_template_id?: StorefrontTemplateId | null;
+  skip_assistant_message?: boolean;
+  business_profile?: BuilderBusinessProfile;
 };
 
 export type PersistBuilderEditInput = {
