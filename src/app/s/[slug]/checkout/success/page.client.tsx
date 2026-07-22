@@ -14,14 +14,15 @@ function CheckoutSuccessContent() {
   const { theme } = useStorefrontTheme();
   const searchParams = useSearchParams();
   const orderNumber = searchParams.get("order") ?? "your order";
+  const email = searchParams.get("email") ?? "";
   const paid = searchParams.get("paid") === "1";
   const [order, setOrder] = useState<StoreOrder | null>(null);
 
   useEffect(() => {
-    if (!orderNumber || orderNumber === "your order") return;
+    if (!orderNumber || orderNumber === "your order" || !email) return;
     let cancelled = false;
     void storefrontApi
-      .lookupOrder(store.slug, { order: orderNumber })
+      .lookupOrder(store.slug, { order: orderNumber, email })
       .then((result) => {
         if (!cancelled) setOrder(result);
       })
@@ -31,7 +32,7 @@ function CheckoutSuccessContent() {
     return () => {
       cancelled = true;
     };
-  }, [orderNumber, store.slug]);
+  }, [orderNumber, email, store.slug]);
 
   const paymentLabel = order?.payment_status
     ? order.payment_status.replaceAll("_", " ")
@@ -39,6 +40,42 @@ function CheckoutSuccessContent() {
       ? "paid"
       : "pending";
   const statusLabel = order?.status ?? (paid ? "processing" : "pending");
+  const invoiceHref =
+    order && email
+      ? `${(process.env.NEXT_PUBLIC_API_BASE_URL ?? "").replace(/\/$/, "")}/storehause/public/storefronts/${store.slug}/orders/invoice?order=${encodeURIComponent(order.order_number)}&email=${encodeURIComponent(email)}`
+      : null;
+  const trackHref = `/orders/track?order=${encodeURIComponent(orderNumber)}${email ? `&email=${encodeURIComponent(email)}` : ""}`;
+
+  const body = (
+    <>
+      <p className="mx-auto mt-3 max-w-md text-sm leading-6" style={{ color: theme.palette.muted }}>
+        Thank you for shopping with {store.business_name}. Your order reference is{" "}
+        <span className="font-bold" style={{ color: theme.palette.text }}>
+          {orderNumber}
+        </span>
+        . Status: <span className="capitalize">{statusLabel}</span>
+        {" · "}Payment: <span className="capitalize">{paymentLabel}</span>
+        {order ? ` · ${formatMoney(order.total_amount, order.currency)}` : ""}.
+      </p>
+      <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+        <Link
+          href="/products"
+          className="inline-flex rounded-full px-8 py-3 text-sm font-semibold transition"
+          style={{ backgroundColor: theme.palette.primary, color: theme.palette.background }}
+        >
+          Continue shopping
+        </Link>
+        <Link href={trackHref} className="text-sm font-semibold underline">
+          Track order
+        </Link>
+        {invoiceHref ? (
+          <a href={invoiceHref} target="_blank" rel="noreferrer" className="text-sm font-semibold underline">
+            View invoice
+          </a>
+        ) : null}
+      </div>
+    </>
+  );
 
   if (theme.id === "minimalistic" || theme.id === "beauty" || theme.id === "cosmetics") {
     const isBeauty = theme.id === "beauty";
@@ -69,20 +106,7 @@ function CheckoutSuccessContent() {
           <h1 className="mt-5 text-4xl font-semibold tracking-[-0.04em]">
             {paid || order?.payment_status === "paid" ? "Payment confirmed" : "Your order is confirmed"}
           </h1>
-          <p className="mx-auto mt-3 max-w-md text-sm leading-6" style={{ color: theme.palette.muted }}>
-            Thank you for shopping with {store.business_name}. Your order reference is{" "}
-            <span className="font-bold" style={{ color: theme.palette.text }}>{orderNumber}</span>.
-            {" "}Status: <span className="capitalize">{statusLabel}</span>
-            {" · "}Payment: <span className="capitalize">{paymentLabel}</span>
-            {order ? ` · ${formatMoney(order.total_amount, order.currency)}` : ""}.
-          </p>
-          <Link
-            href="/products"
-            className="mt-8 inline-flex rounded-full px-8 py-3 text-sm font-semibold transition"
-            style={{ backgroundColor: theme.palette.primary, color: theme.palette.background }}
-          >
-            Continue shopping
-          </Link>
+          {body}
         </div>
       </div>
     );
@@ -99,20 +123,7 @@ function CheckoutSuccessContent() {
       <h1 className="mt-6 font-display text-4xl font-bold tracking-tight">
         {paid || order?.payment_status === "paid" ? "Payment confirmed" : "Order placed"}
       </h1>
-      <p className="mt-3 text-sm text-muted-foreground">
-        Thank you for shopping with {store.business_name}. Your order reference is{" "}
-        <span className="font-semibold text-foreground">{orderNumber}</span>.
-        {" "}Status: <span className="capitalize">{statusLabel}</span>
-        {" · "}Payment: <span className="capitalize">{paymentLabel}</span>
-        {order ? ` · ${formatMoney(order.total_amount, order.currency)}` : ""}.
-      </p>
-      <Link
-        href="/products"
-        className="mt-8 inline-flex rounded-md px-6 py-3 text-sm font-semibold text-white"
-        style={{ backgroundColor: store.brand_color }}
-      >
-        Continue shopping
-      </Link>
+      {body}
     </div>
   );
 }

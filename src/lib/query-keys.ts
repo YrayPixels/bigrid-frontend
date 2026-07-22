@@ -14,6 +14,12 @@ export const merchantKeys = {
       [...merchantKeys.orders.all, "product-stats", storeId] as const,
   },
   order: (orderId: string) => ["merchant-order", orderId] as const,
+  customers: {
+    all: ["merchant-customers"] as const,
+    list: (search: string, page: number) =>
+      [...merchantKeys.customers.all, search, page] as const,
+  },
+  customer: (customerId: string) => ["merchant-customer", customerId] as const,
   storefront: (storeId?: string) => ["storefront", storeId] as const,
   storefrontTemplates: () => ["storefront-templates"] as const,
   builderSession: () => ["builder-session"] as const,

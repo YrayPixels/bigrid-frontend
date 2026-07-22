@@ -120,14 +120,14 @@ export const storefrontApi = {
 
   async lookupOrder(
     slug: string,
-    params: { order: string; email?: string },
+    params: { order: string; email: string },
   ): Promise<StoreOrder> {
     if (USE_MOCKS) {
       return {
         id: "1",
         order_number: params.order,
         customer_name: "Customer",
-        customer_email: params.email ?? "",
+        customer_email: params.email,
         customer_phone: "",
         delivery_address: "",
         status: "processing",
@@ -142,8 +142,10 @@ export const storefrontApi = {
         updated_at: new Date().toISOString(),
       };
     }
-    const query = new URLSearchParams({ order: params.order });
-    if (params.email) query.set("email", params.email);
+    const query = new URLSearchParams({
+      order: params.order,
+      email: params.email,
+    });
     const res = await publicHttpFresh<{ order: StoreOrder }>(
       `${STOREHAUSE_API_PREFIX}/public/storefronts/${slug}/orders/lookup?${query.toString()}`,
     );
