@@ -9,7 +9,6 @@ import {
   LayoutDashboard,
   LogOut,
   Megaphone,
-  MessageSquare,
   Package,
   Percent,
   ShoppingBag,
@@ -60,10 +59,7 @@ const navGroups: NavGroup[] = [
   },
   {
     label: "Website",
-    items: [
-      { href: "/admin/builder", label: "Website Builder", icon: MessageSquare },
-      { href: "/admin/website", label: "Website", icon: Sparkles },
-    ],
+    items: [{ href: "/admin/website", label: "Website", icon: Sparkles }],
   },
   {
     label: "Catalog",

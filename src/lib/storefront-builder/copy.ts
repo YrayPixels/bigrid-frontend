@@ -4,7 +4,7 @@ export const BUILDER_WELCOME_MESSAGE =
   "Hi! Tell me about your business — what you sell, who it's for, and the vibe you want. I'll design and build your website.";
 
 export const BUILDER_PAGE = {
-  eyebrow: "AI Website Builder",
+  eyebrow: "Website",
   title: "Build your website by chat",
   subtitle:
     "Describe your business in plain language. Preview your site on the right, then ask for changes — no design skills needed.",

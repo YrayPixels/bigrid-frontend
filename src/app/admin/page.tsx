@@ -66,7 +66,7 @@ export default function AdminDashboardPage() {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
     if (params.get("setup") === "content") {
-      router.replace("/admin/builder");
+      router.replace("/admin/website?mode=create");
     }
   }, [router]);
 

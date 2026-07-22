@@ -1,14 +1,26 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ExternalLink, Eye, Loader2, Pencil, RefreshCcw, Sparkles, X } from "lucide-react";
+import {
+  ExternalLink,
+  Eye,
+  Loader2,
+  MessageSquare,
+  Pencil,
+  RefreshCcw,
+  Sparkles,
+  X,
+} from "lucide-react";
+import Link from "next/link";
 import { getStorefrontUrl } from "@/lib/store-host";
 import { toast } from "sonner";
 import { GeneratingSkeleton } from "@/components/storefront/generating-skeleton";
 import { StorefrontPreview } from "@/components/storefront/storefront-preview";
 import { VisualStorefrontEditor } from "@/components/storefront/editor/visual-storefront-editor";
+import { WebsiteAskAiSheet } from "@/components/admin/website-ask-ai-sheet";
+import { WebsiteCreateView } from "@/components/admin/website-create-view";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api/client";
 import {
@@ -18,7 +30,7 @@ import {
   useStorefrontTemplates,
   useStoreMe,
 } from "@/hooks/use-merchant-queries";
-import { getDefaultStorefrontPalette } from "@/lib/storefront/template";
+import { DEFAULT_STOREFRONT_TEMPLATE_ID, getDefaultStorefrontPalette } from "@/lib/storefront/template";
 import {
   PublishStorefrontButton,
   PublishStatusBadge,
@@ -229,7 +241,7 @@ function TemplateGrid({
 function getConcreteTemplateId(store: Store): StorefrontTemplateId {
   return store.storefront_template_id && store.storefront_template_id !== "ai_pick"
     ? store.storefront_template_id
-    : "classic";
+    : DEFAULT_STOREFRONT_TEMPLATE_ID;
 }
 
 function createStarterStorefront(
@@ -319,6 +331,7 @@ function StorefrontCreationChoice({
   saving,
   onGenerate,
   onStartEditing,
+  onChatCreate,
   templateOptions,
 }: {
   store: Store;
@@ -326,6 +339,7 @@ function StorefrontCreationChoice({
   saving: boolean;
   onGenerate: (templateId: StorefrontTemplateId) => void;
   onStartEditing: (templateId: StorefrontTemplateId) => void;
+  onChatCreate: () => void;
   templateOptions: ConcreteTemplateOption[];
 }) {
   const [selectedTemplateId, setSelectedTemplateId] = useState<StorefrontTemplateId>(
@@ -345,8 +359,8 @@ function StorefrontCreationChoice({
           Start from {selectedTemplate?.label}
         </h2>
         <p className="mt-2 text-sm text-ink-soft">
-          You have selected the template. Now choose whether AI should fill the page content, or
-          start with an editable draft and write it yourself.
+          Chat with AI to build a first draft, generate content for a template, or start editing
+          manually.
         </p>
       </div>
 
@@ -359,21 +373,36 @@ function StorefrontCreationChoice({
         />
       </div>
 
-      <div className="mt-6 grid gap-4 md:grid-cols-2">
+      <div className="mt-6 grid gap-4 md:grid-cols-3">
         <button
           type="button"
-          onClick={() => onGenerate(selectedTemplateId)}
+          onClick={onChatCreate}
           disabled={generating || saving}
           className="rounded-xl border border-primary/30 bg-primary/5 p-5 text-left shadow-soft transition hover:border-primary disabled:opacity-60"
         >
           <div className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+            <MessageSquare className="h-4 w-4" />
+          </div>
+          <h3 className="mt-4 font-display text-lg font-semibold">Build with chat</h3>
+          <p className="mt-2 text-sm text-ink-soft">
+            Describe your business in plain language and watch a live preview appear.
+          </p>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onGenerate(selectedTemplateId)}
+          disabled={generating || saving}
+          className="rounded-xl border border-border bg-background p-5 text-left shadow-soft transition hover:border-ink/30 disabled:opacity-60"
+        >
+          <div className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-secondary text-ink">
             {generating ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               <Sparkles className="h-4 w-4" />
             )}
           </div>
-          <h3 className="mt-4 font-display text-lg font-semibold">Ask AI to generate content</h3>
+          <h3 className="mt-4 font-display text-lg font-semibold">Generate for this look</h3>
           <p className="mt-2 text-sm text-ink-soft">
             AI writes the hero, about section, value props, pages, and SEO for this template.
           </p>
@@ -398,32 +427,24 @@ function StorefrontCreationChoice({
   );
 }
 
-export default function WebsiteEditorPage() {
+function WebsiteRefineView({ store }: { store: Store }) {
   const router = useRouter();
-  const { user } = useAuth();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [askAiOpen, setAskAiOpen] = useState(false);
   const { data: activeTemplateOptions = STOREFRONT_TEMPLATE_OPTIONS } = useStorefrontTemplates();
   const concreteTemplateOptions = getConcreteTemplateOptions(activeTemplateOptions);
 
-  const storeQuery = useStoreMe({ enabled: !!user });
-  const store = storeQuery.data;
-
-  useEffect(() => {
-    if (storeQuery.isFetched && !storeQuery.data && user) {
-      router.replace("/admin/onboarding");
-    }
-  }, [storeQuery.isFetched, storeQuery.data, user, router]);
-
-  const storefrontQuery = useStorefront(store?.id, { enabled: !!store });
+  const storefrontQuery = useStorefront(store.id);
+  const storefront = storefrontQuery.data?.storefront ?? null;
 
   const generate = useMutation({
     mutationFn: ({ storeId, templateId }: { storeId: string; templateId?: StorefrontTemplateId }) =>
       api.generateStorefront(storeId, templateId),
     onSuccess: (data) => {
-      if (store) {
-        merchantCache.setStorefront(queryClient, store.id, data);
-      }
+      merchantCache.setStorefront(queryClient, store.id, data);
+      merchantInvalidators.builderSession(queryClient);
       toast.success("Draft generated — publish when you're ready to go live.");
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : "Generation failed"),
@@ -432,7 +453,7 @@ export default function WebsiteEditorPage() {
   const saveStorefront = useMutation({
     mutationFn: ({
       storeId,
-      storefront,
+      storefront: next,
       templateId,
     }: {
       storeId: string;
@@ -440,11 +461,11 @@ export default function WebsiteEditorPage() {
       templateId: StorefrontTemplateId;
     }) =>
       api.updateStorefront(storeId, {
-        storefront,
+        storefront: next,
         storefront_template_id: templateId,
       }),
     onSuccess: (data) => {
-      if (store) merchantCache.setStorefront(queryClient, store.id, data);
+      merchantCache.setStorefront(queryClient, store.id, data);
       merchantInvalidators.builderSession(queryClient);
       merchantInvalidators.store(queryClient);
       toast.success("Draft saved.");
@@ -457,47 +478,38 @@ export default function WebsiteEditorPage() {
       if (!isEmailVerified(user)) {
         throw new Error("Verify your email before publishing your storefront.");
       }
-      return api.publishStorefront(store!.id);
+      return api.publishStorefront(store.id);
     },
     onSuccess: (data) => {
       merchantCache.setStoreMe(queryClient, data.store);
-      if (store) {
-        merchantCache.setStorefront(queryClient, store.id, {
-          storefront: data.storefront ?? storefrontQuery.data?.storefront ?? null,
-          publish: data.publish,
-        });
-      }
+      merchantCache.setStorefront(queryClient, store.id, {
+        storefront: data.storefront ?? storefrontQuery.data?.storefront ?? null,
+        publish: data.publish,
+      });
       toast.success(data.message);
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : "Could not publish storefront"),
   });
 
-  const generatedStorefront = generate.data?.storefront ?? null;
   const generationPending = generate.isPending;
+  const publishState: StorefrontPublishState | undefined =
+    storefrontQuery.data?.publish ??
+    ({
+      status: store.status ?? "draft",
+      published_at: store.published_at ?? null,
+      is_published: store.is_published ?? false,
+      has_unpublished_changes: store.has_unpublished_changes ?? !!storefront,
+    } satisfies StorefrontPublishState);
+  const liveStoreUrl = getStorefrontUrl(store.slug);
+  const canViewLive = publishState?.is_published;
 
-  if (storeQuery.isLoading) {
+  if (storefrontQuery.isLoading) {
     return (
       <div className="grid min-h-[50vh] place-items-center">
         <Loader2 className="h-6 w-6 animate-spin text-primary" />
       </div>
     );
   }
-
-  if (!store) return null;
-
-  const storefront = storefrontQuery.data?.storefront ?? generatedStorefront ?? null;
-  const publishState: StorefrontPublishState | undefined =
-    storefrontQuery.data?.publish ??
-    (store
-      ? {
-          status: store.status ?? "draft",
-          published_at: store.published_at ?? null,
-          is_published: store.is_published ?? false,
-          has_unpublished_changes: store.has_unpublished_changes ?? !!storefront,
-        }
-      : undefined);
-  const liveStoreUrl = getStorefrontUrl(store.slug);
-  const canViewLive = publishState?.is_published;
 
   return (
     <div className="w-full px-6 py-10">
@@ -513,6 +525,14 @@ export default function WebsiteEditorPage() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <PublishStatusBadge publish={publishState} />
+          <button
+            type="button"
+            onClick={() => setAskAiOpen(true)}
+            className="inline-flex items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-4 py-2 text-sm font-semibold text-ink shadow-soft hover:border-primary"
+          >
+            <Sparkles className="h-4 w-4 text-primary" />
+            Ask AI
+          </button>
           <button
             type="button"
             onClick={() => setPreviewOpen(true)}
@@ -548,7 +568,15 @@ export default function WebsiteEditorPage() {
             disabled={!storefront}
             onPublish={() => publishStorefront.mutate()}
           />
+          <Link
+            href="/admin/website?mode=create"
+            className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-4 py-2 text-sm font-semibold text-ink shadow-soft hover:bg-secondary"
+          >
+            <MessageSquare className="h-4 w-4" />
+            Rebuild with AI
+          </Link>
           <button
+            type="button"
             onClick={() =>
               generate.mutate({
                 storeId: store.id,
@@ -563,13 +591,7 @@ export default function WebsiteEditorPage() {
             ) : (
               <RefreshCcw className="h-4 w-4" />
             )}
-            {generationPending
-              ? storefront
-                ? "Regenerating..."
-                : "Generating..."
-              : storefront
-                ? "Regenerate with AI"
-                : "Generate with AI"}
+            {generationPending ? "Regenerating..." : "Regenerate"}
           </button>
         </div>
       </div>
@@ -600,14 +622,17 @@ export default function WebsiteEditorPage() {
             }}
           />
         </section>
-      ) : null}
-
-      {!storefront && !generationPending ? (
+      ) : generationPending ? (
+        <section className="mt-8">
+          <GeneratingSkeleton />
+        </section>
+      ) : (
         <StorefrontCreationChoice
           store={store}
           generating={generationPending}
           saving={saveStorefront.isPending}
           templateOptions={concreteTemplateOptions}
+          onChatCreate={() => router.replace("/admin/website?mode=create")}
           onGenerate={(templateId) => generate.mutate({ storeId: store.id, templateId })}
           onStartEditing={(templateId) =>
             saveStorefront.mutate({
@@ -617,11 +642,7 @@ export default function WebsiteEditorPage() {
             })
           }
         />
-      ) : generationPending && !storefront ? (
-        <section className="mt-8">
-          <GeneratingSkeleton />
-        </section>
-      ) : null}
+      )}
 
       {previewOpen && storefront ? (
         <div className="fixed inset-0 z-50 bg-black/60 p-4 backdrop-blur-sm sm:p-6">
@@ -648,6 +669,65 @@ export default function WebsiteEditorPage() {
           </div>
         </div>
       ) : null}
+
+      <WebsiteAskAiSheet open={askAiOpen} onOpenChange={setAskAiOpen} storeId={store.id} />
     </div>
+  );
+}
+
+function WebsiteHubInner() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const forceCreate = searchParams.get("mode") === "create";
+
+  const storeQuery = useStoreMe({ enabled: !!user });
+  const store = storeQuery.data;
+  const storefrontQuery = useStorefront(store?.id, { enabled: !!store && !forceCreate });
+
+  useEffect(() => {
+    if (storeQuery.isFetched && !storeQuery.data && user) {
+      router.replace("/admin/onboarding");
+    }
+  }, [storeQuery.isFetched, storeQuery.data, user, router]);
+
+  if (storeQuery.isLoading || (!forceCreate && store && storefrontQuery.isLoading)) {
+    return (
+      <div className="grid min-h-[50vh] place-items-center">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!store) return null;
+
+  const hasDraft = !!storefrontQuery.data?.storefront;
+  const showCreate = forceCreate || !hasDraft;
+
+  if (showCreate) {
+    return (
+      <WebsiteCreateView
+        onDraftChanged={() => {
+          merchantInvalidators.storefront(queryClient);
+        }}
+      />
+    );
+  }
+
+  return <WebsiteRefineView store={store} />;
+}
+
+export default function WebsiteEditorPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="grid min-h-[50vh] place-items-center">
+          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        </div>
+      }
+    >
+      <WebsiteHubInner />
+    </Suspense>
   );
 }

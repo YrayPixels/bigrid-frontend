@@ -436,7 +436,7 @@ export const mockApi = {
       subdomain: slug,
       subdomain_host: getStoreSubdomainHost(slug),
       primary_domain: getStoreSubdomainHost(slug),
-      storefront_template_id: body.storefront_template_id ?? "classic",
+      storefront_template_id: body.storefront_template_id ?? "minimalistic",
       status: "draft",
       published_at: null,
       subscription_plan: "starter",

@@ -6,6 +6,9 @@ import type {
   StorefrontThemeOverrides,
 } from "@/lib/api/types";
 
+/** Default storefront template for new merchants. */
+export const DEFAULT_STOREFRONT_TEMPLATE_ID: StorefrontTemplateId = "minimalistic";
+
 export type StorefrontMode = "live" | "edit" | "preview";
 
 export type StorefrontTheme = {
@@ -44,7 +47,7 @@ export function resolveStorefrontTemplate(
     return storefront.template.id;
   }
 
-  return "classic";
+  return DEFAULT_STOREFRONT_TEMPLATE_ID;
 }
 
 export function alignStorefrontTemplateToSelection(

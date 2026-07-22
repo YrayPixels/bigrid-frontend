@@ -100,7 +100,7 @@ export default function BuilderThinkingPage() {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <Link
-              href="/admin/builder"
+              href="/admin/website"
               className="inline-flex items-center gap-1 text-xs font-medium text-ink-soft hover:text-ink"
             >
               <ArrowLeft className="h-3.5 w-3.5" />

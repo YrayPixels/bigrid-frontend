@@ -2,16 +2,16 @@
 
 import { useMemo } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Sparkles } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { BuilderChatPanel } from "@/components/admin/builder/builder-chat-panel";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import {
   merchantCache,
   merchantInvalidators,
@@ -33,14 +33,16 @@ import {
   type BuilderSession,
   type StorefrontTemplateId,
 } from "@/lib/api/types";
+import { isCodeWorkbenchEnabled } from "@/lib/features";
+import { getJsonTemplateOptions } from "@/lib/storefront/template-registry";
 
-export function DashboardAiBuilderFab({
-  open,
-  onOpenChange,
-}: {
+type WebsiteAskAiSheetProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-}) {
+  storeId?: string;
+};
+
+export function WebsiteAskAiSheet({ open, onOpenChange, storeId }: WebsiteAskAiSheetProps) {
   const queryClient = useQueryClient();
   const { user, refresh } = useAuth();
 
@@ -48,16 +50,37 @@ export function DashboardAiBuilderFab({
   const sessionQuery = useBuilderSessionOrStart({ enabled: open && !!user });
 
   const session = sessionQuery.data?.session ?? null;
-  const templateOptions = useMemo(
-    () => templatesQuery.data ?? STOREFRONT_TEMPLATE_OPTIONS,
-    [templatesQuery.data],
-  );
+  const templateOptions = useMemo(() => {
+    const options = templatesQuery.data ?? STOREFRONT_TEMPLATE_OPTIONS;
+    if (isCodeWorkbenchEnabled()) return options;
+    const jsonOnly = getJsonTemplateOptions(options);
+    const aiPick = options.find((option) => option.value === "ai_pick");
+    return aiPick ? [aiPick, ...jsonOnly] : jsonOnly;
+  }, [templatesQuery.data]);
 
-  const handleSessionResponse = async (data: Awaited<ReturnType<typeof processBuilderMessage>>) => {
+  const syncDraftFromSession = (
+    data: Awaited<ReturnType<typeof processBuilderMessage>>,
+  ) => {
     merchantCache.setBuilderSession(queryClient, data);
-    if (data.storefront ?? data.session?.storefront_snapshot) {
+    const nextStorefront = data.storefront ?? data.session?.storefront_snapshot ?? null;
+    if (nextStorefront && storeId) {
+      merchantCache.setStorefront(queryClient, storeId, {
+        storefront: nextStorefront,
+        publish: {
+          status: data.session?.store?.status ?? "draft",
+          published_at: data.session?.store?.published_at ?? null,
+          is_published: data.session?.store?.is_published ?? false,
+          has_unpublished_changes: data.session?.store?.has_unpublished_changes ?? true,
+        },
+      });
       merchantInvalidators.storefront(queryClient);
     }
+  };
+
+  const handleSessionResponse = async (
+    data: Awaited<ReturnType<typeof processBuilderMessage>>,
+  ) => {
+    syncDraftFromSession(data);
     if (data.session?.store) {
       await refresh();
       merchantInvalidators.store(queryClient);
@@ -120,7 +143,14 @@ export function DashboardAiBuilderFab({
   });
 
   const applyImage = useMutation({
-    mutationFn: async ({ target, url }: { target: BuilderMediaTarget; url: string; label: string }) => {
+    mutationFn: async ({
+      target,
+      url,
+    }: {
+      target: BuilderMediaTarget;
+      url: string;
+      label: string;
+    }) => {
       if (!session) throw new Error("No active builder session");
       return applyBuilderMedia({ session, target, url });
     },
@@ -137,51 +167,53 @@ export function DashboardAiBuilderFab({
     onError: (error) => toast.error(error instanceof Error ? error.message : "Could not select template"),
   });
 
-  const chatBusy = sendMessage.isPending || applyColor.isPending || uploadMedia.isPending || applyImage.isPending || selectTemplate.isPending || uploadLogo.isPending || removeLogo.isPending;
+  const chatBusy =
+    sendMessage.isPending ||
+    applyColor.isPending ||
+    uploadMedia.isPending ||
+    applyImage.isPending ||
+    selectTemplate.isPending ||
+    uploadLogo.isPending ||
+    removeLogo.isPending;
 
   return (
-    <>
-      <button
-        type="button"
-        onClick={() => onOpenChange(true)}
-        className="fixed bottom-6 right-6 z-40 inline-flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-elevated transition hover:scale-105 hover:opacity-95"
-        aria-label="Ask AI about your website"
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        side="right"
+        className="flex w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-md"
       >
-        <Sparkles className="h-6 w-6" />
-      </button>
+        <SheetHeader className="shrink-0 border-b border-border px-5 py-4 pr-12 text-left">
+          <SheetTitle>Ask AI</SheetTitle>
+          <SheetDescription>
+            Describe a change in plain language. Your draft updates on this page.
+          </SheetDescription>
+        </SheetHeader>
 
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-h-[calc(100vh-3rem)] max-w-2xl overflow-hidden p-0">
-          <DialogHeader className="sr-only">
-            <DialogTitle>Ask AI</DialogTitle>
-            <DialogDescription>Chat with AI about your website without leaving the dashboard.</DialogDescription>
-          </DialogHeader>
-
-          {sessionQuery.isLoading || !session ? (
-            <div className="grid min-h-[560px] place-items-center rounded-2xl bg-card">
-              <Loader2 className="h-6 w-6 animate-spin text-primary" />
-            </div>
-          ) : (
-            <div className="h-[min(720px,calc(100vh-3rem))]">
-              <BuilderChatPanel
-                session={session as BuilderSession}
-                sending={chatBusy}
-                generating={sendMessage.isPending && !!session.storefront_snapshot}
-                templateOptions={templateOptions}
-                selectingTemplate={selectTemplate.isPending}
-                onSendMessage={(message) => sendMessage.mutate(message)}
-                onApplyColor={(color, label) => applyColor.mutate({ color, label })}
-                onUploadMedia={(target, file) => uploadMedia.mutate({ target, file })}
-                onUploadLogo={(file) => uploadLogo.mutate(file)}
-                onRemoveLogo={() => removeLogo.mutate()}
-                managingLogo={uploadLogo.isPending || removeLogo.isPending}
-                onApplyImage={(target, url, label) => applyImage.mutate({ target, url, label })}
-                onSelectTemplate={(templateId) => selectTemplate.mutate(templateId)}
-              />
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-    </>
+        {sessionQuery.isLoading || !session ? (
+          <div className="grid min-h-[480px] flex-1 place-items-center">
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          </div>
+        ) : (
+          <div className="min-h-0 flex-1">
+            <BuilderChatPanel
+              session={session as BuilderSession}
+              sending={chatBusy}
+              generating={sendMessage.isPending}
+              templateOptions={templateOptions}
+              selectingTemplate={selectTemplate.isPending}
+              embedded
+              onSendMessage={(message) => sendMessage.mutate(message)}
+              onApplyColor={(color, label) => applyColor.mutate({ color, label })}
+              onUploadMedia={(target, file) => uploadMedia.mutate({ target, file })}
+              onUploadLogo={(file) => uploadLogo.mutate(file)}
+              onRemoveLogo={() => removeLogo.mutate()}
+              managingLogo={uploadLogo.isPending || removeLogo.isPending}
+              onApplyImage={(target, url, label) => applyImage.mutate({ target, url, label })}
+              onSelectTemplate={(templateId) => selectTemplate.mutate(templateId)}
+            />
+          </div>
+        )}
+      </SheetContent>
+    </Sheet>
   );
 }

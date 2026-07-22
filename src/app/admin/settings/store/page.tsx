@@ -371,7 +371,7 @@ export default function AdminSettingsStorePage() {
                   Save store settings
                 </Button>
                 <Button asChild variant="outline" type="button">
-                  <Link href="/admin/website">Open website editor</Link>
+                  <Link href="/admin/website">Open website</Link>
                 </Button>
               </div>
             </form>
