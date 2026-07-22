@@ -304,14 +304,17 @@ export const api = {
   async getStorefrontTemplates(): Promise<StorefrontTemplateOption[]> {
     if (USE_MOCKS) return mockApi.getStorefrontTemplates();
 
-    const res = await http<{ templates: StorefrontTemplateOption[] }>(
-      `${STOREHAUSE_API_PREFIX}/storefront-templates`,
-    ).catch((err) => {
+    try {
+      const res = await http<{ templates: StorefrontTemplateOption[] }>(
+        `${STOREHAUSE_API_PREFIX}/storefront-templates`,
+      );
+      // Trust the API catalog (active-only). An empty list means none are active —
+      // do not refill from the static catalog, which would undo admin deactivation.
+      return res.templates;
+    } catch (err) {
       console.warn("Falling back to static storefront templates", err);
-      return { templates: STOREFRONT_TEMPLATE_OPTIONS };
-    });
-
-    return res.templates.length ? res.templates : STOREFRONT_TEMPLATE_OPTIONS;
+      return STOREFRONT_TEMPLATE_OPTIONS;
+    }
   },
 
   async recommendStorefrontTemplates(

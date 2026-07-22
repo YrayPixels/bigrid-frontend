@@ -1,17 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
-import { ArrowUpRight, Star } from "lucide-react";
-import { toast } from "sonner";
-import type { Store, StorefrontContent, StoreProduct } from "@/lib/api/types";
+import { ArrowUpRight } from "lucide-react";
+import type { Store, StorefrontContent } from "@/lib/api/types";
 import { EditableHeroMedia } from "@/components/storefront/theme/editable-hero-media";
 import { EditableImage } from "@/components/storefront/theme/editable-image";
 import { EditableText } from "@/components/storefront/theme/editable-text";
+import { MinimalisticProductCard } from "@/components/storefront/theme/minimalistic-product-card";
 import { StorefrontLink } from "@/components/storefront/theme/storefront-link";
 import { StorefrontFaqSection } from "@/components/storefront/pages/storefront-faq-section";
-import { formatMoney } from "@/lib/storefront/format";
-import { useCart } from "@/lib/storefront/cart-context";
 import { useStorefront } from "@/lib/storefront/store-context";
 import { useStorefrontTheme } from "@/lib/storefront/theme-context";
 import { minimalisticTemplateImages } from "@/lib/storefront/minimalistic-defaults";
@@ -25,80 +22,6 @@ import {
 
 const HOME_CATEGORY_LIMIT = 5;
 
-function MinimalProductCard({
-  product,
-  index,
-  imagePath,
-  editable,
-}: {
-  product: StoreProduct;
-  index: number;
-  imagePath?: string;
-  editable: boolean;
-}) {
-  const { addItem } = useCart();
-  const { theme } = useStorefrontTheme();
-  const imageUrl =
-    product.image_url ??
-    minimalisticTemplateImages.products[index % minimalisticTemplateImages.products.length];
-
-  function addToCart() {
-    addItem(product, 1);
-    toast.success("Added to cart");
-  }
-
-  return (
-    <article className="group flex h-full flex-col text-left">
-      <Link
-        href={editable ? "#" : `/products/${product.slug}`}
-        className={editable ? "pointer-events-none block" : "block"}
-        aria-disabled={editable}
-      >
-        <div className="aspect-square overflow-hidden rounded-xl bg-[#f0f0f0]">
-          <EditableImage
-            path={imagePath}
-            src={imageUrl}
-            alt={product.name}
-            className="h-full w-full"
-            imgClassName="object-cover object-center transition duration-500 group-hover:scale-105"
-          />
-        </div>
-      </Link>
-      <div className="mt-3 flex min-h-[2.75rem] items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h3 className="line-clamp-1 text-sm font-bold" style={{ color: theme.palette.text }}>
-            {product.name}
-          </h3>
-          <p className="mt-1 line-clamp-1 text-[11px]" style={{ color: theme.palette.muted }}>
-            {product.description}
-          </p>
-        </div>
-        <span
-          className="inline-flex shrink-0 items-center gap-1 text-[11px] font-semibold"
-          style={{ color: theme.palette.text }}
-        >
-          <Star className="h-3 w-3 fill-[#efc64b] text-[#efc64b]" />
-          {index % 3 === 0 ? "4.9" : "4.8"}
-        </span>
-      </div>
-      <div className="mt-auto flex items-center justify-between gap-3 pt-3">
-        <span className="text-sm font-bold" style={{ color: theme.palette.text }}>
-          {formatMoney(product.price, product.currency)}
-        </span>
-        <button
-          type="button"
-          onClick={addToCart}
-          disabled={editable}
-          className="shrink-0 rounded-full px-3 py-1.5 text-[10px] font-semibold transition disabled:cursor-default disabled:opacity-70"
-          style={{ backgroundColor: theme.palette.primary, color: theme.palette.background }}
-        >
-          Add to Cart
-        </button>
-      </div>
-    </article>
-  );
-}
-
 export function MinimalisticHome({
   store,
   storefront,
@@ -107,9 +30,9 @@ export function MinimalisticHome({
   storefront: StorefrontContent;
 }) {
   const { theme, mode } = useStorefrontTheme();
-  const { categories: apiCategories } = useStorefront();
+  const { categories: apiCategories, discounts } = useStorefront();
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
-  const products = storefront.products ?? [];
+  const products = useMemo(() => storefront.products ?? [], [storefront.products]);
   const { products: featuredProducts, source: productSource } = getHomepageProducts(
     storefront,
     "minimalistic",
@@ -226,11 +149,11 @@ export function MinimalisticHome({
             })}
           </div>
 
-          <div className="grid gap-x-5 gap-y-8 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-x-6 gap-y-10 sm:grid-cols-2 lg:grid-cols-3">
             {visibleProducts.map((product, index) => {
               const originalIndex = products.findIndex((item) => item.id === product.id);
               return (
-                <MinimalProductCard
+                <MinimalisticProductCard
                   key={product.id}
                   product={product}
                   index={index}
@@ -240,6 +163,7 @@ export function MinimalisticHome({
                       : undefined
                   }
                   editable={mode === "edit"}
+                  discounts={discounts}
                 />
               );
             })}

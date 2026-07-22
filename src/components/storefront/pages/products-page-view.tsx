@@ -4,9 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronDown, X } from "lucide-react";
-import { toast } from "sonner";
 import type { StoreCategory, StoreProduct } from "@/lib/api/types";
-import { useCart } from "@/lib/storefront/cart-context";
 import { useStorefront } from "@/lib/storefront/store-context";
 import {
   buildStorefrontCategoryTree,
@@ -16,19 +14,19 @@ import {
   sortCatalogProducts,
 } from "@/lib/storefront/category-filters";
 import { useCategoryFilter } from "@/lib/storefront/use-category-filter";
-import { requireVariantSelection } from "@/lib/storefront/cart-line";
 import { productUnitPrice } from "@/lib/storefront/pricing";
-import { isProductInStock } from "@/lib/storefront/product-availability";
 import { PageContainer } from "@/components/storefront/theme/page-container";
 import { PageTitle } from "@/components/storefront/theme/page-title";
 import { ProductCardThemed } from "@/components/storefront/theme/product-card-themed";
+import { StorefrontCatalogPagination } from "@/components/storefront/theme/storefront-catalog-pagination";
 import { useStorefrontTheme } from "@/lib/storefront/theme-context";
 import { EditableImage } from "@/components/storefront/theme/editable-image";
+import { MinimalisticProductCard } from "@/components/storefront/theme/minimalistic-product-card";
 import { formatMoney } from "@/lib/storefront/format";
 import { beautyTemplateImages } from "@/lib/storefront/beauty-defaults";
 import { cosmeticsTemplateImages } from "@/lib/storefront/cosmetics-defaults";
 import { fashionTemplateImages } from "@/lib/storefront/fashion-defaults";
-import { minimalisticTemplateImages } from "@/lib/storefront/minimalistic-defaults";
+import { useCatalogPagination } from "@/lib/storefront/use-catalog-pagination";
 import { cn } from "@/lib/utils";
 
 const fashionColorOptions = [
@@ -277,6 +275,12 @@ function FashionProductsPage({
     return sortCatalogProducts(next, sortBy, products);
   }, [categories, priceLimit, products, selectedCategoryId, selectedColor, selectedSize, sortBy]);
 
+  const pagination = useCatalogPagination(
+    filteredProducts,
+    12,
+    `${selectedCategoryId ?? "all"}-${selectedColor ?? ""}-${selectedSize ?? ""}-${priceLimit}-${sortBy}`,
+  );
+
   const selectedCategoryName = selectedCategoryId
     ? categories.find((category) => category.id === selectedCategoryId)?.name
     : null;
@@ -486,11 +490,7 @@ function FashionProductsPage({
             style={{ borderColor: theme.palette.border }}
           >
             <div>
-              <p className="text-sm font-extrabold">
-                {filteredProducts.length
-                  ? `Showing 1-${filteredProducts.length} of ${products.length} results`
-                  : `Showing 0 of ${products.length} results`}
-              </p>
+              <p className="text-sm font-extrabold">{pagination.showingLabel}</p>
               <div className="mt-6 flex flex-wrap items-center gap-3">
                 <span className="text-[13px]">Active Filter</span>
                 {activeFilters.length ? (
@@ -549,7 +549,7 @@ function FashionProductsPage({
           </div>
 
           <div className="mt-8 grid gap-x-7 gap-y-10 sm:grid-cols-2 xl:grid-cols-3">
-            {filteredProducts.map((product) => {
+            {pagination.pageItems.map((product) => {
               const originalIndex = products.findIndex((item) => item.id === product.id);
               return (
                 <FashionProductsCard
@@ -562,6 +562,12 @@ function FashionProductsPage({
               );
             })}
           </div>
+
+          <StorefrontCatalogPagination
+            page={pagination.page}
+            totalPages={pagination.totalPages}
+            onPageChange={pagination.setPage}
+          />
         </div>
       </section>
     </div>
@@ -583,6 +589,11 @@ function BeautyProductsPage({
   const templateImages = isCosmetics ? cosmeticsTemplateImages : beautyTemplateImages;
   const filteredProducts = products.filter((product) =>
     productMatchesCategoryFilter(product, selectedCategoryId, categories),
+  );
+  const pagination = useCatalogPagination(
+    filteredProducts,
+    12,
+    selectedCategoryId ?? "all",
   );
 
   return (
@@ -638,8 +649,12 @@ function BeautyProductsPage({
             )}
           </div>
 
+          <p className="mb-6 text-center text-sm font-semibold" style={{ color: theme.palette.muted }}>
+            {pagination.showingLabel}
+          </p>
+
           <div className="grid gap-x-5 gap-y-10 sm:grid-cols-2 lg:grid-cols-4">
-            {filteredProducts.map((product) => {
+            {pagination.pageItems.map((product) => {
               const originalIndex = products.findIndex((entry) => entry.id === product.id);
               const image =
                 product.image_url ??
@@ -689,6 +704,13 @@ function BeautyProductsPage({
               );
             })}
           </div>
+
+          <StorefrontCatalogPagination
+            page={pagination.page}
+            totalPages={pagination.totalPages}
+            onPageChange={pagination.setPage}
+            className="sm:justify-center"
+          />
         </div>
       </section>
     </div>
@@ -703,7 +725,6 @@ function MinimalisticProductsPage({
   categories: StoreCategory[];
 }) {
   const { theme, mode } = useStorefrontTheme();
-  const { addItem } = useCart();
   const { discounts } = useStorefront();
   const router = useRouter();
   const [selectedCategoryId, setSelectedCategoryId] = useCategoryFilter(categories);
@@ -737,6 +758,12 @@ function MinimalisticProductsPage({
     return sortCatalogProducts(next, sortBy, products);
   }, [categories, priceLimit, products, selectedCategoryId, sortBy]);
 
+  const pagination = useCatalogPagination(
+    filteredProducts,
+    12,
+    `${selectedCategoryId ?? "all"}-${priceLimit}-${sortBy}`,
+  );
+
   const selectedCategoryName = selectedCategoryId
     ? categories.find((category) => category.id === selectedCategoryId)?.name
     : null;
@@ -761,25 +788,6 @@ function MinimalisticProductsPage({
         }
       : null,
   ].filter((filter): filter is ActiveFilter => Boolean(filter));
-
-  function addToCart(product: StoreProduct) {
-    if (!isProductInStock(product)) {
-      toast.error("This product is out of stock.");
-      return;
-    }
-    if (product.variants?.some((group) => group.options?.length)) {
-      router.push(`/products/${product.slug}`);
-      toast.message("Choose options on the product page");
-      return;
-    }
-    const error = requireVariantSelection(product, {});
-    if (error) {
-      toast.error(error);
-      return;
-    }
-    addItem(product, 1);
-    toast.success("Added to cart");
-  }
 
   function clearFilters() {
     setSelectedCategoryId(null);
@@ -947,11 +955,7 @@ function MinimalisticProductsPage({
             style={{ borderColor: theme.palette.border }}
           >
             <div className="min-w-0">
-              <p className="text-sm font-bold">
-                {filteredProducts.length
-                  ? `Showing 1-${filteredProducts.length} of ${products.length} results`
-                  : `Showing 0 of ${products.length} results`}
-              </p>
+              <p className="text-sm font-bold">{pagination.showingLabel}</p>
               <div className="mt-4 flex flex-wrap items-center gap-2 sm:mt-5 sm:gap-3">
                 <span className="text-xs font-semibold" style={{ color: theme.palette.muted }}>
                   Active Filter
@@ -1016,74 +1020,22 @@ function MinimalisticProductsPage({
             </label>
           </div>
 
-          <div className="mt-6 grid grid-cols-1 gap-x-5 gap-y-8 min-[420px]:grid-cols-2 sm:mt-8 xl:grid-cols-3">
-            {filteredProducts.map((product) => {
+          <div className="mt-6 grid grid-cols-1 gap-x-6 gap-y-10 min-[420px]:grid-cols-2 sm:mt-8 xl:grid-cols-3">
+            {pagination.pageItems.map((product) => {
               const originalIndex = products.findIndex((item) => item.id === product.id);
-              const imageUrl =
-                product.image_url ??
-                minimalisticTemplateImages.products[
-                  Math.max(originalIndex, 0) % minimalisticTemplateImages.products.length
-                ];
-              const priced = productUnitPrice(product, discounts ?? []);
-              const inStock = isProductInStock(product);
-              const productImage = (
-                <div className="aspect-square overflow-hidden rounded-xl bg-[#f0f0f0]">
-                  <EditableImage
-                    path={originalIndex >= 0 ? `products.${originalIndex}.image_url` : undefined}
-                    src={imageUrl}
-                    alt={product.name}
-                    className="h-full w-full"
-                    imgClassName="object-cover object-center transition duration-500 group-hover:scale-105"
-                  />
-                </div>
+              return (
+                <MinimalisticProductCard
+                  key={product.id}
+                  product={product}
+                  index={Math.max(originalIndex, 0)}
+                  imagePath={
+                    originalIndex >= 0 ? `products.${originalIndex}.image_url` : undefined
+                  }
+                  editable={mode === "edit"}
+                  discounts={discounts}
+                  onNavigateToProduct={(slug) => router.push(`/products/${slug}`)}
+                />
               );
-              const card = (
-                <article className="group flex h-full flex-col text-left">
-                  {mode === "edit" ? (
-                    productImage
-                  ) : (
-                    <Link href={`/products/${product.slug}`} className="block">
-                      {productImage}
-                    </Link>
-                  )}
-                  <div className="mt-3 min-h-[2.75rem]">
-                    <h3 className="line-clamp-1 text-sm font-bold">{product.name}</h3>
-                    <p
-                      className="mt-1 line-clamp-1 text-[11px]"
-                      style={{ color: theme.palette.muted }}
-                    >
-                      {product.description}
-                    </p>
-                  </div>
-                  <div className="mt-auto flex items-center justify-between gap-3 pt-3">
-                    <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm font-bold">
-                      <span>{formatMoney(priced.unitPrice, product.currency)}</span>
-                      {priced.compareAtPrice != null ? (
-                        <span
-                          className="text-[11px] font-medium line-through"
-                          style={{ color: theme.palette.muted }}
-                        >
-                          {formatMoney(priced.compareAtPrice, product.currency)}
-                        </span>
-                      ) : null}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => addToCart(product)}
-                      disabled={mode === "edit" || !inStock}
-                      className="shrink-0 rounded-full px-3 py-1.5 text-[10px] font-semibold transition disabled:cursor-default disabled:opacity-70"
-                      style={{
-                        backgroundColor: theme.palette.primary,
-                        color: theme.palette.background,
-                      }}
-                    >
-                      {inStock ? "Add to Cart" : "Sold out"}
-                    </button>
-                  </div>
-                </article>
-              );
-
-              return <div key={product.id}>{card}</div>;
             })}
           </div>
 
@@ -1097,7 +1049,13 @@ function MinimalisticProductsPage({
                 Try clearing the filters to view the full catalog.
               </p>
             </div>
-          ) : null}
+          ) : (
+            <StorefrontCatalogPagination
+              page={pagination.page}
+              totalPages={pagination.totalPages}
+              onPageChange={pagination.setPage}
+            />
+          )}
         </div>
       </section>
     </div>
@@ -1116,34 +1074,35 @@ export function ProductsPageView() {
   );
   const [selectedCategoryId, setSelectedCategoryId] = useCategoryFilter(filterCategories);
 
-  const defaultFilteredProducts = useMemo(
+function DefaultProductsPage({
+  products,
+  categories,
+  storeName,
+  productGridCols,
+}: {
+  products: StoreProduct[];
+  categories: StoreCategory[];
+  storeName: string;
+  productGridCols: string;
+}) {
+  const [selectedCategoryId, setSelectedCategoryId] = useCategoryFilter(categories);
+  const filteredProducts = useMemo(
     () =>
       products.filter((product) =>
-        productMatchesCategoryFilter(product, selectedCategoryId, filterCategories),
+        productMatchesCategoryFilter(product, selectedCategoryId, categories),
       ),
-    [filterCategories, products, selectedCategoryId],
+    [categories, products, selectedCategoryId],
   );
-
-  if (theme.id === "fashion_lookbook") {
-    return <FashionProductsPage products={products} categories={filterCategories} />;
-  }
-
-  if (theme.id === "minimalistic") {
-    return <MinimalisticProductsPage products={products} categories={filterCategories} />;
-  }
-
-  if (theme.id === "beauty" || theme.id === "cosmetics") {
-    return <BeautyProductsPage products={products} categories={filterCategories} />;
-  }
-
-  if (theme.id === "furniture-hardware" || theme.id === "hair-and-fashion") {
-    return <FashionProductsPage products={products} categories={filterCategories} />;
-  }
+  const pagination = useCatalogPagination(
+    filteredProducts,
+    12,
+    selectedCategoryId ?? "all",
+  );
 
   return (
     <PageContainer>
-      <PageTitle title="Products" subtitle={`Shop the full catalog from ${store.business_name}.`} />
-      {filterCategories.length ? (
+      <PageTitle title="Products" subtitle={`Shop the full catalog from ${storeName}.`} />
+      {categories.length ? (
         <div className="mt-8 flex flex-wrap gap-2">
           <button
             type="button"
@@ -1157,7 +1116,7 @@ export function ProductsPageView() {
           >
             All products
           </button>
-          {buildStorefrontCategoryTree(filterCategories).flatMap(({ category, children }) =>
+          {buildStorefrontCategoryTree(categories).flatMap(({ category, children }) =>
             [category, ...children].map((entry) => (
               <button
                 key={entry.id}
@@ -1178,8 +1137,9 @@ export function ProductsPageView() {
           )}
         </div>
       ) : null}
-      <div className={`mt-10 grid gap-6 ${theme.productGridCols}`}>
-        {defaultFilteredProducts.map((product) => {
+      <p className="mt-6 text-sm text-ink-soft">{pagination.showingLabel}</p>
+      <div className={`mt-10 grid gap-6 ${productGridCols}`}>
+        {pagination.pageItems.map((product) => {
           const originalIndex = products.findIndex((item) => item.id === product.id);
           return (
             <ProductCardThemed
@@ -1192,6 +1152,48 @@ export function ProductsPageView() {
           );
         })}
       </div>
+      <StorefrontCatalogPagination
+        page={pagination.page}
+        totalPages={pagination.totalPages}
+        onPageChange={pagination.setPage}
+      />
     </PageContainer>
+  );
+}
+
+export function ProductsPageView() {
+  const { store, storefront, categories: apiCategories } = useStorefront();
+  const { theme, mode } = useStorefrontTheme();
+  const products = (storefront.products ?? []).filter(
+    (product) => mode === "edit" || (product.status ?? "active") === "active",
+  );
+  const filterCategories = useMemo(
+    () => resolveStorefrontFilterCategories(apiCategories, products),
+    [apiCategories, products],
+  );
+
+  if (theme.id === "fashion_lookbook") {
+    return <FashionProductsPage products={products} categories={filterCategories} />;
+  }
+
+  if (theme.id === "minimalistic") {
+    return <MinimalisticProductsPage products={products} categories={filterCategories} />;
+  }
+
+  if (theme.id === "beauty" || theme.id === "cosmetics") {
+    return <BeautyProductsPage products={products} categories={filterCategories} />;
+  }
+
+  if (theme.id === "furniture-hardware" || theme.id === "hair-and-fashion") {
+    return <FashionProductsPage products={products} categories={filterCategories} />;
+  }
+
+  return (
+    <DefaultProductsPage
+      products={products}
+      categories={filterCategories}
+      storeName={store.business_name}
+      productGridCols={theme.productGridCols}
+    />
   );
 }
