@@ -110,6 +110,7 @@ export type Store = {
   subscription_plan?: string | null;
   subscription_status?: string | null;
   notifications?: StoreNotificationSettings;
+  shipping?: StoreShippingSettings;
   store_perks?: string[];
 };
 
@@ -149,6 +150,15 @@ export type StoreNotificationSettings = {
   notification_email: string | null;
   customer_order_note: string | null;
   sms_sender_name: string | null;
+};
+
+export type StoreShippingSettings = {
+  allow_local_delivery: boolean;
+  allow_pickup: boolean;
+  default_delivery_fee: number | null;
+  fulfilment_promise: string | null;
+  shipping_policy?: string | null;
+  return_policy?: string | null;
 };
 
 export type StorefrontPublishState = {
@@ -205,6 +215,12 @@ export type UpdateStoreInput = {
   customer_order_note?: string | null;
   sms_sender_name?: string | null;
   store_perks?: string[];
+  allow_local_delivery?: boolean;
+  allow_pickup?: boolean;
+  default_delivery_fee?: number | null;
+  fulfilment_promise?: string | null;
+  shipping_policy?: string | null;
+  return_policy?: string | null;
 };
 
 export type SubscriptionPlanId = "starter" | "growth" | "scale";
@@ -537,6 +553,10 @@ export type PublicStorefront = {
   checkout?: {
     payments_enabled: boolean;
     paystack_public_key: string | null;
+    allow_local_delivery?: boolean;
+    allow_pickup?: boolean;
+    default_delivery_fee?: number;
+    fulfilment_promise?: string | null;
   };
 };
 
@@ -581,7 +601,19 @@ export type PublishedStorefrontIndexEntry = {
   published_at: string | null;
 };
 
-export type StoreOrderStatus = "pending" | "processing" | "fulfilled" | "cancelled" | "refunded";
+export type StoreOrderStatus =
+  | "pending"
+  | "processing"
+  | "shipped"
+  | "delivered"
+  | "cancelled";
+
+export type StorePaymentStatus =
+  | "pending"
+  | "awaiting_payment"
+  | "paid"
+  | "refunded"
+  | string;
 
 export type StoreOrderItem = {
   product_id: string;
@@ -601,8 +633,12 @@ export type StoreOrder = {
   customer_email: string;
   customer_phone: string;
   delivery_address: string;
+  delivery_method?: "delivery" | "pickup" | string;
+  delivery_fee?: number;
+  tracking_number?: string | null;
   status: StoreOrderStatus;
-  payment_status: string;
+  payment_status: StorePaymentStatus;
+  paystack_reference?: string | null;
   settlement_status?: string | null;
   currency: string;
   subtotal: number;
@@ -612,6 +648,8 @@ export type StoreOrder = {
   items: StoreOrderItem[];
   notes: string | null;
   placed_at: string | null;
+  paid_at?: string | null;
+  shipped_at?: string | null;
   created_at: string | null;
   updated_at: string | null;
 };
@@ -630,6 +668,8 @@ export type MerchantDashboardMetrics = {
   total_orders: number;
   pending_orders: number;
   processing_orders?: number;
+  shipped_orders?: number;
+  delivered_orders?: number;
   fulfilled_orders: number;
   cancelled_orders?: number;
   total_sales: number;
@@ -680,6 +720,7 @@ export type CreateStoreOrderInput = {
     phone: string;
   };
   delivery_address: string;
+  delivery_method?: "delivery" | "pickup";
   notes?: string;
   callback_url?: string;
   session_token?: string;

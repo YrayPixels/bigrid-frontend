@@ -8,8 +8,8 @@ export const merchantKeys = {
   categories: (storeId?: string) => ["categories", storeId] as const,
   orders: {
     all: ["merchant-orders"] as const,
-    list: (status: string, search: string, page: number) =>
-      [...merchantKeys.orders.all, status, search, page] as const,
+    list: (status: string, search: string, page: number, paymentStatus = "all") =>
+      [...merchantKeys.orders.all, status, paymentStatus, search, page] as const,
     productStats: (storeId?: string) =>
       [...merchantKeys.orders.all, "product-stats", storeId] as const,
   },

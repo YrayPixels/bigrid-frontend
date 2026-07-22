@@ -27,7 +27,15 @@ export function CheckoutPageView() {
   const { lines, subtotal, clear } = useCart();
   const { theme, mode } = useStorefrontTheme();
   const cartDiscount = cartThresholdDiscount(subtotal, discounts ?? []);
-  const payableTotal = Math.max(0, subtotal - cartDiscount.amount);
+  const allowDelivery = checkout?.allow_local_delivery ?? true;
+  const allowPickup = checkout?.allow_pickup ?? false;
+  const deliveryFee = Number(checkout?.default_delivery_fee ?? 0);
+  const [deliveryMethod, setDeliveryMethod] = useState<"delivery" | "pickup">(
+    allowDelivery ? "delivery" : "pickup",
+  );
+  const payableTotal =
+    Math.max(0, subtotal - cartDiscount.amount) +
+    (deliveryMethod === "delivery" ? deliveryFee : 0);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const submitLabel = paymentsEnabled
@@ -130,6 +138,7 @@ export function CheckoutPageView() {
           phone: String(form.get("phone") ?? ""),
         },
         delivery_address: String(form.get("delivery_address") ?? ""),
+        delivery_method: deliveryMethod,
         notes: String(form.get("notes") ?? ""),
         session_token: sessionToken || undefined,
         items: lines.map((line) => ({
@@ -282,8 +291,43 @@ export function CheckoutPageView() {
               </label>
             </div>
 
+            {(allowDelivery || allowPickup) && (allowDelivery && allowPickup) ? (
+              <fieldset className="mt-4 space-y-2 text-sm">
+                <legend className="font-semibold">Fulfilment</legend>
+                <div className="flex flex-wrap gap-3">
+                  {allowDelivery ? (
+                    <label className="inline-flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="delivery_method_ui"
+                        checked={deliveryMethod === "delivery"}
+                        onChange={() => setDeliveryMethod("delivery")}
+                        disabled={mode === "edit"}
+                      />
+                      Delivery
+                      {deliveryFee > 0 ? ` (+${formatMoney(deliveryFee, currency)})` : ""}
+                    </label>
+                  ) : null}
+                  {allowPickup ? (
+                    <label className="inline-flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="delivery_method_ui"
+                        checked={deliveryMethod === "pickup"}
+                        onChange={() => setDeliveryMethod("pickup")}
+                        disabled={mode === "edit"}
+                      />
+                      Pickup
+                    </label>
+                  ) : null}
+                </div>
+              </fieldset>
+            ) : null}
+
             <label className="mt-4 block space-y-2 text-sm">
-              <span className="font-semibold">Delivery address</span>
+              <span className="font-semibold">
+                {deliveryMethod === "pickup" ? "Contact address" : "Delivery address"}
+              </span>
               <textarea
                 name="delivery_address"
                 required
@@ -416,7 +460,13 @@ export function CheckoutPageView() {
               ) : null}
               <div className="flex items-center justify-between">
                 <span>Shipping</span>
-                <strong>Free</strong>
+                <strong>
+                  {deliveryMethod === "pickup"
+                    ? "Pickup"
+                    : deliveryFee > 0
+                      ? formatMoney(deliveryFee, currency)
+                      : "Free"}
+                </strong>
               </div>
               <div className="flex items-center justify-between text-base">
                 <span>Total</span>
@@ -478,8 +528,40 @@ export function CheckoutPageView() {
               className={`w-full rounded-md border ${theme.borderColor} ${theme.pageBg} px-3 py-2`}
             />
           </label>
+          {(allowDelivery || allowPickup) && (allowDelivery && allowPickup) ? (
+            <fieldset className="space-y-2 text-sm">
+              <legend className="font-medium">Fulfilment</legend>
+              <div className="flex flex-wrap gap-4">
+                {allowDelivery ? (
+                  <label className="inline-flex items-center gap-2">
+                    <input
+                      type="radio"
+                      checked={deliveryMethod === "delivery"}
+                      onChange={() => setDeliveryMethod("delivery")}
+                      disabled={mode === "edit"}
+                    />
+                    Delivery
+                    {deliveryFee > 0 ? ` (+${formatMoney(deliveryFee)})` : ""}
+                  </label>
+                ) : null}
+                {allowPickup ? (
+                  <label className="inline-flex items-center gap-2">
+                    <input
+                      type="radio"
+                      checked={deliveryMethod === "pickup"}
+                      onChange={() => setDeliveryMethod("pickup")}
+                      disabled={mode === "edit"}
+                    />
+                    Pickup
+                  </label>
+                ) : null}
+              </div>
+            </fieldset>
+          ) : null}
           <label className="block space-y-2 text-sm">
-            <span className="font-medium">Delivery address</span>
+            <span className="font-medium">
+              {deliveryMethod === "pickup" ? "Contact address" : "Delivery address"}
+            </span>
             <textarea
               name="delivery_address"
               required
@@ -539,6 +621,16 @@ export function CheckoutPageView() {
               <span>-{formatMoney(cartDiscount.amount)}</span>
             </div>
           ) : null}
+          <div className="mt-3 flex items-center justify-between gap-4 text-sm">
+            <span>Shipping</span>
+            <span>
+              {deliveryMethod === "pickup"
+                ? "Pickup"
+                : deliveryFee > 0
+                  ? formatMoney(deliveryFee)
+                  : "Free"}
+            </span>
+          </div>
           <div
             className={`mt-6 flex items-center justify-between border-t ${theme.borderColor} pt-4 font-semibold`}
           >

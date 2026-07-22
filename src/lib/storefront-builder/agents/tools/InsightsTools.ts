@@ -6,9 +6,9 @@ import { asString, requireConfirm } from "./toolHelpers";
 const ORDER_STATUSES: StoreOrderStatus[] = [
   "pending",
   "processing",
-  "fulfilled",
+  "shipped",
+  "delivered",
   "cancelled",
-  "refunded",
 ];
 
 function isOrderStatus(value: string): value is StoreOrderStatus {
@@ -38,7 +38,7 @@ export class InsightsTools {
               `Here's a snapshot of your store:`,
               `- Sales: ${m.total_sales.toLocaleString()} across ${m.total_orders} order(s)`,
               `- Average order: ${m.average_order_value.toLocaleString()}`,
-              `- Pending: ${m.pending_orders} · Fulfilled: ${m.fulfilled_orders}`,
+              `- Pending: ${m.pending_orders} · Delivered: ${m.delivered_orders ?? m.fulfilled_orders}`,
               `- Visits: ${m.total_visits} (today ${m.visits_today}) · Conversion ${m.conversion_rate}%`,
               `- Products: ${m.products_count}`,
             ].join("\n");
@@ -60,7 +60,7 @@ export class InsightsTools {
           properties: {
             status: {
               type: "string",
-              enum: ["all", "pending", "processing", "fulfilled", "cancelled", "refunded"],
+              enum: ["all", "pending", "processing", "shipped", "delivered", "cancelled"],
             },
             search: { type: "string", description: "Customer name, email, or order number" },
             page: { type: "number" },
@@ -144,19 +144,20 @@ export class InsightsTools {
       {
         name: "update_order_status",
         description:
-          "Update an order status. Safe transitions: pending→processing→fulfilled. cancelled/refunded require confirm=true and explicit merchant intent.",
+          "Update an order status. Safe transitions: pending→processing→shipped→delivered. cancelled on a paid order refunds via Paystack and requires confirm=true.",
         parameters: {
           type: "object",
           properties: {
             order_id: { type: "string" },
             status: {
               type: "string",
-              enum: ["pending", "processing", "fulfilled", "cancelled", "refunded"],
+              enum: ["pending", "processing", "shipped", "delivered", "cancelled"],
             },
             notes: { type: "string" },
+            tracking_number: { type: "string" },
             confirm: {
               type: "boolean",
-              description: "Required when status is cancelled or refunded.",
+              description: "Required when status is cancelled.",
             },
           },
           required: ["order_id", "status"],
@@ -168,11 +169,11 @@ export class InsightsTools {
           if (!orderId) return { ok: false, error: "missing_order_id" };
           if (!isOrderStatus(status)) return { ok: false, error: "invalid_status" };
 
-          if ((status === "cancelled" || status === "refunded") && !requireConfirm(args)) {
+          if (status === "cancelled" && !requireConfirm(args)) {
             return {
               ok: false,
               error: "confirm_required",
-              message: `Confirm with the merchant before marking an order ${status}, then call with confirm=true.`,
+              message: `Confirm with the merchant before cancelling an order, then call with confirm=true.`,
             };
           }
 
@@ -180,6 +181,8 @@ export class InsightsTools {
             const result = await api.updateOrderStatus(orderId, {
               status,
               notes: asString(args.notes) || undefined,
+              tracking_number: asString(args.tracking_number) || undefined,
+              refund: status === "cancelled",
             });
             ctx.payload = { type: "order_status_updated", order: result.order };
             ctx.assistantMessage =

@@ -464,7 +464,7 @@ export const mockApi = {
     const orders = db.orders[store.id] ?? [];
     const visits = db.visits[store.id] ?? [];
     const activeOrders = orders.filter(
-      (order) => !["cancelled", "refunded"].includes(order.status),
+      (order) => order.status !== "cancelled" && order.payment_status !== "refunded",
     );
     const totalSales = activeOrders.reduce((sum, order) => sum + order.total_amount, 0);
     const today = new Date().toISOString().slice(0, 10);
@@ -521,7 +521,9 @@ export const mockApi = {
         total_orders: orders.length,
         pending_orders: orders.filter((order) => order.status === "pending").length,
         processing_orders: orders.filter((order) => order.status === "processing").length,
-        fulfilled_orders: orders.filter((order) => order.status === "fulfilled").length,
+        shipped_orders: orders.filter((order) => order.status === "shipped").length,
+        delivered_orders: orders.filter((order) => order.status === "delivered").length,
+        fulfilled_orders: orders.filter((order) => order.status === "delivered").length,
         cancelled_orders: orders.filter((order) => order.status === "cancelled").length,
         total_sales: totalSales,
         average_order_value: orders.length ? totalSales / orders.length : 0,
@@ -550,9 +552,14 @@ export const mockApi = {
           count: orders.filter((order) => order.status === "processing").length,
         },
         {
-          status: "fulfilled",
-          label: "Fulfilled",
-          count: orders.filter((order) => order.status === "fulfilled").length,
+          status: "shipped",
+          label: "Shipped",
+          count: orders.filter((order) => order.status === "shipped").length,
+        },
+        {
+          status: "delivered",
+          label: "Delivered",
+          count: orders.filter((order) => order.status === "delivered").length,
         },
       ],
       recent_orders: [...orders].sort(byLatestOrder).slice(0, 5),
@@ -561,7 +568,13 @@ export const mockApi = {
 
   async getOrders(
     token: string,
-    filters: { status?: string; search?: string; page?: number; per_page?: number } = {},
+    filters: {
+      status?: string;
+      payment_status?: string;
+      search?: string;
+      page?: number;
+      per_page?: number;
+    } = {},
   ): Promise<StoreOrdersResponse> {
     await delay(250);
     const { db, store } = findStoreForToken(token);
@@ -569,6 +582,9 @@ export const mockApi = {
     let orders = [...(db.orders[store.id] ?? [])].sort(byLatestOrder);
     if (filters.status && filters.status !== "all") {
       orders = orders.filter((order) => order.status === filters.status);
+    }
+    if (filters.payment_status && filters.payment_status !== "all") {
+      orders = orders.filter((order) => order.payment_status === filters.payment_status);
     }
     if (search) {
       orders = orders.filter((order) =>
@@ -605,15 +621,35 @@ export const mockApi = {
   async updateOrderStatus(
     token: string,
     orderId: string,
-    body: { status: StoreOrderStatus; notes?: string },
+    body: {
+      status: StoreOrderStatus | "fulfilled" | "refunded";
+      notes?: string;
+      tracking_number?: string | null;
+      refund?: boolean;
+    },
   ): Promise<{ order: StoreOrder; message: string }> {
     await delay(200);
     const { db, store } = findStoreForToken(token);
     const orders = db.orders[store.id] ?? [];
     const order = orders.find((entry) => entry.id === orderId);
     if (!order) throw { status: 404, message: "Order not found" };
-    order.status = body.status;
-    order.notes = body.notes ?? order.notes;
+
+    let nextStatus = body.status as string;
+    if (nextStatus === "fulfilled") nextStatus = "delivered";
+    if (nextStatus === "refunded") nextStatus = "cancelled";
+
+    order.status = nextStatus as StoreOrderStatus;
+    if (body.notes !== undefined) order.notes = body.notes ?? order.notes;
+    if (body.tracking_number !== undefined) {
+      order.tracking_number = body.tracking_number;
+    }
+    if (nextStatus === "shipped") {
+      order.shipped_at = order.shipped_at ?? new Date().toISOString();
+    }
+    if (nextStatus === "cancelled" && (body.refund || order.payment_status === "paid")) {
+      order.payment_status = "refunded";
+      order.settlement_status = "refunded";
+    }
     order.updated_at = new Date().toISOString();
     save(db);
     return { order, message: "Order updated." };

@@ -1039,7 +1039,7 @@ export default function AdminProductsPage() {
   const productsSold = useMemo(() => {
     const orders = ordersQuery.data?.data ?? [];
     return orders
-      .filter((order) => !["cancelled", "refunded"].includes(order.status))
+      .filter((order) => order.status !== "cancelled" && order.payment_status !== "refunded")
       .reduce(
         (sum, order) => sum + order.items.reduce((itemSum, item) => itemSum + item.quantity, 0),
         0,
