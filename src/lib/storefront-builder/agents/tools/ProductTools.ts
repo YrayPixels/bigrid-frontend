@@ -123,66 +123,62 @@ export class ProductTools {
           additionalProperties: false,
         },
         handler: async (args, ctx) => {
-          const storefront = ctx.storefront;
-          const existingProducts = Array.isArray(storefront?.products) ? storefront.products : [];
-          if (!existingProducts.length) {
-            return { ok: false, error: "No products to describe. Add products first." };
-          }
-
           const style =
             typeof args.style === "string" && args.style.trim()
               ? args.style.trim()
               : (ctx.profile.tone?.join(", ") ?? "professional");
 
-          const productList = existingProducts
-            .map(
-              (p) =>
-                `- ${p.name} (${p.price} ${p.currency ?? "NGN"}): ${p.description ?? "(no description)"}`,
-            )
-            .join("\n");
+          const catalog = await api.getProducts().catch(() => []);
+          const products =
+            catalog.length > 0
+              ? catalog
+              : Array.isArray(ctx.storefront?.products)
+                ? ctx.storefront.products
+                : [];
 
-          const { postChat } = await import("@/lib/storefront-builder/agents/openaiChat");
-          const data = await postChat({
-            messages: [
-              {
-                role: "system",
-                content: [
-                  "You write compelling product descriptions for an online store.",
-                  `Brand tone: ${style}.`,
-                  "For each product, write a short, punchy description (2-3 sentences max).",
-                  "Focus on benefits and sensory details — not just features.",
-                  'Return ONLY valid JSON: { "descriptions": [{ "name": string, "description": string }] }',
-                ].join("\n"),
-              },
-              {
-                role: "user",
-                content: `Write descriptions for these products:\n${productList}`,
-              },
-            ],
-            tool_choice: "none",
-            temperature: 0.7,
-            response_format: { type: "json_object" },
-          });
+          if (!products.length) {
+            return { ok: false, error: "No products to describe. Add products first." };
+          }
 
-          const content = data?.choices?.[0]?.message?.content;
-          const parsed = typeof content === "string" ? JSON.parse(content) : null;
-          const descriptions = Array.isArray(parsed?.descriptions) ? parsed.descriptions : [];
-
-          if (!descriptions.length) return { ok: false, error: "Description generation failed." };
+          const { generateProductDescriptionCopy } = await import(
+            "@/lib/storefront-builder/product-description"
+          );
 
           let updated = 0;
-          for (const item of descriptions) {
-            const match = existingProducts.find(
-              (p) => p.name.toLowerCase() === (item.name as string)?.toLowerCase(),
-            );
-            if (!match) continue;
+          for (const product of products) {
+            const name = typeof product.name === "string" ? product.name.trim() : "";
+            if (!name) continue;
             try {
-              await api.updateProduct(match.id, { description: String(item.description) });
-              match.description = String(item.description);
+              const description = await generateProductDescriptionCopy({
+                name,
+                category:
+                  "category" in product && typeof product.category === "string"
+                    ? product.category
+                    : null,
+                price: typeof product.price === "number" ? product.price : null,
+                currency:
+                  "currency" in product && typeof product.currency === "string"
+                    ? product.currency
+                    : "NGN",
+                existing_description:
+                  typeof product.description === "string" ? product.description : null,
+                style,
+                business_name: ctx.profile.business_name ?? ctx.session.store?.business_name,
+                industry: ctx.profile.industry ?? ctx.session.store?.industry,
+              });
+              if (!description.trim()) continue;
+              if ("id" in product && product.id) {
+                await api.updateProduct(String(product.id), { description });
+              }
+              product.description = description;
               updated++;
             } catch {
               // skip failed updates
             }
+          }
+
+          if (ctx.storefront && Array.isArray(ctx.storefront.products)) {
+            ctx.storefront = { ...ctx.storefront, products: [...ctx.storefront.products] };
           }
 
           ctx.assistantMessage =

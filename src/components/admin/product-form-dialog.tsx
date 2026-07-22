@@ -18,6 +18,7 @@ import {
   List,
   Loader2,
   Plus,
+  Sparkles,
   Trash2,
   X,
 } from "lucide-react";
@@ -33,6 +34,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { generateProductDescriptionCopy } from "@/lib/storefront-builder/product-description";
 import type { StoreCategory, StoreProduct } from "@/lib/api/types";
 
 type ProductForm = {
@@ -367,6 +369,7 @@ export function ProductFormDialog({
   const [newCategoryName, setNewCategoryName] = useState("");
   const [newCategoryParentId, setNewCategoryParentId] = useState("");
   const [savingCategory, setSavingCategory] = useState(false);
+  const [generatingDescription, setGeneratingDescription] = useState(false);
   const [sessionKey, setSessionKey] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
@@ -662,6 +665,41 @@ export function ProductFormDialog({
     });
   }
 
+  async function generateDescription() {
+    const name = form.name.trim();
+    if (!name) {
+      toast.error("Add a product name first.");
+      nameInputRef.current?.focus();
+      return;
+    }
+
+    const categoryName =
+      categoryTree
+        .flatMap(({ category, children }) => [category, ...children])
+        .find((category) => category.id === form.category_id)?.name ?? null;
+
+    setGeneratingDescription(true);
+    try {
+      const price = Number(form.price);
+      const description = await generateProductDescriptionCopy({
+        name,
+        category: categoryName,
+        price: form.price.trim() && Number.isFinite(price) ? price : null,
+        currency: STORE_CURRENCY,
+        existing_description: form.description.trim() || null,
+      });
+      setForm((current) => ({
+        ...current,
+        description: description.slice(0, DESCRIPTION_SOFT_MAX + 200),
+      }));
+      toast.success("Description drafted — edit anything you like.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not generate description");
+    } finally {
+      setGeneratingDescription(false);
+    }
+  }
+
   async function handleCreateCategory() {
     const name = newCategoryName.trim();
     if (!name) {
@@ -838,6 +876,20 @@ export function ProductFormDialog({
                       Description
                     </FieldLabel>
                     <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => void generateDescription()}
+                        disabled={generatingDescription || isSaving || !form.name.trim()}
+                      >
+                        {generatingDescription ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Sparkles className="h-3.5 w-3.5" />
+                        )}
+                        {generatingDescription ? "Writing…" : "Generate with AI"}
+                      </Button>
                       <Button
                         type="button"
                         variant="outline"
