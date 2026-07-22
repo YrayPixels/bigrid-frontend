@@ -2,7 +2,10 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Suspense } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { storefrontApi } from "@/lib/api/storefront";
+import type { StoreOrder } from "@/lib/api/types";
+import { formatMoney } from "@/lib/storefront/format";
 import { useStorefront } from "@/lib/storefront/store-context";
 import { useStorefrontTheme } from "@/lib/storefront/theme-context";
 
@@ -12,6 +15,30 @@ function CheckoutSuccessContent() {
   const searchParams = useSearchParams();
   const orderNumber = searchParams.get("order") ?? "your order";
   const paid = searchParams.get("paid") === "1";
+  const [order, setOrder] = useState<StoreOrder | null>(null);
+
+  useEffect(() => {
+    if (!orderNumber || orderNumber === "your order") return;
+    let cancelled = false;
+    void storefrontApi
+      .lookupOrder(store.slug, { order: orderNumber })
+      .then((result) => {
+        if (!cancelled) setOrder(result);
+      })
+      .catch(() => {
+        if (!cancelled) setOrder(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [orderNumber, store.slug]);
+
+  const paymentLabel = order?.payment_status
+    ? order.payment_status.replaceAll("_", " ")
+    : paid
+      ? "paid"
+      : "pending";
+  const statusLabel = order?.status ?? (paid ? "processing" : "pending");
 
   if (theme.id === "minimalistic" || theme.id === "beauty" || theme.id === "cosmetics") {
     const isBeauty = theme.id === "beauty";
@@ -40,12 +67,14 @@ function CheckoutSuccessContent() {
             <span className="h-2 w-5 rounded-full" style={{ backgroundColor: theme.palette.primary }} />
           </div>
           <h1 className="mt-5 text-4xl font-semibold tracking-[-0.04em]">
-            {paid ? "Payment confirmed" : "Your order is confirmed"}
+            {paid || order?.payment_status === "paid" ? "Payment confirmed" : "Your order is confirmed"}
           </h1>
           <p className="mx-auto mt-3 max-w-md text-sm leading-6" style={{ color: theme.palette.muted }}>
             Thank you for shopping with {store.business_name}. Your order reference is{" "}
             <span className="font-bold" style={{ color: theme.palette.text }}>{orderNumber}</span>.
-            {paid ? " Your payment was received successfully." : " The store will contact you about payment if needed."}
+            {" "}Status: <span className="capitalize">{statusLabel}</span>
+            {" · "}Payment: <span className="capitalize">{paymentLabel}</span>
+            {order ? ` · ${formatMoney(order.total_amount, order.currency)}` : ""}.
           </p>
           <Link
             href="/products"
@@ -68,12 +97,14 @@ function CheckoutSuccessContent() {
         OK
       </div>
       <h1 className="mt-6 font-display text-4xl font-bold tracking-tight">
-        {paid ? "Payment confirmed" : "Order placed"}
+        {paid || order?.payment_status === "paid" ? "Payment confirmed" : "Order placed"}
       </h1>
       <p className="mt-3 text-sm text-muted-foreground">
         Thank you for shopping with {store.business_name}. Your order reference is{" "}
         <span className="font-semibold text-foreground">{orderNumber}</span>.
-        {paid ? " Your payment was received successfully." : " The store will contact you about payment if needed."}
+        {" "}Status: <span className="capitalize">{statusLabel}</span>
+        {" · "}Payment: <span className="capitalize">{paymentLabel}</span>
+        {order ? ` · ${formatMoney(order.total_amount, order.currency)}` : ""}.
       </p>
       <Link
         href="/products"
@@ -97,4 +128,3 @@ export default function CheckoutSuccessPageClient() {
     </Suspense>
   );
 }
-

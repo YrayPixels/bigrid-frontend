@@ -33,10 +33,18 @@ const STATUS_OPTIONS: { value: "all" | StoreOrderStatus; label: string }[] = [
   { value: "all", label: "All statuses" },
   { value: "pending", label: "Pending" },
   { value: "processing", label: "Processing" },
-  { value: "fulfilled", label: "Fulfilled" },
+  { value: "shipped", label: "Shipped" },
+  { value: "delivered", label: "Delivered" },
   { value: "cancelled", label: "Cancelled" },
-  { value: "refunded", label: "Refunded" },
 ];
+
+const PAYMENT_OPTIONS = [
+  { value: "all", label: "All payments" },
+  { value: "pending", label: "Pending" },
+  { value: "awaiting_payment", label: "Awaiting payment" },
+  { value: "paid", label: "Paid" },
+  { value: "refunded", label: "Refunded" },
+] as const;
 
 function formatMoney(value: number, currency = "NGN") {
   return new Intl.NumberFormat("en-NG", {
@@ -69,12 +77,13 @@ function formatDate(value: string | null) {
 
 function statusClass(status: string) {
   switch (status) {
-    case "fulfilled":
+    case "delivered":
       return "bg-emerald-500/10 text-emerald-700";
+    case "shipped":
+      return "bg-indigo-500/10 text-indigo-700";
     case "processing":
       return "bg-blue-500/10 text-blue-700";
     case "cancelled":
-    case "refunded":
       return "bg-destructive/10 text-destructive";
     default:
       return "bg-amber-500/10 text-amber-700";
@@ -84,6 +93,7 @@ function statusClass(status: string) {
 export default function AdminOrdersPage() {
   const queryClient = useQueryClient();
   const [status, setStatus] = useState<"all" | StoreOrderStatus>("all");
+  const [paymentStatus, setPaymentStatus] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -95,10 +105,11 @@ export default function AdminOrdersPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [status, debouncedSearch]);
+  }, [status, paymentStatus, debouncedSearch]);
 
   const ordersQuery = useMerchantOrders({
     status,
+    payment_status: paymentStatus,
     search: debouncedSearch,
     page,
   });
@@ -118,8 +129,15 @@ export default function AdminOrdersPage() {
   );
 
   const updateStatus = useMutation({
-    mutationFn: ({ orderId, nextStatus }: { orderId: string; nextStatus: StoreOrderStatus }) =>
-      api.updateOrderStatus(orderId, { status: nextStatus }),
+    mutationFn: ({
+      orderId,
+      nextStatus,
+      refund,
+    }: {
+      orderId: string;
+      nextStatus: StoreOrderStatus;
+      refund?: boolean;
+    }) => api.updateOrderStatus(orderId, { status: nextStatus, refund }),
     onSuccess: () => {
       toast.success("Order status updated.");
       merchantInvalidators.orders(queryClient);
@@ -218,7 +236,7 @@ export default function AdminOrdersPage() {
 
           <div className="p-4 sm:p-6">
             <section className="rounded-2xl border border-border/80 bg-[#fbfbfa] p-5 shadow-sm">
-        <div className="grid gap-4 md:grid-cols-[1fr_220px]">
+        <div className="grid gap-4 md:grid-cols-[1fr_180px_180px]">
           <label className="space-y-2 text-sm">
             <span className="font-medium">Search orders</span>
             <div className="relative">
@@ -239,6 +257,20 @@ export default function AdminOrdersPage() {
               className="w-full rounded-md border border-border bg-background px-3 py-2 outline-none focus:border-primary"
             >
               {STATUS_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="space-y-2 text-sm">
+            <span className="font-medium">Payment</span>
+            <select
+              value={paymentStatus}
+              onChange={(event) => setPaymentStatus(event.target.value)}
+              className="w-full rounded-md border border-border bg-background px-3 py-2 outline-none focus:border-primary"
+            >
+              {PAYMENT_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>
@@ -329,12 +361,24 @@ export default function AdminOrdersPage() {
                       <select
                         value={order.status}
                         disabled={updateStatus.isPending}
-                        onChange={(event) =>
+                        onChange={(event) => {
+                          const nextStatus = event.target.value as StoreOrderStatus;
+                          if (
+                            nextStatus === "cancelled" &&
+                            order.payment_status === "paid" &&
+                            !window.confirm(
+                              "Cancel and refund this paid order via Paystack? Inventory will be restored.",
+                            )
+                          ) {
+                            event.target.value = order.status;
+                            return;
+                          }
                           updateStatus.mutate({
                             orderId: order.id,
-                            nextStatus: event.target.value as StoreOrderStatus,
-                          })
-                        }
+                            nextStatus,
+                            refund: nextStatus === "cancelled" && order.payment_status === "paid",
+                          });
+                        }}
                         className="block w-36 rounded-md border border-border bg-background px-2 py-1 text-xs outline-none focus:border-primary"
                       >
                         {STATUS_OPTIONS.filter((option) => option.value !== "all").map((option) => (

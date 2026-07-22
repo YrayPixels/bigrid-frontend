@@ -7,7 +7,6 @@ import { useEffect, useState, type ReactNode } from "react";
 import {
   Banknote,
   BellRing,
-  CalendarClock,
   CheckCircle2,
   CreditCard,
   Globe2,
@@ -25,7 +24,7 @@ import {
 import { toast } from "sonner";
 import { merchantCache, useStoreMe } from "@/hooks/use-merchant-queries";
 import { api } from "@/lib/api/client";
-import type { StoreNotificationSettings } from "@/lib/api/types";
+import type { StoreNotificationSettings, StoreShippingSettings } from "@/lib/api/types";
 import { INDUSTRY_OPTIONS } from "@/lib/api/types";
 import { getStorefrontUrl } from "@/lib/store-host";
 import { Badge } from "@/components/ui/badge";
@@ -154,11 +153,24 @@ export default function AdminSettingsPage() {
     customer_order_note: null,
     sms_sender_name: null,
   });
+  const [shippingForm, setShippingForm] = useState<StoreShippingSettings>({
+    allow_local_delivery: true,
+    allow_pickup: false,
+    default_delivery_fee: 0,
+    fulfilment_promise: null,
+    shipping_policy: null,
+    return_policy: null,
+  });
 
   useEffect(() => {
     if (!storeQuery.data?.notifications) return;
     setNotificationForm(storeQuery.data.notifications);
   }, [storeQuery.data?.notifications]);
+
+  useEffect(() => {
+    if (!storeQuery.data?.shipping) return;
+    setShippingForm(storeQuery.data.shipping);
+  }, [storeQuery.data?.shipping]);
 
   const saveNotifications = useMutation({
     mutationFn: () => api.updateMyStore(notificationForm),
@@ -168,6 +180,26 @@ export default function AdminSettingsPage() {
         setNotificationForm(store.notifications);
       }
       toast.success("Notification settings saved.");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const saveShipping = useMutation({
+    mutationFn: () =>
+      api.updateMyStore({
+        allow_local_delivery: shippingForm.allow_local_delivery,
+        allow_pickup: shippingForm.allow_pickup,
+        default_delivery_fee: shippingForm.default_delivery_fee,
+        fulfilment_promise: shippingForm.fulfilment_promise,
+        shipping_policy: shippingForm.shipping_policy,
+        return_policy: shippingForm.return_policy,
+      }),
+    onSuccess: (store) => {
+      merchantCache.setStoreMe(queryClient, store);
+      if (store.shipping) {
+        setShippingForm(store.shipping);
+      }
+      toast.success("Fulfilment settings saved.");
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -370,19 +402,53 @@ export default function AdminSettingsPage() {
                 <CardContent className="space-y-4">
                   <ToggleRow
                     title="Allow local delivery"
-                    description="Offer doorstep delivery inside selected cities or zones."
-                    checked
+                    description="Offer doorstep delivery to customers."
+                    checked={shippingForm.allow_local_delivery}
+                    onCheckedChange={(checked) =>
+                      setShippingForm((prev) => ({ ...prev, allow_local_delivery: checked }))
+                    }
                   />
                   <ToggleRow
                     title="Allow pickup"
-                    description="Let customers collect orders from your store, warehouse, or event stand."
+                    description="Let customers collect orders from your store or warehouse."
+                    checked={shippingForm.allow_pickup}
+                    onCheckedChange={(checked) =>
+                      setShippingForm((prev) => ({ ...prev, allow_pickup: checked }))
+                    }
                   />
                   <Field label="Default delivery fee">
-                    <Input defaultValue="1500" inputMode="numeric" />
+                    <Input
+                      inputMode="numeric"
+                      value={shippingForm.default_delivery_fee ?? ""}
+                      onChange={(event) =>
+                        setShippingForm((prev) => ({
+                          ...prev,
+                          default_delivery_fee:
+                            event.target.value === "" ? null : Number(event.target.value),
+                        }))
+                      }
+                    />
                   </Field>
                   <Field label="Fulfilment promise">
-                    <Input defaultValue="Ships within 24-48 hours" />
+                    <Input
+                      value={shippingForm.fulfilment_promise ?? ""}
+                      placeholder="Ships within 24-48 hours"
+                      onChange={(event) =>
+                        setShippingForm((prev) => ({
+                          ...prev,
+                          fulfilment_promise: event.target.value || null,
+                        }))
+                      }
+                    />
                   </Field>
+                  <Button onClick={() => saveShipping.mutate()} disabled={saveShipping.isPending}>
+                    {saveShipping.isPending ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Save className="mr-2 h-4 w-4" />
+                    )}
+                    Save fulfilment settings
+                  </Button>
                 </CardContent>
               </Card>
 
@@ -520,27 +586,48 @@ export default function AdminSettingsPage() {
                     <Textarea
                       className="min-h-32"
                       placeholder="Describe return windows, accepted conditions, and refund timing."
+                      value={shippingForm.return_policy ?? ""}
+                      onChange={(event) =>
+                        setShippingForm((prev) => ({
+                          ...prev,
+                          return_policy: event.target.value || null,
+                        }))
+                      }
                     />
                   </Field>
                   <Field label="Shipping policy">
                     <Textarea
                       className="min-h-32"
                       placeholder="Describe delivery coverage, timelines, and failed delivery handling."
+                      value={shippingForm.shipping_policy ?? ""}
+                      onChange={(event) =>
+                        setShippingForm((prev) => ({
+                          ...prev,
+                          shipping_policy: event.target.value || null,
+                        }))
+                      }
                     />
                   </Field>
-                  <Field label="Tax display">
-                    <select className="h-10 w-full rounded-md border border-input bg-transparent px-3 text-sm">
+                  <Field label="Tax display" comingSoon>
+                    <select
+                      disabled
+                      className="h-10 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+                    >
                       <option>Prices include tax</option>
                       <option>Add tax at checkout</option>
                       <option>No tax collected</option>
                     </select>
                   </Field>
-                  <Field label="Business registration number">
-                    <Input placeholder="Optional CAC or local registration number" />
+                  <Field label="Business registration number" comingSoon>
+                    <Input placeholder="Optional CAC or local registration number" disabled />
                   </Field>
                   <div className="lg:col-span-2">
-                    <Button>
-                      <CalendarClock className="mr-2 h-4 w-4" />
+                    <Button onClick={() => saveShipping.mutate()} disabled={saveShipping.isPending}>
+                      {saveShipping.isPending ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Save className="mr-2 h-4 w-4" />
+                      )}
                       Save policy settings
                     </Button>
                   </div>

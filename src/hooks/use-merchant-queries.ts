@@ -124,14 +124,16 @@ export function useProducts(
 }
 
 export function useMerchantOrders(
-  params: { status: string; search: string; page: number },
+  params: { status: string; search: string; page: number; payment_status?: string },
   options?: Omit<UseQueryOptions<StoreOrdersResponse, Error>, "queryKey" | "queryFn">,
 ) {
+  const paymentStatus = params.payment_status ?? "all";
   return useQuery({
-    queryKey: merchantKeys.orders.list(params.status, params.search, params.page),
+    queryKey: merchantKeys.orders.list(params.status, params.search, params.page, paymentStatus),
     queryFn: () =>
       api.getOrders({
         status: params.status === "all" ? undefined : params.status,
+        payment_status: paymentStatus === "all" ? undefined : paymentStatus,
         search: params.search || undefined,
         page: params.page,
         per_page: 15,

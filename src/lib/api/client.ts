@@ -334,6 +334,7 @@ export const api = {
   async getOrders(
     filters: {
       status?: string;
+      payment_status?: string;
       search?: string;
       page?: number;
       per_page?: number;
@@ -344,6 +345,9 @@ export const api = {
 
     const params = new URLSearchParams();
     if (filters.status && filters.status !== "all") params.set("status", filters.status);
+    if (filters.payment_status && filters.payment_status !== "all") {
+      params.set("payment_status", filters.payment_status);
+    }
     if (filters.search) params.set("search", filters.search);
     if (filters.page) params.set("page", String(filters.page));
     if (filters.per_page) params.set("per_page", String(filters.per_page));
@@ -362,7 +366,12 @@ export const api = {
 
   async updateOrderStatus(
     orderId: string,
-    body: { status: StoreOrderStatus; notes?: string },
+    body: {
+      status: StoreOrderStatus | "fulfilled" | "refunded";
+      notes?: string;
+      tracking_number?: string | null;
+      refund?: boolean;
+    },
   ): Promise<{ order: StoreOrder; message: string }> {
     const token = requireToken();
     if (USE_MOCKS) return mockApi.updateOrderStatus(token, orderId, body);

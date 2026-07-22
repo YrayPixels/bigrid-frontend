@@ -118,6 +118,38 @@ export const storefrontApi = {
     return res.order;
   },
 
+  async lookupOrder(
+    slug: string,
+    params: { order: string; email?: string },
+  ): Promise<StoreOrder> {
+    if (USE_MOCKS) {
+      return {
+        id: "1",
+        order_number: params.order,
+        customer_name: "Customer",
+        customer_email: params.email ?? "",
+        customer_phone: "",
+        delivery_address: "",
+        status: "processing",
+        payment_status: "paid",
+        currency: "NGN",
+        subtotal: 0,
+        total_amount: 0,
+        items: [],
+        notes: null,
+        placed_at: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+    }
+    const query = new URLSearchParams({ order: params.order });
+    if (params.email) query.set("email", params.email);
+    const res = await publicHttpFresh<{ order: StoreOrder }>(
+      `${STOREHAUSE_API_PREFIX}/public/storefronts/${slug}/orders/lookup?${query.toString()}`,
+    );
+    return res.order;
+  },
+
   async recordVisit(slug: string, body: { session_id?: string; path?: string; referrer?: string }) {
     if (USE_MOCKS) return mockApi.recordVisit(slug, body);
     return publicWrite<{ message: string }>(
