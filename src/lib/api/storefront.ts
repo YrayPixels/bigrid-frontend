@@ -36,14 +36,11 @@ async function publicHttp<T>(path: string): Promise<T> {
   return data as T;
 }
 
-async function publicWrite<T>(path: string, body: unknown): Promise<T> {
+/** Live store payloads must not be ISR-cached — publish/product edits should show immediately. */
+async function publicHttpFresh<T>(path: string): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: JSON.stringify(body),
+    headers: { Accept: "application/json" },
+    cache: "no-store",
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
@@ -52,10 +49,14 @@ async function publicWrite<T>(path: string, body: unknown): Promise<T> {
   return data as T;
 }
 
-async function publicHttpFresh<T>(path: string): Promise<T> {
+async function publicWrite<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: { Accept: "application/json" },
-    cache: "no-store",
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(body),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
@@ -75,13 +76,13 @@ export const storefrontApi = {
 
   async getBySlug(slug: string): Promise<PublicStorefront> {
     if (USE_MOCKS) return mockApi.getPublicStorefront(slug);
-    return publicHttp<PublicStorefront>(`${STOREHAUSE_API_PREFIX}/public/storefronts/${slug}`);
+    return publicHttpFresh<PublicStorefront>(`${STOREHAUSE_API_PREFIX}/public/storefronts/${slug}`);
   },
 
   async getByHost(host: string): Promise<PublicStorefront> {
     if (USE_MOCKS) return mockApi.getPublicStorefrontByHost(host);
     const encoded = encodeURIComponent(host);
-    return publicHttp<PublicStorefront>(
+    return publicHttpFresh<PublicStorefront>(
       `${STOREHAUSE_API_PREFIX}/public/storefronts/by-host?host=${encoded}`,
     );
   },
