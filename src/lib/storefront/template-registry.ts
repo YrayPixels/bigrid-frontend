@@ -1,5 +1,4 @@
 import {
-  STOREFRONT_TEMPLATE_OPTIONS,
   type StorefrontTemplateId,
   type StorefrontTemplateOption,
   type StorefrontTemplateType,
@@ -35,24 +34,23 @@ export function getJsonTemplateOptions(
   );
 }
 
+/**
+ * Normalize a template catalog for merchant pickers.
+ * Trust the caller list (API already returns active-only); do not re-add
+ * static catalog entries the API omitted — that would undo admin deactivation.
+ */
 export function getConcreteTemplateOptions(
   options: StorefrontTemplateOption[],
 ): Array<StorefrontTemplateOption & { value: StorefrontTemplateId }> {
-  const fromInput = options.filter(
-    (option): option is StorefrontTemplateOption & { value: StorefrontTemplateId } =>
-      option.value !== "ai_pick" && option.is_active !== false,
-  );
+  const concrete = options
+    .filter(
+      (option): option is StorefrontTemplateOption & { value: StorefrontTemplateId } =>
+        option.value !== "ai_pick" &&
+        option.is_active !== false &&
+        option.generation_status !== "inactive",
+    )
+    .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
 
-  const knownIds = new Set(fromInput.map((option) => option.value));
-  const merged = [...fromInput];
-
-  for (const option of STOREFRONT_TEMPLATE_OPTIONS) {
-    if (option.value === "ai_pick" || knownIds.has(option.value)) continue;
-    if (option.is_active === false || option.generation_status === "inactive") continue;
-    merged.push(option as StorefrontTemplateOption & { value: StorefrontTemplateId });
-  }
-
-  const concrete = merged.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
   if (isCodeWorkbenchEnabled()) return concrete;
   return concrete.filter((option) => isJsonStorefrontTemplate(option.value, options));
 }

@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/resizable";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api/client";
-import { merchantCache, useBuilderSessionOrStart } from "@/hooks/use-merchant-queries";
+import { merchantCache, useBuilderSessionOrStart, useStorefrontTemplates } from "@/hooks/use-merchant-queries";
 import { codeFs } from "@/lib/code-fs";
 import { seedBuildItUpIfNeeded } from "@/lib/bolt/seed-template";
 import { needsBoltTemplateSeed, preferredWorkbenchFilePath } from "@/lib/bolt/project-utils";
@@ -31,6 +31,7 @@ import { extractTaggedPaths } from "@/lib/bolt/workbench-mentions";
 import { scrollWorkbenchEditorToLine } from "@/lib/bolt/workbench-editor-nav";
 import type { BuilderSession, StorefrontContent } from "@/lib/api/types";
 import { STOREFRONT_TEMPLATE_OPTIONS } from "@/lib/api/types";
+import { getConcreteTemplateOptions } from "@/lib/storefront/template-registry";
 import {
   applyBuilderBrandColor,
   applyBuilderLogo,
@@ -174,10 +175,16 @@ export default function AdminBuilderWorkbenchPage() {
   const [agentSteps, setAgentSteps] = useState<WorkbenchEditStep[]>([]);
 
   const sessionQuery = useBuilderSessionOrStart({ enabled: !!user });
+  const { data: activeTemplateOptions = STOREFRONT_TEMPLATE_OPTIONS } = useStorefrontTemplates({
+    enabled: !!user,
+  });
 
   const session = sessionQuery.data?.session ?? null;
   const storefront = session?.storefront_snapshot ?? null;
-  const templateOptions = STOREFRONT_TEMPLATE_OPTIONS;
+  const templateOptions = useMemo(
+    () => getConcreteTemplateOptions(activeTemplateOptions),
+    [activeTemplateOptions],
+  );
 
   const sessionThinkingTurns = useMemo(
     () => (session ? extractThinkingLogTurns(session as BuilderSession) : []),

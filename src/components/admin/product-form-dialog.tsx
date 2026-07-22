@@ -712,10 +712,13 @@ export function ProductFormDialog({
       }
       toast.success(
         editingProduct
-          ? "Product updated."
+          ? nextForm.status === "active" &&
+            (options?.statusOverride === "active" || editingProduct.status === "draft")
+            ? "Product published."
+            : "Product updated."
           : options?.statusOverride === "draft" || nextForm.status === "draft"
             ? "Product saved as draft."
-            : "Product added.",
+            : "Product published.",
       );
       setBaseline(serializeForm(nextForm));
       onOpenChange(false);
@@ -726,8 +729,13 @@ export function ProductFormDialog({
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    // New products go live as active unless the merchant chose "Save as draft".
-    await submit(editingProduct ? undefined : { statusOverride: "active" });
+    // Primary CTA publishes to the live store. "Save as draft" is the only path that
+    // keeps a product off the live catalog. Respect an explicit Archived selection.
+    if (form.status === "archived") {
+      await submit();
+      return;
+    }
+    await submit({ statusOverride: "active" });
   }
 
   const selectClassName =
@@ -750,7 +758,7 @@ export function ProductFormDialog({
                   {editingProduct ? "Edit product" : "Add product"}
                 </DialogTitle>
                 <DialogDescription className="mt-1 text-sm text-ink-soft">
-                  Save as draft anytime, or publish when ready.
+                  Publish to show it on your live store, or save as draft to keep it private.
                   {isDirty ? (
                     <span className="ml-2 text-amber-700">Unsaved changes</span>
                   ) : null}
@@ -1023,8 +1031,8 @@ export function ProductFormDialog({
                         }
                         className={selectClassName}
                       >
+                        <option value="active">Active (live)</option>
                         <option value="draft">Draft</option>
-                        <option value="active">Active</option>
                         <option value="archived">Archived</option>
                       </select>
                     </label>
@@ -1503,11 +1511,11 @@ export function ProductFormDialog({
                 ) : null}
                 <Button type="submit" disabled={isSaving || uploadingImage}>
                   {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                  {editingProduct
+                  {form.status === "archived"
                     ? "Save product"
-                    : form.status === "active"
+                    : form.status === "draft" || !editingProduct
                       ? "Publish product"
-                      : "Add product"}
+                      : "Save product"}
                 </Button>
               </div>
             </div>

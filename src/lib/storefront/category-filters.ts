@@ -85,22 +85,6 @@ export function categoryMatchIds(
   return matchIds;
 }
 
-function categoryHasDirectProducts(products: StoreProduct[], category: StoreCategory): boolean {
-  if (category.id.startsWith("legacy:")) {
-    return products.some(
-      (product) => product.category?.toLowerCase() === category.name.toLowerCase(),
-    );
-  }
-
-  return products.some((product) => {
-    if (product.category_id === category.id) return true;
-    if (!product.category_id && product.category?.toLowerCase() === category.name.toLowerCase()) {
-      return true;
-    }
-    return false;
-  });
-}
-
 /** Product count for a category, including products in its subcategories. */
 export function productCountForCategory(
   products: StoreProduct[],
@@ -142,8 +126,11 @@ export function productMatchesCategoryFilter(
 }
 
 /**
- * Categories to show in storefront filters — includes parents of matching
- * subcategories so the filter can nest children under their parents.
+ * Categories to show in storefront filters.
+ * Prefer the merchant category catalog so preview and live stay aligned —
+ * previously we only showed categories that had products in the current
+ * product payload, which hid categories on live when their products were
+ * still draft (preview merges all products; live merges active only).
  */
 export function resolveStorefrontFilterCategories(
   apiCategories: StoreCategory[] | undefined,
@@ -151,25 +138,9 @@ export function resolveStorefrontFilterCategories(
 ): StoreCategory[] {
   const fromApi = apiCategories ?? [];
   if (fromApi.length) {
-    const byId = new Map(fromApi.map((category) => [category.id, category]));
-    const withOwnProducts = fromApi.filter((category) =>
-      categoryHasDirectProducts(products, category),
+    return [...fromApi].sort(
+      (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name),
     );
-    const included = new Map<string, StoreCategory>();
-
-    for (const category of withOwnProducts) {
-      included.set(category.id, category);
-      if (category.parent_id) {
-        const parent = byId.get(category.parent_id);
-        if (parent) included.set(parent.id, parent);
-      }
-    }
-
-    if (included.size) {
-      return Array.from(included.values()).sort(
-        (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name),
-      );
-    }
   }
 
   const seen = new Map<string, StoreCategory>();
