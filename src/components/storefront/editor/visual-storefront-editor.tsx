@@ -735,8 +735,9 @@ export function VisualStorefrontEditor({
             onOpenChange={(open) => setOpenSection(open ? "images" : "")}
           >
             <p className="text-xs leading-5 text-ink-soft">
-              Double-click any image in the preview to upload a replacement. Product, hero, about,
-              and category images update instantly in the draft.
+              Double-click any image in the preview to upload a replacement. The Minimalistic hero
+              also accepts video (MP4, WebM, MOV). Product, hero, about, and category media update
+              instantly in the draft.
             </p>
           </EditorControlSection>
 

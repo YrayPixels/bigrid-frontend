@@ -67,7 +67,9 @@ export type PersistBuilderMessageInput = {
   brand_color?: string;
   color_label?: string;
   logo_url?: string | null;
-  media_updates?: Partial<Record<"media.hero_image_url" | "media.about_image_url", string>>;
+  media_updates?: Partial<
+    Record<"media.hero_image_url" | "media.hero_video_url" | "media.about_image_url", string>
+  >;
   apply_stock_images?: boolean;
 };
 

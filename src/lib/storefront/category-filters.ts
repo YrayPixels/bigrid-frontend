@@ -1,7 +1,37 @@
 import type { StoreCategory, StoreProduct } from "@/lib/api/types";
 
 export function categoryLabel(category: StoreCategory) {
-  return category.parent_name ? `${category.parent_name} / ${category.name}` : category.name;
+  return category.name;
+}
+
+export type StorefrontCategoryTreeNode = {
+  category: StoreCategory;
+  children: StoreCategory[];
+};
+
+/** Nest storefront categories under their parents for filter UIs. */
+export function buildStorefrontCategoryTree(categories: StoreCategory[]): StorefrontCategoryTreeNode[] {
+  const childrenByParent = new Map<string, StoreCategory[]>();
+  const roots: StoreCategory[] = [];
+  const byId = new Map(categories.map((category) => [category.id, category]));
+
+  for (const category of categories) {
+    if (category.parent_id && byId.has(category.parent_id)) {
+      const siblings = childrenByParent.get(category.parent_id) ?? [];
+      siblings.push(category);
+      childrenByParent.set(category.parent_id, siblings);
+    } else {
+      roots.push(category);
+    }
+  }
+
+  const sortByOrder = (a: StoreCategory, b: StoreCategory) =>
+    (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name);
+
+  return roots.sort(sortByOrder).map((category) => ({
+    category,
+    children: (childrenByParent.get(category.id) ?? []).sort(sortByOrder),
+  }));
 }
 
 /** Resolve `?category_id=` / `?category=` values that may be an id or a slug. */
@@ -38,8 +68,48 @@ export function sortCatalogProducts(
   });
 }
 
-export function productCountForCategory(products: StoreProduct[], category: StoreCategory) {
-  return products.filter((product) => productMatchesCategoryFilter(product, category.id, [category])).length;
+/** IDs that should match when a category (or its parent) is selected. */
+export function categoryMatchIds(
+  selectedCategoryId: string | null,
+  categories: StoreCategory[],
+): Set<string> {
+  const matchIds = new Set<string>();
+  if (!selectedCategoryId) return matchIds;
+
+  matchIds.add(selectedCategoryId);
+  for (const category of categories) {
+    if (category.parent_id === selectedCategoryId) {
+      matchIds.add(category.id);
+    }
+  }
+  return matchIds;
+}
+
+function categoryHasDirectProducts(products: StoreProduct[], category: StoreCategory): boolean {
+  if (category.id.startsWith("legacy:")) {
+    return products.some(
+      (product) => product.category?.toLowerCase() === category.name.toLowerCase(),
+    );
+  }
+
+  return products.some((product) => {
+    if (product.category_id === category.id) return true;
+    if (!product.category_id && product.category?.toLowerCase() === category.name.toLowerCase()) {
+      return true;
+    }
+    return false;
+  });
+}
+
+/** Product count for a category, including products in its subcategories. */
+export function productCountForCategory(
+  products: StoreProduct[],
+  category: StoreCategory,
+  categories: StoreCategory[],
+) {
+  return products.filter((product) =>
+    productMatchesCategoryFilter(product, category.id, categories),
+  ).length;
 }
 
 export function productMatchesCategoryFilter(
@@ -56,21 +126,51 @@ export function productMatchesCategoryFilter(
     return product.category?.toLowerCase() === selected.name.toLowerCase();
   }
 
+  const matchIds = categoryMatchIds(selectedCategoryId, categories);
+
   if (product.category_id) {
-    return product.category_id === selectedCategoryId;
+    return matchIds.has(product.category_id);
   }
 
-  return product.category?.toLowerCase() === selected.name.toLowerCase();
+  if (!product.category) return false;
+
+  return categories.some(
+    (category) =>
+      matchIds.has(category.id) &&
+      category.name.toLowerCase() === product.category!.toLowerCase(),
+  );
 }
 
-/** Categories to show in storefront filters — API list trimmed to categories with products, or derived from catalog. */
+/**
+ * Categories to show in storefront filters — includes parents of matching
+ * subcategories so the filter can nest children under their parents.
+ */
 export function resolveStorefrontFilterCategories(
   apiCategories: StoreCategory[] | undefined,
   products: StoreProduct[],
 ): StoreCategory[] {
   const fromApi = apiCategories ?? [];
-  const withProducts = fromApi.filter((category) => productCountForCategory(products, category) > 0);
-  if (withProducts.length) return withProducts;
+  if (fromApi.length) {
+    const byId = new Map(fromApi.map((category) => [category.id, category]));
+    const withOwnProducts = fromApi.filter((category) =>
+      categoryHasDirectProducts(products, category),
+    );
+    const included = new Map<string, StoreCategory>();
+
+    for (const category of withOwnProducts) {
+      included.set(category.id, category);
+      if (category.parent_id) {
+        const parent = byId.get(category.parent_id);
+        if (parent) included.set(parent.id, parent);
+      }
+    }
+
+    if (included.size) {
+      return Array.from(included.values()).sort(
+        (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name),
+      );
+    }
+  }
 
   const seen = new Map<string, StoreCategory>();
 

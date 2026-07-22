@@ -9,6 +9,7 @@ import type { StoreCategory, StoreProduct } from "@/lib/api/types";
 import { useCart } from "@/lib/storefront/cart-context";
 import { useStorefront } from "@/lib/storefront/store-context";
 import {
+  buildStorefrontCategoryTree,
   categoryLabel,
   productMatchesCategoryFilter,
   resolveStorefrontFilterCategories,
@@ -39,6 +40,83 @@ const fashionColorOptions = [
 ];
 
 const fashionSizeOptions = ["S", "M", "L", "XL", "XXL", "XXXL"];
+
+function MinimalisticCategoryFilterList({
+  categories,
+  selectedCategoryId,
+  onSelect,
+  variant = "sidebar",
+}: {
+  categories: StoreCategory[];
+  selectedCategoryId: string | null;
+  onSelect: (categoryId: string | null) => void;
+  variant?: "sidebar" | "chips";
+}) {
+  const { theme } = useStorefrontTheme();
+  const tree = useMemo(() => buildStorefrontCategoryTree(categories), [categories]);
+  const isChips = variant === "chips";
+
+  function categoryButton(category: StoreCategory, nested: boolean) {
+    const active = selectedCategoryId === category.id;
+    return (
+      <button
+        key={category.id}
+        type="button"
+        onClick={() => onSelect(active ? null : category.id)}
+        className={cn(
+          "flex items-center justify-between text-left text-xs font-semibold transition",
+          isChips
+            ? "shrink-0 rounded-full px-4 py-2"
+            : cn("rounded-full px-4 py-2.5", nested && "ml-3", active ? "" : "hover:opacity-80"),
+        )}
+        style={{
+          backgroundColor: active
+            ? theme.palette.primary
+            : isChips
+              ? theme.palette.surface
+              : `${theme.palette.surface}cc`,
+          color: active ? theme.palette.background : theme.palette.muted,
+        }}
+      >
+        {categoryLabel(category)}
+        {!isChips && active ? (
+          <span
+            className="h-2 w-2 rounded-full"
+            style={{ backgroundColor: theme.palette.background }}
+          />
+        ) : null}
+      </button>
+    );
+  }
+
+  if (isChips) {
+    return (
+      <>
+        {tree.map(({ category, children }) => (
+          <div key={category.id} className="contents">
+            {categoryButton(category, false)}
+            {children.map((child) => categoryButton(child, true))}
+          </div>
+        ))}
+      </>
+    );
+  }
+
+  return (
+    <>
+      {tree.map(({ category, children }) => (
+        <div key={category.id} className="grid gap-2">
+          {categoryButton(category, false)}
+          {children.length ? (
+            <div className="grid gap-1.5 border-l pl-1" style={{ borderColor: theme.palette.border }}>
+              {children.map((child) => categoryButton(child, true))}
+            </div>
+          ) : null}
+        </div>
+      ))}
+    </>
+  );
+}
 
 function productSearchText(product: StoreProduct) {
   return [
@@ -281,17 +359,34 @@ function FashionProductsPage({
                 <h3 className="mb-5 text-base font-extrabold">Category</h3>
                 {categories.length ? (
                   <div className="grid gap-3">
-                    {categories.map((category) => (
-                      <FashionCheckbox
-                        key={category.id}
-                        label={categoryLabel(category)}
-                        checked={selectedCategoryId === category.id}
-                        onClick={() =>
-                          setSelectedCategoryId(
-                            selectedCategoryId === category.id ? null : category.id,
-                          )
-                        }
-                      />
+                    {buildStorefrontCategoryTree(categories).map(({ category, children }) => (
+                      <div key={category.id} className="grid gap-2">
+                        <FashionCheckbox
+                          label={categoryLabel(category)}
+                          checked={selectedCategoryId === category.id}
+                          onClick={() =>
+                            setSelectedCategoryId(
+                              selectedCategoryId === category.id ? null : category.id,
+                            )
+                          }
+                        />
+                        {children.length ? (
+                          <div className="ml-4 grid gap-2 border-l pl-3" style={{ borderColor: theme.palette.border }}>
+                            {children.map((child) => (
+                              <FashionCheckbox
+                                key={child.id}
+                                label={categoryLabel(child)}
+                                checked={selectedCategoryId === child.id}
+                                onClick={() =>
+                                  setSelectedCategoryId(
+                                    selectedCategoryId === child.id ? null : child.id,
+                                  )
+                                }
+                              />
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
                     ))}
                   </div>
                 ) : (
@@ -521,24 +616,26 @@ function BeautyProductsPage({
             >
               All products
             </button>
-            {categories.map((category) => {
-              const active = selectedCategoryId === category.id;
-              return (
-                <button
-                  key={category.id}
-                  type="button"
-                  onClick={() => setSelectedCategoryId(active ? null : category.id)}
-                  className="rounded-full border px-4 py-2 text-xs font-semibold transition"
-                  style={{
-                    borderColor: active ? theme.palette.primary : theme.palette.border,
-                    backgroundColor: active ? theme.palette.primary : theme.palette.surface,
-                    color: active ? theme.palette.background : theme.palette.text,
-                  }}
-                >
-                  {categoryLabel(category)}
-                </button>
-              );
-            })}
+            {buildStorefrontCategoryTree(categories).flatMap(({ category, children }) =>
+              [category, ...children].map((entry) => {
+                const active = selectedCategoryId === entry.id;
+                return (
+                  <button
+                    key={entry.id}
+                    type="button"
+                    onClick={() => setSelectedCategoryId(active ? null : entry.id)}
+                    className="rounded-full border px-4 py-2 text-xs font-semibold transition"
+                    style={{
+                      borderColor: active ? theme.palette.primary : theme.palette.border,
+                      backgroundColor: active ? theme.palette.primary : theme.palette.surface,
+                      color: active ? theme.palette.background : theme.palette.text,
+                    }}
+                  >
+                    {categoryLabel(entry)}
+                  </button>
+                );
+              }),
+            )}
           </div>
 
           <div className="grid gap-x-5 gap-y-10 sm:grid-cols-2 lg:grid-cols-4">
@@ -758,34 +855,11 @@ function MinimalisticProductsPage({
                     />
                   ) : null}
                 </button>
-                {categories.map((category) => {
-                  const active = selectedCategoryId === category.id;
-                  return (
-                    <button
-                      key={category.id}
-                      type="button"
-                      onClick={() => setSelectedCategoryId(category.id)}
-                      className={cn(
-                        "flex items-center justify-between rounded-full px-4 py-2.5 text-left text-xs font-semibold transition",
-                        active ? "" : "hover:opacity-80",
-                      )}
-                      style={{
-                        backgroundColor: active
-                          ? theme.palette.primary
-                          : `${theme.palette.surface}cc`,
-                        color: active ? theme.palette.background : theme.palette.muted,
-                      }}
-                    >
-                      {categoryLabel(category)}
-                      {active ? (
-                        <span
-                          className="h-2 w-2 rounded-full"
-                          style={{ backgroundColor: theme.palette.background }}
-                        />
-                      ) : null}
-                    </button>
-                  );
-                })}
+                <MinimalisticCategoryFilterList
+                  categories={categories}
+                  selectedCategoryId={selectedCategoryId}
+                  onSelect={setSelectedCategoryId}
+                />
               </div>
             </div>
 
@@ -837,23 +911,12 @@ function MinimalisticProductsPage({
                   >
                     All
                   </button>
-                  {categories.map((category) => {
-                    const active = selectedCategoryId === category.id;
-                    return (
-                      <button
-                        key={category.id}
-                        type="button"
-                        onClick={() => setSelectedCategoryId(category.id)}
-                        className="shrink-0 rounded-full px-4 py-2 text-xs font-semibold"
-                        style={{
-                          backgroundColor: active ? theme.palette.primary : theme.palette.surface,
-                          color: active ? theme.palette.background : theme.palette.muted,
-                        }}
-                      >
-                        {categoryLabel(category)}
-                      </button>
-                    );
-                  })}
+                  <MinimalisticCategoryFilterList
+                    categories={categories}
+                    selectedCategoryId={selectedCategoryId}
+                    onSelect={setSelectedCategoryId}
+                    variant="chips"
+                  />
                 </div>
               </div>
 
@@ -1094,23 +1157,25 @@ export function ProductsPageView() {
           >
             All products
           </button>
-          {filterCategories.map((category) => (
-            <button
-              key={category.id}
-              type="button"
-              onClick={() =>
-                setSelectedCategoryId(selectedCategoryId === category.id ? null : category.id)
-              }
-              className={cn(
-                "rounded-full border px-4 py-2 text-xs font-semibold transition",
-                selectedCategoryId === category.id
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : "border-border bg-background text-ink-soft hover:text-ink",
-              )}
-            >
-              {categoryLabel(category)}
-            </button>
-          ))}
+          {buildStorefrontCategoryTree(filterCategories).flatMap(({ category, children }) =>
+            [category, ...children].map((entry) => (
+              <button
+                key={entry.id}
+                type="button"
+                onClick={() =>
+                  setSelectedCategoryId(selectedCategoryId === entry.id ? null : entry.id)
+                }
+                className={cn(
+                  "rounded-full border px-4 py-2 text-xs font-semibold transition",
+                  selectedCategoryId === entry.id
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border bg-background text-ink-soft hover:text-ink",
+                )}
+              >
+                {categoryLabel(entry)}
+              </button>
+            )),
+          )}
         </div>
       ) : null}
       <div className={`mt-10 grid gap-6 ${theme.productGridCols}`}>

@@ -1375,7 +1375,9 @@ export const mockApi = {
       brand_color?: string;
       color_label?: string;
       logo_url?: string | null;
-      media_updates?: Partial<Record<"media.hero_image_url" | "media.about_image_url", string>>;
+      media_updates?: Partial<
+        Record<"media.hero_image_url" | "media.hero_video_url" | "media.about_image_url", string>
+      >;
       apply_stock_images?: boolean;
     },
   ): Promise<BuilderSessionResponse> {
@@ -2293,6 +2295,7 @@ function applyMockChatEdit(
     if (path === "hero.headline") next.hero.headline = value;
     if (path === "hero.subheadline") next.hero.subheadline = value;
     if (path === "hero.cta_label") next.hero.cta_label = value;
+    if (path === "hero.eyebrow") next.hero.eyebrow = value;
     if (path === "about.title") {
       next.about.title = value;
       if (next.pages?.about) next.pages.about.title = value;

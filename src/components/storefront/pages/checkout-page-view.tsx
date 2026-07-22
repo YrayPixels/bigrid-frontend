@@ -422,11 +422,11 @@ export function CheckoutPageView() {
                     className="grid grid-cols-[72px_minmax(0,1fr)_auto] items-center gap-3 rounded-2xl p-3 text-sm"
                     style={{ backgroundColor: theme.palette.background }}
                   >
-                    <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-white p-2">
+                    <div className="h-16 w-16 overflow-hidden rounded-xl bg-white">
                       <img
                         src={image}
                         alt={line.product.name}
-                        className="h-full w-full object-contain"
+                        className="h-full w-full object-cover object-center"
                       />
                     </div>
                     <div className="min-w-0">

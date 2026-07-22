@@ -103,6 +103,13 @@ export function StorefrontEditorCanvas({
     const { url } = await api.uploadStorefrontImage(store.id, file);
     const next = cloneStorefrontContent(draft);
     ensureHomeBlocksOnStorefront(next);
+
+    if (path === "media.hero_video_url") {
+      next.media = { ...next.media, hero_video_url: url };
+      onDraftChange(next);
+      return;
+    }
+
     if (setEditableStorefrontPath(next, path, url)) {
       onDraftChange(next);
     }

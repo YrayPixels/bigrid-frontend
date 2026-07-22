@@ -533,13 +533,13 @@ function MinimalisticCartPageView() {
                   <article key={lineKey} className="py-6 first:pt-0">
                     <div className="grid gap-5 sm:grid-cols-[132px_minmax(0,1fr)]">
                       <div
-                        className="flex aspect-square items-center justify-center overflow-hidden rounded-2xl p-5"
+                        className="aspect-square overflow-hidden rounded-2xl"
                         style={{ backgroundColor: theme.palette.background }}
                       >
                         <img
                           src={image}
                           alt={line.product.name}
-                          className="h-full w-full object-contain object-center"
+                          className="h-full w-full object-cover object-center"
                         />
                       </div>
 

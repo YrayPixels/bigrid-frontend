@@ -473,10 +473,11 @@ export type StorefrontContent = {
   };
   media?: {
     hero_image_url?: string | null;
+    hero_video_url?: string | null;
     about_image_url?: string | null;
     category_images?: (string | null)[];
   };
-  hero: { headline: string; subheadline: string; cta_label: string };
+  hero: { headline: string; subheadline: string; cta_label: string; eyebrow?: string | null };
   about: { title: string; body: string };
   value_props: { title: string; body: string }[];
   navigation?: { label: string; href: string }[];
@@ -508,7 +509,10 @@ export type BuilderBusinessProfile = {
 
 export type BuilderMessageRole = "user" | "assistant";
 
-export type BuilderMediaTarget = "media.hero_image_url" | "media.about_image_url";
+export type BuilderMediaTarget =
+  | "media.hero_image_url"
+  | "media.hero_video_url"
+  | "media.about_image_url";
 
 export type BuilderSuggestedAction =
   | { type: "prompt"; label: string; message: string }
