@@ -1,35 +1,29 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowUpRight, Star } from "lucide-react";
 import { toast } from "sonner";
 import type { Store, StorefrontContent, StoreProduct } from "@/lib/api/types";
+import { EditableHeroMedia } from "@/components/storefront/theme/editable-hero-media";
 import { EditableImage } from "@/components/storefront/theme/editable-image";
 import { EditableText } from "@/components/storefront/theme/editable-text";
 import { StorefrontLink } from "@/components/storefront/theme/storefront-link";
 import { StorefrontFaqSection } from "@/components/storefront/pages/storefront-faq-section";
 import { formatMoney } from "@/lib/storefront/format";
 import { useCart } from "@/lib/storefront/cart-context";
+import { useStorefront } from "@/lib/storefront/store-context";
 import { useStorefrontTheme } from "@/lib/storefront/theme-context";
-import {
-  minimalisticCategories,
-  minimalisticTemplateImages,
-} from "@/lib/storefront/minimalistic-defaults";
+import { minimalisticTemplateImages } from "@/lib/storefront/minimalistic-defaults";
 import { getHomepageProducts } from "@/lib/storefront/product-plugs";
+import {
+  buildStorefrontCategoryTree,
+  categoryLabel,
+  productMatchesCategoryFilter,
+  resolveStorefrontFilterCategories,
+} from "@/lib/storefront/category-filters";
 
-function FloatingPill({
-  className,
-  color = "bg-[#c97955]",
-}: {
-  className: string;
-  color?: string;
-}) {
-  return (
-    <span
-      className={`pointer-events-none absolute h-10 w-5 rotate-45 rounded-full opacity-75 blur-[0.2px] ${color} ${className}`}
-    />
-  );
-}
+const HOME_CATEGORY_LIMIT = 5;
 
 function MinimalProductCard({
   product,
@@ -113,35 +107,66 @@ export function MinimalisticHome({
   storefront: StorefrontContent;
 }) {
   const { theme, mode } = useStorefrontTheme();
+  const { categories: apiCategories } = useStorefront();
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const products = storefront.products ?? [];
   const { products: featuredProducts, source: productSource } = getHomepageProducts(
     storefront,
     "minimalistic",
     6,
   );
+  const allFilterCategories = useMemo(
+    () => resolveStorefrontFilterCategories(apiCategories, products),
+    [apiCategories, products],
+  );
+  const filterCategories = useMemo(
+    () =>
+      buildStorefrontCategoryTree(allFilterCategories)
+        .slice(0, HOME_CATEGORY_LIMIT)
+        .map((node) => node.category),
+    [allFilterCategories],
+  );
+  const visibleProducts = useMemo(
+    () =>
+      featuredProducts.filter((product) =>
+        productMatchesCategoryFilter(product, selectedCategoryId, allFilterCategories),
+      ),
+    [allFilterCategories, featuredProducts, selectedCategoryId],
+  );
   const heroImageUrl = storefront.media?.hero_image_url ?? minimalisticTemplateImages.hero;
+  const heroVideoUrl = storefront.media?.hero_video_url ?? null;
   const aboutImageUrl = storefront.media?.about_image_url ?? minimalisticTemplateImages.about;
   return (
     <div style={{ backgroundColor: theme.palette.background, color: theme.palette.text }}>
-      <section className="relative overflow-hidden px-4 pb-14 pt-14 text-center sm:px-6 lg:pb-20 lg:pt-20">
-        <FloatingPill className="left-[8%] top-[55%]" color="bg-[#d99359]" />
-        <FloatingPill className="left-[29%] top-[61%]" color="bg-[#eadfbd]" />
-        <FloatingPill className="right-[20%] top-[52%]" color="bg-[#eef0c8]" />
-        <span className="pointer-events-none absolute left-[14%] top-[67%] h-9 w-9 rounded-full bg-[#e4e1c8]" />
-        <span className="pointer-events-none absolute right-[6%] top-[58%] h-10 w-10 rounded-full bg-[#dedbc1]" />
+      <section className="relative isolate flex min-h-[min(72vh,40rem)] items-center justify-center overflow-hidden px-4 py-16 text-center sm:min-h-[min(78vh,44rem)] sm:px-6 sm:py-20 lg:py-24">
+        <EditableHeroMedia
+          imagePath="media.hero_image_url"
+          videoPath="media.hero_video_url"
+          imageSrc={heroImageUrl}
+          videoSrc={heroVideoUrl}
+          alt={`${store.business_name} banner`}
+          className="absolute inset-0 -z-10"
+        />
+        <div
+          className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-b from-black/50 via-black/40 to-black/55"
+          aria-hidden
+        />
 
-        <div className="relative mx-auto max-w-4xl">
-          <div
-            className="mx-auto mb-7 inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-semibold shadow-sm"
-            style={{ backgroundColor: `${theme.palette.surface}b3` }}
-          >
+        <div className="relative mx-auto max-w-5xl text-white">
+          <div className="mx-auto mb-8 inline-flex max-w-full items-center gap-2 rounded-full bg-white/15 px-4 py-2 text-xs font-semibold shadow-sm backdrop-blur-md sm:text-sm">
             <span
-              className="h-2 w-5 rounded-full"
+              className="h-2 w-5 shrink-0 rounded-full"
               style={{ backgroundColor: theme.palette.primary }}
             />
-            Products List
+            <EditableText
+              path="hero.eyebrow"
+              value={storefront.hero.eyebrow || "Products List"}
+              as="span"
+              className="min-w-[4rem] text-center text-white"
+              placeholder="Badge"
+            />
             <span
-              className="h-2 w-5 rounded-full"
+              className="h-2 w-5 shrink-0 rounded-full"
               style={{ backgroundColor: theme.palette.primary }}
             />
           </div>
@@ -149,25 +174,18 @@ export function MinimalisticHome({
             path="hero.headline"
             value={storefront.hero.headline}
             as="h1"
-            className="mx-auto max-w-2xl text-4xl font-semibold leading-tight tracking-[-0.04em] sm:text-5xl"
+            className="mx-auto max-w-4xl text-4xl font-semibold leading-[1.05] tracking-[-0.04em] text-white sm:text-5xl md:text-6xl lg:text-7xl"
+            placeholder="Headline"
           />
           <EditableText
             path="hero.subheadline"
             value={storefront.hero.subheadline}
             as="p"
-            className="mx-auto mt-4 max-w-lg text-sm leading-6"
-            style={{ color: theme.palette.muted }}
+            className="mx-auto mt-5 max-w-2xl text-base leading-7 text-white/85 sm:mt-6 sm:text-lg sm:leading-8 md:text-xl md:leading-9"
             multiline
+            placeholder="Supporting text"
           />
         </div>
-
-        <EditableImage
-          path="media.hero_image_url"
-          src={heroImageUrl}
-          alt={`${store.business_name} wellness essentials`}
-          className="pointer-events-none absolute inset-x-0 bottom-0 -z-10 mx-auto h-56 max-w-5xl opacity-20"
-          imgClassName="object-cover object-center"
-        />
       </section>
 
       <section
@@ -175,43 +193,68 @@ export function MinimalisticHome({
         style={{ backgroundColor: theme.palette.surface }}
       >
         <div className="mx-auto max-w-7xl">
-          <div className="mb-8 flex flex-wrap justify-center gap-3">
-            {minimalisticCategories.map((category, index) => (
-              <span
-                key={category}
-                className={`rounded-full px-4 py-2 text-[11px] font-semibold ${
-                  index === 0 ? "" : ""
-                }`}
-                style={{
-                  backgroundColor: index === 0 ? theme.palette.primary : theme.palette.background,
-                  color: index === 0 ? theme.palette.surface : theme.palette.muted,
-                }}
-              >
-                {category}
-              </span>
-            ))}
+          <div className="mb-8 flex flex-wrap justify-center gap-2 sm:gap-3">
+            <button
+              type="button"
+              onClick={() => setSelectedCategoryId(null)}
+              className="rounded-full px-4 py-2 text-[11px] font-semibold transition"
+              style={{
+                backgroundColor: !selectedCategoryId
+                  ? theme.palette.primary
+                  : theme.palette.background,
+                color: !selectedCategoryId ? theme.palette.surface : theme.palette.muted,
+              }}
+            >
+              All Products
+            </button>
+            {filterCategories.map((category) => {
+              const active = selectedCategoryId === category.id;
+              return (
+                <button
+                  key={category.id}
+                  type="button"
+                  onClick={() => setSelectedCategoryId(active ? null : category.id)}
+                  className="rounded-full px-4 py-2 text-[11px] font-semibold transition"
+                  style={{
+                    backgroundColor: active ? theme.palette.primary : theme.palette.background,
+                    color: active ? theme.palette.surface : theme.palette.muted,
+                  }}
+                >
+                  {categoryLabel(category)}
+                </button>
+              );
+            })}
           </div>
 
           <div className="grid gap-x-5 gap-y-8 sm:grid-cols-2 lg:grid-cols-3">
-            {featuredProducts.map((product, index) => (
-              <MinimalProductCard
-                key={product.id}
-                product={product}
-                index={index}
-                imagePath={
-                  productSource === "merchant_products" && products[index]?.id === product.id
-                    ? `products.${index}.image_url`
-                    : undefined
-                }
-                editable={mode === "edit"}
-              />
-            ))}
+            {visibleProducts.map((product, index) => {
+              const originalIndex = products.findIndex((item) => item.id === product.id);
+              return (
+                <MinimalProductCard
+                  key={product.id}
+                  product={product}
+                  index={index}
+                  imagePath={
+                    productSource === "merchant_products" && originalIndex >= 0
+                      ? `products.${originalIndex}.image_url`
+                      : undefined
+                  }
+                  editable={mode === "edit"}
+                />
+              );
+            })}
           </div>
+
+          {visibleProducts.length === 0 ? (
+            <p className="mt-6 text-center text-sm" style={{ color: theme.palette.muted }}>
+              No products in this category yet.
+            </p>
+          ) : null}
         </div>
       </section>
 
       <section
-        className="px-4 pb-12 sm:px-6 lg:pb-16"
+        className="px-4 py-14 sm:px-6 sm:py-16 lg:py-20"
         style={{ backgroundColor: theme.palette.surface }}
       >
         <div className="mx-auto grid max-w-5xl gap-5 sm:grid-cols-2">
@@ -219,16 +262,20 @@ export function MinimalisticHome({
             path="media.about_image_url"
             src={aboutImageUrl}
             alt={`${store.business_name} lifestyle`}
-            className="min-h-56 rounded-xl bg-[#eef0df]"
+            className="min-h-56 rounded-xl bg-[#eef0df] sm:min-h-72"
             imgClassName="object-cover object-center"
           />
           <div
-            className="flex min-h-56 flex-col justify-center rounded-xl p-8"
+            className="flex min-h-56 flex-col justify-center rounded-xl px-7 py-10 sm:min-h-72 sm:px-8 sm:py-12"
             style={{ backgroundColor: theme.palette.primary, color: theme.palette.background }}
           >
-            <h2 className="text-2xl font-semibold tracking-[-0.035em]">
-              Ready to Elevate Your Health
-            </h2>
+            <EditableText
+              path="about.title"
+              value={storefront.about.title || "Ready to Elevate Your Health"}
+              as="h2"
+              className="text-2xl font-semibold tracking-[-0.035em] sm:text-[1.65rem]"
+              placeholder="Section title"
+            />
             <EditableText
               path="about.body"
               value={storefront.about.body}
@@ -236,15 +283,18 @@ export function MinimalisticHome({
               className="mt-4 max-w-sm text-sm leading-6"
               style={{ color: `${theme.palette.background}bf` }}
               multiline
+              placeholder="Tell customers about your store"
             />
             <StorefrontLink href="/products" className="mt-6 inline-flex w-fit items-center gap-2">
-              <span
+              <EditableText
+                path="hero.cta_label"
+                value={storefront.hero.cta_label || "Explore now"}
+                as="span"
                 className="rounded-full px-4 py-2 text-xs font-semibold"
                 style={{ backgroundColor: theme.palette.background, color: theme.palette.primary }}
-              >
-                Explore now
-              </span>
-              <ArrowUpRight className="h-4 w-4" />
+                placeholder="Button label"
+              />
+              <ArrowUpRight className="h-4 w-4 shrink-0" />
             </StorefrontLink>
           </div>
         </div>

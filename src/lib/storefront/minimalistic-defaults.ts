@@ -1,13 +1,5 @@
 import type { StoreProduct } from "@/lib/api/types";
 
-export const minimalisticCategories = [
-  "All Products",
-  "Beauty",
-  "Gut & Digestion",
-  "Brain Health",
-  "Sleep & Stress",
-];
-
 export const minimalisticTemplateImages = {
   hero: "https://images.unsplash.com/photo-1556228578-8c89e6adf883?auto=format&fit=crop&w=1800&q=90",
   about:

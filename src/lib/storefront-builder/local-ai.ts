@@ -1176,7 +1176,9 @@ export async function applyColorChangeFromMessageAsync(
 
 export function applyMediaToStorefront(
   storefront: StorefrontContent,
-  updates: Partial<Record<"media.hero_image_url" | "media.about_image_url", string>>,
+  updates: Partial<
+    Record<"media.hero_image_url" | "media.hero_video_url" | "media.about_image_url", string>
+  >,
 ): { storefront: StorefrontContent; changed_paths: string[] } {
   const next = structuredClone(storefront);
   const changedPaths: string[] = [];
@@ -1184,6 +1186,10 @@ export function applyMediaToStorefront(
   if (updates["media.hero_image_url"]) {
     setEditableStorefrontPath(next, "media.hero_image_url", updates["media.hero_image_url"]);
     changedPaths.push("media.hero_image_url");
+  }
+  if (updates["media.hero_video_url"]) {
+    setEditableStorefrontPath(next, "media.hero_video_url", updates["media.hero_video_url"]);
+    changedPaths.push("media.hero_video_url");
   }
   if (updates["media.about_image_url"]) {
     setEditableStorefrontPath(next, "media.about_image_url", updates["media.about_image_url"]);

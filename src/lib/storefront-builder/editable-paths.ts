@@ -80,6 +80,7 @@ export function promptAllowedStorefrontPaths(): string[] {
 
 export const BASE_EDITABLE_STOREFRONT_PATHS = [
   "display_font",
+  "hero.eyebrow",
   "hero.headline",
   "hero.subheadline",
   "hero.cta_label",
@@ -88,6 +89,7 @@ export const BASE_EDITABLE_STOREFRONT_PATHS = [
   "seo.title",
   "seo.description",
   "media.hero_image_url",
+  "media.hero_video_url",
   "media.about_image_url",
   "pages.contact.title",
   "pages.contact.body",
@@ -129,6 +131,7 @@ export function normalizeEditableStorefrontPath(path: string): string {
 
 export function storefrontPathLabel(path: string): string {
   const labels: Record<string, string> = {
+    "hero.eyebrow": "homepage badge",
     "hero.headline": "homepage headline",
     "hero.subheadline": "homepage intro",
     "hero.cta_label": "shop button",
@@ -139,6 +142,7 @@ export function storefrontPathLabel(path: string): string {
     "seo.title": "search title",
     "seo.description": "search description",
     "media.hero_image_url": "homepage header photo",
+    "media.hero_video_url": "homepage header video",
     "media.about_image_url": "about section photo",
     "pages.contact.title": "contact page title",
     "pages.contact.body": "contact page intro",
@@ -281,11 +285,17 @@ export function setEditableStorefrontPath(
     return true;
   }
 
-  if (path === "hero.headline" || path === "hero.subheadline" || path === "hero.cta_label") {
+  if (
+    path === "hero.headline" ||
+    path === "hero.subheadline" ||
+    path === "hero.cta_label" ||
+    path === "hero.eyebrow"
+  ) {
     const hero = storefront.hero ?? { headline: "", subheadline: "", cta_label: "Shop now" };
     if (path === "hero.headline") storefront.hero = { ...hero, headline: trimmed };
     else if (path === "hero.subheadline") storefront.hero = { ...hero, subheadline: trimmed };
-    else storefront.hero = { ...hero, cta_label: trimmed };
+    else if (path === "hero.cta_label") storefront.hero = { ...hero, cta_label: trimmed };
+    else storefront.hero = { ...hero, eyebrow: trimmed };
   } else if (path === "about.title" || path === "pages.about.title") setAboutField(storefront, "title", trimmed);
   else if (path === "about.body" || path === "pages.about.body") setAboutField(storefront, "body", trimmed);
   else if (path === "seo.title") storefront.seo.title = trimmed;
@@ -293,7 +303,9 @@ export function setEditableStorefrontPath(
   else if (path === "home_testimonials_title") storefront.home_testimonials_title = trimmed;
   else if (path === "home_testimonials_intro") storefront.home_testimonials_intro = trimmed;
   else if (path === "media.hero_image_url") {
-    storefront.media = { ...storefront.media, hero_image_url: trimmed };
+    storefront.media = { ...storefront.media, hero_image_url: trimmed, hero_video_url: null };
+  } else if (path === "media.hero_video_url") {
+    storefront.media = { ...storefront.media, hero_video_url: trimmed };
   } else if (path === "media.about_image_url") {
     storefront.media = { ...storefront.media, about_image_url: trimmed };
   } else if (path.startsWith("value_props.")) {
@@ -323,7 +335,8 @@ export function setEditableStorefrontPath(
     path.startsWith("pages.about.") ||
     path.startsWith("value_props.") ||
     path.startsWith("pages.faq.") ||
-    path.startsWith("media.hero_image_url");
+    path.startsWith("media.hero_image_url") ||
+    path.startsWith("media.hero_video_url");
 
   if (legacyHomePaths) {
     syncHomeBlocksFromLegacyFields(storefront);
