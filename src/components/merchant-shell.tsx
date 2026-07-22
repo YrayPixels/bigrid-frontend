@@ -15,6 +15,7 @@ import {
   ShoppingBag,
   ShoppingCart,
   Sparkles,
+  Users,
   type LucideIcon,
 } from "lucide-react";
 import { SettingsNavMenu } from "@/components/admin/settings-nav-tree";
@@ -76,6 +77,7 @@ const navGroups: NavGroup[] = [
     label: "Sales",
     items: [
       { href: "/admin/orders", label: "Orders", icon: ShoppingBag },
+      { href: "/admin/customers", label: "Customers", icon: Users },
       { href: "/admin/marketing/recovery", label: "Abandoned Cart", icon: ShoppingCart },
     ],
   },

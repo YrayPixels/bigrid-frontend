@@ -16,6 +16,8 @@ import type {
   StoreOrder,
   StoreOrdersResponse,
   StoreOrderStatus,
+  StoreCustomer,
+  StoreCustomersResponse,
   StoreProduct,
   ProductImportReport,
   StorefrontContent,
@@ -377,6 +379,64 @@ export const api = {
     if (USE_MOCKS) return mockApi.updateOrderStatus(token, orderId, body);
     return http<{ order: StoreOrder; message: string }>(
       `${STOREHAUSE_API_PREFIX}/orders/${orderId}/status`,
+      { method: "PATCH", body: JSON.stringify(body) },
+    );
+  },
+
+  async openOrderInvoice(orderId: string): Promise<void> {
+    const token = requireToken();
+    const base = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "").replace(/\/$/, "");
+    const res = await fetch(`${base}${STOREHAUSE_API_PREFIX}/orders/${orderId}/invoice`, {
+      headers: {
+        Accept: "text/html",
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data?.message ?? "Could not load invoice.");
+    }
+    const html = await res.text();
+    const blob = new Blob([html], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    window.open(url, "_blank", "noopener,noreferrer");
+  },
+
+  async getCustomers(filters: {
+    search?: string;
+    page?: number;
+    per_page?: number;
+  } = {}): Promise<StoreCustomersResponse> {
+    requireToken();
+    if (USE_MOCKS) {
+      return { data: [], meta: { current_page: 1, last_page: 1, per_page: 15, total: 0 } };
+    }
+    const params = new URLSearchParams();
+    if (filters.search) params.set("search", filters.search);
+    if (filters.page) params.set("page", String(filters.page));
+    if (filters.per_page) params.set("per_page", String(filters.per_page));
+    return http<StoreCustomersResponse>(
+      `${STOREHAUSE_API_PREFIX}/customers${params.toString() ? `?${params}` : ""}`,
+    );
+  },
+
+  async getCustomer(customerId: string): Promise<StoreCustomer> {
+    requireToken();
+    if (USE_MOCKS) throw { status: 404, message: "Not found" };
+    const res = await http<{ customer: StoreCustomer }>(
+      `${STOREHAUSE_API_PREFIX}/customers/${customerId}`,
+    );
+    return res.customer;
+  },
+
+  async updateCustomer(
+    customerId: string,
+    body: { notes?: string | null },
+  ): Promise<{ customer: StoreCustomer; message: string }> {
+    requireToken();
+    if (USE_MOCKS) throw { status: 404, message: "Not found" };
+    return http<{ customer: StoreCustomer; message: string }>(
+      `${STOREHAUSE_API_PREFIX}/customers/${customerId}`,
       { method: "PATCH", body: JSON.stringify(body) },
     );
   },

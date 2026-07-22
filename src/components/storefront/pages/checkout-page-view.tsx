@@ -160,7 +160,7 @@ export function CheckoutPageView() {
             window.sessionStorage.setItem("storehaus_last_order", result.order.order_number);
             clear();
             router.push(
-              `/checkout/success?order=${encodeURIComponent(result.order.order_number)}&paid=1`,
+              `/checkout/success?order=${encodeURIComponent(result.order.order_number)}&email=${encodeURIComponent(result.order.customer_email)}&paid=1`,
             );
           },
           onClose: () => setSubmitting(false),
@@ -170,7 +170,9 @@ export function CheckoutPageView() {
 
       window.sessionStorage.setItem("storehaus_last_order", result.order.order_number);
       clear();
-      router.push(`/checkout/success?order=${encodeURIComponent(result.order.order_number)}`);
+      router.push(
+        `/checkout/success?order=${encodeURIComponent(result.order.order_number)}&email=${encodeURIComponent(result.order.customer_email)}`,
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not place order. Please try again.");
       setSubmitting(false);

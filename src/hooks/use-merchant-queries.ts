@@ -17,6 +17,8 @@ import type {
   StoreCategory,
   StoreOrder,
   StoreOrdersResponse,
+  StoreCustomer,
+  StoreCustomersResponse,
   StorePaymentSettings,
   StoreDomainsResponse,
   StoreProduct,
@@ -155,6 +157,35 @@ export function useMerchantOrder(
   });
 }
 
+export function useMerchantCustomers(
+  params: { search: string; page: number },
+  options?: Omit<UseQueryOptions<StoreCustomersResponse, Error>, "queryKey" | "queryFn">,
+) {
+  return useQuery({
+    queryKey: merchantKeys.customers.list(params.search, params.page),
+    queryFn: () =>
+      api.getCustomers({
+        search: params.search || undefined,
+        page: params.page,
+        per_page: 20,
+      }),
+    placeholderData: (prev) => prev,
+    ...options,
+  });
+}
+
+export function useMerchantCustomer(
+  customerId: string,
+  options?: Omit<UseQueryOptions<StoreCustomer, Error>, "queryKey" | "queryFn">,
+) {
+  return useQuery({
+    queryKey: merchantKeys.customer(customerId),
+    queryFn: () => api.getCustomer(customerId),
+    enabled: !!customerId,
+    ...options,
+  });
+}
+
 export function useStorefront(
   storeId?: string,
   options?: Omit<UseQueryOptions<StorefrontDraftResponse, Error>, "queryKey" | "queryFn">,
@@ -275,6 +306,10 @@ export const merchantInvalidators = {
     qc.invalidateQueries({ queryKey: merchantKeys.orders.all }),
   order: (qc: QueryClient, orderId: string) =>
     qc.invalidateQueries({ queryKey: merchantKeys.order(orderId) }),
+  customers: (qc: QueryClient) =>
+    qc.invalidateQueries({ queryKey: merchantKeys.customers.all }),
+  customer: (qc: QueryClient, customerId: string) =>
+    qc.invalidateQueries({ queryKey: merchantKeys.customer(customerId) }),
   storefront: (qc: QueryClient) =>
     qc.invalidateQueries({ queryKey: ["storefront"] }),
   storefrontTemplates: (qc: QueryClient) =>

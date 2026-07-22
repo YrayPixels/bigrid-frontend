@@ -6,6 +6,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import {
   ArrowLeft,
+  FileText,
   Loader2,
   Mail,
   MapPin,
@@ -179,8 +180,28 @@ export default function AdminOrderDetailPage() {
             {order.order_number}
           </h1>
           <p className="mt-2 text-sm text-ink-soft">Placed {formatDate(order.placed_at)}</p>
+          {order.store_customer_id ? (
+            <Link
+              href={`/admin/customers/${order.store_customer_id}`}
+              className="mt-2 inline-block text-sm font-semibold text-primary hover:underline"
+            >
+              View customer profile
+            </Link>
+          ) : null}
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={() => {
+              void api.openOrderInvoice(orderId).catch((error: Error) => {
+                toast.error(error.message);
+              });
+            }}
+            className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-semibold"
+          >
+            <FileText className="h-4 w-4" />
+            Invoice
+          </button>
           <span
             className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold capitalize ${statusClass(order.status)}`}
           >

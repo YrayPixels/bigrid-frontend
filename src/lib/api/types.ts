@@ -629,6 +629,8 @@ export type StoreOrderItem = {
 export type StoreOrder = {
   id: string;
   order_number: string;
+  invoice_number?: string | null;
+  store_customer_id?: string | null;
   customer_name: string;
   customer_email: string;
   customer_phone: string;
@@ -652,6 +654,40 @@ export type StoreOrder = {
   shipped_at?: string | null;
   created_at: string | null;
   updated_at: string | null;
+};
+
+export type StoreCustomer = {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  orders_count: number;
+  total_spent: number;
+  first_order_at: string | null;
+  last_order_at: string | null;
+  notes: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+  orders?: {
+    id: string;
+    order_number: string;
+    invoice_number?: string | null;
+    status: string;
+    payment_status: string;
+    total_amount: number;
+    currency: string;
+    placed_at: string | null;
+  }[];
+};
+
+export type StoreCustomersResponse = {
+  data: StoreCustomer[];
+  meta: {
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+  };
 };
 
 export type StoreOrdersResponse = {
