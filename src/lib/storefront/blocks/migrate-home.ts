@@ -30,7 +30,7 @@ export function buildCosmeticsHomeBlocks(storefront: StorefrontContent): Storefr
       id: "hero-main",
       type: "hero",
       props: {
-        eyebrow: "Discover the Nature with",
+        eyebrow: storefront.hero.eyebrow ?? "Discover the Nature with",
         headline: storefront.hero.headline,
         subheadline: storefront.hero.subheadline,
         cta_label: storefront.hero.cta_label,
@@ -152,6 +152,7 @@ export function buildDefaultHomeBlocks(
       id: "hero-main",
       type: "hero",
       props: {
+        eyebrow: storefront.hero.eyebrow ?? null,
         headline: storefront.hero.headline,
         subheadline: storefront.hero.subheadline,
         cta_label: storefront.hero.cta_label,

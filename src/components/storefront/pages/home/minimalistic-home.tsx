@@ -108,6 +108,22 @@ export function MinimalisticHome({
             multiline
             placeholder="Supporting text"
           />
+          <div className="mt-8 flex justify-center">
+            <StorefrontLink
+              href="/products"
+              className="inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold shadow-sm"
+              style={{ backgroundColor: theme.palette.background, color: theme.palette.primary }}
+            >
+              <EditableText
+                path="hero.cta_label"
+                value={storefront.hero.cta_label || "Explore now"}
+                as="span"
+                className="text-inherit"
+                placeholder="Button label"
+              />
+              <ArrowUpRight className="h-4 w-4 shrink-0" />
+            </StorefrontLink>
+          </div>
         </div>
       </section>
 
