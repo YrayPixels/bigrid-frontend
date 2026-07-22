@@ -1062,18 +1062,6 @@ function MinimalisticProductsPage({
   );
 }
 
-export function ProductsPageView() {
-  const { store, storefront, categories: apiCategories } = useStorefront();
-  const { theme, mode } = useStorefrontTheme();
-  const products = (storefront.products ?? []).filter(
-    (product) => mode === "edit" || (product.status ?? "active") === "active",
-  );
-  const filterCategories = useMemo(
-    () => resolveStorefrontFilterCategories(apiCategories, products),
-    [apiCategories, products],
-  );
-  const [selectedCategoryId, setSelectedCategoryId] = useCategoryFilter(filterCategories);
-
 function DefaultProductsPage({
   products,
   categories,
