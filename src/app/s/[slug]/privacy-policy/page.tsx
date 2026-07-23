@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
-import { headers } from "next/headers";
 import PrivacyPolicyPageClient from "./page.client";
-import { getSitemapBaseUrl, resolveMetadataAssetUrl } from "@/lib/site-seo";
+import { getStorefrontBaseUrl, resolveMetadataAssetUrl } from "@/lib/site-seo";
 import { loadStorefront } from "@/lib/storefront/load-storefront";
 
 export async function generateMetadata({
@@ -10,8 +9,7 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const host = (await headers()).get("host");
-  const baseUrl = getSitemapBaseUrl(host);
+  const baseUrl = getStorefrontBaseUrl(slug);
 
   try {
     const data = await loadStorefront(slug);
@@ -53,6 +51,7 @@ export async function generateMetadata({
       title: `${slug} — Privacy policy`,
       description: "Privacy policy.",
       alternates: { canonical: "./" },
+      robots: { index: false, follow: false },
     };
   }
 }
