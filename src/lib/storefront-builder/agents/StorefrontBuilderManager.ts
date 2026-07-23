@@ -296,19 +296,21 @@ export class StorefrontBuilderManager {
         }
 
         if (pendingAction.type === "resume_tool") {
-          const resumeTool = toolDefs.find((tool) => tool.name === pendingAction.tool);
-          const toolArgs = buildResumedToolArguments(pendingAction, message);
+          const resumePending = pendingAction;
+          const resumeToolName = resumePending.tool;
+          const resumeTool = toolDefs.find((tool) => tool.name === resumeToolName);
+          const toolArgs = buildResumedToolArguments(resumePending, message);
           if (resumeTool && toolArgs) {
             this.log({
               agent: "System",
               phase: "start",
               title: "Resuming pending tool after clarification",
-              detail: pendingActionSummary(pendingAction),
+              detail: pendingActionSummary(resumePending),
             });
 
             const ctx: WebsiteBuilderContext = {
               message,
-              planIntent: `Resume ${pendingAction.tool} after clarification`,
+              planIntent: `Resume ${resumeToolName} after clarification`,
               session,
               profile: baseProfile,
               recommendations,
@@ -325,9 +327,9 @@ export class StorefrontBuilderManager {
             this.log({
               agent: "Executor",
               phase: result.ok === false ? "error" : "complete",
-              title: `Tool finished: ${pendingAction.tool}`,
-              detail: summarizeToolResult(pendingAction.tool, result),
-              data: { name: pendingAction.tool, arguments: toolArgs, result },
+              title: `Tool finished: ${resumeToolName}`,
+              detail: summarizeToolResult(resumeToolName, result),
+              data: { name: resumeToolName, arguments: toolArgs, result },
             });
 
             // Keep pending if the resumed tool asked another clarifying question.
@@ -347,8 +349,8 @@ export class StorefrontBuilderManager {
                   : "Done — I finished that request."),
               assistant_payload: {
                 ...(ctx.payload ?? {}),
-                tool_calls: [{ name: pendingAction.tool, arguments: toolArgs }],
-                tool_results: [{ name: pendingAction.tool, ...result }],
+                tool_calls: [{ name: resumeToolName, arguments: toolArgs }],
+                tool_results: [{ name: resumeToolName, ...result }],
               },
             };
           }
