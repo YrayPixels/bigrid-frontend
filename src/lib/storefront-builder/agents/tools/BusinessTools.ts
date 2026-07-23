@@ -4,6 +4,8 @@ import {
   sanitizeBusinessProfile,
   concreteTemplateIds,
 } from "@/lib/storefront-builder/local-ai";
+import { asString } from "./toolHelpers";
+import { sanitizePendingAction, withPendingAction } from "@/lib/storefront-builder/pending-action";
 import type { WebsiteBuilderToolDef } from "../types";
 
 /** Discovery & intake: capture merchant details, pick design direction, ask questions. */
@@ -82,11 +84,29 @@ export class BusinessTools {
       },
       {
         name: "ask_clarifying_question",
-        description: "Ask the merchant one short clarifying question before building their website.",
+        description:
+          "Ask the merchant one short clarifying question when something important is ambiguous — e.g. which product, which section/photo, business name, price, or what they sell. When continuing a specific tool after the answer, pass resume_tool + resume_arguments + await_field so the next reply resumes that action.",
         parameters: {
           type: "object",
           properties: {
             question: { type: "string" },
+            resume_tool: {
+              type: "string",
+              description: "Tool to run after the merchant answers (e.g. add_products, replace_template_images).",
+            },
+            resume_arguments: {
+              type: "object",
+              description: "Partial arguments for resume_tool; the awaited field will be filled from their reply.",
+            },
+            await_field: {
+              type: "string",
+              description: "Argument name to fill from the reply (e.g. price, product_name, instruction).",
+            },
+            await_kind: {
+              type: "string",
+              enum: ["price", "product_name", "text"],
+              description: "How to interpret the merchant's reply.",
+            },
           },
           required: ["question"],
           additionalProperties: false,
@@ -94,10 +114,48 @@ export class BusinessTools {
         handler: async (args, ctx) => {
           const question = typeof args.question === "string" ? args.question.trim() : "";
           if (!question) return { ok: false, error: "missing_question" };
+
+          const resumeTool = asString(args.resume_tool);
+          const awaitField = asString(args.await_field);
+          const awaitKind =
+            args.await_kind === "price" ||
+            args.await_kind === "product_name" ||
+            args.await_kind === "text"
+              ? args.await_kind
+              : awaitField === "price"
+                ? "price"
+                : awaitField === "product_name"
+                  ? "product_name"
+                  : "text";
+
+          const pending = resumeTool
+            ? sanitizePendingAction({
+                type: "resume_tool",
+                tool: resumeTool,
+                arguments:
+                  args.resume_arguments && typeof args.resume_arguments === "object"
+                    ? (args.resume_arguments as Record<string, unknown>)
+                    : {},
+                await_field: awaitField || undefined,
+                await_kind: awaitKind,
+                question,
+                original_message: ctx.message,
+              })
+            : sanitizePendingAction({
+                type: "clarification",
+                question,
+                original_message: ctx.message,
+              });
+
+          ctx.profile = withPendingAction(ctx.profile, pending);
           ctx.assistantMessage = question;
           ctx.status = "collecting_requirements";
-          ctx.payload = { type: "requirements_request", profile: ctx.profile };
-          return { ok: true, question };
+          ctx.payload = {
+            type: "requirements_request",
+            profile: ctx.profile,
+            pending_action: pending,
+          };
+          return { ok: true, question, pending_action: pending };
         },
       },
     ];

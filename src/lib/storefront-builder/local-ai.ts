@@ -43,6 +43,7 @@ import { parseJsonObject } from "@/lib/storefront-builder/agents/agentThinking";
 import { getAssistantMessageContent, getThinkingModelName, postChat } from "@/lib/storefront-builder/agents/openaiChat";
 import { BUILDER_EDITOR_SYSTEM_PROMPT } from "@/lib/storefront-builder/prompts";
 import { promptAllowedStorefrontPaths } from "@/lib/storefront-builder/editable-paths";
+import { sanitizePendingAction } from "@/lib/storefront-builder/pending-action";
 
 export { EDITABLE_STOREFRONT_PATHS } from "@/lib/storefront-builder/editable-paths";
 
@@ -537,6 +538,7 @@ export function sanitizeBusinessProfile(profile: BuilderBusinessProfile): Builde
         ? profile.brand_color
         : null,
     tone: [...new Set((profile.tone ?? []).map(String).map((tone) => tone.trim()).filter(Boolean))],
+    pending_action: sanitizePendingAction(profile.pending_action),
   };
 }
 

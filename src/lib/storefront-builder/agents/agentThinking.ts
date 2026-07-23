@@ -218,10 +218,18 @@ export function summarizeToolResult(name: string, result: Record<string, unknown
   if (name === "update_theme_style" && result.ok) return "[tool:update_theme_style] style tokens updated";
   if (name === "apply_stock_images" && result.ok) return "[tool:apply_stock_images] stock photos applied";
   if (name === "source_website_images" && result.ok) return "[tool:source_website_images] image recommendations ready";
-  if (name === "replace_template_images" && result.ok) return "[tool:replace_template_images] template photos replaced";
+  if (name === "replace_template_images" && result.ok) {
+    if (typeof result.product_name === "string" && result.product_name) {
+      return `[tool:replace_template_images] photo updated for ${result.product_name}`;
+    }
+    return "[tool:replace_template_images] template photos replaced";
+  }
   if (name === "add_products" && result.ok) {
     const added = Array.isArray(result.added) ? result.added.length : 0;
-    return `[tool:add_products] ${added} product(s) created`;
+    const imaged = Array.isArray(result.imaged) ? result.imaged.length : 0;
+    return imaged > 0
+      ? `[tool:add_products] ${added} product(s) created, ${imaged} with photos`
+      : `[tool:add_products] ${added} product(s) created`;
   }
   if (name === "list_products" && result.ok) {
     return `[tool:list_products] ${result.count ?? 0} product(s) listed`;
@@ -255,6 +263,9 @@ export function summarizeToolResult(name: string, result: Record<string, unknown
     return `[tool:suggest_site_improvements] ${count} suggestion(s)`;
   }
   if (name === "generate_product_descriptions" && result.ok) {
+    if (typeof result.product_name === "string" && result.product_name) {
+      return `[tool:generate_product_descriptions] description updated for ${result.product_name}`;
+    }
     return `[tool:generate_product_descriptions] ${result.updated ?? 0} description(s) updated`;
   }
   if (name === "generate_custom_site" && result.ok) {

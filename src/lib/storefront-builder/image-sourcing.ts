@@ -1,4 +1,4 @@
-import type { BuilderMediaTarget, Industry, StorefrontContent } from "@/lib/api/types";
+import type { BuilderMediaTarget, Industry, StorefrontContent, StoreProduct } from "@/lib/api/types";
 import { ensureHomeBlocksOnStorefront } from "@/lib/storefront/blocks/sync-legacy";
 import { migrateHomeBlocks } from "@/lib/storefront/blocks/migrate-home";
 import { migrateAboutBlocks } from "@/lib/storefront/blocks/migrate-page-blocks";
@@ -18,6 +18,7 @@ import {
   fetchTemplatePlanFromUnsplash,
   formatUnsplashPhotoUrl,
   inferUnsplashSearchPlanWithAi,
+  resolveUnsplashPhotoUrl,
   searchUnsplashPhotos,
 } from "@/lib/storefront-builder/unsplash-client";
 import { resolveCategoryShowcaseProps, showcaseItemsMissingImages } from "@/lib/storefront/blocks/category-showcase-utils";
@@ -320,14 +321,7 @@ export function applyTemplateImagesAcrossStorefront(
     if (props.image_url) changedPaths.add(`pages.about.blocks.${block.id}.props.image_url`);
   }
 
-  if (next.products?.length && plan.product_urls.length) {
-    next.products = next.products.map((product, index) => ({
-      ...product,
-      image_url: plan.product_urls[index % plan.product_urls.length] ?? product.image_url,
-    }));
-    next.products.forEach((_, index) => changedPaths.add(`products.${index}.image_url`));
-  }
-
+  // Product photos are sourced per product (name + description) — not from generic plan URLs.
   next.data_plugs = {
     ...next.data_plugs,
     home_products_source: "merchant_products",
@@ -430,29 +424,264 @@ function applyAboutImagesOnly(
   return { storefront: next, changed_paths: [...changedPaths] };
 }
 
-function applyProductImagesOnly(
-  storefront: StorefrontContent,
-  plan: TemplateImagePlan,
-): { storefront: StorefrontContent; changed_paths: string[] } {
-  const ensured = ensureMerchantHomepageProducts(storefront);
-  const next = structuredClone(ensured.storefront);
-  const changedPaths: string[] = [];
+function shortProductDescription(description?: string | null): string {
+  if (!description?.trim()) return "";
+  return description
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 8)
+    .join(" ");
+}
 
-  if (!next.products?.length || !plan.product_urls.length) {
-    return { storefront: next, changed_paths: changedPaths };
+function productCategorySynonyms(name: string, description?: string | null): string[] {
+  const text = `${name} ${description ?? ""}`.toLowerCase();
+  if (/\b(iphone|android|pixel|galaxy|smartphone|mobile phone|cellphone)\b/.test(text)) {
+    return ["smartphone product photography", "black smartphone on desk", "mobile phone"];
+  }
+  if (/\b(macbook|laptop|notebook computer|dell|latitude|thinkpad|hp elitebook|chromebook)\b/.test(text)) {
+    return ["laptop computer product", "laptop on desk", "business laptop"];
+  }
+  if (/\b(headphone|earbud|airpods|earphone)\b/.test(text)) {
+    return ["wireless headphones product", "earbuds product photo"];
+  }
+  if (/\b(shoe|sneaker|boot|heel)\b/.test(text)) {
+    return ["product shoes photography", "sneakers product shot"];
+  }
+  if (/\b(watch|smartwatch)\b/.test(text)) {
+    return ["wristwatch product photography", "smartwatch product"];
+  }
+  return [];
+}
+
+/** Build Unsplash queries from the product itself — name + description — not generic brand stock. */
+function buildProductImageQueries(
+  product: Pick<StoreProduct, "name" | "description" | "category">,
+  opts: { intent?: string; industry?: Industry | string | null } = {},
+): string[] {
+  const name = product.name?.trim() || "product";
+  const withoutModel = name
+    .replace(/\b\d+(\.\d+)?(\s*(pro|plus|max|mini|ultra|se))?\b/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const desc = shortProductDescription(product.description);
+  const category = product.category?.trim() || "";
+  const industry =
+    typeof opts.industry === "string" ? opts.industry.replace(/_/g, " ").trim() : "";
+  const mood = opts.intent?.trim() || "";
+  const synonyms = productCategorySynonyms(name, product.description);
+
+  return [
+    ...new Set(
+      [
+        desc ? `${name} ${desc}` : "",
+        `${name} product photography`,
+        withoutModel && withoutModel.toLowerCase() !== name.toLowerCase()
+          ? `${withoutModel} product`
+          : "",
+        category ? `${name} ${category}` : "",
+        ...synonyms,
+        mood ? `${name} ${mood}` : "",
+        industry ? `${name} ${industry}` : "",
+        name,
+      ].filter((query) => query.length > 0),
+    ),
+  ];
+}
+
+async function sourceImageUrlForProduct(
+  product: Pick<StoreProduct, "name" | "description" | "category">,
+  opts: {
+    intent?: string;
+    context?: ImageSourceContext;
+    usedUrls?: Set<string>;
+  } = {},
+): Promise<{ url: string | null; search_terms: string[] }> {
+  const queries = buildProductImageQueries(product, {
+    intent: opts.intent,
+    industry: opts.context?.industry,
+  });
+
+  // Live Unsplash only — never apply curated catalog URLs that may 404.
+  const url = await resolveUnsplashPhotoUrl(queries, {
+    count: 5,
+    orientation: "squarish",
+    usedUrls: opts.usedUrls,
+  });
+
+  return { url, search_terms: queries.slice(0, 4) };
+}
+
+/** Public helper for tools that need a product-matched Unsplash photo (e.g. add_products). */
+export async function findProductImageUrl(
+  product: Pick<StoreProduct, "name" | "description" | "category">,
+  opts: {
+    intent?: string;
+    context?: ImageSourceContext;
+    usedUrls?: Set<string>;
+  } = {},
+): Promise<{ url: string | null; search_terms: string[] }> {
+  return sourceImageUrlForProduct(product, opts);
+}
+
+/**
+ * Source a distinct photo for each product using that product's name and description.
+ * Prefer this over cycling generic brand stock across the grid.
+ */
+export async function replaceProductImagesPerItem(args: {
+  storefront: StorefrontContent;
+  intent?: string;
+  context?: ImageSourceContext;
+}): Promise<{
+  storefront: StorefrontContent;
+  changed_paths: string[];
+  result: ImageSourceResult;
+}> {
+  const ensured = ensureMerchantHomepageProducts(args.storefront);
+  const next = structuredClone(ensured.storefront);
+  const products = next.products ?? [];
+  const changedPaths: string[] = [];
+  const searchTerms: string[] = [];
+  const recommendations: SourcedImageRecommendation[] = [];
+  const usedUrls = new Set<string>();
+
+  if (!products.length) {
+    return {
+      storefront: next,
+      changed_paths: [],
+      result: {
+        recommendations: [],
+        search_terms: [],
+        source_links: [],
+        summary: "Add products first, then I can find matching photos for each one.",
+      },
+    };
   }
 
-  next.products = next.products.map((product, index) => ({
-    ...product,
-    image_url: plan.product_urls[index % plan.product_urls.length] ?? product.image_url,
-  }));
-  next.products.forEach((_, index) => changedPaths.push(`products.${index}.image_url`));
+  for (let index = 0; index < products.length; index += 1) {
+    const product = products[index];
+    const sourced = await sourceImageUrlForProduct(product, {
+      intent: args.intent,
+      context: args.context,
+      usedUrls,
+    });
+    searchTerms.push(...sourced.search_terms);
+    if (!sourced.url) continue;
+
+    products[index] = { ...product, image_url: sourced.url };
+    const path = `products.${index}.image_url`;
+    changedPaths.push(path);
+    recommendations.push({
+      target: "product",
+      url: sourced.url,
+      label: product.name,
+      reason: `Matched to ${product.name}${product.description?.trim() ? " and its description" : ""}`,
+      path,
+    });
+  }
+
+  next.products = products;
   next.data_plugs = {
     ...next.data_plugs,
     home_products_source: "merchant_products",
   };
 
-  return { storefront: next, changed_paths: changedPaths };
+  const uniqueTerms = [...new Set(searchTerms)].slice(0, 8);
+  const count = changedPaths.length;
+  return {
+    storefront: next,
+    changed_paths: changedPaths,
+    result: {
+      recommendations,
+      search_terms: uniqueTerms,
+      source_links: buildImageSearchLinks(uniqueTerms),
+      summary:
+        count > 0
+          ? `I found photos matched to each of your ${count} product${count === 1 ? "" : "s"} (name and description).`
+          : "I couldn't find matching product photos yet — try again or upload your own.",
+    },
+  };
+}
+
+/** Source and apply one photo for a single named product — never touches other products. */
+export async function replaceSingleProductImage(args: {
+  storefront: StorefrontContent;
+  productIndex: number;
+  productName: string;
+  intent: string;
+  context?: ImageSourceContext;
+}): Promise<{
+  storefront: StorefrontContent;
+  changed_paths: string[];
+  result: ImageSourceResult;
+  image_url: string | null;
+}> {
+  const ensured = ensureMerchantHomepageProducts(args.storefront);
+  const next = structuredClone(ensured.storefront);
+  const products = next.products ?? [];
+  const product = products[args.productIndex];
+  if (!product) {
+    return {
+      storefront: next,
+      changed_paths: [],
+      image_url: null,
+      result: {
+        recommendations: [],
+        search_terms: [],
+        source_links: [],
+        summary: `I couldn't find that product to update.`,
+      },
+    };
+  }
+
+  const sourced = await sourceImageUrlForProduct(
+    { ...product, name: args.productName || product.name },
+    { intent: args.intent, context: args.context },
+  );
+
+  if (!sourced.url) {
+    return {
+      storefront: next,
+      changed_paths: [],
+      image_url: null,
+      result: {
+        recommendations: [],
+        search_terms: sourced.search_terms,
+        source_links: buildImageSearchLinks(sourced.search_terms),
+        summary: `I couldn't find a better photo for ${args.productName} yet.`,
+      },
+    };
+  }
+
+  products[args.productIndex] = { ...product, image_url: sourced.url };
+  next.products = products;
+  next.data_plugs = {
+    ...next.data_plugs,
+    home_products_source: "merchant_products",
+  };
+  const changedPath = `products.${args.productIndex}.image_url`;
+
+  return {
+    storefront: next,
+    changed_paths: [changedPath],
+    image_url: sourced.url,
+    result: {
+      recommendations: [
+        {
+          target: "product",
+          url: sourced.url,
+          label: args.productName,
+          reason: "Matched to this product's name and description",
+          path: changedPath,
+        },
+      ],
+      search_terms: sourced.search_terms,
+      source_links: buildImageSearchLinks(sourced.search_terms),
+      summary: `I updated the photo for ${args.productName} based on its name and description.`,
+    },
+  };
 }
 
 export async function applyCategoryShowcaseImagesOnly(
@@ -568,13 +797,19 @@ export async function replaceScopedStorefrontImages(args: {
     };
   }
 
+  if (args.scope === "products") {
+    return replaceProductImagesPerItem({
+      storefront: args.storefront,
+      intent: args.intent,
+      context: args.context,
+    });
+  }
+
   const { plan, summary, search_terms } = await resolveTemplateImagePlan(args.intent, args.context ?? {});
   const applied =
     args.scope === "hero"
       ? applyHeroImagesOnly(args.storefront, plan)
-      : args.scope === "about"
-        ? applyAboutImagesOnly(args.storefront, plan)
-        : applyProductImagesOnly(args.storefront, plan);
+      : applyAboutImagesOnly(args.storefront, plan);
 
   return {
     storefront: applied.storefront,
@@ -695,16 +930,29 @@ export async function replaceTemplateImagesForStorefront(args: {
 }> {
   const { plan, summary, search_terms } = await resolveTemplateImagePlan(args.intent, args.context ?? {});
   const applied = applyTemplateImagesAcrossStorefront(args.storefront, plan);
+  const productsApplied = await replaceProductImagesPerItem({
+    storefront: applied.storefront,
+    intent: args.intent,
+    context: args.context,
+  });
+
+  const mergedSearchTerms = [...new Set([...search_terms, ...productsApplied.result.search_terms])];
   const result: ImageSourceResult = {
-    recommendations: planToRecommendations(plan),
-    search_terms,
-    source_links: buildImageSearchLinks(search_terms),
-    summary,
+    recommendations: [
+      ...planToRecommendations(plan).filter((item) => item.target !== "product"),
+      ...productsApplied.result.recommendations,
+    ],
+    search_terms: mergedSearchTerms,
+    source_links: buildImageSearchLinks(mergedSearchTerms),
+    summary:
+      productsApplied.changed_paths.length > 0
+        ? `${summary} I also matched product photos to each item's name and description.`
+        : summary,
   };
 
   return {
-    storefront: applied.storefront,
-    changed_paths: applied.changed_paths,
+    storefront: productsApplied.storefront,
+    changed_paths: [...applied.changed_paths, ...productsApplied.changed_paths],
     result,
   };
 }

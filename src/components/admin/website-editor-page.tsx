@@ -670,7 +670,12 @@ function WebsiteRefineView({ store }: { store: Store }) {
         </div>
       ) : null}
 
-      <WebsiteAskAiSheet open={askAiOpen} onOpenChange={setAskAiOpen} storeId={store.id} />
+      <WebsiteAskAiSheet
+        open={askAiOpen}
+        onOpenChange={setAskAiOpen}
+        storeId={store.id}
+        draft={storefront}
+      />
     </div>
   );
 }

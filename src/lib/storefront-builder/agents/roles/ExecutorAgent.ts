@@ -62,7 +62,12 @@ export class ExecutorAgent extends BuilderAgent {
 
     this.sessionState = input.session.storefront_snapshot
       ? "### Session state\nA website draft already exists in the preview. Follow the plan above — call each planned tool in order. Never reply with only prose when a tool is assigned to you. Execute tools silently and report results after.\n" +
-        "When calling replace_template_images, ALWAYS set scope yourself from the merchant's intent (full_site|hero|about|category_showcase|products). Do not omit scope.\n" +
+        "When calling replace_template_images, ALWAYS set scope yourself from the merchant's intent (full_site|hero|about|category_showcase|products). Do not omit scope. Banner/header/homepage background = hero.\n" +
+        "When the merchant names a specific product for a photo update, pass product_name (and scope=products). Never refresh all product photos for one named product.\n" +
+        "When the merchant names a specific product for a description update, call generate_product_descriptions with product_name. Never rewrite all descriptions for one named product.\n" +
+        "When adding a product and they want a photo (e.g. 'add Dell Latitude 5900 and find an image'), call add_products with find_images=true. If price is missing, ask_clarifying_question for the price first.\n" +
+        "If which product or section is unclear, call ask_clarifying_question instead of guessing — when possible include resume_tool, resume_arguments, and await_field so their answer resumes the same action.\n" +
+        "If Pending clarification context is present, continue that pending action with the merchant's answer.\n" +
         `Enabled tools: ${input.toolDefs.map((tool) => tool.name).join(", ")}`
       : "### Session state\nNo website draft yet. Gather business details if needed, then design and generate when the merchant is ready.";
 

@@ -31,6 +31,7 @@ import {
   STOREFRONT_TEMPLATE_OPTIONS,
   type BuilderMediaTarget,
   type BuilderSession,
+  type StorefrontContent,
   type StorefrontTemplateId,
 } from "@/lib/api/types";
 import { isCodeWorkbenchEnabled } from "@/lib/features";
@@ -40,9 +41,26 @@ type WebsiteAskAiSheetProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   storeId?: string;
+  /** Current website editor draft — preferred over a stale/empty builder session snapshot. */
+  draft?: StorefrontContent | null;
 };
 
-export function WebsiteAskAiSheet({ open, onOpenChange, storeId }: WebsiteAskAiSheetProps) {
+function sessionWithEditorDraft(
+  session: BuilderSession,
+  draft?: StorefrontContent | null,
+): BuilderSession {
+  if (!draft) return session;
+  return {
+    ...session,
+    storefront_snapshot: draft,
+    status:
+      session.status === "collecting_requirements" || session.status === "template_recommendation"
+        ? "content_generated"
+        : session.status,
+  };
+}
+
+export function WebsiteAskAiSheet({ open, onOpenChange, storeId, draft }: WebsiteAskAiSheetProps) {
   const queryClient = useQueryClient();
   const { user, refresh } = useAuth();
 
@@ -92,13 +110,17 @@ export function WebsiteAskAiSheet({ open, onOpenChange, storeId }: WebsiteAskAiS
       if (!session) {
         const started = await api.startBuilderSession();
         return processBuilderMessage({
-          session: started.session as BuilderSession,
+          session: sessionWithEditorDraft(started.session as BuilderSession, draft),
           message,
           templateOptions,
         });
       }
 
-      return processBuilderMessage({ session, message, templateOptions });
+      return processBuilderMessage({
+        session: sessionWithEditorDraft(session, draft),
+        message,
+        templateOptions,
+      });
     },
     onSuccess: handleSessionResponse,
     onError: (error) => toast.error(error instanceof Error ? error.message : "Could not send message"),
@@ -107,7 +129,11 @@ export function WebsiteAskAiSheet({ open, onOpenChange, storeId }: WebsiteAskAiS
   const applyColor = useMutation({
     mutationFn: async ({ color, label }: { color: string; label: string }) => {
       if (!session) throw new Error("No active builder session");
-      return applyBuilderBrandColor({ session, color, label });
+      return applyBuilderBrandColor({
+        session: sessionWithEditorDraft(session, draft),
+        color,
+        label,
+      });
     },
     onSuccess: handleSessionResponse,
     onError: (error) => toast.error(error instanceof Error ? error.message : "Could not apply color"),
@@ -115,9 +141,10 @@ export function WebsiteAskAiSheet({ open, onOpenChange, storeId }: WebsiteAskAiS
 
   const uploadMedia = useMutation({
     mutationFn: async ({ target, file }: { target: BuilderMediaTarget; file: File }) => {
-      if (!session?.store) throw new Error("Create your store before uploading images");
-      const { url } = await api.uploadStorefrontImage(session.store.id, file);
-      return applyBuilderMedia({ session, target, url });
+      const working = sessionWithEditorDraft(session as BuilderSession, draft);
+      if (!working.store) throw new Error("Create your store before uploading images");
+      const { url } = await api.uploadStorefrontImage(working.store.id, file);
+      return applyBuilderMedia({ session: working, target, url });
     },
     onSuccess: handleSessionResponse,
     onError: (error) => toast.error(error instanceof Error ? error.message : "Could not upload image"),
@@ -125,9 +152,10 @@ export function WebsiteAskAiSheet({ open, onOpenChange, storeId }: WebsiteAskAiS
 
   const uploadLogo = useMutation({
     mutationFn: async (file: File) => {
-      if (!session?.store) throw new Error("Create your store before uploading a logo");
-      const { url } = await api.uploadStorefrontImage(session.store.id, file);
-      return applyBuilderLogo({ session, url });
+      const working = sessionWithEditorDraft(session as BuilderSession, draft);
+      if (!working.store) throw new Error("Create your store before uploading a logo");
+      const { url } = await api.uploadStorefrontImage(working.store.id, file);
+      return applyBuilderLogo({ session: working, url });
     },
     onSuccess: handleSessionResponse,
     onError: (error) => toast.error(error instanceof Error ? error.message : "Could not upload logo"),
@@ -136,7 +164,7 @@ export function WebsiteAskAiSheet({ open, onOpenChange, storeId }: WebsiteAskAiS
   const removeLogo = useMutation({
     mutationFn: async () => {
       if (!session) throw new Error("No active builder session");
-      return removeBuilderLogo({ session });
+      return removeBuilderLogo({ session: sessionWithEditorDraft(session, draft) });
     },
     onSuccess: handleSessionResponse,
     onError: (error) => toast.error(error instanceof Error ? error.message : "Could not remove logo"),
@@ -152,7 +180,11 @@ export function WebsiteAskAiSheet({ open, onOpenChange, storeId }: WebsiteAskAiS
       label: string;
     }) => {
       if (!session) throw new Error("No active builder session");
-      return applyBuilderMedia({ session, target, url });
+      return applyBuilderMedia({
+        session: sessionWithEditorDraft(session, draft),
+        target,
+        url,
+      });
     },
     onSuccess: handleSessionResponse,
     onError: (error) => toast.error(error instanceof Error ? error.message : "Could not apply image"),
@@ -176,6 +208,8 @@ export function WebsiteAskAiSheet({ open, onOpenChange, storeId }: WebsiteAskAiS
     uploadLogo.isPending ||
     removeLogo.isPending;
 
+  const chatSession = session ? sessionWithEditorDraft(session as BuilderSession, draft) : null;
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
@@ -189,14 +223,14 @@ export function WebsiteAskAiSheet({ open, onOpenChange, storeId }: WebsiteAskAiS
           </SheetDescription>
         </SheetHeader>
 
-        {sessionQuery.isLoading || !session ? (
+        {sessionQuery.isLoading || !chatSession ? (
           <div className="grid min-h-[480px] flex-1 place-items-center">
             <Loader2 className="h-6 w-6 animate-spin text-primary" />
           </div>
         ) : (
           <div className="min-h-0 flex-1">
             <BuilderChatPanel
-              session={session as BuilderSession}
+              session={chatSession}
               sending={chatBusy}
               generating={sendMessage.isPending}
               templateOptions={templateOptions}
