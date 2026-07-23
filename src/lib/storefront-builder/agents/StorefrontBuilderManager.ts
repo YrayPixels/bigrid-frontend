@@ -25,6 +25,19 @@ import { createThinkingLogEntry } from "./thinking-log";
 import { aiSuggestedActions, colorPresetActions } from "@/lib/storefront-builder/suggested-actions";
 import { formatBuilderHistorySnippet } from "@/lib/storefront-builder/chat-history";
 import {
+  applyPriceToPendingProducts,
+  buildResumedToolArguments,
+  canDeterministicallyResume,
+  formatPendingActionHint,
+  getPendingAction,
+  isCancelPendingAction,
+  looksLikeNewRequest,
+  parseMerchantPrice,
+  pendingActionSummary,
+  sanitizePendingAction,
+  withPendingAction,
+} from "@/lib/storefront-builder/pending-action";
+import {
   createBuilderAgentRegistry,
   type BuilderAgentRegistry,
   type ExecutorChatMessage,
@@ -59,7 +72,7 @@ const DIRECT_EXEC_SAFE_TOOLS = new Set([
   "change_font",
   "update_theme_style",
   "source_website_images",
-  "generate_product_descriptions",
+  // generate_product_descriptions needs model-chosen product_name for single-product asks
   "generate_custom_site",
   "update_store_profile",
   "add_page_block",
@@ -180,9 +193,185 @@ export class StorefrontBuilderManager {
       };
     }
 
-    const { interpreter, planner, executor, critic } = this.agents;
     const toolDefs = websiteBuilderToolsForSession(session);
-    const historySnippet = formatBuilderHistorySnippet(history ?? []);
+
+    // Resume pending clarifications (price, which product, etc.) instead of reinterpreting the reply.
+    let pendingAction = getPendingAction(session);
+    if (pendingAction) {
+      if (isCancelPendingAction(message)) {
+        this.log({
+          agent: "System",
+          phase: "complete",
+          title: "Cancelled pending clarification",
+          detail: pendingActionSummary(pendingAction),
+        });
+        return {
+          business_profile: withPendingAction(
+            sanitizeBusinessProfile(session.business_profile ?? {}),
+            null,
+          ),
+          status: session.status,
+          selected_template_id:
+            session.selected_template_id && session.selected_template_id !== "ai_pick"
+              ? session.selected_template_id
+              : null,
+          storefront: session.storefront_snapshot ?? undefined,
+          assistant_message: "Okay — cancelled. Tell me what you'd like to do next.",
+          assistant_payload: {
+            type: "agent_turn",
+            plan: [],
+            tool_calls: [],
+            tool_results: [],
+          },
+        };
+      }
+
+      if (canDeterministicallyResume(pendingAction, message)) {
+        const baseProfile = withPendingAction(
+          sanitizeBusinessProfile(session.business_profile ?? {}),
+          null,
+        );
+        const selectedTemplateId =
+          session.selected_template_id && session.selected_template_id !== "ai_pick"
+            ? session.selected_template_id
+            : null;
+
+        if (pendingAction.type === "add_products") {
+          const price = parseMerchantPrice(message);
+          const addTool = toolDefs.find((tool) => tool.name === "add_products");
+          if (price && addTool) {
+            this.log({
+              agent: "System",
+              phase: "start",
+              title: "Resuming product add with price",
+              detail: `${pendingAction.products.map((product) => product.name).join(", ")} @ ${price}`,
+            });
+
+            const ctx: WebsiteBuilderContext = {
+              message,
+              planIntent: "Resume adding product with price",
+              session,
+              profile: baseProfile,
+              recommendations,
+              templateOptions,
+              selectedTemplateId,
+              storefront: session.storefront_snapshot,
+              assistantMessage: "",
+              status: session.status,
+              payload: { type: "agent_turn", plan: [], tool_calls: [], tool_results: [] },
+            };
+
+            const products = applyPriceToPendingProducts(pendingAction, price);
+            const toolArgs = {
+              products,
+              find_images: pendingAction.find_images !== false,
+            };
+            const result = await addTool.handler(toolArgs, ctx);
+
+            this.log({
+              agent: "Executor",
+              phase: result.ok === false ? "error" : "complete",
+              title: "Tool finished: add_products",
+              detail: summarizeToolResult("add_products", result),
+              data: { name: "add_products", arguments: toolArgs, result },
+            });
+
+            return {
+              business_profile: ctx.profile,
+              status: ctx.status,
+              selected_template_id: ctx.selectedTemplateId,
+              storefront: ctx.storefront ?? undefined,
+              assistant_message:
+                ctx.assistantMessage ||
+                (result.ok === false
+                  ? "I still need a bit more detail to add that product."
+                  : "Done — product added."),
+              assistant_payload: {
+                ...(ctx.payload ?? {}),
+                tool_calls: [{ name: "add_products", arguments: toolArgs }],
+                tool_results: [{ name: "add_products", ...result }],
+              },
+            };
+          }
+        }
+
+        if (pendingAction.type === "resume_tool") {
+          const resumeTool = toolDefs.find((tool) => tool.name === pendingAction.tool);
+          const toolArgs = buildResumedToolArguments(pendingAction, message);
+          if (resumeTool && toolArgs) {
+            this.log({
+              agent: "System",
+              phase: "start",
+              title: "Resuming pending tool after clarification",
+              detail: pendingActionSummary(pendingAction),
+            });
+
+            const ctx: WebsiteBuilderContext = {
+              message,
+              planIntent: `Resume ${pendingAction.tool} after clarification`,
+              session,
+              profile: baseProfile,
+              recommendations,
+              templateOptions,
+              selectedTemplateId,
+              storefront: session.storefront_snapshot,
+              assistantMessage: "",
+              status: session.status,
+              payload: { type: "agent_turn", plan: [], tool_calls: [], tool_results: [] },
+            };
+
+            const result = await resumeTool.handler(toolArgs, ctx);
+
+            this.log({
+              agent: "Executor",
+              phase: result.ok === false ? "error" : "complete",
+              title: `Tool finished: ${pendingAction.tool}`,
+              detail: summarizeToolResult(pendingAction.tool, result),
+              data: { name: pendingAction.tool, arguments: toolArgs, result },
+            });
+
+            // Keep pending if the resumed tool asked another clarifying question.
+            const stillPending = sanitizePendingAction(ctx.profile.pending_action);
+
+            return {
+              business_profile: stillPending
+                ? withPendingAction(ctx.profile, stillPending)
+                : withPendingAction(ctx.profile, null),
+              status: ctx.status,
+              selected_template_id: ctx.selectedTemplateId,
+              storefront: ctx.storefront ?? undefined,
+              assistant_message:
+                ctx.assistantMessage ||
+                (result.ok === false
+                  ? "I still need a bit more detail to finish that."
+                  : "Done — I finished that request."),
+              assistant_payload: {
+                ...(ctx.payload ?? {}),
+                tool_calls: [{ name: pendingAction.tool, arguments: toolArgs }],
+                tool_results: [{ name: pendingAction.tool, ...result }],
+              },
+            };
+          }
+        }
+      }
+
+      if (looksLikeNewRequest(message)) {
+        // User moved on — drop the pending clarification and continue normally.
+        session.business_profile = withPendingAction(
+          sanitizeBusinessProfile(session.business_profile ?? {}),
+          null,
+        );
+        pendingAction = null;
+      }
+    }
+
+    const { interpreter, planner, executor, critic } = this.agents;
+    const historySnippet = [
+      formatBuilderHistorySnippet(history ?? []),
+      pendingAction ? formatPendingActionHint(pendingAction) : "",
+    ]
+      .filter(Boolean)
+      .join("\n\n");
 
     // ── Interpreter ──────────────────────────────────────────────
     this.log({
@@ -276,6 +465,7 @@ export class StorefrontBuilderManager {
       plan,
       session,
       toolDefs,
+      scopeHint: pendingAction ? formatPendingActionHint(pendingAction) : undefined,
     });
     const messages: ExecutorChatMessage[] = executor.buildInitialMessages(history, message);
     const openAiTools = toOpenAiTools(toolDefs);
@@ -505,6 +695,18 @@ export class StorefrontBuilderManager {
           detail: decision.prose.slice(0, 280) || undefined,
         });
         criticStatus = "NEED_USER";
+        if (decision.prose && !ctx.profile.pending_action) {
+          ctx.profile = withPendingAction(ctx.profile, {
+            type: "clarification",
+            question: decision.prose,
+            original_message: message,
+          });
+          ctx.payload = {
+            type: "requirements_request",
+            profile: ctx.profile,
+            pending_action: ctx.profile.pending_action,
+          };
+        }
         break;
       }
 
@@ -594,6 +796,20 @@ export class StorefrontBuilderManager {
       if (criticStatus === "NEED_USER" && !ctx.assistantMessage) {
         ctx.assistantMessage = criticDecision.reason;
         ctx.payload = { type: "requirements_request", profile: ctx.profile };
+        break;
+      }
+      if (criticStatus === "NEED_USER" && !ctx.profile.pending_action) {
+        ctx.profile = withPendingAction(ctx.profile, {
+          type: "clarification",
+          question: ctx.assistantMessage || criticDecision.reason,
+          original_message: message,
+        });
+        ctx.payload = {
+          ...(ctx.payload ?? {}),
+          type: "requirements_request",
+          profile: ctx.profile,
+          pending_action: ctx.profile.pending_action,
+        };
         break;
       }
     }
@@ -698,6 +914,23 @@ export class StorefrontBuilderManager {
       suggested_actions: suggestedActions,
       color_options: colorOptions,
     };
+
+    // Persist clarification context for the next turn; clear it once the turn completed.
+    if (ctx.status === "collecting_requirements") {
+      if (!ctx.profile.pending_action && ctx.assistantMessage.trim()) {
+        ctx.profile = withPendingAction(ctx.profile, {
+          type: "clarification",
+          question: ctx.assistantMessage.trim(),
+          original_message: message,
+        });
+      }
+      ctx.payload = {
+        ...ctx.payload,
+        pending_action: ctx.profile.pending_action ?? null,
+      };
+    } else if (ctx.profile.pending_action) {
+      ctx.profile = withPendingAction(ctx.profile, null);
+    }
 
     return {
       business_profile: ctx.profile,

@@ -201,7 +201,11 @@ export async function inferUnsplashSearchPlanWithAi(
   return fallback;
 }
 
-export async function searchUnsplashPhotosDirect(query: string, count = 5): Promise<UnsplashPhoto[]> {
+export async function searchUnsplashPhotosDirect(
+  query: string,
+  count = 5,
+  options: { orientation?: "landscape" | "portrait" | "squarish" | "any" } = {},
+): Promise<UnsplashPhoto[]> {
   const accessKey = getUnsplashAccessKey();
   const trimmed = query.trim();
   if (!accessKey || !trimmed) return [];
@@ -209,7 +213,10 @@ export async function searchUnsplashPhotosDirect(query: string, count = 5): Prom
   const url = new URL("https://api.unsplash.com/search/photos");
   url.searchParams.set("query", trimmed);
   url.searchParams.set("per_page", String(Math.min(Math.max(count, 1), 30)));
-  url.searchParams.set("orientation", "landscape");
+  const orientation = options.orientation ?? "landscape";
+  if (orientation !== "any") {
+    url.searchParams.set("orientation", orientation);
+  }
   url.searchParams.set("content_filter", "high");
 
   try {
@@ -236,7 +243,11 @@ export async function searchUnsplashPhotosDirect(query: string, count = 5): Prom
   }
 }
 
-async function searchUnsplashPhotosViaProxy(query: string, count: number): Promise<UnsplashPhoto[]> {
+async function searchUnsplashPhotosViaProxy(
+  query: string,
+  count: number,
+  options: { orientation?: "landscape" | "portrait" | "squarish" | "any" } = {},
+): Promise<UnsplashPhoto[]> {
   const trimmed = query.trim();
   if (!trimmed) return [];
 
@@ -244,6 +255,9 @@ async function searchUnsplashPhotosViaProxy(query: string, count: number): Promi
     const url = new URL("/api/unsplash/search", window.location.origin);
     url.searchParams.set("query", trimmed);
     url.searchParams.set("count", String(Math.min(Math.max(count, 1), 30)));
+    if (options.orientation) {
+      url.searchParams.set("orientation", options.orientation);
+    }
 
     const response = await fetch(url.toString(), {
       signal: AbortSignal.timeout(SEARCH_TIMEOUT_MS + 2000),
@@ -258,10 +272,17 @@ async function searchUnsplashPhotosViaProxy(query: string, count: number): Promi
       results?: Array<UnsplashPhoto & { url?: string }>;
     };
     const results = Array.isArray(payload.results) ? payload.results : [];
-    return results.map((photo) => ({
-      id: photo.id,
-      urls: photo.urls ?? (photo.url ? { regular: photo.url } : undefined),
-    }));
+    return results.map((photo) => {
+      const formatted = typeof photo.url === "string" && photo.url.startsWith("http") ? photo.url : "";
+      return {
+        id: photo.id,
+        urls: {
+          ...(photo.urls ?? {}),
+          // Prefer the proxy's already-formatted live Unsplash URL.
+          regular: photo.urls?.regular || formatted || undefined,
+        },
+      };
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.warn("[unsplash] proxy search error", message, trimmed);
@@ -273,11 +294,50 @@ async function searchUnsplashPhotosViaProxy(query: string, count: number): Promi
  * Search Unsplash. From the browser this goes through `/api/unsplash/search`
  * so UNSPLASH_ACCESS_KEY stays server-side. On the server it calls Unsplash directly.
  */
-export async function searchUnsplashPhotos(query: string, count = 5): Promise<UnsplashPhoto[]> {
+export async function searchUnsplashPhotos(
+  query: string,
+  count = 5,
+  options: { orientation?: "landscape" | "portrait" | "squarish" | "any" } = {},
+): Promise<UnsplashPhoto[]> {
   if (typeof window !== "undefined") {
-    return searchUnsplashPhotosViaProxy(query, count);
+    return searchUnsplashPhotosViaProxy(query, count, options);
   }
-  return searchUnsplashPhotosDirect(query, count);
+  return searchUnsplashPhotosDirect(query, count, options);
+}
+
+/** Return a live images.unsplash.com URL for the first matching photo, or null. */
+export async function resolveUnsplashPhotoUrl(
+  queries: string[],
+  options: {
+    count?: number;
+    orientation?: "landscape" | "portrait" | "squarish" | "any";
+    usedUrls?: Set<string>;
+  } = {},
+): Promise<string | null> {
+  const used = options.usedUrls ?? new Set<string>();
+  const count = options.count ?? 5;
+  const orientation = options.orientation ?? "any";
+
+  for (const query of queries) {
+    const trimmed = query.trim();
+    if (!trimmed) continue;
+    const results = await searchUnsplashPhotos(trimmed, count, { orientation });
+    for (const photo of results) {
+      const url = formatUnsplashPhotoUrl(photo, 900);
+      if (url && url.includes("images.unsplash.com") && !used.has(url)) {
+        used.add(url);
+        console.info(`[unsplash] product photo matched "${trimmed}"`);
+        return url;
+      }
+    }
+  }
+
+  // Retry without orientation if the first pass was constrained and failed.
+  if (orientation !== "any") {
+    return resolveUnsplashPhotoUrl(queries, { ...options, orientation: "any" });
+  }
+
+  return null;
 }
 
 async function searchUnsplashWithFallbacks(candidates: string[], count: number): Promise<UnsplashPhoto[]> {

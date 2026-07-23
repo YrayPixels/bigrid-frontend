@@ -18,6 +18,52 @@ export function requireConfirm(args: Record<string, unknown>): boolean {
   return args.confirm === true;
 }
 
+function matchProductByName(
+  products: StoreProduct[],
+  productName: string,
+): { product: StoreProduct | null; error?: string } {
+  const needle = productName.toLowerCase();
+  const exact = products.filter((item) => item.name.toLowerCase() === needle);
+  if (exact.length === 1) return { product: exact[0] };
+  if (exact.length > 1) {
+    return { product: null, error: `Multiple products named "${productName}". Which one did you mean?` };
+  }
+  const fuzzy = products.filter((item) => item.name.toLowerCase().includes(needle));
+  if (fuzzy.length === 1) return { product: fuzzy[0] };
+  if (fuzzy.length > 1) {
+    const names = fuzzy
+      .slice(0, 5)
+      .map((item) => item.name)
+      .join(", ");
+    return {
+      product: null,
+      error: `I found a few products that match "${productName}" (${names}). Which one should I update?`,
+    };
+  }
+  return { product: null, error: `I couldn't find a product named "${productName}". Which product did you mean?` };
+}
+
+/** Resolve a product from the website draft catalog by id or unique name. */
+export function resolveStorefrontProduct(
+  products: StoreProduct[] | undefined,
+  productId?: string,
+  productName?: string,
+): { product: StoreProduct | null; index: number; error?: string } {
+  const list = Array.isArray(products) ? products : [];
+  if (productId) {
+    const index = list.findIndex((item) => item.id === productId);
+    if (index >= 0) return { product: list[index], index };
+    return { product: null, index: -1, error: `Product id not found: ${productId}` };
+  }
+  if (productName) {
+    const matched = matchProductByName(list, productName);
+    if (!matched.product) return { product: null, index: -1, error: matched.error };
+    const index = list.findIndex((item) => item.id === matched.product!.id);
+    return { product: matched.product, index };
+  }
+  return { product: null, index: -1, error: "Provide product_id or product_name." };
+}
+
 /** Resolve a live catalog product by id, or unique name match. */
 export async function resolveLiveProduct(
   productId?: string,
@@ -31,25 +77,8 @@ export async function resolveLiveProduct(
       : { product: null, products, error: `Product id not found: ${productId}` };
   }
   if (productName) {
-    const needle = productName.toLowerCase();
-    const matches = products.filter((item) => item.name.toLowerCase() === needle);
-    if (matches.length === 1) return { product: matches[0], products };
-    if (matches.length > 1) {
-      return {
-        product: null,
-        products,
-        error: `Multiple products named "${productName}". Pass product_id.`,
-      };
-    }
-    const fuzzy = products.filter((item) => item.name.toLowerCase().includes(needle));
-    if (fuzzy.length === 1) return { product: fuzzy[0], products };
-    return {
-      product: null,
-      products,
-      error: fuzzy.length
-        ? `Ambiguous name "${productName}". Pass product_id.`
-        : `No product named "${productName}". Call list_products first.`,
-    };
+    const matched = matchProductByName(products, productName);
+    return { product: matched.product, products, error: matched.error };
   }
   return { product: null, products, error: "Provide product_id or product_name." };
 }

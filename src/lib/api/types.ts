@@ -499,12 +499,50 @@ export type BuilderSessionStatus =
   | "review_ready"
   | "published";
 
+export type BuilderPendingAddProduct = {
+  name: string;
+  price?: number;
+  description?: string;
+  category?: string;
+  stock_quantity?: number;
+  image_url?: string;
+};
+
+export type BuilderPendingAwaitKind = "price" | "product_name" | "text";
+
+/** Multi-turn clarification: resume the original tool after the merchant answers. */
+export type BuilderPendingAction =
+  | {
+      type: "add_products";
+      products: BuilderPendingAddProduct[];
+      find_images?: boolean;
+      question?: string;
+      original_message?: string;
+    }
+  | {
+      type: "resume_tool";
+      tool: string;
+      arguments: Record<string, unknown>;
+      /** Argument key to fill from the merchant's reply (e.g. product_name, price, instruction). */
+      await_field?: string;
+      await_kind?: BuilderPendingAwaitKind;
+      question?: string;
+      original_message?: string;
+    }
+  | {
+      type: "clarification";
+      question: string;
+      original_message?: string;
+    };
+
 export type BuilderBusinessProfile = {
   business_name?: string | null;
   description?: string | null;
   industry?: Industry | null;
   brand_color?: string | null;
   tone?: string[];
+  /** Resume multi-turn work after a clarifying question (price, which product, etc.). */
+  pending_action?: BuilderPendingAction | null;
 };
 
 export type BuilderMessageRole = "user" | "assistant";

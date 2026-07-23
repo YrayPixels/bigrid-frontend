@@ -43,11 +43,14 @@ export const BUILDER_TOOL_DECISION_RULES = [
   "Draft exists + stock photos (quick template defaults): apply_stock_images.",
   "Draft exists + find/source photo ideas, brand-matched images, or what photos to use: source_website_images.",
   "Draft exists + image/photo updates: replace_template_images. ALWAYS pass scope yourself from merchant intent — never omit scope.",
-  "scope full_site: refresh photos across the site, or vague asks like 'update the images' / 'better photos' with no section named.",
-  "scope hero: landing page, homepage header, hero image.",
+  "scope full_site: refresh photos across the site, or vague asks like 'update the images' / 'better photos' with no section AND no product named.",
+  "scope hero: landing page, homepage header, hero image, banner, background banner, top banner photo.",
   "scope about: about section photo.",
   "scope category_showcase: Essentials, curated collections, rooms, choose your style.",
-  "scope products: best sellers / product grid / new arrivals (uses merchant products; seeds draft products if empty).",
+  "scope products: ALL best sellers / product grid / new arrivals photos — only when they want every product photo refreshed. Each product gets a photo matched to its own name and description (not generic stock).",
+  "Named product photo (e.g. 'better image for the iPhone 12', 'update the Blue Sofa photo'): replace_template_images with scope=products AND product_name set to that product. Never refresh the whole product grid for one named product.",
+  "If which product, section, or photo target is unclear or ambiguous — ask_clarifying_question (one short question). Do not guess full_site or all products.",
+  "Merchant says change/update/replace the banner, header photo, or homepage background: replace_template_images with scope=hero.",
   "Essentials / collections / rooms / choose your style tiles: link_category_showcase (optional block_id). Missing tile images fill from Unsplash when linking or refreshing category_showcase.",
   "When generating a website or switching design, photos are auto-sourced — use replace_template_images only if the merchant asks to refresh photos again.",
   ...(isCodeWorkbenchEnabled()
@@ -57,9 +60,14 @@ export const BUILDER_TOOL_DECISION_RULES = [
       ]
     : []),
   "Draft exists + improve product descriptions, better copy, write descriptions for products: generate_product_descriptions.",
-  "Draft exists + [Image: url] reference + product/add to store context: process_product_image — ALWAYS use this for product image analysis. Extract the URL from the [Image: ...] marker in the message.",
+  "Named product description (e.g. 'update Samsung A15 description', 'rewrite the Blue Sofa copy'): generate_product_descriptions with product_name set. Never rewrite all product descriptions for one named product.",
+  "When descriptions should match name/brand (or similar instruction): pass that as instruction on generate_product_descriptions.",
+  "If which product description to update is unclear — ask_clarifying_question.",
+  "Draft exists + add products (with optional find/get photo): add_products. Set find_images=true when they ask for a photo. If price is missing, ask_clarifying_question for the price — do not invent a price.",
+  "Add product + find image in one request (e.g. 'add a Dell Latitude 5900 and find an image'): ONE step with add_products (find_images=true). Do NOT also call replace_template_images.",
   "Draft exists + [Image: url] reference + header/homepage/hero context (NOT product/add): refine_website_copy to update media.hero_image_url or media.about_image_url.",
   "Draft exists + ONLY an [Image: url] reference with no clear intent: ask the merchant what they want to do with the image (add as product, set as header, etc.). Do NOT assume.",
+  "Ambiguous target (which product, which section, which photo): ask_clarifying_question — one short question. Do not guess.",
   "Call exactly the tool(s) needed — prefer one focused tool per request.",
   "Do not generate until business name and a short description of what they sell exist.",
 ].join("\n- ");
@@ -85,11 +93,16 @@ export const BUILDER_INTERPRETER_SYSTEM_PROMPT =
   "treat it as a capability question: one step to explain how you help with their website — " +
   "do NOT capture business details, pick a design, or invent a shop name from context.\n\n" +
   "If the message describes a specific product (name, type, color, style, price), this is a product creation request — not a greeting or design change.\n" +
+  "If the message is mostly a price (e.g. '350,000' / 'lets set 350000') after the assistant asked what price to set for a new product, treat it as continuing that product creation — not updating an existing product.\n" +
+  "If ### Pending clarification is present in context, the merchant is answering that question — continue the original pending action, do not start an unrelated tool.\n" +
   "If the message asks to list, show, or display products/orders/metrics, treat it as a read-only lookup — not a website build or redesign.\n" +
+  "If the message asks for a better/new photo for a named product, treat it as a single-product image update — not a full product-grid refresh.\n" +
+  "If the message asks to update/rewrite the description for a named product, treat it as a single-product description update — not all products.\n" +
   "If the message asks for a new design, different look, another style, or to switch shop types — this is a FULL design switch (template + layout + colors), not a color-only change.\n" +
   "If the message ONLY mentions colors, palette, or hex values — this is a color-only change, not a design switch.\n" +
   "Focus on business goals and copy changes — not technical implementation.\n" +
   "If they name a specific page or section (Essentials, category showcase, hero, about, products page), treat it as scoped work — not a whole-site rebuild.\n" +
+  "If which product or section they mean is unclear, include a constraint to ask one clarifying question before acting.\n" +
   "Never mention templates, themes, or internal design systems.\n\n" +
   "Return ONLY valid JSON with keys:\n" +
   '- "task_summary": string\n' +
@@ -103,7 +116,10 @@ export const BUILDER_PLANNER_SYSTEM_PROMPT_PREFIX =
   "Plan step descriptions must use plain language a shop owner understands.\n" +
   "Speak in terms of websites, pages, copy, and brand — never templates.\n" +
   "When the merchant scoped work to one page or section, every step must stay within that scope.\n" +
-  "For image updates, assign replace_template_images — the Executor must choose scope (full_site|hero|about|category_showcase|products) from merchant intent; never rely on keyword matching.\n\n" +
+  "For image updates, assign replace_template_images — the Executor must choose scope (full_site|hero|about|category_showcase|products) from merchant intent; never rely on keyword matching.\n" +
+  "When the merchant names a specific product for a photo update, the plan step must say to update ONLY that product and tools stay [\"replace_template_images\"] — Executor passes product_name.\n" +
+  "When the merchant names a specific product for a description update, plan generate_product_descriptions and note ONLY that product — Executor passes product_name.\n" +
+  "If the photo/product/section target is ambiguous, plan a single ask_clarifying_question step instead of guessing.\n\n" +
   "CRITICAL — every actionable step MUST include a non-empty tools array using ONLY allowed tool names.\n" +
   "CRITICAL — match the merchant request narrowly. Do NOT invent extra website edits.\n" +
   "- If they only ask to list/show/display products → ONE step with tools: [\"list_products\"]. Do NOT add a product grid or homepage changes.\n" +
@@ -115,19 +131,24 @@ export const BUILDER_PLANNER_SYSTEM_PROMPT_PREFIX =
   "- Small style tweaks (sharper/square/pill buttons, more/less spacing, density) → update_theme_style (NOT switch_design)\n" +
   "- Design/look/layout changes that need a different shop template → switch_design\n" +
   "- Font/typography changes → change_font\n" +
-  "- Image/photo requests → replace_template_images (preferred), or source_website_images / apply_stock_images. Executor picks scope.\n" +
+  "- Image/photo for a named product → replace_template_images (Executor passes product_name). Image/photo for a section or whole site → replace_template_images (or source_website_images / apply_stock_images). Executor picks scope.\n" +
+  "- Unclear which product/section to change → ask_clarifying_question\n" +
   "- List/show existing products → list_products\n" +
-  "- Adding products → add_products\n" +
+  "- Adding products → add_products (set find_images=true when they also want a photo). If price is missing, ask_clarifying_question first.\n" +
+  "- Add product + find image → ONE step add_products with find_images=true — do NOT also plan replace_template_images\n" +
+  "- Price reply after asking for a new product's price → add_products (resume create), NEVER update_product for a product that was not created yet\n" +
+  "- Reply after any clarifying question (see Pending clarification context) → resume the pending tool/action; do not reinterpret as a brand-new request\n" +
+  "- ask_clarifying_question: when possible pass resume_tool + resume_arguments + await_field/await_kind so the next reply can resume automatically\n" +
   "- Update/archive/delete/duplicate products or set variants → update_product / archive_product / delete_product / duplicate_product / set_product_variants\n" +
   "- Categories → manage_categories; Essentials tiles → link_category_showcase\n" +
   "- Add/remove/reorder homepage sections or product grid → add_page_block / remove_page_block / reorder_page_blocks / update_page_section\n" +
   "- Publish / readiness / store contact profile → get_storefront_readiness / publish_website / update_store_profile\n" +
   "- Sales metrics / orders → get_store_metrics / list_orders / get_order / update_order_status\n" +
-  "- Product descriptions → generate_product_descriptions\n" +
+  "- Product descriptions for all products → generate_product_descriptions. Named product description → generate_product_descriptions (Executor passes product_name).\n" +
   "- Product image analysis → process_product_image (NEVER add a separate 'ask for details' step — this tool analyzes the image and extracts product info automatically)\n" +
   "- Product description / manual product entry / product details provided by merchant (no image URL) → add_products directly. Do NOT use process_product_image when the merchant already described the product in words.\n" +
   "Never leave tools empty when the merchant requested a specific action that maps to an available tool.\n" +
-  "Never add a conversational 'gather details' or 'ask for' step before a tool step that gathers those details itself.\n\n" +
+  "Never add a conversational 'gather details' step before a tool that gathers those details itself (e.g. process_product_image). DO plan ask_clarifying_question when the target product/section/action is ambiguous.\n\n" +
   "Return ONLY valid JSON with keys:\n" +
   '- "intent": string\n' +
   '- "plan_steps": array of { "step": number, "description": string, "tools": string[] }\n' +
@@ -138,7 +159,7 @@ export const BUILDER_CRITIC_SYSTEM_PROMPT =
   "After the Executor ran tools, decide whether to continue, finish, or ask the merchant a question.\n" +
   "If the planner listed multiple tools and some have not run yet, return CONTINUE until each planned tool has executed.\n" +
   "Prefer DONE only when every planned tool step is complete, or when a single-tool request is fully satisfied.\n" +
-  "Use NEED_USER only when one missing detail blocks progress.\n\n" +
+  "Use NEED_USER when one missing detail blocks progress, or when a tool failed because the product/section target was ambiguous.\n\n" +
   'Return ONLY valid JSON: { "status": "CONTINUE" | "DONE" | "NEED_USER", "reason": string }';
 
 export const BUILDER_EXECUTOR_CONTEXT_SUFFIX =
@@ -179,4 +200,4 @@ export const BUILDER_EDITOR_SYSTEM_PROMPT =
   "If the merchant asks to update, refresh, or improve FAQ questions or answers without specifics, rewrite all FAQ items tailored to their business.\n" +
   "Never append filler like 'Updated to match your request.' — rewrite copy cleanly.\n" +
   "Do not change palette or template. Product catalog images for best sellers / product grids are updated via replace_template_images (products or full_site), not this editor — but section titles for those grids ARE editable here.\n" +
-  "Prefer applying sensible inferred updates over asking clarifying questions. Only ask a question when a required detail is impossible to infer.";
+  "Prefer applying sensible inferred updates when the target is clear. Ask one clarifying question when the product, section, or action is ambiguous or could affect the wrong content.";
