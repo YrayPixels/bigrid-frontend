@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
-import { headers } from "next/headers";
 import CheckoutPageClient from "./page.client";
-import { getSitemapBaseUrl } from "@/lib/site-seo";
+import { getStorefrontBaseUrl } from "@/lib/site-seo";
 import { loadStorefront } from "@/lib/storefront/load-storefront";
 
 export async function generateMetadata({
@@ -10,8 +9,7 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const host = (await headers()).get("host");
-  const baseUrl = getSitemapBaseUrl(host);
+  const baseUrl = getStorefrontBaseUrl(slug);
 
   try {
     const data = await loadStorefront(slug);

@@ -26,17 +26,36 @@ function parseLastModified(value: string | null | undefined): Date | undefined {
   return Number.isNaN(parsed.getTime()) ? undefined : parsed;
 }
 
-function buildPlatformSitemap(host: string | null): MetadataRoute.Sitemap {
-  // Only same-host URLs are allowed. Storefront subdomains publish their own /sitemap.xml.
+async function buildPlatformSitemap(host: string | null): Promise<MetadataRoute.Sitemap> {
+  // Only same-host URLs are allowed here. Merchant subdomains are advertised via robots.txt.
   const baseUrl = getSitemapBaseUrl(host);
   const now = new Date();
 
-  return PLATFORM_PUBLIC_PATHS.map((path) => ({
+  const entries: MetadataRoute.Sitemap = PLATFORM_PUBLIC_PATHS.map((path) => ({
     url: toAbsoluteUrl(baseUrl, path),
     lastModified: now,
-    changeFrequency: path === "/" ? "weekly" : "monthly",
-    priority: path === "/" ? 1 : 0.6,
+    changeFrequency: path === "/" ? "weekly" : path === "/stores" ? "daily" : "monthly",
+    priority: path === "/" ? 1 : path === "/stores" ? 0.8 : 0.6,
   }));
+
+  // Path-based storefront URLs stay on the platform host and help Google discover shops.
+  // Canonical tags on /s/[slug] point at the preferred subdomain URL when available.
+  try {
+    const published = await storefrontApi.listPublished();
+    for (const store of published) {
+      if (!store.slug) continue;
+      entries.push({
+        url: toAbsoluteUrl(baseUrl, `/s/${store.slug}`),
+        lastModified: parseLastModified(store.published_at) ?? now,
+        changeFrequency: "weekly",
+        priority: 0.7,
+      });
+    }
+  } catch {
+    // Platform pages only if the index endpoint is unavailable.
+  }
+
+  return entries;
 }
 
 async function buildStorefrontSitemap(slug: string): Promise<MetadataRoute.Sitemap> {
