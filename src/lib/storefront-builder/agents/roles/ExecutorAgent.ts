@@ -68,6 +68,7 @@ export class ExecutorAgent extends BuilderAgent {
         "When adding a product and they want a photo (e.g. 'add Dell Latitude 5900 and find an image'), call add_products with find_images=true. If price is missing, ask_clarifying_question for the price first.\n" +
         "If which product or section is unclear, call ask_clarifying_question instead of guessing — when possible include resume_tool, resume_arguments, and await_field so their answer resumes the same action.\n" +
         "If Pending clarification context is present, continue that pending action with the merchant's answer.\n" +
+        "If Recent product focus is present and the merchant refers to it/its/again/the description without a product name, use that focused product_name — never substitute an older product.\n" +
         `Enabled tools: ${input.toolDefs.map((tool) => tool.name).join(", ")}`
       : "### Session state\nNo website draft yet. Gather business details if needed, then design and generate when the merchant is ready.";
 

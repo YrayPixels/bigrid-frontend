@@ -143,16 +143,23 @@ export async function callOpenAiChat(body: PostChatBody): Promise<ChatCompletion
 }
 
 async function ensureChatModel(body: PostChatBody): Promise<PostChatBody> {
-  if (typeof body.model === "string" && body.model.trim()) {
-    return body;
+  let next: PostChatBody = body;
+
+  if (!(typeof body.model === "string" && body.model.trim()) && !(body.model && typeof body.model !== "string")) {
+    next = {
+      ...body,
+      model: await getConfiguredThinkingModelName(),
+    };
   }
-  if (body.model && typeof body.model !== "string") {
-    return body;
+
+  // Providers reject tool_choice when tools are omitted (surfaces as /api/chat 502).
+  const hasTools = Array.isArray(next.tools) && next.tools.length > 0;
+  if (!hasTools && next.tool_choice !== undefined) {
+    const { tool_choice: _ignored, ...rest } = next;
+    next = rest;
   }
-  return {
-    ...body,
-    model: await getConfiguredThinkingModelName(),
-  };
+
+  return next;
 }
 
 export async function postChat(body: PostChatBody): Promise<ChatCompletionResponse> {

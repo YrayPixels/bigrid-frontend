@@ -12,6 +12,19 @@ export async function POST(req: Request) {
     }
 
     if (API_BASE) {
+      let forwardBody = rawBody;
+      try {
+        const parsed = JSON.parse(rawBody) as Record<string, unknown>;
+        const tools = parsed.tools;
+        const hasTools = Array.isArray(tools) && tools.length > 0;
+        if (!hasTools && "tool_choice" in parsed) {
+          delete parsed.tool_choice;
+          forwardBody = JSON.stringify(parsed);
+        }
+      } catch {
+        // Keep original body if it isn't JSON.
+      }
+
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), BACKEND_CHAT_TIMEOUT_MS);
 
@@ -21,7 +34,7 @@ export async function POST(req: Request) {
           headers: {
             "Content-Type": "application/json",
           },
-          body: rawBody,
+          body: forwardBody,
           signal: controller.signal,
         });
 

@@ -16,6 +16,11 @@ import {
 import type { WebsiteBuilderContext, WebsiteBuilderToolDef } from "../types";
 import { asString, resolveLiveProduct, resolveStorefrontProduct, syncStorefrontProduct } from "./toolHelpers";
 import { sanitizePendingAction, withPendingAction } from "@/lib/storefront-builder/pending-action";
+import {
+  getProductFocus,
+  resolveProductNameFromContext,
+  withProductFocus,
+} from "@/lib/storefront-builder/product-focus";
 
 /** Stock photos, on-brand sourcing, and scoped template image replacement. */
 export class ImageTools {
@@ -167,7 +172,12 @@ export class ImageTools {
               ? args.intent.trim()
               : `${ctx.profile.business_name ?? ""} ${ctx.profile.description ?? ""} ${ctx.message}`.trim();
 
-          const productName = asString(args.product_name) || undefined;
+          const productName =
+            resolveProductNameFromContext({
+              message: ctx.message,
+              proposedName: asString(args.product_name) || undefined,
+              focus: getProductFocus(ctx.profile),
+            }) || undefined;
           const productId = asString(args.product_id) || undefined;
 
           // Named product → replace only that product's photo.
@@ -279,6 +289,10 @@ export class ImageTools {
             ctx.status = "review_ready";
             ctx.assistantMessage = `${replaced.result.summary} Check the preview on the right.`;
             ctx.profile = withPendingAction(ctx.profile, null);
+            ctx.profile = withProductFocus(ctx.profile, {
+              product_id: resolved.product.id,
+              product_name: resolved.product.name,
+            });
             ctx.payload = {
               type: "stock_images_applied",
               image_recommendations: replaced.result.recommendations,

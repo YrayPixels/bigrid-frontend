@@ -543,6 +543,11 @@ export type BuilderBusinessProfile = {
   tone?: string[];
   /** Resume multi-turn work after a clarifying question (price, which product, etc.). */
   pending_action?: BuilderPendingAction | null;
+  /** Most recently discussed/edited product — used for "it" / "again" follow-ups. */
+  last_product_focus?: {
+    product_id?: string;
+    product_name: string;
+  } | null;
 };
 
 export type BuilderMessageRole = "user" | "assistant";

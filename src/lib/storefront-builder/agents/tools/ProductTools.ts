@@ -3,6 +3,11 @@ import type { StoreProduct } from "@/lib/api/types";
 import type { WebsiteBuilderToolDef } from "../types";
 import { asString, resolveLiveProduct, resolveStorefrontProduct, syncStorefrontProduct } from "./toolHelpers";
 import { sanitizePendingAction, withPendingAction } from "@/lib/storefront-builder/pending-action";
+import {
+  getProductFocus,
+  resolveProductNameFromContext,
+  withProductFocus,
+} from "@/lib/storefront-builder/product-focus";
 
 /** Catalog: add products, rewrite descriptions, vision from uploaded photos. */
 export class ProductTools {
@@ -195,6 +200,12 @@ export class ProductTools {
 
           // Clear any pending multi-turn add once products are created.
           ctx.profile = withPendingAction(ctx.profile, null);
+          if (createdProducts[0]) {
+            ctx.profile = withProductFocus(ctx.profile, {
+              product_id: createdProducts[0].id,
+              product_name: createdProducts[0].name,
+            });
+          }
 
           if (ctx.storefront) {
             const existing = ctx.storefront.products ?? [];
@@ -270,7 +281,12 @@ export class ProductTools {
             asString(args.instruction) ||
             (ctx.message.trim() ? ctx.message.trim() : "Match each description to the product name and store brand.");
 
-          const productName = asString(args.product_name) || undefined;
+          const productName =
+            resolveProductNameFromContext({
+              message: ctx.message,
+              proposedName: asString(args.product_name) || undefined,
+              focus: getProductFocus(ctx.profile),
+            }) || undefined;
           const productId = asString(args.product_id) || undefined;
 
           const catalog = await api.getProducts().catch(() => []);
@@ -411,6 +427,13 @@ export class ProductTools {
             : `Done — I wrote fresh descriptions for ${updated} product(s) to match each name and brand.${fallbackNote} Check your Products page!`;
           ctx.status = "review_ready";
           ctx.profile = withPendingAction(ctx.profile, null);
+          if (lastName) {
+            const focused = products.find((product) => product.name === lastName) ?? products[0];
+            ctx.profile = withProductFocus(ctx.profile, {
+              product_id: focused?.id,
+              product_name: lastName,
+            });
+          }
           ctx.payload = {
             type: "product_descriptions_generated",
             updated,

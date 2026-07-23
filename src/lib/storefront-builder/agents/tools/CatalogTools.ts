@@ -19,6 +19,11 @@ import {
   resolveLiveProduct,
   syncStorefrontProduct,
 } from "./toolHelpers";
+import {
+  getProductFocus,
+  resolveProductNameFromContext,
+  withProductFocus,
+} from "@/lib/storefront-builder/product-focus";
 
 /** Live catalog CRUD: list, update, archive/delete, variants, categories, showcase linking. */
 export class CatalogTools {
@@ -111,9 +116,14 @@ export class CatalogTools {
           additionalProperties: false,
         },
         handler: async (args, ctx) => {
+          const productName = resolveProductNameFromContext({
+            message: ctx.message,
+            proposedName: asString(args.product_name) || undefined,
+            focus: getProductFocus(ctx.profile),
+          });
           const resolved = await resolveLiveProduct(
             asString(args.product_id) || undefined,
-            asString(args.product_name) || undefined,
+            productName,
           );
           if (!resolved.product) return { ok: false, error: resolved.error };
 
@@ -153,6 +163,10 @@ export class CatalogTools {
               };
             }
             ctx.status = "review_ready";
+            ctx.profile = withProductFocus(ctx.profile, {
+              product_id: updated.id,
+              product_name: updated.name,
+            });
             ctx.assistantMessage = `Updated **${updated.name}**. Check Products or the preview.`;
             ctx.payload = { type: "product_updated", product: updated };
             return { ok: true, product: updated };

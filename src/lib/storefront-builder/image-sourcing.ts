@@ -426,23 +426,73 @@ function applyAboutImagesOnly(
 
 function shortProductDescription(description?: string | null): string {
   if (!description?.trim()) return "";
-  return description
+  const cleaned = description
     .replace(/<[^>]+>/g, " ")
     .replace(/\s+/g, " ")
-    .trim()
+    .trim();
+  // Ignore generic AI/fallback blurbs — they pollute Unsplash searches.
+  if (
+    /ready for everyday use|matches the name on the label|quality that matches|from \w+\.\s*ready/i.test(
+      cleaned,
+    )
+  ) {
+    return "";
+  }
+  return cleaned
     .split(" ")
     .filter(Boolean)
-    .slice(0, 8)
+    .slice(0, 6)
     .join(" ");
+}
+
+/** Expand abbreviations / model shorthand into Unsplash-friendly product phrases. */
+function expandProductSearchNames(name: string): string[] {
+  const trimmed = name.trim();
+  if (!trimmed) return ["product"];
+  const lower = trimmed.toLowerCase();
+  const expansions: string[] = [];
+
+  const push = (value: string) => {
+    const next = value.trim();
+    if (next && !expansions.some((entry) => entry.toLowerCase() === next.toLowerCase())) {
+      expansions.push(next);
+    }
+  };
+
+  if (/\bps\s*5\b/.test(lower) || lower === "ps5") {
+    push("PlayStation 5 console");
+    push("Sony PlayStation 5");
+  } else if (/\bps\s*4\b/.test(lower) || lower === "ps4") {
+    push("PlayStation 4 console");
+  } else if (/\bxbox\s*series\s*x\b/.test(lower)) {
+    push("Xbox Series X console");
+  } else if (/\bxbox\s*series\s*s\b/.test(lower)) {
+    push("Xbox Series S console");
+  } else if (/\biphone\s*(\d+)\s*(pro\s*max|pro|plus|mini)?\b/i.test(trimmed)) {
+    const match = trimmed.match(/\biphone\s*(\d+)\s*(pro\s*max|pro|plus|mini)?\b/i);
+    if (match) {
+      push(`Apple iPhone ${match[1]}${match[2] ? ` ${match[2]}` : ""}`.replace(/\s+/g, " "));
+    }
+  } else if (/\bsamsung\s*(galaxy\s*)?(a|s|z|m)?\s*\d+/i.test(trimmed)) {
+    push(`${trimmed} smartphone`);
+  } else if (/\b(latitude|thinkpad|macbook|elitebook|chromebook)\b/i.test(trimmed)) {
+    push(`${trimmed} laptop`);
+  }
+
+  push(trimmed);
+  return expansions;
 }
 
 function productCategorySynonyms(name: string, description?: string | null): string[] {
   const text = `${name} ${description ?? ""}`.toLowerCase();
+  if (/\b(ps\s*[345]|playstation|xbox|nintendo\s*switch|gaming console)\b/.test(text)) {
+    return ["video game console product", "game console on desk"];
+  }
   if (/\b(iphone|android|pixel|galaxy|smartphone|mobile phone|cellphone)\b/.test(text)) {
-    return ["smartphone product photography", "black smartphone on desk", "mobile phone"];
+    return ["smartphone product photography", "mobile phone product"];
   }
   if (/\b(macbook|laptop|notebook computer|dell|latitude|thinkpad|hp elitebook|chromebook)\b/.test(text)) {
-    return ["laptop computer product", "laptop on desk", "business laptop"];
+    return ["laptop computer product", "business laptop"];
   }
   if (/\b(headphone|earbud|airpods|earphone)\b/.test(text)) {
     return ["wireless headphones product", "earbuds product photo"];
@@ -456,12 +506,13 @@ function productCategorySynonyms(name: string, description?: string | null): str
   return [];
 }
 
-/** Build Unsplash queries from the product itself — name + description — not generic brand stock. */
+/** Build Unsplash queries from the product itself — name first, generics last. */
 function buildProductImageQueries(
   product: Pick<StoreProduct, "name" | "description" | "category">,
   opts: { intent?: string; industry?: Industry | string | null } = {},
 ): string[] {
   const name = product.name?.trim() || "product";
+  const expansions = expandProductSearchNames(name);
   const withoutModel = name
     .replace(/\b\d+(\.\d+)?(\s*(pro|plus|max|mini|ultra|se))?\b/gi, "")
     .replace(/\s+/g, " ")
@@ -473,19 +524,24 @@ function buildProductImageQueries(
   const mood = opts.intent?.trim() || "";
   const synonyms = productCategorySynonyms(name, product.description);
 
+  // Prefer exact / expanded product names. Generic category queries come last so we
+  // don't grab a random phone/laptop/console before trying the named product.
   return [
     ...new Set(
       [
-        desc ? `${name} ${desc}` : "",
+        ...expansions.map((entry) => entry),
+        ...expansions.map((entry) => `${entry} product`),
         `${name} product photography`,
-        withoutModel && withoutModel.toLowerCase() !== name.toLowerCase()
+        category ? `${name} ${category}` : "",
+        desc && desc.toLowerCase() !== name.toLowerCase() ? `${name} ${desc}` : "",
+        withoutModel &&
+        withoutModel.length >= 4 &&
+        withoutModel.toLowerCase() !== name.toLowerCase()
           ? `${withoutModel} product`
           : "",
-        category ? `${name} ${category}` : "",
-        ...synonyms,
         mood ? `${name} ${mood}` : "",
         industry ? `${name} ${industry}` : "",
-        name,
+        ...synonyms,
       ].filter((query) => query.length > 0),
     ),
   ];
@@ -504,11 +560,14 @@ async function sourceImageUrlForProduct(
     industry: opts.context?.industry,
   });
 
-  // Live Unsplash only — never apply curated catalog URLs that may 404.
+  // Prefer any orientation — squarish filters out the best product shots for many items
+  // (e.g. PS5 landscape photos) and Unsplash then returns unrelated square stock.
   const url = await resolveUnsplashPhotoUrl(queries, {
-    count: 5,
-    orientation: "squarish",
+    count: 8,
+    orientation: "any",
     usedUrls: opts.usedUrls,
+    matchTerms: [product.name?.trim() || "", ...queries.slice(0, 3)],
+    minScore: 1,
   });
 
   return { url, search_terms: queries.slice(0, 4) };

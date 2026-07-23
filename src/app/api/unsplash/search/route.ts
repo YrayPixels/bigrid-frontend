@@ -39,6 +39,9 @@ export async function GET(request: Request) {
             id: photo.id,
             urls: photo.urls,
             url,
+            description: photo.description ?? null,
+            alt_description: photo.alt_description ?? null,
+            tags: photo.tags ?? [],
           };
         })
         .filter(Boolean),
