@@ -44,6 +44,7 @@ import { getAssistantMessageContent, getThinkingModelName, postChat } from "@/li
 import { BUILDER_EDITOR_SYSTEM_PROMPT } from "@/lib/storefront-builder/prompts";
 import { promptAllowedStorefrontPaths } from "@/lib/storefront-builder/editable-paths";
 import { sanitizePendingAction } from "@/lib/storefront-builder/pending-action";
+import { sanitizeProductFocus } from "@/lib/storefront-builder/product-focus";
 
 export { EDITABLE_STOREFRONT_PATHS } from "@/lib/storefront-builder/editable-paths";
 
@@ -539,6 +540,7 @@ export function sanitizeBusinessProfile(profile: BuilderBusinessProfile): Builde
         : null,
     tone: [...new Set((profile.tone ?? []).map(String).map((tone) => tone.trim()).filter(Boolean))],
     pending_action: sanitizePendingAction(profile.pending_action),
+    last_product_focus: sanitizeProductFocus(profile.last_product_focus),
   };
 }
 

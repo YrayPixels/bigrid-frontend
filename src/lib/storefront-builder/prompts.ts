@@ -95,6 +95,7 @@ export const BUILDER_INTERPRETER_SYSTEM_PROMPT =
   "If the message describes a specific product (name, type, color, style, price), this is a product creation request — not a greeting or design change.\n" +
   "If the message is mostly a price (e.g. '350,000' / 'lets set 350000') after the assistant asked what price to set for a new product, treat it as continuing that product creation — not updating an existing product.\n" +
   "If ### Pending clarification is present in context, the merchant is answering that question — continue the original pending action, do not start an unrelated tool.\n" +
+  "If ### Recent product focus is present and the merchant says it/its/again/the description without naming a product, use that focused product — never invent another product name from older chat.\n" +
   "If the message asks to list, show, or display products/orders/metrics, treat it as a read-only lookup — not a website build or redesign.\n" +
   "If the message asks for a better/new photo for a named product, treat it as a single-product image update — not a full product-grid refresh.\n" +
   "If the message asks to update/rewrite the description for a named product, treat it as a single-product description update — not all products.\n" +
@@ -139,6 +140,7 @@ export const BUILDER_PLANNER_SYSTEM_PROMPT_PREFIX =
   "- Price reply after asking for a new product's price → add_products (resume create), NEVER update_product for a product that was not created yet\n" +
   "- Reply after any clarifying question (see Pending clarification context) → resume the pending tool/action; do not reinterpret as a brand-new request\n" +
   "- ask_clarifying_question: when possible pass resume_tool + resume_arguments + await_field/await_kind so the next reply can resume automatically\n" +
+  "- Follow-ups like 'update its description' / 'check again' with Recent product focus → generate_product_descriptions (or the matching tool) for that focused product only; never pick a different product from older history\n" +
   "- Update/archive/delete/duplicate products or set variants → update_product / archive_product / delete_product / duplicate_product / set_product_variants\n" +
   "- Categories → manage_categories; Essentials tiles → link_category_showcase\n" +
   "- Add/remove/reorder homepage sections or product grid → add_page_block / remove_page_block / reorder_page_blocks / update_page_section\n" +

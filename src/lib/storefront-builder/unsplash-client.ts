@@ -8,10 +8,17 @@ type UnsplashPhoto = {
     regular?: string;
     small?: string;
   };
+  description?: string | null;
+  alt_description?: string | null;
+  tags?: Array<{ title?: string } | string>;
 };
 
 type UnsplashSearchResponse = {
   results?: UnsplashPhoto[];
+};
+
+export type UnsplashPhotoMatch = UnsplashPhoto & {
+  url?: string;
 };
 
 export type UnsplashImageContext = {
@@ -269,13 +276,16 @@ async function searchUnsplashPhotosViaProxy(
     }
 
     const payload = (await response.json()) as {
-      results?: Array<UnsplashPhoto & { url?: string }>;
+      results?: Array<UnsplashPhotoMatch>;
     };
     const results = Array.isArray(payload.results) ? payload.results : [];
     return results.map((photo) => {
       const formatted = typeof photo.url === "string" && photo.url.startsWith("http") ? photo.url : "";
       return {
         id: photo.id,
+        description: photo.description ?? null,
+        alt_description: photo.alt_description ?? null,
+        tags: photo.tags,
         urls: {
           ...(photo.urls ?? {}),
           // Prefer the proxy's already-formatted live Unsplash URL.
@@ -305,36 +315,130 @@ export async function searchUnsplashPhotos(
   return searchUnsplashPhotosDirect(query, count, options);
 }
 
-/** Return a live images.unsplash.com URL for the first matching photo, or null. */
+function photoText(photo: UnsplashPhoto): string {
+  const tagText = (photo.tags ?? [])
+    .map((tag) => (typeof tag === "string" ? tag : tag.title ?? ""))
+    .filter(Boolean)
+    .join(" ");
+  return `${photo.alt_description ?? ""} ${photo.description ?? ""} ${tagText}`.toLowerCase();
+}
+
+function tokenizeMatchTerms(value: string): string[] {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 2 && !["the", "and", "for", "with", "from", "product", "photo", "photography"].includes(token));
+}
+
+/** Score how well an Unsplash photo's metadata matches the product / query terms. */
+export function scoreUnsplashPhotoRelevance(
+  photo: UnsplashPhoto,
+  matchTerms: string[],
+  query: string,
+): number {
+  const haystack = photoText(photo);
+  if (!haystack.trim()) return 0;
+
+  const terms = [
+    ...new Set([...matchTerms.flatMap(tokenizeMatchTerms), ...tokenizeMatchTerms(query)]),
+  ];
+  if (!terms.length) return 0;
+
+  let score = 0;
+  for (const term of terms) {
+    if (haystack.includes(term)) {
+      score += term.length >= 4 ? 4 : 2;
+    }
+  }
+
+  // Penalize near-miss product families (e.g. PSP for PS5, AirPods for iPhone).
+  const joined = terms.join(" ");
+  if (/\bps5|playstation\s*5\b/.test(joined) && /\b(psp|playstation portable|ps vita|handheld)\b/.test(haystack)) {
+    score -= 25;
+  }
+  if (/\bps4|playstation\s*4\b/.test(joined) && /\b(psp|ps5|playstation\s*5)\b/.test(haystack)) {
+    score -= 15;
+  }
+  if (/\biphone\b/.test(joined) && /\b(ipad|macbook|airpods|imac)\b/.test(haystack) && !haystack.includes("iphone")) {
+    score -= 15;
+  }
+  if (/\blatitude|macbook|thinkpad|laptop\b/.test(joined) && /\b(phone|tablet|monitor only)\b/.test(haystack) && !/\b(laptop|notebook|macbook|thinkpad|latitude)\b/.test(haystack)) {
+    score -= 10;
+  }
+
+  return score;
+}
+
+/** Return a live images.unsplash.com URL for the best matching photo, or null. */
 export async function resolveUnsplashPhotoUrl(
   queries: string[],
   options: {
     count?: number;
     orientation?: "landscape" | "portrait" | "squarish" | "any";
     usedUrls?: Set<string>;
+    /** When set, prefer photos whose alt/description mention these product terms. */
+    matchTerms?: string[];
+    /** Minimum relevance score when matchTerms are provided. 0 keeps first result. */
+    minScore?: number;
   } = {},
 ): Promise<string | null> {
   const used = options.usedUrls ?? new Set<string>();
-  const count = options.count ?? 5;
+  const count = options.count ?? 8;
   const orientation = options.orientation ?? "any";
+  const matchTerms = options.matchTerms ?? [];
+  const minScore = options.minScore ?? (matchTerms.length ? 1 : 0);
+
+  let bestFallback: { url: string; query: string; score: number } | null = null;
 
   for (const query of queries) {
     const trimmed = query.trim();
     if (!trimmed) continue;
     const results = await searchUnsplashPhotos(trimmed, count, { orientation });
+
+    let bestForQuery: { url: string; score: number } | null = null;
     for (const photo of results) {
       const url = formatUnsplashPhotoUrl(photo, 900);
-      if (url && url.includes("images.unsplash.com") && !used.has(url)) {
-        used.add(url);
-        console.info(`[unsplash] product photo matched "${trimmed}"`);
-        return url;
+      if (!url || !url.includes("images.unsplash.com") || used.has(url)) continue;
+
+      const score = matchTerms.length
+        ? scoreUnsplashPhotoRelevance(photo, matchTerms, trimmed)
+        : 0;
+
+      if (!bestForQuery || score > bestForQuery.score) {
+        bestForQuery = { url, score };
       }
+    }
+
+    if (!bestForQuery) continue;
+
+    if (!matchTerms.length || bestForQuery.score >= minScore) {
+      used.add(bestForQuery.url);
+      console.info(
+        `[unsplash] product photo matched "${trimmed}"` +
+          (matchTerms.length ? ` (score ${bestForQuery.score})` : ""),
+      );
+      return bestForQuery.url;
+    }
+
+    if (!bestFallback || bestForQuery.score > bestFallback.score) {
+      bestFallback = { ...bestForQuery, query: trimmed };
     }
   }
 
   // Retry without orientation if the first pass was constrained and failed.
   if (orientation !== "any") {
     return resolveUnsplashPhotoUrl(queries, { ...options, orientation: "any" });
+  }
+
+  // Last resort: best low-score candidate from a specific query (still better than nothing).
+  if (bestFallback) {
+    used.add(bestFallback.url);
+    console.info(
+      `[unsplash] product photo weak match "${bestFallback.query}" (score ${bestFallback.score})`,
+    );
+    return bestFallback.url;
   }
 
   return null;

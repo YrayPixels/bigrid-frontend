@@ -38,6 +38,10 @@ import {
   withPendingAction,
 } from "@/lib/storefront-builder/pending-action";
 import {
+  formatProductFocusHint,
+  getProductFocus,
+} from "@/lib/storefront-builder/product-focus";
+import {
   createBuilderAgentRegistry,
   type BuilderAgentRegistry,
   type ExecutorChatMessage,
@@ -371,6 +375,7 @@ export class StorefrontBuilderManager {
     const historySnippet = [
       formatBuilderHistorySnippet(history ?? []),
       pendingAction ? formatPendingActionHint(pendingAction) : "",
+      formatProductFocusHint(getProductFocus(session.business_profile)),
     ]
       .filter(Boolean)
       .join("\n\n");
@@ -467,7 +472,12 @@ export class StorefrontBuilderManager {
       plan,
       session,
       toolDefs,
-      scopeHint: pendingAction ? formatPendingActionHint(pendingAction) : undefined,
+      scopeHint: [
+        pendingAction ? formatPendingActionHint(pendingAction) : "",
+        formatProductFocusHint(getProductFocus(session.business_profile)),
+      ]
+        .filter(Boolean)
+        .join("\n\n") || undefined,
     });
     const messages: ExecutorChatMessage[] = executor.buildInitialMessages(history, message);
     const openAiTools = toOpenAiTools(toolDefs);
