@@ -2,11 +2,19 @@
 
 import Link from "next/link";
 import type { StoreProduct } from "@/lib/api/types";
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from "@/components/ui/carousel";
 import { formatMoney } from "@/lib/storefront/format";
 import { productUnitPrice } from "@/lib/storefront/pricing";
 import { useStorefront } from "@/lib/storefront/store-context";
 import { useStorefrontTheme } from "@/lib/storefront/theme-context";
 import { relatedProductsFor } from "@/lib/storefront/related-products";
+import { cn } from "@/lib/utils";
 
 export function RelatedProductsSection({
   product,
@@ -24,7 +32,7 @@ export function RelatedProductsSection({
     product,
     storefront.products ?? [],
     categories ?? [],
-    4,
+    8,
   );
 
   if (!related.length) return null;
@@ -37,7 +45,7 @@ export function RelatedProductsSection({
       className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:py-16"
       style={{ color: theme.palette.text }}
     >
-      <div className="mb-8 flex items-end justify-between gap-4">
+      <div className="mb-6 flex items-end justify-between gap-4 sm:mb-8">
         <div>
           <p
             className="text-xs font-semibold uppercase tracking-[0.18em]"
@@ -59,64 +67,92 @@ export function RelatedProductsSection({
         </div>
         <Link
           href="/products"
-          className="text-xs font-semibold underline underline-offset-4"
+          className="shrink-0 text-xs font-semibold underline underline-offset-4"
           style={{ color: theme.palette.primary }}
         >
           View all
         </Link>
       </div>
 
-      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-        {related.map((item) => {
-          const priced = productUnitPrice(item, discounts ?? []);
-          return (
-            <Link key={item.id} href={`/products/${item.slug}`} className="group block">
-              <div
-                className={
-                  isMinimal
-                    ? "aspect-square overflow-hidden rounded-xl"
-                    : isFashion
-                      ? "aspect-[4/5] overflow-hidden"
-                      : "aspect-[4/5] overflow-hidden rounded-[1.5rem]"
-                }
-                style={{ backgroundColor: theme.palette.surface }}
+      <Carousel
+        opts={{
+          align: "start",
+          dragFree: true,
+        }}
+        className="relative"
+      >
+        <CarouselContent className="-ml-3 sm:-ml-4">
+          {related.map((item) => {
+            const priced = productUnitPrice(item, discounts ?? []);
+            return (
+              <CarouselItem
+                key={item.id}
+                className="basis-[42%] pl-3 sm:basis-[30%] sm:pl-4 md:basis-[23%] lg:basis-[20%]"
               >
-                {item.image_url ? (
-                  <img
-                    src={item.image_url}
-                    alt={item.name}
-                    className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-                  />
-                ) : (
+                <Link href={`/products/${item.slug}`} className="group block">
                   <div
-                    className="grid h-full place-items-center text-3xl font-bold text-white"
-                    style={{
-                      background: `linear-gradient(135deg, ${theme.palette.primary}, ${theme.palette.primary}88)`,
-                    }}
+                    className={cn(
+                      "overflow-hidden",
+                      isMinimal
+                        ? "aspect-square rounded-xl"
+                        : isFashion
+                          ? "aspect-square"
+                          : "aspect-square rounded-2xl",
+                    )}
+                    style={{ backgroundColor: theme.palette.surface }}
                   >
-                    {item.name.slice(0, 1)}
+                    {item.image_url ? (
+                      <img
+                        src={item.image_url}
+                        alt={item.name}
+                        className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                      />
+                    ) : (
+                      <div
+                        className="grid h-full place-items-center text-2xl font-bold text-white"
+                        style={{
+                          background: `linear-gradient(135deg, ${theme.palette.primary}, ${theme.palette.primary}88)`,
+                        }}
+                      >
+                        {item.name.slice(0, 1)}
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-              <p
-                className="mt-3 text-[11px] font-semibold uppercase tracking-[0.14em]"
-                style={{ color: theme.palette.muted }}
-              >
-                {item.category ?? "Shop"}
-              </p>
-              <h3 className="mt-1 line-clamp-1 text-sm font-semibold">{item.name}</h3>
-              <div className="mt-2 flex items-center gap-2 text-sm font-semibold">
-                <span>{formatMoney(priced.unitPrice, item.currency)}</span>
-                {priced.compareAtPrice != null ? (
-                  <span className="text-xs font-medium line-through" style={{ color: theme.palette.muted }}>
-                    {formatMoney(priced.compareAtPrice, item.currency)}
-                  </span>
-                ) : null}
-              </div>
-            </Link>
-          );
-        })}
-      </div>
+                  <p
+                    className="mt-2.5 line-clamp-1 text-[10px] font-semibold uppercase tracking-[0.14em]"
+                    style={{ color: theme.palette.muted }}
+                  >
+                    {item.category ?? "Shop"}
+                  </p>
+                  <h3 className="mt-0.5 line-clamp-2 text-[13px] font-semibold leading-snug tracking-[-0.01em]">
+                    {item.name}
+                  </h3>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[13px] font-semibold">
+                    <span>{formatMoney(priced.unitPrice, item.currency)}</span>
+                    {priced.compareAtPrice != null ? (
+                      <span
+                        className="text-[11px] font-medium line-through"
+                        style={{ color: theme.palette.muted }}
+                      >
+                        {formatMoney(priced.compareAtPrice, item.currency)}
+                      </span>
+                    ) : null}
+                  </div>
+                </Link>
+              </CarouselItem>
+            );
+          })}
+        </CarouselContent>
+
+        <CarouselPrevious
+          className="left-0 top-[38%] hidden h-9 w-9 border-0 bg-white/90 shadow-md backdrop-blur-sm sm:inline-flex"
+          style={{ color: theme.palette.text }}
+        />
+        <CarouselNext
+          className="right-0 top-[38%] hidden h-9 w-9 border-0 bg-white/90 shadow-md backdrop-blur-sm sm:inline-flex"
+          style={{ color: theme.palette.text }}
+        />
+      </Carousel>
     </section>
   );
 }
