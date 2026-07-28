@@ -53,10 +53,24 @@ export type WebsiteBuilderToolName =
   | "update_store_profile"
   // Insights
   | "get_store_metrics"
+  | "get_top_selling_products"
+  | "get_traffic_sources"
   | "list_orders"
   | "get_order"
   | "update_order_status"
   | "suggest_site_improvements"
+  // Commerce ops
+  | "list_customers"
+  | "get_customer"
+  | "list_discounts"
+  | "create_discount"
+  | "update_discount"
+  | "get_payment_settings"
+  | "update_payment_settings"
+  | "list_domains"
+  | "add_domain"
+  | "verify_domain"
+  | "list_abandoned_carts"
   // Custom site
   | "generate_custom_site"
   | "edit_custom_site_code";
@@ -87,7 +101,7 @@ export type WebsiteBuilderContext = {
 };
 
 export type AgentActivityPayload = {
-  agent: "Interpreter" | "Planner" | "Executor" | "Critic";
+  agent: "InterpretPlanner" | "Interpreter" | "Planner" | "Session" | "Executor" | "Critic";
   phase: string;
   title: string;
   detail?: string;
@@ -96,7 +110,7 @@ export type AgentActivityPayload = {
 export type AgentThinkingLogEntry = {
   id: string;
   ts: string;
-  agent: "System" | "Interpreter" | "Planner" | "Executor" | "Critic";
+  agent: "System" | "InterpretPlanner" | "Interpreter" | "Planner" | "Session" | "Executor" | "Critic";
   phase: "start" | "complete" | "error" | "info";
   title: string;
   detail?: string;

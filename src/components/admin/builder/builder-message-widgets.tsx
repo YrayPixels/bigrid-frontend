@@ -102,12 +102,38 @@ function publicToolLabel(name: string, changedPaths?: string[]) {
       return "Updating store profile";
     case "get_store_metrics":
       return "Checking store metrics";
+    case "get_top_selling_products":
+      return "Checking top sellers";
+    case "get_traffic_sources":
+      return "Checking traffic sources";
     case "list_orders":
       return "Listing orders";
     case "get_order":
       return "Loading order details";
     case "update_order_status":
       return "Updating order status";
+    case "list_customers":
+      return "Listing customers";
+    case "get_customer":
+      return "Loading customer details";
+    case "list_discounts":
+      return "Listing discounts";
+    case "create_discount":
+      return "Creating discount";
+    case "update_discount":
+      return "Updating discount";
+    case "get_payment_settings":
+      return "Checking payment settings";
+    case "update_payment_settings":
+      return "Updating payment settings";
+    case "list_domains":
+      return "Listing domains";
+    case "add_domain":
+      return "Adding domain";
+    case "verify_domain":
+      return "Verifying domain";
+    case "list_abandoned_carts":
+      return "Listing abandoned carts";
     case "suggest_site_improvements":
       return "Suggesting improvements";
     case "generate_product_descriptions":

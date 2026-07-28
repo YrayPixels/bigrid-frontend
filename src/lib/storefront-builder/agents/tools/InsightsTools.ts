@@ -1,7 +1,7 @@
 import { api } from "@/lib/api/client";
-import type { StoreOrderStatus } from "@/lib/api/types";
+import type { MerchantDashboardTopProduct, StoreOrderStatus } from "@/lib/api/types";
 import type { WebsiteBuilderToolDef } from "../types";
-import { asString, requireConfirm } from "./toolHelpers";
+import { asString, requireConfirm, NO_ARG_TOOL_PARAMETERS } from "./toolHelpers";
 
 const ORDER_STATUSES: StoreOrderStatus[] = [
   "pending",
@@ -15,34 +15,98 @@ function isOrderStatus(value: string): value is StoreOrderStatus {
   return (ORDER_STATUSES as string[]).includes(value);
 }
 
-/** Sales metrics, orders, and improvement suggestions. */
+function formatMoney(amount: number, currency = "NGN"): string {
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency,
+      maximumFractionDigits: 0,
+    }).format(amount);
+  } catch {
+    return `${amount.toLocaleString()} ${currency}`;
+  }
+}
+
+function formatTopProducts(products: MerchantDashboardTopProduct[]): string {
+  if (!products.length) return "No paid sales yet — top sellers will appear once orders come in.";
+  return products
+    .slice(0, 10)
+    .map(
+      (product, index) =>
+        `${index + 1}. **${product.name}** — ${product.quantity_sold} sold · ${formatMoney(
+          product.total_earning,
+          product.currency,
+        )}`,
+    )
+    .join("\n");
+}
+
+/** Sales metrics, orders, top sellers, and improvement suggestions. */
 export class InsightsTools {
   static definitions(): WebsiteBuilderToolDef[] {
     return [
       {
         name: "get_store_metrics",
         description:
-          "Fetch store performance metrics: total sales, orders, AOV, visits, conversion, products count, and the recent sales-by-day trend. Use when the merchant asks how the store is doing.",
-        parameters: { type: "object", properties: {}, additionalProperties: false },
+          "Fetch store performance: total sales, orders, AOV, visits, conversion, products count, sales-by-day trend, top selling products, traffic sources, and orders by status. Use for 'how is my store doing', sales, revenue, visits, conversion, or a business analytics overview.",
+        parameters: NO_ARG_TOOL_PARAMETERS,
         handler: async (_args, ctx) => {
           try {
             const overview = await api.getDashboardOverview();
             const m = overview.metrics;
+            const topProducts = overview.top_products ?? [];
+            const traffic = overview.traffic_sources ?? [];
+            const byStatus = overview.orders_by_status ?? [];
+
             ctx.payload = {
               type: "store_metrics",
               metrics: m,
               sales_by_day: overview.sales_by_day,
+              top_products: topProducts,
+              traffic_sources: traffic,
+              orders_by_status: byStatus,
               recent_orders: overview.recent_orders,
             };
+
+            const topLines =
+              topProducts.length > 0
+                ? [
+                    ``,
+                    `Top sellers:`,
+                    ...topProducts.slice(0, 5).map(
+                      (product, index) =>
+                        `${index + 1}. ${product.name} (${product.quantity_sold} sold, ${formatMoney(
+                          product.total_earning,
+                          product.currency,
+                        )})`,
+                    ),
+                  ]
+                : ["", "Top sellers: none yet (no paid sales recorded)."];
+
+            const statusLine =
+              byStatus.length > 0
+                ? `Orders by status: ${byStatus.map((row) => `${row.label} ${row.count}`).join(" · ")}`
+                : `Pending: ${m.pending_orders} · Delivered: ${m.delivered_orders ?? m.fulfilled_orders}`;
+
             ctx.assistantMessage = [
               `Here's a snapshot of your store:`,
-              `- Sales: ${m.total_sales.toLocaleString()} across ${m.total_orders} order(s)`,
-              `- Average order: ${m.average_order_value.toLocaleString()}`,
-              `- Pending: ${m.pending_orders} · Delivered: ${m.delivered_orders ?? m.fulfilled_orders}`,
+              `- Sales: ${formatMoney(m.total_sales)} across ${m.total_orders} order(s)`,
+              `- Average order: ${formatMoney(m.average_order_value)}`,
+              `- ${statusLine}`,
               `- Visits: ${m.total_visits} (today ${m.visits_today}) · Conversion ${m.conversion_rate}%`,
               `- Products: ${m.products_count}`,
+              ...topLines,
             ].join("\n");
-            return { ok: true, metrics: m, sales_by_day: overview.sales_by_day };
+
+            return {
+              ok: true,
+              metrics: m,
+              sales_by_day: overview.sales_by_day,
+              top_products: topProducts,
+              traffic_sources: traffic,
+              orders_by_status: byStatus,
+              recent_orders: overview.recent_orders,
+            };
           } catch (err) {
             return {
               ok: false,
@@ -52,9 +116,54 @@ export class InsightsTools {
         },
       },
       {
+        name: "get_top_selling_products",
+        description:
+          "List top selling products by revenue and units sold. Use when the merchant asks for best sellers, top products, what's selling, or which items earn the most.",
+        parameters: {
+          type: "object",
+          properties: {
+            limit: {
+              type: "number",
+              description: "How many products to return (default 5, max 10).",
+            },
+          },
+          additionalProperties: false,
+        },
+        handler: async (args, ctx) => {
+          try {
+            const overview = await api.getDashboardOverview();
+            const limit =
+              typeof args.limit === "number" && Number.isFinite(args.limit)
+                ? Math.min(Math.max(Math.round(args.limit), 1), 10)
+                : 5;
+            const topProducts = (overview.top_products ?? []).slice(0, limit);
+
+            ctx.payload = {
+              type: "top_selling_products",
+              top_products: topProducts,
+              metrics: {
+                total_sales: overview.metrics.total_sales,
+                total_orders: overview.metrics.total_orders,
+              },
+            };
+            ctx.assistantMessage =
+              topProducts.length === 0
+                ? "You don't have top sellers yet — once paid orders come in, I'll rank products by revenue here."
+                : `Here are your top selling products:\n${formatTopProducts(topProducts)}`;
+
+            return { ok: true, top_products: topProducts, count: topProducts.length };
+          } catch (err) {
+            return {
+              ok: false,
+              error: err instanceof Error ? err.message : "get_top_selling_products_failed",
+            };
+          }
+        },
+      },
+      {
         name: "list_orders",
         description:
-          "List recent orders with optional status or search filters. Use before discussing a specific order.",
+          "List recent store orders with optional status or search filters. Use for 'show my orders', pending orders, recent sales, or before discussing a specific order.",
         parameters: {
           type: "object",
           properties: {
@@ -95,10 +204,25 @@ export class InsightsTools {
               orders: rows,
               meta: response.meta,
             };
-            ctx.assistantMessage =
-              rows.length === 0
-                ? "No orders matched that filter."
-                : `Showing ${rows.length} order(s)${response.meta.total ? ` of ${response.meta.total}` : ""}.`;
+
+            if (rows.length === 0) {
+              ctx.assistantMessage = "No orders matched that filter.";
+            } else {
+              const preview = rows
+                .slice(0, 8)
+                .map(
+                  (order) =>
+                    `- **${order.order_number}** · ${order.customer_name} · ${order.status} · ${formatMoney(
+                      order.total_amount,
+                      order.currency,
+                    )}`,
+                )
+                .join("\n");
+              ctx.assistantMessage =
+                `Showing ${rows.length} order(s)${response.meta.total ? ` of ${response.meta.total}` : ""}:\n${preview}` +
+                (rows.length > 8 ? `\n…and ${rows.length - 8} more.` : "");
+            }
+
             return { ok: true, orders: rows, meta: response.meta };
           } catch (err) {
             return {
@@ -111,25 +235,47 @@ export class InsightsTools {
       {
         name: "get_order",
         description:
-          "Get full details for one order by order id (from list_orders). Includes line items, customer, and delivery address.",
+          "Get full details for one order by order_id (preferred) or order_number. Includes line items, customer, and delivery address.",
         parameters: {
           type: "object",
           properties: {
-            order_id: { type: "string" },
+            order_id: { type: "string", description: "Order id from list_orders." },
+            order_number: {
+              type: "string",
+              description: "Human-facing order number if id is unknown (e.g. ORD-1042).",
+            },
           },
-          required: ["order_id"],
           additionalProperties: false,
         },
         handler: async (args, ctx) => {
-          const orderId = asString(args.order_id);
-          if (!orderId) return { ok: false, error: "missing_order_id" };
+          let orderId = asString(args.order_id);
+          const orderNumber = asString(args.order_number);
+
           try {
+            if (!orderId && orderNumber) {
+              const found = await api.getOrders({ search: orderNumber, per_page: 10, page: 1 });
+              const exact = found.data.find(
+                (order) => order.order_number.toLowerCase() === orderNumber.toLowerCase(),
+              );
+              const match = exact ?? (found.data.length === 1 ? found.data[0] : null);
+              if (!match) {
+                return {
+                  ok: false,
+                  error: "order_not_found",
+                  message: `I couldn't find an order matching "${orderNumber}". Try list_orders first.`,
+                };
+              }
+              orderId = match.id;
+            }
+
+            if (!orderId) return { ok: false, error: "missing_order_id" };
+
             const order = await api.getOrder(orderId);
             ctx.payload = { type: "order_detail", order };
             ctx.assistantMessage = [
               `Order **${order.order_number}** — ${order.status}`,
               `Customer: ${order.customer_name} (${order.customer_email || order.customer_phone || "no contact"})`,
-              `Total: ${order.total_amount.toLocaleString()} ${order.currency}`,
+              `Total: ${formatMoney(order.total_amount, order.currency)}`,
               `Items: ${(order.items ?? []).map((i) => `${i.name} ×${i.quantity}`).join(", ") || "none"}`,
             ].join("\n");
             return { ok: true, order };
@@ -201,7 +347,7 @@ export class InsightsTools {
         name: "suggest_site_improvements",
         description:
           "Analyze metrics + catalog gaps and suggest the next best builder actions (does not mutate anything).",
-        parameters: { type: "object", properties: {}, additionalProperties: false },
+        parameters: NO_ARG_TOOL_PARAMETERS,
         handler: async (_args, ctx) => {
           try {
             const [overview, products, categories] = await Promise.all([

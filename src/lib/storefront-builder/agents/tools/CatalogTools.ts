@@ -15,6 +15,7 @@ import type { WebsiteBuilderToolDef } from "../types";
 import {
   asNumber,
   asString,
+  removeStorefrontProduct,
   requireConfirm,
   resolveLiveProduct,
   syncStorefrontProduct,
@@ -202,7 +203,11 @@ export class CatalogTools {
             if (ctx.storefront?.products) {
               ctx.storefront = {
                 ...ctx.storefront,
-                products: syncStorefrontProduct(ctx.storefront.products, updated) ?? ctx.storefront.products,
+                products:
+                  removeStorefrontProduct(ctx.storefront.products, {
+                    id: updated.id,
+                    name: updated.name,
+                  }) ?? ctx.storefront.products,
               };
             }
             ctx.status = "review_ready";
@@ -252,7 +257,11 @@ export class CatalogTools {
             if (ctx.storefront?.products) {
               ctx.storefront = {
                 ...ctx.storefront,
-                products: ctx.storefront.products.filter((item) => item.id !== productId),
+                products:
+                  removeStorefrontProduct(ctx.storefront.products, {
+                    id: productId,
+                    name: resolved.product.name,
+                  }) ?? ctx.storefront.products,
               };
             }
             ctx.status = "review_ready";

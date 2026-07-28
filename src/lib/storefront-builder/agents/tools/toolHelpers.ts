@@ -1,6 +1,20 @@
 import { api } from "@/lib/api/client";
 import type { StoreProduct } from "@/lib/api/types";
 
+/** OpenAI-compatible schema for tools that take no arguments.
+ * Avoid empty `properties: {}` — PHP json_decode turns {} into [], which providers reject.
+ */
+export const NO_ARG_TOOL_PARAMETERS: Record<string, unknown> = {
+  type: "object",
+  properties: {
+    reason: {
+      type: "string",
+      description: "Optional short note about why this tool is being called.",
+    },
+  },
+  additionalProperties: false,
+};
+
 export function asString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
@@ -88,5 +102,40 @@ export function syncStorefrontProduct(
   updated: StoreProduct,
 ): StoreProduct[] | undefined {
   if (!Array.isArray(storefrontProducts)) return storefrontProducts;
-  return storefrontProducts.map((item) => (item.id === updated.id ? { ...item, ...updated } : item));
+
+  const matchIndex = storefrontProducts.findIndex(
+    (item) =>
+      item.id === updated.id ||
+      (Boolean(updated.slug) && item.slug === updated.slug) ||
+      item.name.toLowerCase() === updated.name.toLowerCase(),
+  );
+
+  // Soft-hidden products should leave the preview catalog immediately.
+  if ((updated.status ?? "active") !== "active") {
+    if (matchIndex < 0) return storefrontProducts;
+    return storefrontProducts.filter((_, index) => index !== matchIndex);
+  }
+
+  if (matchIndex < 0) {
+    return [...storefrontProducts, updated];
+  }
+
+  return storefrontProducts.map((item, index) =>
+    index === matchIndex ? { ...item, ...updated } : item,
+  );
+}
+
+/** Remove a product from the draft preview catalog by id and/or name. */
+export function removeStorefrontProduct(
+  storefrontProducts: StoreProduct[] | undefined,
+  opts: { id?: string; name?: string },
+): StoreProduct[] | undefined {
+  if (!Array.isArray(storefrontProducts)) return storefrontProducts;
+  const id = opts.id?.trim();
+  const name = opts.name?.trim().toLowerCase();
+  return storefrontProducts.filter((item) => {
+    if (id && item.id === id) return false;
+    if (name && item.name.toLowerCase() === name) return false;
+    return true;
+  });
 }

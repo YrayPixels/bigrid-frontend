@@ -197,6 +197,8 @@ export type CreateStoreInput = {
 
 export type UpdateStoreInput = {
   business_name?: string;
+  slug?: string;
+  industry?: Industry;
   description?: string;
   contact_email?: string | null;
   contact_phone?: string | null;

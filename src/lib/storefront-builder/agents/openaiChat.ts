@@ -1,5 +1,10 @@
 import { generateText, streamText, type CoreMessage, type LanguageModelV1 } from "ai";
-import { consumeAiStream } from "@/lib/ai-stream";
+import {
+  consumeAiChatCompletionStream,
+  consumeAiStream,
+  type ChatCompletionStreamHandlers,
+  type StreamedChatCompletion,
+} from "@/lib/ai-stream";
 import { getChatModel, getConfiguredChatModelName, getConfiguredThinkingModelName } from "@/lib/ai-sdk";
 import { getToken } from "@/lib/api/client";
 
@@ -267,6 +272,115 @@ export async function postChatStream(args: {
 
   const fullText = await consumeAiStream(res.body, args.onDelta);
   return { text: fullText };
+}
+
+export type PostChatCompletionStreamArgs = {
+  messages: unknown[];
+  tools?: unknown[];
+  tool_choice?: "auto" | "none" | "required" | Record<string, unknown>;
+  temperature?: number;
+  model?: string;
+  signal?: AbortSignal;
+  onContentDelta?: (delta: string) => void;
+  onToolCallDelta?: ChatCompletionStreamHandlers["onToolCallDelta"];
+};
+
+/**
+ * Streaming Chat Completions with optional tools (OpenAI SSE).
+ * Prefer this for SessionAgent — tools can start as soon as the stream finishes.
+ */
+export async function postChatCompletionStream(
+  args: PostChatCompletionStreamArgs,
+): Promise<StreamedChatCompletion> {
+  const withModel = await ensureChatModel({
+    model: args.model,
+    messages: args.messages,
+    tools: args.tools,
+    tool_choice: args.tool_choice,
+    temperature: args.temperature,
+  });
+
+  const payload = {
+    ...withModel,
+    model:
+      typeof withModel.model === "string" && withModel.model.trim()
+        ? withModel.model
+        : await getConfiguredChatModelName(),
+    stream: true,
+  };
+
+  const handlers: ChatCompletionStreamHandlers = {
+    onContentDelta: args.onContentDelta,
+    onToolCallDelta: args.onToolCallDelta,
+  };
+
+  // Browser: go through Next proxy (adds auth + CORS). Server/direct: hit backend or provider.
+  if (typeof window !== "undefined") {
+    const token = getToken();
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (token) headers.Authorization = `Bearer ${token}`;
+
+    const res = await fetch("/api/chat/stream", {
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload),
+      signal: args.signal,
+    });
+
+    if (!res.ok || !res.body) {
+      const text = await res.text().catch(() => "");
+      throw new Error(text || `Chat stream failed (${res.status})`);
+    }
+
+    return consumeAiChatCompletionStream(res.body, handlers);
+  }
+
+  if (API_BASE) {
+    const token = getToken();
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (token) headers.Authorization = `Bearer ${token}`;
+
+    const res = await fetch(`${API_BASE}/storehause/ai/chat/stream`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload),
+      signal: args.signal,
+    });
+
+    if (!res.ok || !res.body) {
+      const text = await res.text().catch(() => "");
+      throw new Error(text || `Chat stream failed (${res.status})`);
+    }
+
+    return consumeAiChatCompletionStream(res.body, handlers);
+  }
+
+  // Local provider stream (dev without backend)
+  const apiKey = process.env.OPENAI_API_KEY ?? process.env.DEEPSEEK_API_KEY;
+  if (!apiKey) {
+    throw new Error("Configure AI in the platform admin, or set OPENAI_API_KEY for local dev.");
+  }
+
+  const baseUrl = process.env.DEEPSEEK_API_KEY
+    ? process.env.DEEPSEEK_BASE_URL ?? "https://api.deepseek.com/v1"
+    : process.env.OPENAI_BASE_URL ?? "https://api.openai.com/v1";
+
+  const res = await fetch(`${baseUrl.replace(/\/$/, "")}/chat/completions`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+    signal: args.signal,
+  });
+
+  if (!res.ok || !res.body) {
+    const text = await res.text().catch(() => "");
+    throw new Error(text || `Chat stream failed (${res.status})`);
+  }
+
+  return consumeAiChatCompletionStream(res.body, handlers);
 }
 
 export function getAssistantMessageContent(data: {

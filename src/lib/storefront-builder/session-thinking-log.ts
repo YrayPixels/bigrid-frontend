@@ -65,7 +65,7 @@ function synthesizeThinkingFromPayload(
   if (Array.isArray(payload.plan) && payload.plan.length > 0) {
     entries.push(
       createThinkingLogEntry({
-        agent: "Planner",
+        agent: "InterpretPlanner",
         phase: "complete",
         title: "Plan ready",
         data: { plan: payload.plan },
@@ -108,7 +108,7 @@ function synthesizeThinkingFromPayload(
   if (type === "agent_turn" && entries.length === 1) {
     entries.unshift(
       createThinkingLogEntry({
-        agent: "Interpreter",
+        agent: "InterpretPlanner",
         phase: "complete",
         title: "Request handled by backend orchestrator",
       }),

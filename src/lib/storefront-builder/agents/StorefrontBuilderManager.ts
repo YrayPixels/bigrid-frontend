@@ -1,3 +1,4 @@
+import { isBuilderToolAgentEnabled } from "@/lib/features";
 import type {
   BuilderSession,
   StorefrontTemplateId,
@@ -13,6 +14,7 @@ import {
   isCapabilityOrMetaQuestion,
   isGreetingOrSmallTalk,
   summarizeToolResult,
+  type CriticStatus,
 } from "./agentThinking";
 import { websiteBuilderToolsForSession } from "./tools";
 import type {
@@ -22,7 +24,8 @@ import type {
   WebsiteBuilderToolDef,
 } from "./types";
 import { createThinkingLogEntry } from "./thinking-log";
-import { aiSuggestedActions, colorPresetActions } from "@/lib/storefront-builder/suggested-actions";
+import { BuilderSessionManager } from "./BuilderSessionManager";
+import { fallbackSuggestedActions, colorPresetActions } from "@/lib/storefront-builder/suggested-actions";
 import { formatBuilderHistorySnippet } from "@/lib/storefront-builder/chat-history";
 import {
   applyPriceToPendingProducts,
@@ -48,6 +51,38 @@ import {
   type OpenAiToolSchema,
 } from "./roles";
 
+const STATIC_TOOL_REPLY_MESSAGES: Record<string, string> = {
+  refine_website_copy: "Done — I've updated the copy. Check the preview on the right!",
+  capture_business_details:
+    "Got it! I've saved your business details. Ready to build your website — just say 'build my website' when you're ready.",
+  design_website:
+    "I've picked the best design for your brand. Ready to build — just say 'build my website'!",
+  apply_brand_color: "Done — colors updated. Check the preview!",
+  change_font: "Done — font updated. Check the preview!",
+  update_theme_style: "Done — style updated. Check the preview!",
+  add_products: "Products added! Check your Products page.",
+  list_products: "I've pulled your product catalog — see the list above.",
+  generate_product_descriptions: "Product descriptions updated! Check your Products page.",
+  add_page_block: "Done — I added that section. Check the preview!",
+  get_store_metrics: "Here's your store performance snapshot.",
+  get_top_selling_products: "Here are your top selling products.",
+  get_traffic_sources: "Here's where your traffic is coming from.",
+  list_orders: "Here are your recent orders.",
+  get_order: "Here's the order detail.",
+  update_order_status: "Order status updated.",
+  list_customers: "Here's your customer list.",
+  get_customer: "Here's that customer's details.",
+  list_discounts: "Here are your discounts and promos.",
+  create_discount: "Discount created.",
+  update_discount: "Discount updated.",
+  get_payment_settings: "Here's your payment setup.",
+  update_payment_settings: "Payment settings updated.",
+  list_domains: "Here are your domains.",
+  add_domain: "Domain added — follow the DNS steps to verify.",
+  verify_domain: "Checked domain verification status.",
+  list_abandoned_carts: "Here are abandoned carts.",
+  suggest_site_improvements: "Here are suggested next steps for your store.",
+};
 function toOpenAiTools(defs: WebsiteBuilderToolDef[]): OpenAiToolSchema[] {
   return defs.map((tool) => ({
     type: "function" as const,
@@ -63,7 +98,14 @@ function toOpenAiTools(defs: WebsiteBuilderToolDef[]): OpenAiToolSchema[] {
 const DIRECT_EXEC_SAFE_TOOLS = new Set([
   "list_products",
   "get_store_metrics",
+  "get_top_selling_products",
+  "get_traffic_sources",
   "list_orders",
+  "list_customers",
+  "list_discounts",
+  "get_payment_settings",
+  "list_domains",
+  "list_abandoned_carts",
   "suggest_site_improvements",
   "get_storefront_readiness",
   "apply_stock_images",
@@ -116,8 +158,8 @@ function defaultArgsForDirectTool(
 }
 
 /**
- * Waterfall orchestrator: creates role agents (with prompts ready), then feeds them
- * Interpreter → Planner → Executor(step) → Critic. Agents do not talk to each other.
+ * Waterfall orchestrator (default): InterpretPlanner → Executor → Critic.
+ * Feature-flagged path: SessionAgent (tools) → outcome Critic (max 1 retry).
  */
 export class StorefrontBuilderManager {
   private readonly agents: BuilderAgentRegistry;
@@ -147,6 +189,155 @@ export class StorefrontBuilderManager {
     this.onActivity?.(payload);
   }
 
+  private finalizeAssistantTurn(args: {
+    ctx: WebsiteBuilderContext;
+    session: BuilderSession;
+    message: string;
+    fallback: BuilderAiTurn;
+    toolCallsLog: Array<{ name: string; arguments: Record<string, unknown> }>;
+    toolResultsLog: Array<Record<string, unknown>>;
+    informationalReplies: string[];
+    planSteps?: Array<{ step: number; description: string; tools: string[] }>;
+    messages?: ExecutorChatMessage[];
+    composeWith?: { composeMerchantReply: (messages: ExecutorChatMessage[]) => Promise<string> };
+  }): Promise<BuilderAiTurn> {
+    const {
+      ctx,
+      session,
+      message,
+      fallback,
+      toolCallsLog,
+      toolResultsLog,
+      informationalReplies,
+      planSteps = [],
+      messages = [],
+      composeWith,
+    } = args;
+
+    if (informationalReplies.length > 0) {
+      const unique = [...new Set(informationalReplies)];
+      const mutateReply =
+        ctx.assistantMessage &&
+        !unique.includes(ctx.assistantMessage.trim()) &&
+        toolCallsLog.some((call) => !INFORMATIONAL_TOOL_NAMES.has(call.name))
+          ? ctx.assistantMessage.trim()
+          : "";
+      ctx.assistantMessage = [...unique, mutateReply].filter(Boolean).join("\n\n");
+    }
+
+    const ensureReply = async () => {
+      if (ctx.assistantMessage) return;
+
+      const lastTool = toolCallsLog[toolCallsLog.length - 1];
+      const staticReply =
+        toolCallsLog.length > 0
+          ? lastTool
+            ? (STATIC_TOOL_REPLY_MESSAGES[lastTool.name] ?? "Done — I finished that request.")
+            : "Done — I finished that request."
+          : "";
+
+      if (staticReply) {
+        ctx.assistantMessage = staticReply;
+        this.log({
+          agent: "System",
+          phase: "complete",
+          title: "Merchant reply composed",
+          detail: ctx.assistantMessage.slice(0, 280),
+        });
+        return;
+      }
+
+      this.log({
+        agent: "System",
+        phase: "start",
+        title: "Composing merchant reply",
+      });
+      const composed =
+        composeWith && messages.length
+          ? await composeWith.composeMerchantReply(messages).catch(() => "")
+          : "";
+      ctx.assistantMessage = composed || fallback.assistant_message;
+      this.log({
+        agent: "System",
+        phase: "complete",
+        title: "Merchant reply composed",
+        detail: ctx.assistantMessage.slice(0, 280),
+      });
+    };
+
+    return ensureReply().then(() => {
+      const toolMetadata = {
+        plan: planSteps,
+        tool_calls: toolCallsLog,
+        tool_results: toolResultsLog,
+        profile: ctx.profile,
+      };
+
+      if (ctx.payload.type && ctx.payload.type !== "agent_turn") {
+        ctx.payload = { ...ctx.payload, ...toolMetadata };
+      } else {
+        ctx.payload = { type: "agent_turn", ...toolMetadata };
+      }
+
+      if (
+        ctx.storefront &&
+        ctx.payload.type === "agent_turn" &&
+        toolCallsLog.some((call) => call.name === "generate_website")
+      ) {
+        ctx.payload = { ...ctx.payload, type: "website_generated" };
+        if (!ctx.assistantMessage || ctx.assistantMessage === fallback.assistant_message) {
+          ctx.assistantMessage =
+            "Your website is ready. Preview it on the right, then tell me what to refine — headline, about section, CTA, or SEO.";
+        }
+      }
+
+      const payloadColorOptions = Array.isArray(ctx.payload.color_options)
+        ? ctx.payload.color_options.filter((value): value is string => typeof value === "string")
+        : [];
+      const industry = ctx.profile.industry ?? session.store?.industry ?? null;
+      const colorOptions = [
+        ...payloadColorOptions,
+        ...colorPresetActions(industry, 3)
+          .map((action) => (action.type === "color" ? action.color : null))
+          .filter((value): value is string => typeof value === "string"),
+      ];
+      const suggestedActions = fallbackSuggestedActions({
+        ...session,
+        business_profile: ctx.profile,
+        storefront_snapshot: ctx.storefront ?? session.storefront_snapshot,
+      });
+      ctx.payload = {
+        ...ctx.payload,
+        suggested_actions: suggestedActions,
+        color_options: colorOptions,
+      };
+
+      if (ctx.status === "collecting_requirements") {
+        if (!ctx.profile.pending_action && ctx.assistantMessage.trim()) {
+          ctx.profile = withPendingAction(ctx.profile, {
+            type: "clarification",
+            question: ctx.assistantMessage.trim(),
+            original_message: message,
+          });
+        }
+        ctx.payload = {
+          ...ctx.payload,
+          pending_action: ctx.profile.pending_action ?? null,
+        };
+      } else if (ctx.profile.pending_action) {
+        ctx.profile = withPendingAction(ctx.profile, null);
+      }
+
+      return {
+        business_profile: ctx.profile,
+        status: ctx.status,
+        selected_template_id: ctx.selectedTemplateId,
+        storefront: ctx.storefront ?? undefined,
+        assistant_message: ctx.assistantMessage,
+        assistant_payload: ctx.payload,
+      };
+    });
+  }
   async runTurn(args: {
     message: string;
     session: BuilderSession;
@@ -371,7 +562,20 @@ export class StorefrontBuilderManager {
       }
     }
 
-    const { interpreter, planner, executor, critic } = this.agents;
+    if (isBuilderToolAgentEnabled()) {
+      return this.runToolAgentTurn({
+        message,
+        session,
+        recommendations,
+        templateOptions,
+        history,
+        toolDefs,
+        pendingAction,
+        fallback,
+      });
+    }
+
+    const { interpretPlanner, executor, critic } = this.agents;
     const historySnippet = [
       formatBuilderHistorySnippet(history ?? []),
       pendingAction ? formatPendingActionHint(pendingAction) : "",
@@ -380,64 +584,38 @@ export class StorefrontBuilderManager {
       .filter(Boolean)
       .join("\n\n");
 
-    // ── Interpreter ──────────────────────────────────────────────
+    // ── Interpret + Plan (single thinking-model call) ─────────────
     this.log({
-      agent: "Interpreter",
+      agent: "InterpretPlanner",
       phase: "start",
-      title: "Understanding your request",
+      title: "Understanding and planning",
       detail: message.trim().slice(0, 280),
     });
-    const interpretation = await interpreter
+    const interpreted = await interpretPlanner
+      .configure(toolDefs)
       .run({ userText: message, historySnippet })
       .catch((error) => {
         this.log({
-          agent: "Interpreter",
+          agent: "InterpretPlanner",
           phase: "error",
-          title: "Interpreter failed",
+          title: "Interpret+Plan failed",
           detail: error instanceof Error ? error.message : "Unknown error",
         });
         return null;
       });
-    if (!interpretation) return fallback;
+    if (!interpreted) return fallback;
+
+    const { interpretation, plan } = interpreted;
 
     this.log({
-      agent: "Interpreter",
+      agent: "InterpretPlanner",
       phase: "complete",
-      title: "Request interpreted",
-      detail: interpretation.task_summary,
+      title: "Plan ready",
+      detail: plan.intent || interpretation.task_summary,
       data: {
         task_summary: interpretation.task_summary,
         steps: interpretation.steps,
         constraints: interpretation.constraints ?? [],
-      },
-    });
-
-    // ── Planner ──────────────────────────────────────────────────
-    this.log({
-      agent: "Planner",
-      phase: "start",
-      title: "Planning your website",
-    });
-    const plan = await planner
-      .configure(toolDefs)
-      .run({ userText: message, interpretation, historySnippet })
-      .catch((error) => {
-        this.log({
-          agent: "Planner",
-          phase: "error",
-          title: "Planner failed",
-          detail: error instanceof Error ? error.message : "Unknown error",
-        });
-        return null;
-      });
-    if (!plan) return fallback;
-
-    this.log({
-      agent: "Planner",
-      phase: "complete",
-      title: "Plan ready",
-      detail: plan.intent,
-      data: {
         intent: plan.intent,
         plan_steps: plan.plan_steps,
         notes: plan.notes ?? null,
@@ -482,7 +660,7 @@ export class StorefrontBuilderManager {
     const messages: ExecutorChatMessage[] = executor.buildInitialMessages(history, message);
     const openAiTools = toOpenAiTools(toolDefs);
     const completedStepIndices = new Set<number>();
-    let criticStatus: "CONTINUE" | "DONE" | "NEED_USER" = "CONTINUE";
+    let criticStatus: CriticStatus = "CONTINUE";
     const toolSteps = plan.plan_steps.filter((s) => s.tools.length > 0);
 
     // Bolt-style fast path: custom site with no planner tool steps.
@@ -575,6 +753,8 @@ export class StorefrontBuilderManager {
 
       let status = decision.status;
       if (status === "DONE" && remainingCount > 0) status = "CONTINUE";
+      // Waterfall does not use RETRY — treat as continue to next plan step.
+      if (status === "RETRY") status = "CONTINUE";
       memory = appendMemory(memory, `[critic] ${status}: ${decision.reason}`);
       this.log({
         agent: "Critic",
@@ -826,131 +1006,204 @@ export class StorefrontBuilderManager {
       }
     }
 
-    if (informationalReplies.length > 0) {
-      const unique = [...new Set(informationalReplies)];
-      const mutateReply =
-        ctx.assistantMessage &&
-        !unique.includes(ctx.assistantMessage.trim()) &&
-        toolCallsLog.some((call) => !INFORMATIONAL_TOOL_NAMES.has(call.name))
-          ? ctx.assistantMessage.trim()
-          : "";
-      ctx.assistantMessage = [...unique, mutateReply].filter(Boolean).join("\n\n");
-    }
-
-    if (!ctx.assistantMessage) {
-      this.log({
-        agent: "System",
-        phase: "start",
-        title: "Composing merchant reply",
-      });
-      const composed = await executor.composeMerchantReply(messages).catch(() => "");
-      ctx.assistantMessage = composed || fallback.assistant_message;
-
-      const isFallbackReply = !ctx.assistantMessage || ctx.assistantMessage === fallback.assistant_message;
-      if (toolCallsLog.length > 0 && isFallbackReply) {
-        const lastTool = toolCallsLog[toolCallsLog.length - 1];
-        const toolMessages: Record<string, string> = {
-          refine_website_copy: "Done — I've updated the copy. Check the preview on the right!",
-          capture_business_details:
-            "Got it! I've saved your business details. Ready to build your website — just say 'build my website' when you're ready.",
-          design_website:
-            "I've picked the best design for your brand. Ready to build — just say 'build my website'!",
-          apply_brand_color: "Done — colors updated. Check the preview!",
-          change_font: "Done — font updated. Check the preview!",
-          update_theme_style: "Done — style updated. Check the preview!",
-          add_products: "Products added! Check your Products page.",
-          list_products: "I've pulled your product catalog — see the list above.",
-          generate_product_descriptions: "Product descriptions updated! Check your Products page.",
-          add_page_block: "Done — I added that section. Check the preview!",
-          get_store_metrics: "Here's your store performance snapshot.",
-          list_orders: "Here are your recent orders.",
-        };
-        ctx.assistantMessage = lastTool
-          ? (toolMessages[lastTool.name] ?? "Done — I finished that request.")
-          : "Done — I finished that request.";
-      }
-      this.log({
-        agent: "System",
-        phase: "complete",
-        title: "Merchant reply composed",
-        detail: ctx.assistantMessage.slice(0, 280),
-      });
-    }
-
-    const toolMetadata = {
-      plan: plan.plan_steps,
-      tool_calls: toolCallsLog,
-      tool_results: toolResultsLog,
-      profile: ctx.profile,
-    };
-
-    if (ctx.payload.type && ctx.payload.type !== "agent_turn") {
-      ctx.payload = { ...ctx.payload, ...toolMetadata };
-    } else {
-      ctx.payload = { type: "agent_turn", ...toolMetadata };
-    }
-
-    if (
-      ctx.storefront &&
-      ctx.payload.type === "agent_turn" &&
-      toolCallsLog.some((call) => call.name === "generate_website")
-    ) {
-      ctx.payload = { ...ctx.payload, type: "website_generated" };
-      if (!ctx.assistantMessage || ctx.assistantMessage === fallback.assistant_message) {
-        ctx.assistantMessage =
-          "Your website is ready. Preview it on the right, then tell me what to refine — headline, about section, CTA, or SEO.";
-      }
-    }
-
-    const payloadColorOptions = Array.isArray(ctx.payload.color_options)
-      ? ctx.payload.color_options.filter((value): value is string => typeof value === "string")
-      : [];
-    const industry = ctx.profile.industry ?? session.store?.industry ?? null;
-    const colorOptions = [
-      ...payloadColorOptions,
-      ...colorPresetActions(industry, 3)
-        .map((action) => (action.type === "color" ? action.color : null))
-        .filter((value): value is string => typeof value === "string"),
-    ];
-    const suggestedActions = await aiSuggestedActions({
+    return this.finalizeAssistantTurn({
+      ctx,
+      session,
       message,
-      session: {
-        ...session,
-        business_profile: ctx.profile,
-        storefront_snapshot: ctx.storefront ?? session.storefront_snapshot,
-      },
-      assistantMessage: ctx.assistantMessage,
+      fallback,
+      toolCallsLog,
+      toolResultsLog,
+      informationalReplies,
+      planSteps: plan.plan_steps,
+      messages,
+      composeWith: executor,
     });
-    ctx.payload = {
-      ...ctx.payload,
-      suggested_actions: suggestedActions,
-      color_options: colorOptions,
+  }
+
+  /**
+   * Feature-flagged path: SessionAgent (all tools) → outcome Critic (max 1 RETRY).
+   */
+  private async runToolAgentTurn(args: {
+    message: string;
+    session: BuilderSession;
+    recommendations: StorefrontTemplateRecommendation[];
+    templateOptions: StorefrontTemplateOption[];
+    history?: Array<{ role: "user" | "assistant"; content: string }>;
+    toolDefs: WebsiteBuilderToolDef[];
+    pendingAction: ReturnType<typeof getPendingAction>;
+    fallback: BuilderAiTurn;
+  }): Promise<BuilderAiTurn> {
+    const {
+      message,
+      session,
+      recommendations,
+      templateOptions,
+      history,
+      toolDefs,
+      pendingAction,
+      fallback,
+    } = args;
+    const { sessionAgent, critic } = this.agents;
+
+    const contextHint = [
+      pendingAction ? formatPendingActionHint(pendingAction) : "",
+      formatProductFocusHint(getProductFocus(session.business_profile)),
+      formatBuilderHistorySnippet(history ?? []),
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+
+    sessionAgent.configure({ session, toolDefs, contextHint });
+    const messages: ExecutorChatMessage[] = sessionAgent.buildInitialMessages(history, message);
+    const openAiTools = toOpenAiTools(toolDefs);
+
+    const ctx: WebsiteBuilderContext = {
+      message,
+      planIntent: "session_agent",
+      session,
+      profile: sanitizeBusinessProfile(session.business_profile ?? {}),
+      recommendations,
+      templateOptions,
+      selectedTemplateId:
+        session.selected_template_id && session.selected_template_id !== "ai_pick"
+          ? session.selected_template_id
+          : null,
+      storefront: session.storefront_snapshot,
+      assistantMessage: "",
+      status: session.status,
+      payload: { type: "agent_turn", plan: [], tool_calls: [], tool_results: [] },
     };
 
-    // Persist clarification context for the next turn; clear it once the turn completed.
-    if (ctx.status === "collecting_requirements") {
-      if (!ctx.profile.pending_action && ctx.assistantMessage.trim()) {
+    const streamingSession = new BuilderSessionManager(
+      sessionAgent,
+      toolDefs,
+      openAiTools,
+      (entry) => this.log(entry),
+    );
+
+    const applyProseClarification = (
+      toolCallsLog: Array<{ name: string; arguments: Record<string, unknown> }>,
+    ) => {
+      if (
+        ctx.assistantMessage.trim() &&
+        !ctx.profile.pending_action &&
+        toolCallsLog.length === 0
+      ) {
         ctx.profile = withPendingAction(ctx.profile, {
           type: "clarification",
           question: ctx.assistantMessage.trim(),
           original_message: message,
         });
+        ctx.payload = {
+          type: "requirements_request",
+          profile: ctx.profile,
+          pending_action: ctx.profile.pending_action,
+        };
       }
-      ctx.payload = {
-        ...ctx.payload,
-        pending_action: ctx.profile.pending_action ?? null,
-      };
-    } else if (ctx.profile.pending_action) {
-      ctx.profile = withPendingAction(ctx.profile, null);
+    };
+
+    const loop = await streamingSession.runLoop({ messages, ctx });
+    applyProseClarification(loop.toolCallsLog);
+
+    let memory = loop.memory;
+    let toolCallsLog = loop.toolCallsLog;
+    let toolResultsLog = loop.toolResultsLog;
+    let informationalReplies = loop.informationalReplies;
+
+    const lastToolSummaries = toolResultsLog.map((result) =>
+      summarizeToolResult(String(result.name ?? "tool"), result),
+    );
+
+    this.log({
+      agent: "Critic",
+      phase: "start",
+      title: "Reviewing outcome",
+    });
+    let criticDecision = await critic
+      .reviewOutcome({
+        userText: message,
+        memoryLines: memory,
+        lastToolSummaries,
+        completedToolNames: toolCallsLog.map((call) => call.name),
+        assistantDraft: ctx.assistantMessage,
+        allowRetry: true,
+      })
+      .catch(() => ({ status: "DONE" as const, reason: "Proceeding." }));
+
+    this.log({
+      agent: "Critic",
+      phase: "complete",
+      title: `Critic decision: ${criticDecision.status}`,
+      detail: criticDecision.reason,
+      data: { status: criticDecision.status, reason: criticDecision.reason },
+    });
+
+    if (criticDecision.status === "RETRY") {
+      const retryLoop = await streamingSession.runLoop({
+        messages,
+        ctx,
+        retryHint: criticDecision.reason,
+      });
+      memory = [...memory, ...retryLoop.memory];
+      toolCallsLog = [...toolCallsLog, ...retryLoop.toolCallsLog];
+      toolResultsLog = [...toolResultsLog, ...retryLoop.toolResultsLog];
+      informationalReplies = [...informationalReplies, ...retryLoop.informationalReplies];
+      applyProseClarification(toolCallsLog);
+
+      const retrySummaries = toolResultsLog.map((result) =>
+        summarizeToolResult(String(result.name ?? "tool"), result),
+      );
+      this.log({
+        agent: "Critic",
+        phase: "start",
+        title: "Reviewing retry outcome",
+      });
+      criticDecision = await critic
+        .reviewOutcome({
+          userText: message,
+          memoryLines: memory,
+          lastToolSummaries: retrySummaries,
+          completedToolNames: toolCallsLog.map((call) => call.name),
+          assistantDraft: ctx.assistantMessage,
+          allowRetry: false,
+        })
+        .catch(() => ({ status: "DONE" as const, reason: "Proceeding after retry." }));
+      this.log({
+        agent: "Critic",
+        phase: "complete",
+        title: `Critic decision: ${criticDecision.status}`,
+        detail: criticDecision.reason,
+        data: { status: criticDecision.status, reason: criticDecision.reason },
+      });
     }
 
-    return {
-      business_profile: ctx.profile,
-      status: ctx.status,
-      selected_template_id: ctx.selectedTemplateId,
-      storefront: ctx.storefront ?? undefined,
-      assistant_message: ctx.assistantMessage,
-      assistant_payload: ctx.payload,
-    };
+    if (criticDecision.status === "NEED_USER") {
+      if (!ctx.assistantMessage) ctx.assistantMessage = criticDecision.reason;
+      if (!ctx.profile.pending_action) {
+        ctx.profile = withPendingAction(ctx.profile, {
+          type: "clarification",
+          question: ctx.assistantMessage || criticDecision.reason,
+          original_message: message,
+        });
+      }
+      ctx.payload = {
+        type: "requirements_request",
+        profile: ctx.profile,
+        pending_action: ctx.profile.pending_action,
+      };
+    }
+
+    return this.finalizeAssistantTurn({
+      ctx,
+      session,
+      message,
+      fallback,
+      toolCallsLog,
+      toolResultsLog,
+      informationalReplies,
+      planSteps: [],
+      messages,
+      composeWith: sessionAgent,
+    });
   }
 }

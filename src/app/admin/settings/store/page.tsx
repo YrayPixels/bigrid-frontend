@@ -8,12 +8,12 @@ import { Globe2, Loader2, Palette, Save } from "lucide-react";
 import { toast } from "sonner";
 import { merchantCache, useStoreMe } from "@/hooks/use-merchant-queries";
 import { api } from "@/lib/api/client";
-import type { UpdateStoreInput } from "@/lib/api/types";
+import type { Industry, UpdateStoreInput } from "@/lib/api/types";
 import { INDUSTRY_OPTIONS } from "@/lib/api/types";
 import { BusinessProfileFields } from "@/components/admin/business-profile-fields";
 import type { BusinessProfileInput } from "@/lib/business-profile";
-import { getStorefrontUrl } from "@/lib/store-host";
-import { Badge } from "@/components/ui/badge";
+import { isValidStoreSlug, slugifyStore } from "@/lib/business-profile";
+import { getStorefrontUrl, STORE_PLATFORM_DOMAIN } from "@/lib/store-host";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -24,19 +24,14 @@ function Field({
   label,
   children,
   hint,
-  comingSoon,
 }: {
   label: string;
   children: ReactNode;
   hint?: string;
-  comingSoon?: boolean;
 }) {
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-2">
-        <Label>{label}</Label>
-        {comingSoon ? <Badge variant="secondary">Coming soon</Badge> : null}
-      </div>
+      <Label>{label}</Label>
       {children}
       {hint ? <p className="text-xs text-ink-soft">{hint}</p> : null}
     </div>
@@ -45,6 +40,8 @@ function Field({
 
 type StoreProfileForm = {
   business_name: string;
+  slug: string;
+  industry: Industry;
   description: string;
   contact_email: string;
   contact_phone: string;
@@ -58,6 +55,8 @@ function storeProfileFromStore(
 ): StoreProfileForm {
   return {
     business_name: store.business_name,
+    slug: store.slug,
+    industry: store.industry,
     description: store.description,
     contact_email: store.contact_email ?? "",
     contact_phone: store.contact_phone ?? "",
@@ -112,8 +111,16 @@ export default function AdminSettingsStorePage() {
       return;
     }
 
+    const slug = slugifyStore(storeForm.slug);
+    if (!isValidStoreSlug(slug)) {
+      toast.error("Store slug must be at least 2 characters and use lowercase letters, numbers, and hyphens.");
+      return;
+    }
+
     await saveStoreProfile.mutateAsync({
       business_name: businessName,
+      slug,
+      industry: storeForm.industry,
       description: storeForm.description.trim(),
       contact_email: storeForm.contact_email.trim() || null,
       contact_phone: storeForm.contact_phone.trim() || null,
@@ -173,7 +180,7 @@ export default function AdminSettingsStorePage() {
             Store profile and branding
           </CardTitle>
           <CardDescription>
-            Update your business name, contact details, brand color, and operational profile.
+            Update your business name, store URL, industry, contact details, and branding.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -190,11 +197,17 @@ export default function AdminSettingsStorePage() {
                   required
                 />
               </Field>
-              <Field label="Industry" comingSoon>
+              <Field label="Industry">
                 <select
-                  defaultValue={store.industry}
-                  disabled
-                  className="h-10 w-full rounded-md border border-input bg-muted/40 px-3 text-sm text-ink-soft"
+                  value={storeForm.industry}
+                  onChange={(event) =>
+                    setStoreForm((current) =>
+                      current
+                        ? { ...current, industry: event.target.value as Industry }
+                        : current,
+                    )
+                  }
+                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
                 >
                   {INDUSTRY_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>
@@ -203,8 +216,25 @@ export default function AdminSettingsStorePage() {
                   ))}
                 </select>
               </Field>
-              <Field label="Store slug" hint="This controls your Bizgrid storefront URL." comingSoon>
-                <Input defaultValue={store.slug} disabled />
+              <Field
+                label="Store slug"
+                hint="Changing this updates your Bizgrid storefront URL. Existing links to the old URL will stop working."
+              >
+                <div className="flex overflow-hidden rounded-md border border-input bg-background focus-within:ring-2 focus-within:ring-ring">
+                  <Input
+                    value={storeForm.slug}
+                    onChange={(event) =>
+                      setStoreForm((current) =>
+                        current ? { ...current, slug: slugifyStore(event.target.value) } : current,
+                      )
+                    }
+                    className="border-0 shadow-none focus-visible:ring-0"
+                    required
+                  />
+                  <span className="flex items-center border-l border-input bg-muted/40 px-3 text-sm text-ink-soft">
+                    .{STORE_PLATFORM_DOMAIN}
+                  </span>
+                </div>
               </Field>
               <Field
                 label="Custom domain"

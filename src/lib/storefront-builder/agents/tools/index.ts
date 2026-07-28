@@ -4,6 +4,7 @@ import type { WebsiteBuilderToolDef } from "../types";
 import { BrandingTools } from "./BrandingTools";
 import { BusinessTools } from "./BusinessTools";
 import { CatalogTools } from "./CatalogTools";
+import { CommerceTools } from "./CommerceTools";
 import { ContentTools } from "./ContentTools";
 import { CustomSiteTools } from "./CustomSiteTools";
 import { GenerationTools } from "./GenerationTools";
@@ -12,6 +13,21 @@ import { InsightsTools } from "./InsightsTools";
 import { LaunchTools } from "./LaunchTools";
 import { ProductTools } from "./ProductTools";
 import { StructureTools } from "./StructureTools";
+
+const COMMERCE_OPS_TOOL_NAMES = [
+  "list_customers",
+  "get_customer",
+  "list_discounts",
+  "create_discount",
+  "update_discount",
+  "get_payment_settings",
+  "update_payment_settings",
+  "list_domains",
+  "add_domain",
+  "verify_domain",
+  "list_abandoned_carts",
+  "get_traffic_sources",
+] as const;
 
 const PRE_DRAFT_TOOL_NAMES = new Set([
   "capture_business_details",
@@ -28,7 +44,12 @@ const PRE_DRAFT_TOOL_NAMES = new Set([
   "manage_categories",
   "update_store_profile",
   "get_store_metrics",
+  "get_top_selling_products",
+  "list_orders",
+  "get_order",
+  "update_order_status",
   "suggest_site_improvements",
+  ...COMMERCE_OPS_TOOL_NAMES,
 ]);
 
 const DRAFT_TOOL_NAMES = new Set([
@@ -58,6 +79,7 @@ const DRAFT_TOOL_NAMES = new Set([
   "publish_website",
   "update_store_profile",
   "get_store_metrics",
+  "get_top_selling_products",
   "list_orders",
   "get_order",
   "update_order_status",
@@ -67,6 +89,7 @@ const DRAFT_TOOL_NAMES = new Set([
   "change_font",
   "update_theme_style",
   "ask_clarifying_question",
+  ...COMMERCE_OPS_TOOL_NAMES,
 ]);
 
 export function websiteBuilderTools(): WebsiteBuilderToolDef[] {
@@ -81,6 +104,7 @@ export function websiteBuilderTools(): WebsiteBuilderToolDef[] {
     ...StructureTools.definitions(),
     ...LaunchTools.definitions(),
     ...InsightsTools.definitions(),
+    ...CommerceTools.definitions(),
     ...CustomSiteTools.definitions(),
   ];
 }
@@ -105,6 +129,7 @@ export {
   BrandingTools,
   BusinessTools,
   CatalogTools,
+  CommerceTools,
   ContentTools,
   CustomSiteTools,
   GenerationTools,

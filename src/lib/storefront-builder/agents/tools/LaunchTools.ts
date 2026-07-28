@@ -2,7 +2,7 @@ import { api } from "@/lib/api/client";
 import type { UpdateStoreInput } from "@/lib/api/types";
 import { sanitizeBusinessProfile } from "@/lib/storefront-builder/local-ai";
 import type { WebsiteBuilderToolDef } from "../types";
-import { asString, requireConfirm } from "./toolHelpers";
+import { asString, requireConfirm, NO_ARG_TOOL_PARAMETERS } from "./toolHelpers";
 
 type ReadinessCheck = {
   id: string;
@@ -20,7 +20,7 @@ export class LaunchTools {
         name: "get_storefront_readiness",
         description:
           "Check whether the website is ready to publish. Reports blockers (missing products, missing store, empty hero) and warnings (payments, contact details).",
-        parameters: { type: "object", properties: {}, additionalProperties: false },
+        parameters: NO_ARG_TOOL_PARAMETERS,
         handler: async (_args, ctx) => {
           const store = ctx.session.store ?? (await api.getMyStore().catch(() => null));
           const products = await api.getProducts().catch(() => []);
@@ -191,11 +191,12 @@ export class LaunchTools {
       {
         name: "update_store_profile",
         description:
-          "Update the merchant store profile (business name, description, contact email/phone, brand color, logo). Syncs to PATCH /stores/me.",
+          "Update the merchant store profile (business name, industry, description, contact email/phone, brand color, logo). Syncs to PATCH /stores/me.",
         parameters: {
           type: "object",
           properties: {
             business_name: { type: "string" },
+            industry: { type: "string" },
             description: { type: "string" },
             contact_email: { type: "string" },
             contact_phone: { type: "string" },
@@ -207,6 +208,7 @@ export class LaunchTools {
         handler: async (args, ctx) => {
           const body: UpdateStoreInput = {};
           if (asString(args.business_name)) body.business_name = asString(args.business_name);
+          if (asString(args.industry)) body.industry = asString(args.industry) as UpdateStoreInput["industry"];
           if (typeof args.description === "string") body.description = args.description;
           if (typeof args.contact_email === "string") body.contact_email = args.contact_email || null;
           if (typeof args.contact_phone === "string") body.contact_phone = args.contact_phone || null;
@@ -220,6 +222,7 @@ export class LaunchTools {
             ctx.profile = sanitizeBusinessProfile({
               ...ctx.profile,
               ...(body.business_name ? { business_name: body.business_name } : {}),
+              ...(body.industry ? { industry: body.industry } : {}),
               ...(typeof body.description === "string" ? { description: body.description } : {}),
               ...(body.brand_color ? { brand_color: body.brand_color } : {}),
             });

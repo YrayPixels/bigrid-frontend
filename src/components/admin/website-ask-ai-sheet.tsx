@@ -92,6 +92,7 @@ export function WebsiteAskAiSheet({ open, onOpenChange, storeId, draft }: Websit
         },
       });
       merchantInvalidators.storefront(queryClient);
+      merchantInvalidators.products(queryClient);
     }
   };
 

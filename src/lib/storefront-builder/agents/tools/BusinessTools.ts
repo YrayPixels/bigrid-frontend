@@ -1,3 +1,5 @@
+import { api } from "@/lib/api/client";
+import type { UpdateStoreInput } from "@/lib/api/types";
 import {
   extractBusinessProfile,
   hasMinimumBusinessProfile,
@@ -37,6 +39,24 @@ export class BusinessTools {
             ...(typeof args.brand_color === "string" ? { brand_color: args.brand_color } : {}),
             ...(Array.isArray(args.tone) ? { tone: args.tone.map(String) } : {}),
           });
+
+          // Persist identity fields so Settings edits are not fighting a session-only profile.
+          if (ctx.session.store) {
+            const body: UpdateStoreInput = {};
+            if (ctx.profile.business_name) body.business_name = ctx.profile.business_name;
+            if (typeof ctx.profile.description === "string") body.description = ctx.profile.description;
+            if (ctx.profile.industry) body.industry = ctx.profile.industry;
+            if (ctx.profile.brand_color) body.brand_color = ctx.profile.brand_color;
+            if (Object.keys(body).length) {
+              try {
+                const store = await api.updateMyStore(body);
+                ctx.session = { ...ctx.session, store };
+              } catch {
+                // Session profile still updated; retry via update_store_profile if needed.
+              }
+            }
+          }
+
           ctx.status = hasMinimumBusinessProfile(ctx.profile)
             ? "template_recommendation"
             : "collecting_requirements";

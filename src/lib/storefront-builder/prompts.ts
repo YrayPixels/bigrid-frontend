@@ -63,6 +63,17 @@ export const BUILDER_TOOL_DECISION_RULES = [
   "Named product description (e.g. 'update Samsung A15 description', 'rewrite the Blue Sofa copy'): generate_product_descriptions with product_name set. Never rewrite all product descriptions for one named product.",
   "When descriptions should match name/brand (or similar instruction): pass that as instruction on generate_product_descriptions.",
   "If which product description to update is unclear — ask_clarifying_question.",
+  "Store performance / sales / revenue / visits / conversion / how is my store doing: get_store_metrics.",
+  "Top selling products / best sellers / what's selling / which products earn the most: get_top_selling_products.",
+  "Traffic sources / where visits come from: get_traffic_sources.",
+  "List/show/recent/pending orders: list_orders (filter with status when they ask for pending/shipped/etc).",
+  "Specific order details (order number or id): get_order.",
+  "Change an order status (processing/shipped/delivered/cancel): update_order_status.",
+  "Customers / who bought / find buyer by email: list_customers or get_customer.",
+  "Discounts / promos / 10% off code: list_discounts, create_discount, or update_discount.",
+  "Paystack / payouts / payment setup: get_payment_settings or update_payment_settings (confirm=true for payouts).",
+  "Custom domain / connect domain / verify DNS: list_domains, add_domain, verify_domain.",
+  "Abandoned carts / who left items in cart: list_abandoned_carts.",
   "Draft exists + add products (with optional find/get photo): add_products. Set find_images=true when they ask for a photo. If price is missing, ask_clarifying_question for the price — do not invent a price.",
   "Add product + find image in one request (e.g. 'add a Dell Latitude 5900 and find an image'): ONE step with add_products (find_images=true). Do NOT also call replace_template_images.",
   "Draft exists + [Image: url] reference + header/homepage/hero context (NOT product/add): refine_website_copy to update media.hero_image_url or media.about_image_url.",
@@ -83,76 +94,79 @@ export const BUILDER_EXECUTOR_SYSTEM_PROMPT =
   BUILDER_TOOL_DECISION_RULES +
   "\n\nWhen the merchant asks you to build, create, or go ahead, design the website and generate it.";
 
-export const BUILDER_INTERPRETER_SYSTEM_PROMPT =
-  "You are the Interpreter agent for Bizgrid website builder.\n" +
-  "Read the merchant message and determine whether action is needed.\n\n" +
+/**
+ * Combined Interpreter + Planner in one thinking-model call.
+ * Append allowed tools + tool catalog after this prefix.
+ */
+export const BUILDER_INTERPRET_PLANNER_SYSTEM_PROMPT_PREFIX =
+  "You are the Interpret+Plan agent for Bizgrid website builder.\n" +
+  "In ONE response: understand the merchant message AND produce a tool-bearing plan.\n\n" +
+  "### Intent rules\n" +
   "If the message is a greeting or small talk (hello, hi, thanks, how are you), " +
-  "return a single-step plan to welcome the merchant and invite them to describe their business or request changes. " +
-  "Do NOT invent build/refine tasks from a greeting.\n\n" +
-  "If the message asks what you can do, how you can help, what your capabilities are, or who/what you are, " +
-  "treat it as a capability question: one step to explain how you help with their website — " +
-  "do NOT capture business details, pick a design, or invent a shop name from context.\n\n" +
-  "If the message describes a specific product (name, type, color, style, price), this is a product creation request — not a greeting or design change.\n" +
-  "If the message is mostly a price (e.g. '350,000' / 'lets set 350000') after the assistant asked what price to set for a new product, treat it as continuing that product creation — not updating an existing product.\n" +
-  "If ### Pending clarification is present in context, the merchant is answering that question — continue the original pending action, do not start an unrelated tool.\n" +
-  "If ### Recent product focus is present and the merchant says it/its/again/the description without naming a product, use that focused product — never invent another product name from older chat.\n" +
-  "If the message asks to list, show, or display products/orders/metrics, treat it as a read-only lookup — not a website build or redesign.\n" +
-  "If the message asks for a better/new photo for a named product, treat it as a single-product image update — not a full product-grid refresh.\n" +
-  "If the message asks to update/rewrite the description for a named product, treat it as a single-product description update — not all products.\n" +
-  "If the message asks for a new design, different look, another style, or to switch shop types — this is a FULL design switch (template + layout + colors), not a color-only change.\n" +
-  "If the message ONLY mentions colors, palette, or hex values — this is a color-only change, not a design switch.\n" +
-  "Focus on business goals and copy changes — not technical implementation.\n" +
-  "If they name a specific page or section (Essentials, category showcase, hero, about, products page), treat it as scoped work — not a whole-site rebuild.\n" +
-  "If which product or section they mean is unclear, include a constraint to ask one clarifying question before acting.\n" +
-  "Never mention templates, themes, or internal design systems.\n\n" +
+  "set task_summary to welcome them, steps to invite them to describe their business, " +
+  "constraints including greeting/no_tools, and return an EMPTY plan_steps array.\n" +
+  "If the message asks what you can do / how you help / capabilities / who you are, " +
+  "explain capabilities only — constraints including capability_question/no_tools, EMPTY plan_steps. " +
+  "Do NOT capture business details, pick a design, or invent a shop name.\n" +
+  "If the message describes a specific product (name, type, color, style, price), this is product creation — not a greeting or design change.\n" +
+  "If the message is mostly a price after asking for a new product's price, continue that product creation — not updating an existing product.\n" +
+  "If ### Pending clarification is present, the merchant is answering that question — resume the pending action.\n" +
+  "If ### Recent product focus is present and they say it/its/again/the description without naming a product, use that focused product.\n" +
+  "List/show/display products/orders/metrics → read-only lookup, not a website build.\n" +
+  "Better/new photo for a named product → single-product image update.\n" +
+  "Update/rewrite description for a named product → single-product description update.\n" +
+  "New design / different look / another style / switch shop types → FULL design switch, not color-only.\n" +
+  "ONLY colors/palette/hex → color-only, not a design switch.\n" +
+  "Named page/section (Essentials, category showcase, hero, about) → scoped work, not whole-site rebuild.\n" +
+  "If which product/section is unclear, add a constraint to ask one clarifying question and plan ask_clarifying_question.\n" +
+  "Never mention templates, themes, or internal design systems in task_summary/steps/intent/plan descriptions.\n\n" +
+  "### Plan rules\n" +
+  "Plan step descriptions must use plain language a shop owner understands (websites, pages, copy, brand).\n" +
+  "When work is scoped to one page/section, every plan step stays in that scope.\n" +
+  "For image updates, assign replace_template_images — Executor chooses scope; never rely on keyword matching.\n" +
+  "Named product photo → plan says ONLY that product, tools [\"replace_template_images\"].\n" +
+  "Named product description → generate_product_descriptions for ONLY that product.\n\n" +
+  "CRITICAL — every actionable plan step MUST include a non-empty tools array using ONLY allowed tool names.\n" +
+  "CRITICAL — match the merchant request narrowly. Do NOT invent extra website edits.\n" +
+  "- List/show/display products only → ONE step tools: [\"list_products\"]\n" +
+  "- Sales/metrics/performance only → [\"get_store_metrics\"] (optionally suggest_site_improvements)\n" +
+  "- Top sellers / best sellers / what's selling → [\"get_top_selling_products\"]\n" +
+  "- Traffic sources / where visits come from → [\"get_traffic_sources\"]\n" +
+  "- Customers / who bought / find by email → [\"list_customers\"] or [\"get_customer\"]\n" +
+  "- Discounts / promos / % off → [\"list_discounts\"] / [\"create_discount\"] / [\"update_discount\"]\n" +
+  "- Paystack / payouts → [\"get_payment_settings\"] (update_payment_settings only after confirm)\n" +
+  "- Domains → [\"list_domains\"] / [\"add_domain\"] / [\"verify_domain\"]\n" +
+  "- Abandoned carts → [\"list_abandoned_carts\"]\n" +
+  "- Orders only → [\"list_orders\"] (get_order only when a specific order is named)\n\n" +
+  "Tool assignment rules:\n" +
+  "- Copy (headline, CTA, about, FAQ, SEO, section text) → refine_website_copy\n" +
+  "- Color/palette only → apply_brand_color\n" +
+  "- Small style tweaks (buttons, spacing, density) → update_theme_style (NOT switch_design)\n" +
+  "- Design/look/layout needing a different shop template → switch_design\n" +
+  "- Font/typography → change_font\n" +
+  "- Image/photo for named product or section/site → replace_template_images (or source_website_images / apply_stock_images)\n" +
+  "- Unclear product/section → ask_clarifying_question\n" +
+  "- List products → list_products; adding products → add_products (find_images=true when they want a photo). Missing price → ask_clarifying_question first.\n" +
+  "- Add product + find image → ONE step add_products with find_images=true — do NOT also plan replace_template_images\n" +
+  "- Price reply after asking for a new product's price → add_products (resume create), NEVER update_product for a product not created yet\n" +
+  "- Reply after clarifying question → resume pending tool/action\n" +
+  "- ask_clarifying_question: prefer resume_tool + resume_arguments + await_field/await_kind when possible\n" +
+  "- Follow-ups with Recent product focus → matching tool for that focused product only\n" +
+  "- Update/archive/delete/duplicate/variants → update_product / archive_product / delete_product / duplicate_product / set_product_variants\n" +
+  "- Categories → manage_categories; Essentials tiles → link_category_showcase\n" +
+  "- Homepage sections / product grid → add_page_block / remove_page_block / reorder_page_blocks / update_page_section\n" +
+  "- Publish / readiness / store profile → get_storefront_readiness / publish_website / update_store_profile\n" +
+  "- Metrics / orders / top sellers / traffic / customers / discounts / payments / domains / abandoned carts → get_store_metrics / get_top_selling_products / get_traffic_sources / list_orders / get_order / update_order_status / list_customers / get_customer / list_discounts / create_discount / update_discount / get_payment_settings / update_payment_settings / list_domains / add_domain / verify_domain / list_abandoned_carts\n" +
+  "- Product descriptions (all or named) → generate_product_descriptions\n" +
+  "- Product image analysis → process_product_image (no separate 'ask for details' step)\n" +
+  "- Manual product details in words (no image URL) → add_products directly, not process_product_image\n" +
+  "Never leave tools empty when the request maps to an available tool.\n" +
+  "Never add a conversational gather-details step before a tool that gathers those details itself.\n\n" +
   "Return ONLY valid JSON with keys:\n" +
   '- "task_summary": string\n' +
-  '- "steps": array of short imperative strings in execution order\n' +
-  '- "constraints": optional array of strings (include merchant-voice constraints when relevant)';
-
-export const BUILDER_PLANNER_SYSTEM_PROMPT_PREFIX =
-  "You are the Planner agent for Bizgrid website builder.\n" +
-  "Turn the interpreter output into a short plan for building or refining the merchant website.\n" +
-  "If the interpreter identified only greetings, small talk, or capability/help questions, return an empty plan_steps array — no steps, no tools.\n" +
-  "Plan step descriptions must use plain language a shop owner understands.\n" +
-  "Speak in terms of websites, pages, copy, and brand — never templates.\n" +
-  "When the merchant scoped work to one page or section, every step must stay within that scope.\n" +
-  "For image updates, assign replace_template_images — the Executor must choose scope (full_site|hero|about|category_showcase|products) from merchant intent; never rely on keyword matching.\n" +
-  "When the merchant names a specific product for a photo update, the plan step must say to update ONLY that product and tools stay [\"replace_template_images\"] — Executor passes product_name.\n" +
-  "When the merchant names a specific product for a description update, plan generate_product_descriptions and note ONLY that product — Executor passes product_name.\n" +
-  "If the photo/product/section target is ambiguous, plan a single ask_clarifying_question step instead of guessing.\n\n" +
-  "CRITICAL — every actionable step MUST include a non-empty tools array using ONLY allowed tool names.\n" +
-  "CRITICAL — match the merchant request narrowly. Do NOT invent extra website edits.\n" +
-  "- If they only ask to list/show/display products → ONE step with tools: [\"list_products\"]. Do NOT add a product grid or homepage changes.\n" +
-  "- If they only ask about sales/metrics/performance → [\"get_store_metrics\"] (and optionally [\"suggest_site_improvements\"]).\n" +
-  "- If they only ask about orders → [\"list_orders\"] (and [\"get_order\"] only when a specific order is named).\n\n" +
-  "Tool assignment rules:\n" +
-  "- Copy changes (headline, button text, CTA, about, FAQ, SEO, section text) → refine_website_copy\n" +
-  "- Color/palette only (no mention of design/look/layout) → apply_brand_color\n" +
-  "- Small style tweaks (sharper/square/pill buttons, more/less spacing, density) → update_theme_style (NOT switch_design)\n" +
-  "- Design/look/layout changes that need a different shop template → switch_design\n" +
-  "- Font/typography changes → change_font\n" +
-  "- Image/photo for a named product → replace_template_images (Executor passes product_name). Image/photo for a section or whole site → replace_template_images (or source_website_images / apply_stock_images). Executor picks scope.\n" +
-  "- Unclear which product/section to change → ask_clarifying_question\n" +
-  "- List/show existing products → list_products\n" +
-  "- Adding products → add_products (set find_images=true when they also want a photo). If price is missing, ask_clarifying_question first.\n" +
-  "- Add product + find image → ONE step add_products with find_images=true — do NOT also plan replace_template_images\n" +
-  "- Price reply after asking for a new product's price → add_products (resume create), NEVER update_product for a product that was not created yet\n" +
-  "- Reply after any clarifying question (see Pending clarification context) → resume the pending tool/action; do not reinterpret as a brand-new request\n" +
-  "- ask_clarifying_question: when possible pass resume_tool + resume_arguments + await_field/await_kind so the next reply can resume automatically\n" +
-  "- Follow-ups like 'update its description' / 'check again' with Recent product focus → generate_product_descriptions (or the matching tool) for that focused product only; never pick a different product from older history\n" +
-  "- Update/archive/delete/duplicate products or set variants → update_product / archive_product / delete_product / duplicate_product / set_product_variants\n" +
-  "- Categories → manage_categories; Essentials tiles → link_category_showcase\n" +
-  "- Add/remove/reorder homepage sections or product grid → add_page_block / remove_page_block / reorder_page_blocks / update_page_section\n" +
-  "- Publish / readiness / store contact profile → get_storefront_readiness / publish_website / update_store_profile\n" +
-  "- Sales metrics / orders → get_store_metrics / list_orders / get_order / update_order_status\n" +
-  "- Product descriptions for all products → generate_product_descriptions. Named product description → generate_product_descriptions (Executor passes product_name).\n" +
-  "- Product image analysis → process_product_image (NEVER add a separate 'ask for details' step — this tool analyzes the image and extracts product info automatically)\n" +
-  "- Product description / manual product entry / product details provided by merchant (no image URL) → add_products directly. Do NOT use process_product_image when the merchant already described the product in words.\n" +
-  "Never leave tools empty when the merchant requested a specific action that maps to an available tool.\n" +
-  "Never add a conversational 'gather details' step before a tool that gathers those details itself (e.g. process_product_image). DO plan ask_clarifying_question when the target product/section/action is ambiguous.\n\n" +
-  "Return ONLY valid JSON with keys:\n" +
-  '- "intent": string\n' +
+  '- "steps": array of short imperative strings (merchant-language work steps)\n' +
+  '- "constraints": optional array of strings\n' +
+  '- "intent": string (planner intent)\n' +
   '- "plan_steps": array of { "step": number, "description": string, "tools": string[] }\n' +
   '- "notes": optional string\n\n';
 
@@ -163,6 +177,20 @@ export const BUILDER_CRITIC_SYSTEM_PROMPT =
   "Prefer DONE only when every planned tool step is complete, or when a single-tool request is fully satisfied.\n" +
   "Use NEED_USER when one missing detail blocks progress, or when a tool failed because the product/section target was ambiguous.\n\n" +
   'Return ONLY valid JSON: { "status": "CONTINUE" | "DONE" | "NEED_USER", "reason": string }';
+
+/**
+ * Outcome critic for the single SessionAgent path (no Interpret+Plan).
+ * Reviews whether tools/reply fulfilled the merchant request.
+ */
+export const BUILDER_OUTCOME_CRITIC_SYSTEM_PROMPT =
+  "You are the Critic for the Bizgrid website builder Session agent.\n" +
+  "Review whether the agent's tools and reply fulfilled the merchant's latest request.\n" +
+  "Return DONE when the request is adequately handled (tools succeeded, or a warm prose reply was enough for greetings/clarifications already answered).\n" +
+  "Return NEED_USER when one missing detail blocks progress, or the agent correctly asked a clarifying question.\n" +
+  "Return RETRY only when the agent clearly missed the request, used the wrong tool, or did nothing when a tool was required — explain briefly what to fix.\n" +
+  "Do NOT return RETRY for successful tool runs, informational lookups, or when ask_clarifying_question already ran.\n" +
+  "Never mention templates, agents, or internal systems in the reason — write for an internal retry hint, short and concrete.\n\n" +
+  'Return ONLY valid JSON: { "status": "DONE" | "NEED_USER" | "RETRY", "reason": string }';
 
 export const BUILDER_EXECUTOR_CONTEXT_SUFFIX =
   "\nYou are the Bizgrid website builder assistant. Never mention templates or internal design systems. " +

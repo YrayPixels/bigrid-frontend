@@ -1,8 +1,9 @@
 "use client";
 
+import { isBuilderToolAgentEnabled } from "@/lib/features";
 import { useEffect, useRef } from "react";
 import type { AgentThinkingLogEntry } from "@/lib/storefront-builder/agents/types";
-import { AGENT_COLORS } from "@/lib/storefront-builder/agents/thinking-log";
+import { AGENT_COLORS, AGENT_LABELS } from "@/lib/storefront-builder/agents/thinking-log";
 import type { ThinkingLogTurn } from "@/lib/storefront-builder/session-thinking-log";
 
 function formatTime(ts: string): string {
@@ -31,7 +32,7 @@ function ThinkingEntry({ entry }: { entry: AgentThinkingLogEntry }) {
         <span
           className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${AGENT_COLORS[entry.agent]}`}
         >
-          {entry.agent}
+          {AGENT_LABELS[entry.agent]}
         </span>
         <span className="rounded-full bg-canvas px-2 py-0.5 text-[10px] font-medium uppercase text-ink-soft">
           {phaseLabel(entry.phase)}
@@ -75,7 +76,12 @@ export function BuilderThinkingLog({
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <div>
           <h2 className="text-sm font-semibold">AI process log</h2>
-          <p className="text-xs text-ink-soft">Your builder session — Interpreter → Planner → Executor → Critic</p>
+          <p className="text-xs text-ink-soft">
+            Your builder session —{" "}
+            {isBuilderToolAgentEnabled()
+              ? "Agent → Critic"
+              : "Interpret+Plan → Executor → Critic"}
+          </p>
         </div>
         {streaming ? (
           <span className="rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-medium text-primary">
@@ -109,7 +115,9 @@ export function BuilderThinkingLog({
                   ) : (
                     <li className="rounded-xl border border-dashed border-border/80 bg-background px-3 py-3 text-xs text-ink-soft">
                       {streaming
-                        ? "Waiting for Interpreter → Planner → Executor → Critic…"
+                        ? isBuilderToolAgentEnabled()
+                          ? "Waiting for Agent → Critic…"
+                          : "Waiting for Interpret+Plan → Executor → Critic…"
                         : "No agent steps were recorded for this turn."}
                     </li>
                   )}
