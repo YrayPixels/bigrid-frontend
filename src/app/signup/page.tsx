@@ -77,6 +77,8 @@ export default function SignupPage() {
         </p>
       }
     >
+      <GoogleAuthFooter label="Sign up with Google" />
+
       <form onSubmit={handleSubmit} className="space-y-4">
         <Field label="Full name" value={name} onChange={setName} required autoComplete="name" />
         <Field
@@ -136,8 +138,6 @@ export default function SignupPage() {
           Log in
         </Link>
       </p>
-
-      <GoogleAuthFooter label="Sign up with Google" />
     </AuthShell>
   );
 }

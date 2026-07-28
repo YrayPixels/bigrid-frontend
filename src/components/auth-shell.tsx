@@ -292,8 +292,8 @@ export function GoogleAuthFooter({ label = "Continue with Google" }: { label?: s
 
   return (
     <>
-      <AuthDivider />
       <GoogleSignInButton label={label} />
+      <AuthDivider />
     </>
   );
 }
