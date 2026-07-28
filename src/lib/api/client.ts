@@ -88,7 +88,12 @@ export type PersistBuilderEditInput = {
 
 export function getToken(): string | null {
   if (typeof window === "undefined") return null;
-  return window.localStorage.getItem(TOKEN_KEY);
+  const token = window.localStorage.getItem(TOKEN_KEY);
+  // Keep middleware companion cookie in sync for existing sessions.
+  if (token && !document.cookie.includes("storehaus_auth_present=1")) {
+    document.cookie = "storehaus_auth_present=1; path=/; max-age=31536000; SameSite=Lax";
+  }
+  return token;
 }
 
 export function setToken(token: string | null) {

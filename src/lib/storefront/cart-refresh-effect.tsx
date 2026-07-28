@@ -6,10 +6,11 @@ import { useStorefront } from "./store-context";
 
 export function CartRefreshEffect() {
   const { refreshLines } = useCart();
-  const { products } = useStorefront();
+  const { storefront } = useStorefront();
+  const products = storefront.products ?? [];
 
   useEffect(() => {
-    if (products && products.length > 0) {
+    if (products.length > 0) {
       refreshLines(products);
     }
   }, [products, refreshLines]);
