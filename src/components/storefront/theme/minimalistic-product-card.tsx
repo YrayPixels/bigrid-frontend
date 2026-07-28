@@ -77,16 +77,16 @@ export function MinimalisticProductCard({
 
   const media = (
     <div
-      className="relative aspect-square overflow-hidden rounded-2xl"
+      className="relative aspect-square overflow-hidden rounded-xl sm:rounded-2xl"
       style={{ backgroundColor: `${theme.palette.surface}` }}
     >
-      <div className="absolute inset-3 overflow-hidden rounded-xl bg-white/70 sm:inset-4">
+      <div className="absolute inset-2 overflow-hidden rounded-lg bg-white/70 sm:inset-4 sm:rounded-xl">
         <EditableImage
           path={imagePath}
           src={imageUrl}
           alt={product.name}
           className="h-full w-full"
-          imgClassName="object-contain object-center p-2 transition duration-500 group-hover:scale-[1.04] sm:p-3"
+          imgClassName="object-contain object-center p-1.5 transition duration-500 group-hover:scale-[1.04] sm:p-3"
         />
       </div>
     </div>
@@ -102,10 +102,10 @@ export function MinimalisticProductCard({
         </Link>
       )}
 
-      <div className="mt-4 flex min-h-0 flex-1 flex-col">
+      <div className="mt-3 flex min-h-0 flex-1 flex-col sm:mt-4">
         {categoryLabel ? (
           <p
-            className="text-[10px] font-semibold uppercase tracking-[0.14em]"
+            className="text-[9px] font-semibold uppercase tracking-[0.14em] sm:text-[10px]"
             style={{ color: theme.palette.muted }}
           >
             {categoryLabel}
@@ -115,8 +115,8 @@ export function MinimalisticProductCard({
         {editable ? (
           <h3
             className={cn(
-              "line-clamp-2 text-[0.95rem] font-semibold leading-snug tracking-[-0.02em]",
-              categoryLabel ? "mt-1.5" : "",
+              "line-clamp-2 text-[0.8125rem] font-semibold leading-snug tracking-[-0.02em] sm:text-[0.95rem]",
+              categoryLabel ? "mt-1 sm:mt-1.5" : "",
             )}
             style={{ color: theme.palette.text }}
           >
@@ -126,8 +126,8 @@ export function MinimalisticProductCard({
           <Link href={`/products/${product.slug}`} className="block">
             <h3
               className={cn(
-                "line-clamp-2 text-[0.95rem] font-semibold leading-snug tracking-[-0.02em] transition group-hover:opacity-80",
-                categoryLabel ? "mt-1.5" : "",
+                "line-clamp-2 text-[0.8125rem] font-semibold leading-snug tracking-[-0.02em] transition group-hover:opacity-80 sm:text-[0.95rem]",
+                categoryLabel ? "mt-1 sm:mt-1.5" : "",
               )}
               style={{ color: theme.palette.text }}
             >
@@ -138,20 +138,26 @@ export function MinimalisticProductCard({
 
         {description ? (
           <p
-            className="mt-1.5 line-clamp-2 text-[12px] leading-5"
+            className="mt-1 hidden line-clamp-2 text-[12px] leading-5 sm:mt-1.5 sm:block"
             style={{ color: theme.palette.muted }}
           >
             {description}
           </p>
         ) : null}
 
-        <div className="mt-auto flex items-end justify-between gap-3 pt-4">
+        <div className="mt-auto flex items-end justify-between gap-2 pt-3 sm:gap-3 sm:pt-4">
           <div className="min-w-0">
-            <p className="text-base font-semibold tracking-[-0.02em]" style={{ color: theme.palette.text }}>
+            <p
+              className="text-sm font-semibold tracking-[-0.02em] sm:text-base"
+              style={{ color: theme.palette.text }}
+            >
               {formatMoney(priced.unitPrice, product.currency)}
             </p>
             {priced.compareAtPrice != null ? (
-              <p className="mt-0.5 text-[11px] font-medium line-through" style={{ color: theme.palette.muted }}>
+              <p
+                className="mt-0.5 text-[10px] font-medium line-through sm:text-[11px]"
+                style={{ color: theme.palette.muted }}
+              >
                 {formatMoney(priced.compareAtPrice, product.currency)}
               </p>
             ) : null}
@@ -162,14 +168,14 @@ export function MinimalisticProductCard({
             onClick={addToCart}
             disabled={editable || !inStock}
             aria-label={inStock ? `Add ${product.name} to cart` : `${product.name} sold out`}
-            className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-full px-3.5 text-[11px] font-semibold transition hover:opacity-90 disabled:cursor-default disabled:opacity-55"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition hover:opacity-90 disabled:cursor-default disabled:opacity-55 sm:h-10 sm:w-auto sm:gap-1.5 sm:px-3.5 sm:text-[11px] sm:font-semibold"
             style={{
               backgroundColor: theme.palette.primary,
               color: theme.palette.background,
             }}
           >
             <ShoppingBag className="h-3.5 w-3.5" />
-            {inStock ? "Add" : "Sold out"}
+            <span className="hidden sm:inline">{inStock ? "Add" : "Sold out"}</span>
           </button>
         </div>
       </div>
