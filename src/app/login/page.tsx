@@ -63,6 +63,8 @@ export default function LoginPage() {
 
   return (
     <AuthShell title="Welcome back">
+      <GoogleAuthFooter label="Sign in with Google" />
+
       <form onSubmit={handleSubmit} className="space-y-4">
         <Field
           label="Email"
@@ -115,8 +117,6 @@ export default function LoginPage() {
           Create one
         </Link>
       </p>
-
-      <GoogleAuthFooter label="Sign in with Google" />
     </AuthShell>
   );
 }
