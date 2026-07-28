@@ -1,23 +1,23 @@
 import { CriticAgent } from "./CriticAgent";
 import { ExecutorAgent } from "./ExecutorAgent";
-import { InterpreterAgent } from "./InterpreterAgent";
-import { PlannerAgent } from "./PlannerAgent";
+import { InterpretPlannerAgent } from "./InterpretPlannerAgent";
+import { SessionAgent } from "./SessionAgent";
 
 export type BuilderAgentRegistry = {
-  interpreter: InterpreterAgent;
-  planner: PlannerAgent;
+  interpretPlanner: InterpretPlannerAgent;
+  sessionAgent: SessionAgent;
   executor: ExecutorAgent;
   critic: CriticAgent;
 };
 
 /**
  * Creates role agents with their prompts ready.
- * They stay idle until StorefrontBuilderManager feeds them instructions (waterfall).
+ * They stay idle until StorefrontBuilderManager feeds them instructions.
  */
 export function createBuilderAgentRegistry(): BuilderAgentRegistry {
   return {
-    interpreter: new InterpreterAgent(),
-    planner: new PlannerAgent(),
+    interpretPlanner: new InterpretPlannerAgent(),
+    sessionAgent: new SessionAgent(),
     executor: new ExecutorAgent(),
     critic: new CriticAgent(),
   };
@@ -32,5 +32,5 @@ export type {
   ExecutorToolCall,
   OpenAiToolSchema,
 } from "./ExecutorAgent";
-export { InterpreterAgent } from "./InterpreterAgent";
-export { PlannerAgent } from "./PlannerAgent";
+export { InterpretPlannerAgent } from "./InterpretPlannerAgent";
+export { SessionAgent } from "./SessionAgent";

@@ -18,7 +18,13 @@ export type PlannerResult = {
   notes?: string;
 };
 
-export type CriticStatus = "CONTINUE" | "DONE" | "NEED_USER";
+/** Combined Interpreter + Planner output from a single thinking-model call. */
+export type InterpretPlannerResult = {
+  interpretation: InterpreterResult;
+  plan: PlannerResult;
+};
+
+export type CriticStatus = "CONTINUE" | "DONE" | "NEED_USER" | "RETRY";
 
 export type CriticResult = {
   status: CriticStatus;
@@ -99,8 +105,29 @@ export function inferToolsFromStepDescription(description: string, allowed: Set<
   if (/\b(list|show|display)\b.*\borders?\b|\borders?\b.*\b(list|pending|recent)\b/.test(text)) {
     return pick("list_orders");
   }
-  if (/\b(metrics|sales|performance|dashboard|how.*(store|business).*(doing|performing))\b/.test(text)) {
+  if (/\b(metrics|sales|performance|dashboard|how.*(store|business).*(doing|performing)|revenue|conversion)\b/.test(text)) {
     return pick("get_store_metrics");
+  }
+  if (/\b(top sell|best sell|bestseller|what'?s selling|which products?.*(sell|earn)|top products?)\b/.test(text)) {
+    return pick("get_top_selling_products");
+  }
+  if (/\b(traffic|where.*(visits|traffic).*(from|come)|visit sources|referral)\b/.test(text)) {
+    return pick("get_traffic_sources");
+  }
+  if (/\b(customers?|who bought|buyers?)\b/.test(text)) {
+    return pick("list_customers");
+  }
+  if (/\b(discount|promo|coupon|% off|percent off)\b/.test(text)) {
+    return pick("list_discounts");
+  }
+  if (/\b(paystack|payout|payment settings?|bank account)\b/.test(text)) {
+    return pick("get_payment_settings");
+  }
+  if (/\b(custom domain|domains?|dns|verify.*(domain|dns))\b/.test(text)) {
+    return pick("list_domains");
+  }
+  if (/\b(abandoned cart|left.*(cart|checkout)|recoverable)\b/.test(text)) {
+    return pick("list_abandoned_carts");
   }
   if (/\b(product grid|products? section|add.*(section|block).*product)\b/.test(text)) {
     return pick("add_page_block");
@@ -204,6 +231,14 @@ export const INFORMATIONAL_TOOL_NAMES = new Set([
   "list_orders",
   "get_order",
   "get_store_metrics",
+  "get_top_selling_products",
+  "get_traffic_sources",
+  "list_customers",
+  "get_customer",
+  "list_discounts",
+  "get_payment_settings",
+  "list_domains",
+  "list_abandoned_carts",
   "get_storefront_readiness",
   "suggest_site_improvements",
   "manage_categories",
@@ -252,12 +287,43 @@ export function summarizeToolResult(name: string, result: Record<string, unknown
   if (name === "publish_website" && result.ok) return "[tool:publish_website] storefront published";
   if (name === "update_store_profile" && result.ok) return "[tool:update_store_profile] store profile updated";
   if (name === "get_store_metrics" && result.ok) return "[tool:get_store_metrics] metrics loaded";
+  if (name === "get_top_selling_products" && result.ok) {
+    const count = Array.isArray(result.top_products) ? result.top_products.length : result.count ?? 0;
+    return `[tool:get_top_selling_products] ${count} top seller(s)`;
+  }
+  if (name === "get_traffic_sources" && result.ok) {
+    const count = Array.isArray(result.traffic_sources) ? result.traffic_sources.length : 0;
+    return `[tool:get_traffic_sources] ${count} source(s)`;
+  }
   if (name === "list_orders" && result.ok) {
     const count = Array.isArray(result.orders) ? result.orders.length : 0;
     return `[tool:list_orders] ${count} order(s)`;
   }
   if (name === "get_order" && result.ok) return "[tool:get_order] order detail loaded";
   if (name === "update_order_status" && result.ok) return "[tool:update_order_status] status updated";
+  if (name === "list_customers" && result.ok) {
+    const count = Array.isArray(result.customers) ? result.customers.length : 0;
+    return `[tool:list_customers] ${count} customer(s)`;
+  }
+  if (name === "get_customer" && result.ok) return "[tool:get_customer] customer loaded";
+  if (name === "list_discounts" && result.ok) {
+    const count = Array.isArray(result.discounts) ? result.discounts.length : 0;
+    return `[tool:list_discounts] ${count} discount(s)`;
+  }
+  if (name === "create_discount" && result.ok) return "[tool:create_discount] discount created";
+  if (name === "update_discount" && result.ok) return "[tool:update_discount] discount updated";
+  if (name === "get_payment_settings" && result.ok) return "[tool:get_payment_settings] payment settings loaded";
+  if (name === "update_payment_settings" && result.ok) return "[tool:update_payment_settings] payment settings updated";
+  if (name === "list_domains" && result.ok) {
+    const count = Array.isArray(result.domains) ? result.domains.length : 0;
+    return `[tool:list_domains] ${count} domain(s)`;
+  }
+  if (name === "add_domain" && result.ok) return "[tool:add_domain] domain added";
+  if (name === "verify_domain" && result.ok) return "[tool:verify_domain] domain verification checked";
+  if (name === "list_abandoned_carts" && result.ok) {
+    const count = Array.isArray(result.items) ? result.items.length : 0;
+    return `[tool:list_abandoned_carts] ${count} abandoned cart(s)`;
+  }
   if (name === "suggest_site_improvements" && result.ok) {
     const count = Array.isArray(result.suggestions) ? result.suggestions.length : 0;
     return `[tool:suggest_site_improvements] ${count} suggestion(s)`;

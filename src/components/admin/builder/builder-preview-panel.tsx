@@ -123,7 +123,16 @@ export function BuilderPreviewPanel({
       />
       <div className="flex min-h-0 flex-1 flex-col bg-secondary/40 p-4">
         <div className="mx-auto flex h-full min-h-0 w-full max-w-5xl flex-col overflow-hidden rounded-xl border border-border bg-background shadow-soft">
-          <StorefrontPreview store={store} content={storefront} />
+          <StorefrontPreview
+            key={[
+              storefront.products?.map((product) => `${product.id}:${product.status ?? "active"}`).join(",") ?? "",
+              storefront.palette?.primary ?? "",
+              storefront.hero?.headline ?? "",
+              storefront.media?.hero_image_url ?? "",
+            ].join("|")}
+            store={store}
+            content={storefront}
+          />
         </div>
       </div>
     </div>

@@ -2,8 +2,9 @@
 
 import { useEffect, useRef } from "react";
 import { Loader2 } from "lucide-react";
+import { isBuilderToolAgentEnabled } from "@/lib/features";
 import type { AgentThinkingLogEntry } from "@/lib/storefront-builder/agents/types";
-import { AGENT_COLORS } from "@/lib/storefront-builder/agents/thinking-log";
+import { AGENT_COLORS, AGENT_LABELS } from "@/lib/storefront-builder/agents/thinking-log";
 
 export function BuilderThinkingLogCompact({
   entries,
@@ -29,7 +30,9 @@ export function BuilderThinkingLogCompact({
       <div className="flex items-center gap-2 border-b border-border/60 px-3 py-2">
         {streaming ? <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-primary" /> : null}
         <p className="text-[11px] font-medium uppercase tracking-wide text-ink-soft">
-          Interpreter → Planner → Executor → Critic
+          {isBuilderToolAgentEnabled()
+            ? "Agent → Critic"
+            : "Interpret+Plan → Executor → Critic"}
         </p>
       </div>
 
@@ -43,7 +46,7 @@ export function BuilderThinkingLogCompact({
                 <span
                   className={`mt-0.5 shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide ${AGENT_COLORS[entry.agent]}`}
                 >
-                  {entry.agent}
+                  {AGENT_LABELS[entry.agent]}
                 </span>
                 <span className="min-w-0 flex-1 text-ink">
                   <span className="font-medium">{entry.title}</span>

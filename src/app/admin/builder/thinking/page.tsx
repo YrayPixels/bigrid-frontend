@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { BuilderThinkingLog } from "@/components/admin/builder/builder-thinking-log";
 import { useBuilderSessionOrStart, useStorefrontTemplates } from "@/hooks/use-merchant-queries";
 import { useAuth } from "@/lib/auth-context";
+import { isBuilderToolAgentEnabled } from "@/lib/features";
 import { STOREFRONT_TEMPLATE_OPTIONS } from "@/lib/api/types";
 import type { AgentThinkingLogEntry } from "@/lib/storefront-builder/agents/types";
 import type { BuilderAiTurn } from "@/lib/storefront-builder/local-ai";
@@ -114,10 +115,14 @@ export default function BuilderThinkingPage() {
             </div>
             <h1 className="mt-1 font-display text-3xl font-bold tracking-tight">AI thinking log</h1>
             <p className="mt-1 max-w-2xl text-sm text-ink-soft">
-              Streams the internal Interpreter → Planner → Executor → Critic pipeline. Merchant chat
-              on the main builder still uses the backend orchestrator; this page runs the local
-              thinking agents directly. When a draft already exists, refine instructions run the
-              full pipeline too — say &quot;build my website&quot; to trigger a fresh build instead.
+              Streams the internal{" "}
+              {isBuilderToolAgentEnabled()
+                ? "Agent → Critic"
+                : "Interpret+Plan → Executor → Critic"}{" "}
+              pipeline. Merchant chat on the main builder still uses the backend orchestrator; this
+              page runs the local thinking agents directly. When a draft already exists, refine
+              instructions run the full pipeline too — say &quot;build my website&quot; to trigger a
+              fresh build instead.
             </p>
           </div>
           <div className="rounded-xl border border-border bg-surface px-4 py-3 text-xs text-ink-soft">

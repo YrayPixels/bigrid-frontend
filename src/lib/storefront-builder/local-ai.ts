@@ -1142,6 +1142,20 @@ export async function resolveBrandColorForMessage(
   store?: Store | null,
   storefront?: StorefrontContent | null,
 ): Promise<{ brand_color: string; label: string; palette: StorefrontColorPalette } | null> {
+  // Fast path: named/hex colors skip the palette LLM unless the ask is open-ended.
+  if (!isOpenEndedColorRequest(message)) {
+    const extracted = extractColorFromMessage(message);
+    if (extracted) {
+      const hint = extractColorHintFromMessage(message);
+      const palette = derivePaletteFromPrimary(extracted);
+      return {
+        brand_color: palette.primary,
+        label: hint ? formatColorLabel(hint) : "Custom palette",
+        palette,
+      };
+    }
+  }
+
   const aiResolved = await resolveBrandColorWithAi(message, {
     business_name: store?.business_name ?? null,
     industry: store?.industry ?? null,

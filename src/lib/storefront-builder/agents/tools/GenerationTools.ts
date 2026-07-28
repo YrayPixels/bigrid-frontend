@@ -15,6 +15,7 @@ import { isCodeWorkbenchEnabled } from "@/lib/features";
 import { api } from "@/lib/api/client";
 import type { WebsiteBuilderToolDef } from "../types";
 import { ImageTools } from "./ImageTools";
+import { NO_ARG_TOOL_PARAMETERS } from "./toolHelpers";
 
 /** First-pass and full redesign generation (template storefronts). */
 export class GenerationTools {
@@ -24,7 +25,7 @@ export class GenerationTools {
         name: "generate_website",
         description:
           "Generate the merchant's first website with homepage hero, about section, FAQs, SEO, and starter products.",
-        parameters: { type: "object", properties: {}, additionalProperties: false },
+        parameters: NO_ARG_TOOL_PARAMETERS,
         handler: async (_args, ctx) => {
           if (!hasMinimumBusinessProfile(ctx.profile)) {
             return { ok: false, error: "missing_business_details" };

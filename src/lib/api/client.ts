@@ -98,12 +98,19 @@ export function getToken(): string | null {
 
 export function setToken(token: string | null) {
   if (typeof window === "undefined") return;
+
+  const previous = window.localStorage.getItem(TOKEN_KEY);
   if (token) {
     window.localStorage.setItem(TOKEN_KEY, token);
     document.cookie = "storehaus_auth_present=1; path=/; max-age=31536000; SameSite=Lax";
   } else {
     window.localStorage.removeItem(TOKEN_KEY);
     document.cookie = "storehaus_auth_present=; path=/; max-age=0";
+  }
+
+  // Only invalidate AI config when the auth identity actually changes.
+  if (previous !== token) {
+    void import("@/lib/platform-ai-config").then((m) => m.clearPlatformAiConfigCache());
   }
 }
 

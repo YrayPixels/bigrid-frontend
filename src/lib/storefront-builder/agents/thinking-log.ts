@@ -58,8 +58,21 @@ export function parseThinkingStreamChunk(buffer: string): {
 
 export const AGENT_COLORS: Record<AgentThinkingLogEntry["agent"], string> = {
   System: "bg-zinc-500/15 text-zinc-700",
+  InterpretPlanner: "bg-violet-500/15 text-violet-800",
   Interpreter: "bg-violet-500/15 text-violet-800",
   Planner: "bg-blue-500/15 text-blue-800",
+  Session: "bg-violet-500/15 text-violet-800",
   Executor: "bg-amber-500/15 text-amber-900",
   Critic: "bg-emerald-500/15 text-emerald-800",
+};
+
+/** Short label for thinking-log chips. */
+export const AGENT_LABELS: Record<AgentThinkingLogEntry["agent"], string> = {
+  System: "System",
+  InterpretPlanner: "Interpret+Plan",
+  Interpreter: "Interpreter",
+  Planner: "Planner",
+  Session: "Agent",
+  Executor: "Executor",
+  Critic: "Critic",
 };

@@ -14,7 +14,7 @@ import {
   type ImageReplaceScope,
 } from "@/lib/storefront-builder/section-scope";
 import type { WebsiteBuilderContext, WebsiteBuilderToolDef } from "../types";
-import { asString, resolveLiveProduct, resolveStorefrontProduct, syncStorefrontProduct } from "./toolHelpers";
+import { asString, resolveLiveProduct, resolveStorefrontProduct, syncStorefrontProduct, NO_ARG_TOOL_PARAMETERS } from "./toolHelpers";
 import { sanitizePendingAction, withPendingAction } from "@/lib/storefront-builder/pending-action";
 import {
   getProductFocus,
@@ -53,7 +53,7 @@ export class ImageTools {
         name: "apply_stock_images",
         description:
           "Quickly add default template stock photos to the header and about section. Use when the merchant wants generic stock photos applied fast.",
-        parameters: { type: "object", properties: {}, additionalProperties: false },
+        parameters: NO_ARG_TOOL_PARAMETERS,
         handler: async (_args, ctx) => {
           if (!ctx.storefront || !ctx.session.store) {
             return { ok: false, error: "website_not_generated" };
@@ -172,16 +172,29 @@ export class ImageTools {
               ? args.intent.trim()
               : `${ctx.profile.business_name ?? ""} ${ctx.profile.description ?? ""} ${ctx.message}`.trim();
 
-          const productName =
-            resolveProductNameFromContext({
-              message: ctx.message,
-              proposedName: asString(args.product_name) || undefined,
-              focus: getProductFocus(ctx.profile),
-            }) || undefined;
+          const scopeRaw = asString(args.scope);
+          const scope = isImageReplaceScope(scopeRaw) ? scopeRaw : null;
+          const explicitProductName = asString(args.product_name) || undefined;
           const productId = asString(args.product_id) || undefined;
 
-          // Named product → replace only that product's photo.
-          if (productName || productId) {
+          // Section scopes must win over recent product focus. Otherwise short asks like
+          // "update the hero image…" incorrectly rewrite the last focused product.
+          const sectionOnlyScope =
+            scope === "hero" ||
+            scope === "about" ||
+            scope === "category_showcase" ||
+            scope === "full_site";
+
+          const productName = sectionOnlyScope
+            ? explicitProductName
+            : resolveProductNameFromContext({
+                message: ctx.message,
+                proposedName: explicitProductName,
+                focus: getProductFocus(ctx.profile),
+              }) || undefined;
+
+          // Named product → replace only that product's photo (never when scope is a page section).
+          if ((productName || productId) && !sectionOnlyScope) {
             let resolved = resolveStorefrontProduct(ctx.storefront.products, productId, productName);
             if (!resolved.product) {
               const live = await resolveLiveProduct(productId, productName).catch(() => null);
@@ -312,8 +325,7 @@ export class ImageTools {
             };
           }
 
-          const rawScope = typeof args.scope === "string" ? args.scope.trim() : "";
-          if (!isImageReplaceScope(rawScope)) {
+          if (!scope) {
             return {
               ok: false,
               error: "scope_required",
@@ -321,7 +333,6 @@ export class ImageTools {
                 "Pass scope as one of: full_site, hero, about, category_showcase, products — based on what the merchant asked to change. If they named a product, pass product_name too.",
             };
           }
-          const scope: ImageReplaceScope = rawScope;
 
           let storefront = ctx.storefront;
           if (scope === "category_showcase" || scope === "full_site") {

@@ -57,6 +57,7 @@ export function DashboardAiBuilderFab({
     merchantCache.setBuilderSession(queryClient, data);
     if (data.storefront ?? data.session?.storefront_snapshot) {
       merchantInvalidators.storefront(queryClient);
+      merchantInvalidators.products(queryClient);
     }
     if (data.session?.store) {
       await refresh();

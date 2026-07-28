@@ -80,6 +80,10 @@ export function resolveProductNameFromContext(args: {
     return focusName;
   }
   if (!proposed && focusName && message.length < 80) {
+    // Don't steal section/page image asks into the last focused product.
+    if (/\b(hero|banner|header|homepage|landing|about section|essentials|showcase)\b/i.test(message)) {
+      return undefined;
+    }
     // Short follow-ups like "make it more premium" after working on a product.
     if (/\b(description|photo|image|price|stock|update|rewrite|improve|check)\b/i.test(message)) {
       return focusName;

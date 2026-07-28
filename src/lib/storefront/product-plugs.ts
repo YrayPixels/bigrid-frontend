@@ -106,13 +106,18 @@ export function ensureMerchantHomepageProducts(
 /**
  * Homepage product grids always prefer the merchant catalog.
  * Theme products are only a seed source when the catalog is empty.
+ * Hidden statuses (draft/archived) never appear in live or builder preview.
  */
+export function isStorefrontVisibleProduct(product: StoreProduct): boolean {
+  return (product.status ?? "active") === "active";
+}
+
 export function getHomepageProducts(
   storefront: StorefrontContent,
   templateId: StorefrontTemplateId,
   limit: number,
 ): { products: StoreProduct[]; source: ProductPlugSource } {
-  const catalogProducts = storefront.products ?? [];
+  const catalogProducts = (storefront.products ?? []).filter(isStorefrontVisibleProduct);
 
   if (catalogProducts.length > 0) {
     return {

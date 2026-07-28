@@ -138,6 +138,7 @@ export function WebsiteCreateView({ onDraftChanged }: WebsiteCreateViewProps) {
           : nextStorefront,
       );
       merchantInvalidators.storefront(queryClient);
+      merchantInvalidators.products(queryClient);
       onDraftChanged?.();
     }
     if (data.session?.store) {
