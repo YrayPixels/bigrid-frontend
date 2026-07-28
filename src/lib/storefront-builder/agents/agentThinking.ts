@@ -342,7 +342,12 @@ export function summarizeToolResult(name: string, result: Record<string, unknown
   }
   if (name === "design_website" && result.ok) return "[tool:design_website] website design selected";
   if (name === "capture_business_details" && result.ok) return "[tool:capture_business_details] profile updated";
-  if (name === "refine_website_copy" && result.ok) return "[tool:refine_website_copy] copy refined";
+  if (name === "refine_website_copy" && result.ok) {
+    const paths = Array.isArray(result.changed_paths) ? result.changed_paths.length : 0;
+    return paths
+      ? `[tool:refine_website_copy] copy refined (${paths} path(s))`
+      : "[tool:refine_website_copy] copy refined";
+  }
   if (name === "change_font" && result.ok) {
     return `[tool:change_font] font changed to ${result.font_label ?? result.font}`;
   }

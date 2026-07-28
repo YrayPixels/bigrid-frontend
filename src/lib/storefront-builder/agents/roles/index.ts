@@ -34,3 +34,4 @@ export type {
 } from "./ExecutorAgent";
 export { InterpretPlannerAgent } from "./InterpretPlannerAgent";
 export { SessionAgent } from "./SessionAgent";
+export { SessionManager } from "./SessionManager";

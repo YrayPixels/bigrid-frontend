@@ -26,6 +26,7 @@ import {
   asConcreteTemplateId,
   processBuilderMessage,
   removeBuilderLogo,
+  stopBuilderRealtimeSession,
 } from "@/lib/storefront-builder/client";
 import {
   STOREFRONT_TEMPLATE_OPTIONS,
@@ -94,6 +95,12 @@ export function WebsiteCreateView({ onDraftChanged }: WebsiteCreateViewProps) {
   useEffect(() => {
     if (!loading && !user) router.replace("/login");
   }, [loading, user, router]);
+
+  useEffect(() => {
+    return () => {
+      stopBuilderRealtimeSession();
+    };
+  }, []);
 
   useEffect(() => {
     if (!session?.storefront_snapshot) return;

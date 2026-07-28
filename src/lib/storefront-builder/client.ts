@@ -20,6 +20,10 @@ import { STOREFRONT_TEMPLATE_OPTIONS } from "@/lib/api/types";
 import type { AgentThinkingLogEntry } from "@/lib/storefront-builder/agents/types";
 import { createThinkingLogEntry } from "@/lib/storefront-builder/agents/thinking-log";
 import { StorefrontBuilderManager } from "@/lib/storefront-builder/agents/StorefrontBuilderManager";
+import {
+  isSharedBuilderRealtimeActive,
+  stopSharedBuilderRealtimeSession,
+} from "@/lib/storefront-builder/agents/BuilderSessionManager";
 import type { BuilderAiTurn } from "@/lib/storefront-builder/local-ai";
 import {
   applyStorefrontEditAsync,
@@ -252,11 +256,40 @@ async function persistAgentTurn({
     ...(selectedTemplateId ? { selected_template_id: selectedTemplateId } : {}),
     storefront_snapshot: templateId
       ? alignStorefrontTemplateToSelection(
-          snapshot ?? null,
-          templateId,
-          session.store?.brand_color,
-        ) ?? snapshot
+        snapshot ?? null,
+        templateId,
+        session.store?.brand_color,
+      ) ?? snapshot
       : snapshot,
+  });
+}
+
+export { stopSharedBuilderRealtimeSession as stopBuilderRealtimeSession };
+
+export function isBuilderRealtimeSessionActive(builderSessionId?: string): boolean {
+  return isSharedBuilderRealtimeActive(builderSessionId);
+}
+
+export async function startBuilderRealtimeSession({
+  session,
+  history,
+  onLog,
+}: {
+  session: BuilderSession;
+  history?: Array<{ role: "user" | "assistant"; content: string }>;
+  onLog?: (entry: AgentThinkingLogEntry) => void;
+}): Promise<void> {
+  const chatHistory = history ?? buildBuilderChatHistory(session.messages);
+  const toolDefs = websiteBuilderToolsForSession(session);
+  const thinkingLog: AgentThinkingLogEntry[] = [];
+  const manager = new StorefrontBuilderManager(undefined, (entry) => {
+    thinkingLog.push(entry);
+    onLog?.(entry);
+  });
+  await manager.startRealtimeSession({
+    session,
+    history: chatHistory,
+    toolDefs,
   });
 }
 
