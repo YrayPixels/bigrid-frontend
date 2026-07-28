@@ -27,7 +27,7 @@ export function PageTitle({
           value={title}
           as="h1"
           className={cn(
-            "text-4xl font-bold tracking-tight",
+            "text-[1.75rem] font-bold leading-tight tracking-tight sm:text-4xl",
             theme.id === "fashion_lookbook" && "tracking-[-0.04em]",
           )}
           style={{ fontFamily: theme.displayFont }}
@@ -35,7 +35,7 @@ export function PageTitle({
       ) : (
         <h1
           className={cn(
-            "text-4xl font-bold tracking-tight",
+            "text-[1.75rem] font-bold leading-tight tracking-tight sm:text-4xl",
             theme.id === "fashion_lookbook" && "tracking-[-0.04em]",
           )}
           style={{ fontFamily: theme.displayFont }}

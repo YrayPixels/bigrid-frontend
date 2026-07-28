@@ -13,11 +13,15 @@ import {
 import {
   Bold,
   ChevronDown,
+  CopyPlus,
+  FilePen,
   GripVertical,
   ImagePlus,
   List,
   Loader2,
   Plus,
+  Rocket,
+  Save,
   Sparkles,
   Trash2,
   X,
@@ -779,26 +783,39 @@ export function ProductFormDialog({
   const selectClassName =
     "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
 
+  const primaryActionLabel =
+    form.status === "archived"
+      ? "Save product"
+      : form.status === "draft" || !editingProduct
+        ? "Publish product"
+        : "Save product";
+  const primaryActionIsPublish = primaryActionLabel === "Publish product";
+
   return (
     <Dialog open={open} onOpenChange={handleDialogOpenChange}>
       <DialogContent
         showCloseButton={false}
-        className="flex max-h-[min(92dvh,900px)] w-[calc(100%-1.5rem)] max-w-5xl flex-col gap-0 overflow-hidden bg-canvas p-0 sm:rounded-2xl"
+        className="inset-0 flex h-dvh max-h-dvh w-full max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-none border-0 bg-canvas p-0 left-0 top-0 sm:inset-auto sm:left-[50%] sm:top-[50%] sm:h-auto sm:max-h-[min(92dvh,900px)] sm:w-[calc(100%-1.5rem)] sm:max-w-5xl sm:translate-x-[-50%] sm:translate-y-[-50%] sm:rounded-2xl sm:border"
       >
         <form
           onSubmit={(event) => void handleSubmit(event)}
           className="flex min-h-0 flex-1 flex-col"
         >
-          <header className="shrink-0 border-b border-border bg-white px-4 py-4 sm:px-6">
-            <div className="flex w-full flex-wrap items-start justify-between gap-3">
-              <div className="min-w-0 pr-4">
-                <DialogTitle className="font-display text-xl font-bold tracking-tight sm:text-2xl">
+          <header className="shrink-0 border-b border-border bg-white px-4 py-3 sm:px-6 sm:py-4">
+            <div className="flex w-full items-start justify-between gap-3">
+              <div className="min-w-0 pr-2">
+                <DialogTitle className="font-display text-lg font-bold tracking-tight sm:text-2xl">
                   {editingProduct ? "Edit product" : "Add product"}
                 </DialogTitle>
-                <DialogDescription className="mt-1 text-sm text-ink-soft">
-                  Publish to show it on your live store, or save as draft to keep it private.
+                <DialogDescription className="mt-0.5 text-xs text-ink-soft sm:mt-1 sm:text-sm">
+                  <span className="hidden sm:inline">
+                    Publish to show it on your live store, or save as draft to keep it private.
+                  </span>
+                  <span className="sm:hidden">
+                    {isDirty ? "Unsaved changes" : "Fill in details and publish when ready."}
+                  </span>
                   {isDirty ? (
-                    <span className="ml-2 text-amber-700">Unsaved changes</span>
+                    <span className="ml-2 hidden text-amber-700 sm:inline">Unsaved changes</span>
                   ) : null}
                 </DialogDescription>
               </div>
@@ -807,6 +824,7 @@ export function ProductFormDialog({
                 variant="ghost"
                 size="icon"
                 aria-label="Close editor"
+                className="shrink-0"
                 onClick={() => void requestClose()}
               >
                 <X className="h-5 w-5" />
@@ -820,6 +838,166 @@ export function ProductFormDialog({
               className="grid w-full gap-6 lg:grid-cols-[minmax(0,1fr)_240px]"
             >
               <div className="space-y-4">
+                <FormSection
+                  title="Product images"
+                  description={`Up to ${MAX_PRODUCT_IMAGES} images. First image is the cover.`}
+                >
+                  <div
+                    onDragOver={onFilesDragOver}
+                    onDragLeave={onFilesDragLeave}
+                    onDrop={onFilesDrop}
+                    className={cn(
+                      "rounded-lg border border-dashed transition-colors",
+                      "flex items-center gap-3 px-3 py-3 sm:flex-col sm:px-4 sm:py-8 sm:text-center",
+                      imageDropActive
+                        ? "border-primary bg-primary/5"
+                        : "border-border bg-secondary/20",
+                    )}
+                  >
+                    <ImagePlus className="h-5 w-5 shrink-0 text-ink-soft sm:mx-auto sm:h-6 sm:w-6" />
+                    <div className="min-w-0 flex-1 sm:mt-2 sm:flex-none">
+                      <p className="text-sm font-medium">
+                        <span className="sm:hidden">Add product photos</span>
+                        <span className="hidden sm:inline">Drag & drop images here</span>
+                      </p>
+                      <p className="mt-0.5 text-xs text-ink-soft sm:mt-1">
+                        PNG, JPG, or WebP · max {MAX_PRODUCT_IMAGES}
+                      </p>
+                      {uploadProgress ? (
+                        <p className="mt-1 text-xs font-medium text-primary sm:mt-3 sm:text-sm">
+                          Uploading {uploadProgress.current} of {uploadProgress.total}…
+                        </p>
+                      ) : null}
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="shrink-0 sm:mt-4"
+                      disabled={uploadingImage || form.images.length >= MAX_PRODUCT_IMAGES}
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      {uploadingImage ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <ImagePlus className="h-4 w-4" />
+                      )}
+                      <span className="sm:hidden">Browse</span>
+                      <span className="hidden sm:inline">Choose files</span>
+                    </Button>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="sr-only"
+                      onChange={(event) => {
+                        const files = Array.from(event.target.files ?? []);
+                        event.target.value = "";
+                        void uploadFiles(files);
+                      }}
+                      disabled={uploadingImage || form.images.length >= MAX_PRODUCT_IMAGES}
+                    />
+                  </div>
+
+                  {form.images.length ? (
+                    <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+                      {form.images.map((image, index) => (
+                        <div
+                          key={`${image}-${index}`}
+                          draggable
+                          onDragStart={() => onImageDragStart(index)}
+                          onDragOver={(event) => onImageDragOver(event, index)}
+                          onDrop={() => onImageDrop(index)}
+                          onDragEnd={() => {
+                            setDragImageIndex(null);
+                            setDropImageIndex(null);
+                          }}
+                          className={cn(
+                            "relative overflow-hidden rounded-lg border bg-secondary/40",
+                            dropImageIndex === index
+                              ? "border-primary ring-2 ring-primary/30"
+                              : "border-border",
+                            dragImageIndex === index && "opacity-60",
+                          )}
+                        >
+                          <div className="absolute left-2 top-2 z-10 flex items-center gap-1">
+                            <span className="inline-flex h-6 w-6 cursor-grab items-center justify-center rounded-md bg-background/90 text-ink-soft shadow-sm active:cursor-grabbing">
+                              <GripVertical className="h-3.5 w-3.5" />
+                            </span>
+                            {index === 0 ? (
+                              <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold text-primary-foreground">
+                                Cover
+                              </span>
+                            ) : null}
+                          </div>
+                          <div className="aspect-square w-full">
+                            <img
+                              src={image}
+                              alt={`Product image ${index + 1}`}
+                              className="h-full w-full object-contain object-center"
+                              draggable={false}
+                            />
+                          </div>
+                          <div className="flex items-center justify-between gap-1 border-t border-border bg-background/95 p-1.5">
+                            <span className="px-1 text-[11px] text-ink-soft">Drag to reorder</span>
+                            <div className="flex items-center gap-0.5">
+                              {index > 0 ? (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 px-2 text-[11px]"
+                                  onClick={() => setCoverImage(index)}
+                                >
+                                  Set cover
+                                </Button>
+                              ) : null}
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-destructive"
+                                onClick={() => removeImage(index)}
+                                aria-label="Remove image"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  <div className="flex flex-wrap items-end gap-3">
+                    <label className="min-w-0 flex-1 space-y-2 text-sm font-medium">
+                      Add image URL
+                      <Input
+                        value={imageUrlDraft}
+                        onChange={(event) => setImageUrlDraft(event.target.value)}
+                        placeholder="https://..."
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                            if (addImageFromUrl(imageUrlDraft)) setImageUrlDraft("");
+                          }
+                        }}
+                      />
+                    </label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        if (addImageFromUrl(imageUrlDraft)) setImageUrlDraft("");
+                      }}
+                      disabled={form.images.length >= MAX_PRODUCT_IMAGES}
+                    >
+                      Add URL
+                    </Button>
+                  </div>
+                </FormSection>
+
                 <FormSection title="Basics" description="Name, description, and catalog details.">
                   <label className="block space-y-2">
                     <FieldLabel required>Product name</FieldLabel>
@@ -1164,159 +1342,6 @@ export function ProductFormDialog({
                 </FormSection>
 
                 <FormSection
-                  title="Product images"
-                  description={`Up to ${MAX_PRODUCT_IMAGES} images. First image is the cover.`}
-                >
-                  <div
-                    onDragOver={onFilesDragOver}
-                    onDragLeave={onFilesDragLeave}
-                    onDrop={onFilesDrop}
-                    className={cn(
-                      "rounded-lg border border-dashed px-4 py-8 text-center transition-colors",
-                      imageDropActive
-                        ? "border-primary bg-primary/5"
-                        : "border-border bg-secondary/20",
-                    )}
-                  >
-                    <ImagePlus className="mx-auto h-6 w-6 text-ink-soft" />
-                    <p className="mt-2 text-sm font-medium">Drag & drop images here</p>
-                    <p className="mt-1 text-xs text-ink-soft">
-                      PNG, JPG, or WebP · max {MAX_PRODUCT_IMAGES}
-                    </p>
-                    {uploadProgress ? (
-                      <p className="mt-3 text-sm font-medium text-primary">
-                        Uploading {uploadProgress.current} of {uploadProgress.total}…
-                      </p>
-                    ) : null}
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="mt-4"
-                      disabled={uploadingImage || form.images.length >= MAX_PRODUCT_IMAGES}
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      {uploadingImage ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <ImagePlus className="h-4 w-4" />
-                      )}
-                      Choose files
-                    </Button>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      className="sr-only"
-                      onChange={(event) => {
-                        const files = Array.from(event.target.files ?? []);
-                        event.target.value = "";
-                        void uploadFiles(files);
-                      }}
-                      disabled={uploadingImage || form.images.length >= MAX_PRODUCT_IMAGES}
-                    />
-                  </div>
-
-                  {form.images.length ? (
-                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                      {form.images.map((image, index) => (
-                        <div
-                          key={`${image}-${index}`}
-                          draggable
-                          onDragStart={() => onImageDragStart(index)}
-                          onDragOver={(event) => onImageDragOver(event, index)}
-                          onDrop={() => onImageDrop(index)}
-                          onDragEnd={() => {
-                            setDragImageIndex(null);
-                            setDropImageIndex(null);
-                          }}
-                          className={cn(
-                            "relative overflow-hidden rounded-lg border bg-secondary/40",
-                            dropImageIndex === index
-                              ? "border-primary ring-2 ring-primary/30"
-                              : "border-border",
-                            dragImageIndex === index && "opacity-60",
-                          )}
-                        >
-                          <div className="absolute left-2 top-2 z-10 flex items-center gap-1">
-                            <span className="inline-flex h-6 w-6 cursor-grab items-center justify-center rounded-md bg-background/90 text-ink-soft shadow-sm active:cursor-grabbing">
-                              <GripVertical className="h-3.5 w-3.5" />
-                            </span>
-                            {index === 0 ? (
-                              <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold text-primary-foreground">
-                                Cover
-                              </span>
-                            ) : null}
-                          </div>
-                          <div className="aspect-square w-full">
-                            <img
-                              src={image}
-                              alt={`Product image ${index + 1}`}
-                              className="h-full w-full object-contain object-center"
-                              draggable={false}
-                            />
-                          </div>
-                          <div className="flex items-center justify-between gap-1 border-t border-border bg-background/95 p-1.5">
-                            <span className="px-1 text-[11px] text-ink-soft">Drag to reorder</span>
-                            <div className="flex items-center gap-0.5">
-                              {index > 0 ? (
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-7 px-2 text-[11px]"
-                                  onClick={() => setCoverImage(index)}
-                                >
-                                  Set cover
-                                </Button>
-                              ) : null}
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7 text-destructive"
-                                onClick={() => removeImage(index)}
-                                aria-label="Remove image"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
-
-                  <div className="flex flex-wrap items-end gap-3">
-                    <label className="min-w-0 flex-1 space-y-2 text-sm font-medium">
-                      Add image URL
-                      <Input
-                        value={imageUrlDraft}
-                        onChange={(event) => setImageUrlDraft(event.target.value)}
-                        placeholder="https://..."
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter") {
-                            event.preventDefault();
-                            if (addImageFromUrl(imageUrlDraft)) setImageUrlDraft("");
-                          }
-                        }}
-                      />
-                    </label>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => {
-                        if (addImageFromUrl(imageUrlDraft)) setImageUrlDraft("");
-                      }}
-                      disabled={form.images.length >= MAX_PRODUCT_IMAGES}
-                    >
-                      Add URL
-                    </Button>
-                  </div>
-                </FormSection>
-
-                <FormSection
                   title="Variants"
                   description="Optional options like Size or Color. Leave empty for simple products."
                   defaultOpen={Boolean(form.variants.length)}
@@ -1533,41 +1558,71 @@ export function ProductFormDialog({
             </div>
           </div>
 
-          <footer className="shrink-0 border-t border-border bg-white px-4 py-4 sm:px-6">
-            <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <Button type="button" variant="outline" onClick={() => void requestClose()}>
-                Cancel
+          <footer className="shrink-0 border-t border-border bg-white px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-4 sm:pb-4">
+            <div className="flex w-full items-center justify-between gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="shrink-0 sm:h-9 sm:w-auto sm:px-4"
+                aria-label="Cancel"
+                onClick={() => void requestClose()}
+              >
+                <X className="h-4 w-4 sm:hidden" />
+                <span className="hidden sm:inline">Cancel</span>
               </Button>
-              <div className="flex flex-col-reverse gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
+              <div className="flex items-center justify-end gap-2">
                 {!editingProduct || form.status === "draft" ? (
                   <Button
                     type="button"
                     variant="outline"
+                    size="icon"
+                    className="shrink-0 sm:h-9 sm:w-auto sm:px-4"
+                    aria-label="Save as draft"
                     disabled={isSaving || uploadingImage}
                     onClick={() => void submit({ statusOverride: "draft" })}
                   >
-                    {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                    Save as draft
+                    {isSaving ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <FilePen className="h-4 w-4 sm:hidden" />
+                    )}
+                    <span className="hidden sm:inline">Save as draft</span>
                   </Button>
                 ) : null}
                 {!editingProduct ? (
                   <Button
                     type="button"
                     variant="outline"
+                    size="icon"
+                    className="shrink-0 sm:h-9 sm:w-auto sm:px-4"
+                    aria-label="Save and add another"
                     disabled={isSaving || uploadingImage}
                     onClick={() => void submit({ addAnother: true, statusOverride: "active" })}
                   >
-                    {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                    Save & add another
+                    {isSaving ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <CopyPlus className="h-4 w-4 sm:hidden" />
+                    )}
+                    <span className="hidden sm:inline">Save & add another</span>
                   </Button>
                 ) : null}
-                <Button type="submit" disabled={isSaving || uploadingImage}>
-                  {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                  {form.status === "archived"
-                    ? "Save product"
-                    : form.status === "draft" || !editingProduct
-                      ? "Publish product"
-                      : "Save product"}
+                <Button
+                  type="submit"
+                  size="icon"
+                  className="shrink-0 sm:h-9 sm:w-auto sm:px-4"
+                  aria-label={primaryActionLabel}
+                  disabled={isSaving || uploadingImage}
+                >
+                  {isSaving ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : primaryActionIsPublish ? (
+                    <Rocket className="h-4 w-4 sm:hidden" />
+                  ) : (
+                    <Save className="h-4 w-4 sm:hidden" />
+                  )}
+                  <span className="hidden sm:inline">{primaryActionLabel}</span>
                 </Button>
               </div>
             </div>

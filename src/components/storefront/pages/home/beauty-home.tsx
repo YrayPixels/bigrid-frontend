@@ -159,11 +159,11 @@ export function BeautyHome({
               path="hero.headline"
               value={storefront.hero.headline}
               as="h1"
-              className="max-w-xl text-5xl font-semibold leading-[0.9] tracking-[-0.06em] sm:text-6xl lg:text-7xl"
+              className="max-w-xl text-[2.25rem] font-semibold leading-[0.95] tracking-[-0.05em] sm:text-6xl sm:leading-[0.9] sm:tracking-[-0.06em] lg:text-7xl"
               style={{ color: theme.palette.text, fontFamily: "var(--font-editorial)" }}
             />
             <div
-              className="-mt-2 ml-28 rotate-[-8deg] text-6xl leading-none sm:text-7xl"
+              className="-mt-1 ml-16 rotate-[-8deg] text-4xl leading-none sm:ml-28 sm:-mt-2 sm:text-7xl"
               style={{ color: theme.palette.surface, fontFamily: "var(--font-script)" }}
             >
               truly

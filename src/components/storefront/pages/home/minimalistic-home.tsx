@@ -61,7 +61,7 @@ export function MinimalisticHome({
   const aboutImageUrl = storefront.media?.about_image_url ?? minimalisticTemplateImages.about;
   return (
     <div style={{ backgroundColor: theme.palette.background, color: theme.palette.text }}>
-      <section className="relative isolate flex min-h-[min(72vh,40rem)] items-center justify-center overflow-hidden px-4 py-16 text-center sm:min-h-[min(78vh,44rem)] sm:px-6 sm:py-20 lg:py-24">
+      <section className="relative isolate flex min-h-[min(68vh,34rem)] items-center justify-center overflow-hidden px-4 py-12 text-center sm:min-h-[min(78vh,44rem)] sm:px-6 sm:py-20 lg:py-24">
         <EditableHeroMedia
           imagePath="media.hero_image_url"
           videoPath="media.hero_video_url"
@@ -76,7 +76,7 @@ export function MinimalisticHome({
         />
 
         <div className="relative mx-auto max-w-5xl text-white">
-          <div className="mx-auto mb-8 inline-flex max-w-full items-center gap-2 rounded-full bg-white/15 px-4 py-2 text-xs font-semibold shadow-sm backdrop-blur-md sm:text-sm">
+          <div className="mx-auto mb-5 inline-flex max-w-full items-center gap-2 rounded-full bg-white/15 px-3 py-1.5 text-[11px] font-semibold shadow-sm backdrop-blur-md sm:mb-8 sm:px-4 sm:py-2 sm:text-sm">
             <span
               className="h-2 w-5 shrink-0 rounded-full"
               style={{ backgroundColor: theme.palette.primary }}
@@ -97,18 +97,18 @@ export function MinimalisticHome({
             path="hero.headline"
             value={storefront.hero.headline}
             as="h1"
-            className="mx-auto max-w-4xl text-4xl font-semibold leading-[1.05] tracking-[-0.04em] text-white sm:text-5xl md:text-6xl lg:text-7xl"
+            className="mx-auto max-w-4xl text-[1.75rem] font-semibold leading-[1.12] tracking-[-0.035em] text-white sm:text-5xl sm:leading-[1.05] sm:tracking-[-0.04em] md:text-6xl lg:text-7xl"
             placeholder="Headline"
           />
           <EditableText
             path="hero.subheadline"
             value={storefront.hero.subheadline}
             as="p"
-            className="mx-auto mt-5 max-w-2xl text-base leading-7 text-white/85 sm:mt-6 sm:text-lg sm:leading-8 md:text-xl md:leading-9"
+            className="mx-auto mt-4 max-w-2xl text-sm leading-6 text-white/85 sm:mt-6 sm:text-lg sm:leading-8 md:text-xl md:leading-9"
             multiline
             placeholder="Supporting text"
           />
-          <div className="mt-8 flex justify-center">
+          <div className="mt-6 flex justify-center sm:mt-8">
             <StorefrontLink
               href="/products"
               className="inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold shadow-sm"

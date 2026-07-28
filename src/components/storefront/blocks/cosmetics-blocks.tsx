@@ -82,7 +82,7 @@ export function CosmeticsHeroBlock({
             path="hero.headline"
             value={headline}
             as="h1"
-            className="mx-auto mt-4 max-w-4xl text-6xl font-bold uppercase leading-[0.88] tracking-[-0.07em] sm:text-7xl"
+            className="mx-auto mt-4 max-w-4xl text-[2.5rem] font-bold uppercase leading-[0.92] tracking-[-0.06em] sm:text-7xl sm:leading-[0.88] sm:tracking-[-0.07em]"
             style={{ color: theme.palette.primary }}
           />
           <EditableText
@@ -133,14 +133,14 @@ export function CosmeticsHeroBlock({
                   path="hero.headline"
                   value={headline}
                   as="h1"
-                  className="mt-4 max-w-xl text-7xl font-bold uppercase leading-[0.82] tracking-[-0.075em] sm:text-8xl lg:text-[9rem]"
+                  className="mt-4 max-w-xl text-[2.75rem] font-bold uppercase leading-[0.88] tracking-[-0.06em] sm:text-8xl sm:leading-[0.82] sm:tracking-[-0.075em] lg:text-[9rem]"
                   style={{ color: theme.palette.primary }}
                 />
                 <EditableText
                   path="hero.subheadline"
                   value={props.subheadline}
                   as="p"
-                  className="mt-7 max-w-md text-xs leading-6"
+                  className="mt-5 max-w-md text-xs leading-6 sm:mt-7"
                   style={{ color: theme.palette.muted }}
                   multiline
                 />
@@ -178,14 +178,14 @@ export function CosmeticsHeroBlock({
                 path="hero.headline"
                 value={headline}
                 as="h1"
-                className="mt-4 max-w-xl text-7xl font-bold uppercase leading-[0.82] tracking-[-0.075em] sm:text-8xl lg:text-[9rem]"
+                className="mt-4 max-w-xl text-[2.75rem] font-bold uppercase leading-[0.88] tracking-[-0.06em] sm:text-8xl sm:leading-[0.82] sm:tracking-[-0.075em] lg:text-[9rem]"
                 style={{ color: theme.palette.primary }}
               />
               <EditableText
                 path="hero.subheadline"
                 value={props.subheadline}
                 as="p"
-                className="mt-7 max-w-md text-xs leading-6"
+                className="mt-5 max-w-md text-xs leading-6 sm:mt-7"
                 style={{ color: theme.palette.muted }}
                 multiline
               />

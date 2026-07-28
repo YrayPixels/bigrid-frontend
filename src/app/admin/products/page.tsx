@@ -131,6 +131,50 @@ function formatMoneyDetailed(value: number, currency = "NGN") {
   }).format(value);
 }
 
+function currencySymbol(currency = "NGN") {
+  return (
+    new Intl.NumberFormat("en-NG", {
+      style: "currency",
+      currency,
+      maximumFractionDigits: 0,
+    })
+      .formatToParts(0)
+      .find((part) => part.type === "currency")?.value ?? currency
+  );
+}
+
+/** Short money for tight mobile stat cards: ₦1.7K / ₦1.7M / ₦1.2B */
+function formatMoneyCompact(value: number, currency = "NGN") {
+  const abs = Math.abs(value);
+  if (!Number.isFinite(abs) || abs < 1_000) {
+    return formatMoneyDetailed(value, currency);
+  }
+
+  const sign = value < 0 ? "-" : "";
+  const symbol = currencySymbol(currency);
+
+  let scaled: number;
+  let suffix: string;
+  if (abs >= 1_000_000_000) {
+    scaled = abs / 1_000_000_000;
+    suffix = "B";
+  } else if (abs >= 1_000_000) {
+    scaled = abs / 1_000_000;
+    suffix = "M";
+  } else {
+    scaled = abs / 1_000;
+    suffix = "K";
+  }
+
+  const digits = scaled >= 100 ? 0 : 1;
+  const compact = scaled
+    .toFixed(digits)
+    .replace(/\.0$/, "")
+    .replace(/(\.\d*[1-9])0+$/, "$1");
+
+  return `${sign}${symbol}${compact}${suffix}`;
+}
+
 function formatUpdatedDate(value: Date) {
   return new Intl.DateTimeFormat("en-NG", {
     month: "short",
@@ -1306,9 +1350,10 @@ export default function AdminProductsPage() {
           </div>
         </div>
 
-        <div className="grid gap-3 border-b border-border/70 px-4 py-4 sm:grid-cols-2 sm:px-6 xl:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2.5 border-b border-border/70 px-4 py-4 sm:gap-3 sm:px-6 xl:grid-cols-4">
           <AdminStatCard
             value={formatMoneyDetailed(totalRetailValue, defaultCurrency)}
+            compactValue={formatMoneyCompact(totalRetailValue, defaultCurrency)}
             label="Total Retail Value"
             tooltip="The total selling price of all your products."
             backgroundClassName="bg-[#edf3ff]"
@@ -1316,6 +1361,7 @@ export default function AdminProductsPage() {
           />
           <AdminStatCard
             value={formatMoneyDetailed(totalInventoryValue, defaultCurrency)}
+            compactValue={formatMoneyCompact(totalInventoryValue, defaultCurrency)}
             label="Total Inventory Value"
             tooltip="The retail value of all units currently in stock."
             backgroundClassName="bg-[#edf8f0]"
@@ -1462,14 +1508,14 @@ export default function AdminProductsPage() {
               ) : null}
 
               {filteredProducts.length ? (
-                <div className="mt-3 grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                <div className="mt-3 grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-3 2xl:grid-cols-4">
                   {pagedProducts.map((product) => {
                     const inventory = stockBadge(product);
                     const isArchived = product.status === "archived";
                     return (
                       <article
                         key={product.id}
-                        className={`group relative overflow-hidden rounded-2xl border bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-soft ${selectedProductIds.has(product.id) ? "border-primary ring-2 ring-primary/20" : "border-border/80"}`}
+                        className={`group relative overflow-hidden rounded-2xl border bg-white p-2.5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-soft sm:p-3 ${selectedProductIds.has(product.id) ? "border-primary ring-2 ring-primary/20" : "border-border/80"}`}
                       >
                         <div className="absolute left-3 top-3 z-10 flex items-center gap-2">
                           <input

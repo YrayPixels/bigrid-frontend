@@ -100,7 +100,7 @@ export function FashionLookbookHome({
               path="hero.headline"
               value={storefront.hero.headline}
               as="h1"
-              className="text-5xl font-bold leading-[0.88] tracking-[-0.04em] sm:text-7xl lg:text-8xl"
+              className="text-[2.35rem] font-bold leading-[0.95] tracking-[-0.035em] sm:text-7xl sm:leading-[0.88] sm:tracking-[-0.04em] lg:text-8xl"
               style={{ fontFamily: "var(--font-editorial)" } as CSSProperties}
             />
             <EditableText
