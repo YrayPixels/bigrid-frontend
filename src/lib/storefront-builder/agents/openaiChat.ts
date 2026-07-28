@@ -1,6 +1,7 @@
 import { generateText, streamText, type CoreMessage, type LanguageModelV1 } from "ai";
 import { consumeAiStream } from "@/lib/ai-stream";
 import { getChatModel, getConfiguredChatModelName, getConfiguredThinkingModelName } from "@/lib/ai-sdk";
+import { getToken } from "@/lib/api/client";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ?? "";
 
@@ -113,11 +114,17 @@ async function rawFetchChat(body: PostChatBody): Promise<ChatCompletionResponse>
 }
 
 async function proxyChatThroughBackend(body: PostChatBody): Promise<ChatCompletionResponse> {
+  const token = getToken();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
   const res = await fetch(`${API_BASE}/storehause/ai/chat`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers,
     body: JSON.stringify(body),
   });
 
@@ -169,9 +176,15 @@ export async function postChat(body: PostChatBody): Promise<ChatCompletionRespon
     return callOpenAiChat(withModel);
   }
 
+  const token = getToken();
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
   const response = await fetch("/api/chat", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify({
       ...withModel,
       // Never send LanguageModelV1 objects over the wire.
@@ -190,9 +203,15 @@ export async function postChatStream(args: {
   signal?: AbortSignal;
 }): Promise<{ text: string }> {
   if (API_BASE) {
+    const token = getToken();
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
     const res = await fetch(`${API_BASE}/storehause/ai/chat/stream`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify({
         messages: args.messages,
         temperature: args.temperature,
@@ -225,9 +244,15 @@ export async function postChatStream(args: {
     return { text: fullText };
   }
 
+  const token = getToken();
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
   const res = await fetch("/api/chat/stream", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify({
       messages: args.messages,
       temperature: args.temperature,

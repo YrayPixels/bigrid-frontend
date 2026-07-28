@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import path from "node:path";
 import fs from "node:fs/promises";
 import { isBoltTemplateId } from "@/lib/bolt/templates";
+import { requireBearerAuth } from "@/lib/api/route-auth";
 
 type CodeFile = { path: string; content: string; encoding?: "base64" };
 
@@ -76,6 +77,11 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ templateId: string }> },
 ) {
+  const authResult = requireBearerAuth(_request);
+  if (authResult instanceof NextResponse) {
+    return authResult;
+  }
+
   const { templateId } = await params;
 
   if (!isBoltTemplateId(templateId)) {

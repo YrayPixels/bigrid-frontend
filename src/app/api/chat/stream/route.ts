@@ -2,6 +2,7 @@ import { streamText, type CoreMessage } from "ai";
 import { NextResponse } from "next/server";
 import { getChatModel } from "@/lib/ai-sdk";
 import { consumeAiStream } from "@/lib/ai-stream";
+import { requireBearerAuth, forwardAuthHeaders } from "@/lib/api/route-auth";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ?? "";
 
@@ -24,6 +25,11 @@ function toCoreMessages(messages: Body["messages"]): CoreMessage[] {
 }
 
 export async function POST(req: Request) {
+  const authResult = requireBearerAuth(req);
+  if (authResult instanceof NextResponse) {
+    return authResult;
+  }
+
   try {
     const body = (await req.json().catch(() => ({}))) as Body;
     const messages = toCoreMessages(body.messages);
@@ -34,9 +40,7 @@ export async function POST(req: Request) {
     if (API_BASE) {
       const res = await fetch(`${API_BASE}/storehause/ai/chat/stream`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: forwardAuthHeaders(req),
         body: JSON.stringify({
           messages,
           temperature: body.temperature,
@@ -65,6 +69,14 @@ export async function POST(req: Request) {
           "Cache-Control": "no-cache, no-transform",
         },
       });
+    }
+
+    // Local fallback only allowed in non-production environments
+    if (process.env.NODE_ENV === "production") {
+      return NextResponse.json(
+        { error: "AI backend not configured. Contact support." },
+        { status: 503 },
+      );
     }
 
     const result = streamText({

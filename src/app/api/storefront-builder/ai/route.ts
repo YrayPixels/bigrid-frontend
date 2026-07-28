@@ -10,6 +10,7 @@ import type {
 } from "@/lib/api/types";
 import { StorefrontBuilderManager } from "@/lib/storefront-builder/agents/StorefrontBuilderManager";
 import { applyStorefrontEditAsync, profileToStore, synthesizeStorefront } from "@/lib/storefront-builder/local-ai";
+import { requireBearerAuth } from "@/lib/api/route-auth";
 
 type MessageRequest = {
   mode: "message";
@@ -37,6 +38,11 @@ type EditRequest = {
 type AiRequest = MessageRequest | DraftRequest | EditRequest;
 
 export async function POST(request: Request) {
+  const authResult = requireBearerAuth(request);
+  if (authResult instanceof NextResponse) {
+    return authResult;
+  }
+
   const body = (await request.json().catch(() => null)) as AiRequest | null;
 
   if (!body || typeof body !== "object") {

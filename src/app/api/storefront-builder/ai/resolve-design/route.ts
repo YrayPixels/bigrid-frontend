@@ -2,6 +2,8 @@ import type { StorefrontTemplateOption } from "@/lib/api/types";
 import { STOREFRONT_TEMPLATE_OPTIONS } from "@/lib/api/types";
 import type { DesignDirectionContext } from "@/lib/storefront-builder/design-resolver";
 import { resolveDesignDirectionWithAi } from "@/lib/storefront-builder/design-resolver";
+import { requireBearerAuth } from "@/lib/api/route-auth";
+import { NextResponse } from "next/server";
 
 type ResolveDesignRequest = {
   message: string;
@@ -10,6 +12,11 @@ type ResolveDesignRequest = {
 };
 
 export async function POST(request: Request) {
+  const authResult = requireBearerAuth(request);
+  if (authResult instanceof NextResponse) {
+    return authResult;
+  }
+
   const body = (await request.json().catch(() => null)) as ResolveDesignRequest | null;
 
   if (!body?.message?.trim()) {

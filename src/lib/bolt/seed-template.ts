@@ -5,7 +5,16 @@ import { DEFAULT_BOLT_TEMPLATE_ID, type BoltTemplateId } from "@/lib/bolt/templa
 export async function fetchBoltTemplate(
   templateId: BoltTemplateId = DEFAULT_BOLT_TEMPLATE_ID,
 ): Promise<CodeFile[] | null> {
-  const res = await fetch(`/api/bolt/templates/${templateId}`).catch(() => null);
+  const { getToken } = await import("@/lib/api/client");
+  const token = getToken();
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const res = await fetch(`/api/bolt/templates/${templateId}`, {
+    headers: Object.keys(headers).length > 0 ? headers : undefined,
+  }).catch(() => null);
   if (!res?.ok) return null;
   const data = (await res.json().catch(() => null)) as { files?: CodeFile[] } | null;
   return data?.files?.length ? data.files : null;

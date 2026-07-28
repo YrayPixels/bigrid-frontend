@@ -19,9 +19,16 @@ export async function streamBuilderThinkingTurn(args: {
   onLog: (entry: AgentThinkingLogEntry) => void;
   signal?: AbortSignal;
 }): Promise<BuilderAiTurn> {
+  const { getToken } = await import("@/lib/api/client");
+  const token = getToken();
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
   const response = await fetch("/api/storefront-builder/ai/stream", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify({
       message: args.message,
       session: args.session,

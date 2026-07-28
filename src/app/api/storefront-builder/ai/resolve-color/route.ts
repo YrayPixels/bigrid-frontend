@@ -1,6 +1,8 @@
 import type { Industry, Store, StorefrontContent } from "@/lib/api/types";
 import type { BrandColorContext } from "@/lib/storefront-builder/color-resolver";
 import { resolveBrandColorForMessage } from "@/lib/storefront-builder/local-ai";
+import { requireBearerAuth } from "@/lib/api/route-auth";
+import { NextResponse } from "next/server";
 
 type ResolveColorRequest = {
   message: string;
@@ -28,6 +30,11 @@ function contextToStorefront(context?: BrandColorContext): StorefrontContent | n
 }
 
 export async function POST(request: Request) {
+  const authResult = requireBearerAuth(request);
+  if (authResult instanceof NextResponse) {
+    return authResult;
+  }
+
   const body = (await request.json().catch(() => null)) as ResolveColorRequest | null;
 
   if (!body?.message?.trim()) {

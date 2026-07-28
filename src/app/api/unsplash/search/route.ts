@@ -3,12 +3,17 @@ import {
   formatUnsplashPhotoUrl,
   searchUnsplashPhotosDirect,
 } from "@/lib/storefront-builder/unsplash-client";
+import { requireBearerAuth } from "@/lib/api/route-auth";
 
 /**
  * Server proxy for Unsplash search. The builder agent runs in the browser and
  * cannot read UNSPLASH_ACCESS_KEY — this route keeps the key server-side.
  */
 export async function GET(request: Request) {
+  const authResult = requireBearerAuth(request);
+  if (authResult instanceof NextResponse) {
+    return authResult;
+  }
   const { searchParams } = new URL(request.url);
   const query = (searchParams.get("query") ?? "").trim();
   const count = Number(searchParams.get("count") ?? "5");

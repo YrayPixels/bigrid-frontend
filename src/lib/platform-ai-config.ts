@@ -18,7 +18,7 @@ export function clearPlatformAiConfigCache(): void {
   cacheExpiresAt = 0;
 }
 
-export async function getPlatformAiConfig(): Promise<PlatformAiConfig> {
+export async function getPlatformAiConfig(token?: string): Promise<PlatformAiConfig> {
   if (!API_BASE) {
     throw new Error(
       "NEXT_PUBLIC_API_BASE_URL is not configured. AI provider settings are managed in the platform admin.",
@@ -29,8 +29,21 @@ export async function getPlatformAiConfig(): Promise<PlatformAiConfig> {
     return cachedConfig;
   }
 
+  // If no token is provided and we're in a browser context, try to get it from localStorage
+  let authToken = token;
+  if (!authToken && typeof window !== "undefined") {
+    const { getToken } = await import("@/lib/api/client");
+    authToken = getToken() ?? undefined;
+  }
+
+  const headers: Record<string, string> = {};
+  if (authToken) {
+    headers.Authorization = `Bearer ${authToken}`;
+  }
+
   const res = await fetch(`${API_BASE}/storehause/ai/config`, {
     cache: "no-store",
+    headers: Object.keys(headers).length > 0 ? headers : undefined,
   });
 
   if (!res.ok) {

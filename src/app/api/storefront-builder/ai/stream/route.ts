@@ -5,6 +5,8 @@ import type {
 } from "@/lib/api/types";
 import { StorefrontBuilderManager } from "@/lib/storefront-builder/agents/StorefrontBuilderManager";
 import { encodeThinkingStreamEvent } from "@/lib/storefront-builder/agents/thinking-log";
+import { requireBearerAuth } from "@/lib/api/route-auth";
+import { NextResponse } from "next/server";
 
 type StreamRequest = {
   message: string;
@@ -15,6 +17,11 @@ type StreamRequest = {
 };
 
 export async function POST(request: Request) {
+  const authResult = requireBearerAuth(request);
+  if (authResult instanceof NextResponse) {
+    return authResult;
+  }
+
   const body = (await request.json().catch(() => null)) as StreamRequest | null;
 
   if (!body?.message?.trim() || !body.session) {
