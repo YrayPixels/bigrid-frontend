@@ -473,9 +473,16 @@ export class ProductTools {
           try {
             const endpoint = "/api/vision/analyze-product";
 
+            const { getToken } = await import("@/lib/api/client");
+            const token = getToken();
+            const headers: Record<string, string> = { "Content-Type": "application/json" };
+            if (token) {
+              headers.Authorization = `Bearer ${token}`;
+            }
+
             const res = await fetch(endpoint, {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers,
               body: JSON.stringify({
                 image_url: imageUrl,
                 business_name: ctx.profile.business_name ?? ctx.session.store?.business_name ?? "",

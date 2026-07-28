@@ -156,12 +156,21 @@ export function CheckoutPageView() {
           reference: result.payment.reference,
           currency: result.payment.currency,
           onSuccess: async (reference) => {
-            await storefrontApi.verifyPayment(store.slug, reference);
-            window.sessionStorage.setItem("storehaus_last_order", result.order.order_number);
-            clear();
-            router.push(
-              `/checkout/success?order=${encodeURIComponent(result.order.order_number)}&email=${encodeURIComponent(result.order.customer_email)}&paid=1`,
-            );
+            try {
+              await storefrontApi.verifyPayment(store.slug, reference);
+              window.sessionStorage.setItem("storehaus_last_order", result.order.order_number);
+              clear();
+              router.push(
+                `/checkout/success?order=${encodeURIComponent(result.order.order_number)}&email=${encodeURIComponent(result.order.customer_email)}&paid=1`,
+              );
+            } catch (err) {
+              setError(
+                err instanceof Error
+                  ? err.message
+                  : "Payment received but verification failed. Contact the store with your reference.",
+              );
+              setSubmitting(false);
+            }
           },
           onClose: () => setSubmitting(false),
         });

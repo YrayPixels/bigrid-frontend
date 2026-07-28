@@ -30,6 +30,7 @@ type CartContextValue = {
   removeItem: (lineKey: string) => void;
   setQuantity: (lineKey: string, quantity: number) => void;
   clear: () => void;
+  refreshLines: (liveProducts: StoreProduct[]) => void;
 };
 
 const CartContext = createContext<CartContextValue | null>(null);
@@ -136,6 +137,19 @@ export function CartProvider({ storeId, children }: { storeId: string; children:
 
   const clear = useCallback(() => setLines([]), []);
 
+  const refreshLines = useCallback((liveProducts: StoreProduct[]) => {
+    setLines((current) => {
+      const productMap = new Map(liveProducts.map((p) => [p.id, p]));
+      return current
+        .map((line) => {
+          const liveProduct = productMap.get(line.product.id);
+          if (!liveProduct) return null;
+          return { ...line, product: liveProduct };
+        })
+        .filter((line): line is CartLine => line !== null);
+    });
+  }, []);
+
   const value = useMemo<CartContextValue>(() => {
     const itemCount = lines.reduce((sum, line) => sum + line.quantity, 0);
     const subtotal = lines.reduce((sum, line) => {
@@ -149,8 +163,8 @@ export function CartProvider({ storeId, children }: { storeId: string; children:
             : line.product.price;
       return sum + unit * line.quantity;
     }, 0);
-    return { lines, itemCount, subtotal, addItem, removeItem, setQuantity, clear };
-  }, [addItem, clear, lines, removeItem, setQuantity]);
+    return { lines, itemCount, subtotal, addItem, removeItem, setQuantity, clear, refreshLines };
+  }, [addItem, clear, lines, removeItem, setQuantity, refreshLines]);
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }
