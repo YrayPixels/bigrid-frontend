@@ -1,10 +1,15 @@
 import { NextResponse } from "next/server";
+import { requireBearerAuth, forwardAuthHeaders } from "@/lib/api/route-auth";
 
 /**
  * Proxy vision analysis requests to the backend.
  * Avoids browser CORS/direct-IP issues by routing through the Next.js server.
  */
 export async function POST(req: Request) {
+  const authResult = requireBearerAuth(req);
+  if (authResult instanceof NextResponse) {
+    return authResult;
+  }
   try {
     const body = await req.json().catch(() => null);
 
@@ -19,9 +24,7 @@ export async function POST(req: Request) {
 
     const res = await fetch(`${apiBase}/storehause/ai/vision/product`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: forwardAuthHeaders(req),
       body: JSON.stringify(body),
     });
 

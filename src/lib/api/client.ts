@@ -53,7 +53,7 @@ import type {
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ?? "";
 const STOREHAUSE_API_PREFIX = "/storehause";
-const USE_MOCKS = process.env.NEXT_PUBLIC_USE_MOCKS === "true" || !API_BASE;
+const USE_MOCKS = process.env.NEXT_PUBLIC_USE_MOCKS === "true";
 const TOKEN_KEY = "storehaus_auth_token";
 const AUTH_LOGOUT_EVENT = "storehaus-auth-logout";
 

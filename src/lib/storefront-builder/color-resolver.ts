@@ -155,9 +155,16 @@ export async function fetchResolvedBrandColor(
   message: string,
   context: BrandColorContext = {},
 ): Promise<PaletteResolution | null> {
+  const { getToken } = await import("@/lib/api/client");
+  const token = getToken();
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
   const response = await fetch("/api/storefront-builder/ai/resolve-color", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify({ message, context }),
   });
 

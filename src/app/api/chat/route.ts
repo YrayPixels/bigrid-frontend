@@ -1,9 +1,14 @@
 import { NextResponse } from "next/server";
+import { requireBearerAuth, forwardAuthHeaders } from "@/lib/api/route-auth";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ?? "";
 const BACKEND_CHAT_TIMEOUT_MS = 180_000;
 
 export async function POST(req: Request) {
+  const authResult = requireBearerAuth(req);
+  if (authResult instanceof NextResponse) {
+    return authResult;
+  }
   try {
     const rawBody = await req.text();
 
@@ -31,9 +36,7 @@ export async function POST(req: Request) {
       try {
         const res = await fetch(`${API_BASE}/storehause/ai/chat`, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: forwardAuthHeaders(req),
           body: forwardBody,
           signal: controller.signal,
         });
@@ -83,6 +86,14 @@ export async function POST(req: Request) {
       } finally {
         clearTimeout(timer);
       }
+    }
+
+    // Local fallback only allowed in non-production environments
+    if (process.env.NODE_ENV === "production") {
+      return NextResponse.json(
+        { error: "AI backend not configured. Contact support." },
+        { status: 503 },
+      );
     }
 
     const { callOpenAiChat } = await import("@/lib/storefront-builder/agents/openaiChat");
