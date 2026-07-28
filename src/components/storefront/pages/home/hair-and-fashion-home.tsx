@@ -189,11 +189,11 @@ export function HairAndFashionHome({
           </div>
         </header>
 
-        <div className="relative mx-auto grid min-h-[720px] max-w-[1400px] items-end gap-8 px-6 pb-16 pt-40 lg:min-h-[820px] lg:grid-cols-2 lg:px-10 lg:pb-24 lg:pt-44">
+        <div className="relative mx-auto grid min-h-[560px] max-w-[1400px] items-end gap-6 px-4 pb-12 pt-28 sm:min-h-[720px] sm:gap-8 sm:px-6 sm:pb-16 sm:pt-40 lg:min-h-[820px] lg:grid-cols-2 lg:px-10 lg:pb-24 lg:pt-44">
           <div className="relative z-10 max-w-lg">
-            <h1 className="font-[family-name:var(--font-editorial)] text-6xl leading-[0.95] text-[#1a1410] lg:text-7xl xl:text-8xl">
+            <h1 className="font-[family-name:var(--font-editorial)] text-[2.5rem] leading-[1.02] text-[#1a1410] sm:text-6xl sm:leading-[0.95] lg:text-7xl xl:text-8xl">
               <EditableText path="hero.headline" value={storefront.hero.headline} as="span" />
-              <span className="mt-2 block pl-4 font-[family-name:var(--font-script)] text-6xl leading-none text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.08)] lg:text-7xl xl:text-8xl">
+              <span className="mt-2 block pl-2 font-[family-name:var(--font-script)] text-[2.5rem] leading-none text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.08)] sm:pl-4 sm:text-6xl lg:text-7xl xl:text-8xl">
                 naturally.
               </span>
             </h1>

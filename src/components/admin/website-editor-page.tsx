@@ -8,6 +8,7 @@ import {
   Eye,
   Loader2,
   MessageSquare,
+  MoreHorizontal,
   Pencil,
   RefreshCcw,
   Sparkles,
@@ -35,6 +36,13 @@ import {
   PublishStorefrontButton,
   PublishStatusBadge,
 } from "@/components/admin/publish-storefront-button";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import {
   STOREFRONT_TEMPLATE_OPTIONS,
   isEmailVerified,
@@ -433,6 +441,7 @@ function WebsiteRefineView({ store }: { store: Store }) {
   const { user } = useAuth();
   const [previewOpen, setPreviewOpen] = useState(false);
   const [askAiOpen, setAskAiOpen] = useState(false);
+  const [actionsOpen, setActionsOpen] = useState(false);
   const { data: activeTemplateOptions = STOREFRONT_TEMPLATE_OPTIONS } = useStorefrontTemplates();
   const concreteTemplateOptions = getConcreteTemplateOptions(activeTemplateOptions);
 
@@ -512,55 +521,19 @@ function WebsiteRefineView({ store }: { store: Store }) {
   }
 
   return (
-    <div className="w-full px-6 py-10">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
+    <div className="w-full px-4 py-8 sm:px-6 sm:py-10">
+      <div className="flex flex-wrap items-start justify-between gap-3 sm:gap-4">
+        <div className="min-w-0 flex-1">
           <span className="text-xs font-medium uppercase tracking-wide text-ink-soft">Website</span>
-          <h1 className="mt-1 font-display text-3xl font-bold tracking-tight">
+          <h1 className="mt-1 font-display text-2xl font-bold tracking-tight sm:text-3xl">
             {store.business_name}
           </h1>
-          <p className="mt-1 text-sm text-ink-soft">
+          <p className="mt-1 hidden text-sm text-ink-soft sm:block">
             Design, preview, and publish your storefront at {liveStoreUrl}.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2">
           <PublishStatusBadge publish={publishState} />
-          <button
-            type="button"
-            onClick={() => setAskAiOpen(true)}
-            className="inline-flex items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-4 py-2 text-sm font-semibold text-ink shadow-soft hover:border-primary"
-          >
-            <Sparkles className="h-4 w-4 text-primary" />
-            Ask AI
-          </button>
-          <button
-            type="button"
-            onClick={() => setPreviewOpen(true)}
-            disabled={!storefront}
-            className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-4 py-2 text-sm font-semibold text-ink shadow-soft hover:bg-secondary disabled:opacity-60"
-          >
-            <Eye className="h-4 w-4" />
-            Preview draft
-          </button>
-          {canViewLive ? (
-            <a
-              href={liveStoreUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-4 py-2 text-sm font-semibold text-ink shadow-soft hover:bg-secondary"
-            >
-              <ExternalLink className="h-4 w-4" />
-              View live store
-            </a>
-          ) : (
-            <span
-              title="Publish your storefront to share the live link."
-              className="inline-flex cursor-not-allowed items-center gap-2 rounded-md border border-border bg-card/60 px-4 py-2 text-sm font-semibold text-ink-soft opacity-70"
-            >
-              <ExternalLink className="h-4 w-4" />
-              View live store
-            </span>
-          )}
           <PublishStorefrontButton
             store={store}
             publish={publishState}
@@ -568,33 +541,158 @@ function WebsiteRefineView({ store }: { store: Store }) {
             disabled={!storefront}
             onPublish={() => publishStorefront.mutate()}
           />
-          <Link
-            href="/admin/website?mode=create"
-            className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-4 py-2 text-sm font-semibold text-ink shadow-soft hover:bg-secondary"
-          >
-            <MessageSquare className="h-4 w-4" />
-            Rebuild with AI
-          </Link>
           <button
             type="button"
-            onClick={() =>
-              generate.mutate({
-                storeId: store.id,
-                templateId: getConcreteTemplateId(store),
-              })
-            }
-            disabled={generationPending}
-            className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-4 py-2 text-sm font-semibold text-ink shadow-soft hover:bg-secondary disabled:opacity-60"
+            onClick={() => setActionsOpen(true)}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-border bg-card text-ink shadow-soft hover:bg-secondary lg:hidden"
+            aria-label="More website actions"
           >
-            {generationPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <RefreshCcw className="h-4 w-4" />
-            )}
-            {generationPending ? "Regenerating..." : "Regenerate"}
+            <MoreHorizontal className="h-4 w-4" />
           </button>
+          <div className="hidden flex-wrap items-center gap-2 lg:flex">
+            <button
+              type="button"
+              onClick={() => setAskAiOpen(true)}
+              className="inline-flex items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-4 py-2 text-sm font-semibold text-ink shadow-soft hover:border-primary"
+            >
+              <Sparkles className="h-4 w-4 text-primary" />
+              Ask AI
+            </button>
+            <button
+              type="button"
+              onClick={() => setPreviewOpen(true)}
+              disabled={!storefront}
+              className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-4 py-2 text-sm font-semibold text-ink shadow-soft hover:bg-secondary disabled:opacity-60"
+            >
+              <Eye className="h-4 w-4" />
+              Preview draft
+            </button>
+            {canViewLive ? (
+              <a
+                href={liveStoreUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-4 py-2 text-sm font-semibold text-ink shadow-soft hover:bg-secondary"
+              >
+                <ExternalLink className="h-4 w-4" />
+                View live store
+              </a>
+            ) : (
+              <span
+                title="Publish your storefront to share the live link."
+                className="inline-flex cursor-not-allowed items-center gap-2 rounded-md border border-border bg-card/60 px-4 py-2 text-sm font-semibold text-ink-soft opacity-70"
+              >
+                <ExternalLink className="h-4 w-4" />
+                View live store
+              </span>
+            )}
+            <Link
+              href="/admin/website?mode=create"
+              className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-4 py-2 text-sm font-semibold text-ink shadow-soft hover:bg-secondary"
+            >
+              <MessageSquare className="h-4 w-4" />
+              Rebuild with AI
+            </Link>
+            <button
+              type="button"
+              onClick={() =>
+                generate.mutate({
+                  storeId: store.id,
+                  templateId: getConcreteTemplateId(store),
+                })
+              }
+              disabled={generationPending}
+              className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-4 py-2 text-sm font-semibold text-ink shadow-soft hover:bg-secondary disabled:opacity-60"
+            >
+              {generationPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCcw className="h-4 w-4" />
+              )}
+              {generationPending ? "Regenerating..." : "Regenerate"}
+            </button>
+          </div>
         </div>
       </div>
+
+      <Sheet open={actionsOpen} onOpenChange={setActionsOpen}>
+        <SheetContent side="right" className="flex w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-md">
+          <SheetHeader className="shrink-0 border-b border-border px-5 py-4 pr-12 text-left">
+            <SheetTitle>Website actions</SheetTitle>
+            <SheetDescription>Preview, AI tools, and storefront links.</SheetDescription>
+          </SheetHeader>
+          <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-4">
+            <button
+              type="button"
+              onClick={() => {
+                setActionsOpen(false);
+                setAskAiOpen(true);
+              }}
+              className="flex w-full items-center gap-3 rounded-lg border border-primary/30 bg-primary/5 px-3 py-3 text-left text-sm font-semibold"
+            >
+              <Sparkles className="h-4 w-4 shrink-0 text-primary" />
+              Ask AI
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setActionsOpen(false);
+                setPreviewOpen(true);
+              }}
+              disabled={!storefront}
+              className="flex w-full items-center gap-3 rounded-lg border border-border px-3 py-3 text-left text-sm font-semibold disabled:opacity-60"
+            >
+              <Eye className="h-4 w-4 shrink-0" />
+              Preview draft
+            </button>
+            {canViewLive ? (
+              <a
+                href={liveStoreUrl}
+                target="_blank"
+                rel="noreferrer"
+                onClick={() => setActionsOpen(false)}
+                className="flex w-full items-center gap-3 rounded-lg border border-border px-3 py-3 text-left text-sm font-semibold"
+              >
+                <ExternalLink className="h-4 w-4 shrink-0" />
+                View live store
+              </a>
+            ) : (
+              <span className="flex w-full cursor-not-allowed items-center gap-3 rounded-lg border border-border px-3 py-3 text-left text-sm font-semibold text-ink-soft opacity-70">
+                <ExternalLink className="h-4 w-4 shrink-0" />
+                View live store
+                <span className="ml-auto text-xs font-normal">Publish first</span>
+              </span>
+            )}
+            <Link
+              href="/admin/website?mode=create"
+              onClick={() => setActionsOpen(false)}
+              className="flex w-full items-center gap-3 rounded-lg border border-border px-3 py-3 text-left text-sm font-semibold"
+            >
+              <MessageSquare className="h-4 w-4 shrink-0" />
+              Rebuild with AI
+            </Link>
+            <button
+              type="button"
+              onClick={() => {
+                setActionsOpen(false);
+                generate.mutate({
+                  storeId: store.id,
+                  templateId: getConcreteTemplateId(store),
+                });
+              }}
+              disabled={generationPending}
+              className="flex w-full items-center gap-3 rounded-lg border border-border px-3 py-3 text-left text-sm font-semibold disabled:opacity-60"
+            >
+              {generationPending ? (
+                <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+              ) : (
+                <RefreshCcw className="h-4 w-4 shrink-0" />
+              )}
+              {generationPending ? "Regenerating..." : "Regenerate"}
+            </button>
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {storefront ? (
         <section className="mt-8">

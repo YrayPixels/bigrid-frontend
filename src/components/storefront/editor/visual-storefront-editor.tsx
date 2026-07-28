@@ -8,6 +8,7 @@ import {
   ExternalLink,
   Loader2,
   Monitor,
+  PanelRight,
   Save,
   Smartphone,
   Tablet,
@@ -27,11 +28,22 @@ import type {
 } from "@/lib/api/types";
 import { STOREFRONT_TEMPLATE_OPTIONS } from "@/lib/api/types";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { getStorefrontUrl } from "@/lib/store-host";
 import {
   StorefrontEditorCanvas,
   type EditorPage,
 } from "@/components/storefront/editor/storefront-editor-canvas";
+import {
+  DevicePreviewFrame,
+  type PreviewViewport,
+} from "@/components/storefront/editor/device-preview-frame";
 import { BlockEditorPanel } from "@/components/storefront/editor/block-editor-panel";
 import type { SelectedBlockRef } from "@/lib/storefront/blocks/block-draft";
 import type { StorefrontContentPageSlug } from "@/lib/storefront/blocks/types";
@@ -175,8 +187,9 @@ export function VisualStorefrontEditor({
   }));
   const [activePage, setActivePage] = useState<EditorPage>("home");
   const [selectedBlock, setSelectedBlock] = useState<SelectedBlockRef | null>(null);
-  const [viewport, setViewport] = useState<"desktop" | "tablet" | "mobile">("desktop");
+  const [viewport, setViewport] = useState<PreviewViewport>("desktop");
   const [openSection, setOpenSection] = useState("template-style");
+  const [controlsOpen, setControlsOpen] = useState(false);
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const brandColor = palette.primary;
   const { data: activeTemplateOptions = STOREFRONT_TEMPLATE_OPTIONS } = useStorefrontTemplates();
@@ -195,6 +208,15 @@ export function VisualStorefrontEditor({
     });
   }, [store, storefront]);
 
+  useEffect(() => {
+    const media = window.matchMedia("(min-width: 1280px)");
+    const closeOnWide = () => {
+      if (media.matches) setControlsOpen(false);
+    };
+    media.addEventListener("change", closeOnWide);
+    return () => media.removeEventListener("change", closeOnWide);
+  }, []);
+
   const isDirty = useMemo(() => {
     return (
       JSON.stringify(draft) !== JSON.stringify(storefront) ||
@@ -209,9 +231,6 @@ export function VisualStorefrontEditor({
         })
     );
   }, [draft, storefront, templateId, palette, store]);
-
-  const viewportClass =
-    viewport === "mobile" ? "max-w-[390px]" : viewport === "tablet" ? "max-w-[768px]" : "w-full";
 
   function handleSave() {
     if (autosaveTimerRef.current) {
@@ -248,6 +267,17 @@ export function VisualStorefrontEditor({
   function handlePageChange(page: EditorPage) {
     setActivePage(page);
     setSelectedBlock(null);
+  }
+
+  function handleSelectBlock(selection: SelectedBlockRef | null) {
+    setSelectedBlock(selection);
+    if (
+      selection &&
+      typeof window !== "undefined" &&
+      window.matchMedia("(max-width: 1279px)").matches
+    ) {
+      setControlsOpen(true);
+    }
   }
 
   function handleBlockPropChange(
@@ -377,14 +407,404 @@ export function VisualStorefrontEditor({
     Boolean(draft.display_font) ||
     Boolean(draft.theme_overrides && Object.keys(draft.theme_overrides).length > 0);
 
+  function renderEditorControls() {
+    return (
+      <>
+        <BlockEditorPanel
+          draft={draft}
+          activePage={activePage}
+          selectedBlock={selectedBlock}
+          onClose={() => setSelectedBlock(null)}
+          onUpdateProp={handleBlockPropChange}
+          onReorder={handleBlockReorder}
+        />
+
+        <EditorControlSection
+          title="Template style"
+          open={openSection === "template-style"}
+          onOpenChange={(open) => setOpenSection(open ? "template-style" : "")}
+        >
+          <div className="space-y-2">
+            {concreteTemplateOptions.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => selectTemplate(option.value)}
+                className={`w-full rounded-lg border px-3 py-2 text-left text-sm transition ${
+                  templateId === option.value
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover:border-ink/30"
+                }`}
+              >
+                <div className="font-semibold">{option.label}</div>
+                <div className="text-xs text-ink-soft">
+                  {option.bestFor} · {STOREFRONT_THEME_PRESETS[option.value].brandColor}
+                </div>
+              </button>
+            ))}
+          </div>
+        </EditorControlSection>
+
+        <EditorControlSection
+          title="Color palette"
+          open={openSection === "color-palette"}
+          onOpenChange={(open) => setOpenSection(open ? "color-palette" : "")}
+        >
+          <p className="text-xs leading-5 text-ink-soft">
+            Pick a suggested palette, then fine-tune any color.
+          </p>
+          <div className="mt-3 space-y-2">
+            <button
+              type="button"
+              onClick={() => setPalette(getDefaultStorefrontPalette(templateId))}
+              className="w-full rounded-lg border border-border px-3 py-2 text-left text-sm transition hover:border-ink/30"
+            >
+              <div className="font-semibold">Template default</div>
+              <div className="mt-2 flex gap-1">
+                {Object.entries(getDefaultStorefrontPalette(templateId)).map(([token, color]) => (
+                  <span
+                    key={token}
+                    className="h-5 flex-1 rounded"
+                    style={{ backgroundColor: color }}
+                  />
+                ))}
+              </div>
+            </button>
+            {STOREFRONT_PALETTE_PRESETS.map((preset) => (
+              <button
+                key={preset.id}
+                type="button"
+                onClick={() => setPalette(preset.palette)}
+                className="w-full rounded-lg border border-border px-3 py-2 text-left text-sm transition hover:border-ink/30"
+              >
+                <div className="font-semibold">{preset.label}</div>
+                <div className="mt-2 flex gap-1">
+                  {Object.entries(preset.palette).map(([token, color]) => (
+                    <span
+                      key={token}
+                      className="h-5 flex-1 rounded"
+                      style={{ backgroundColor: color }}
+                    />
+                  ))}
+                </div>
+              </button>
+            ))}
+          </div>
+          <div className="mt-4 space-y-3">
+            {PALETTE_FIELDS.map((field) => (
+              <label key={field.key} className="block text-xs font-medium text-ink-soft">
+                {field.label}
+                <div className="mt-1 flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={palette[field.key]}
+                    onChange={(event) => updatePaletteColor(field.key, event.target.value)}
+                    className="h-9 w-12 cursor-pointer rounded-md border border-border bg-background p-1"
+                  />
+                  <input
+                    value={palette[field.key]}
+                    onChange={(event) => updatePaletteColor(field.key, event.target.value)}
+                    className="h-9 min-w-0 flex-1 rounded-md border border-border bg-background px-2 font-mono text-xs uppercase"
+                  />
+                </div>
+              </label>
+            ))}
+          </div>
+        </EditorControlSection>
+
+        <EditorControlSection
+          title="Typography"
+          open={openSection === "typography"}
+          onOpenChange={(open) => setOpenSection(open ? "typography" : "")}
+        >
+          <p className="text-xs leading-5 text-ink-soft">
+            Headings and body text. Leave on template default to keep the design&apos;s standard fonts.
+          </p>
+          <div className="mt-3 space-y-2">
+            <div className="text-xs font-medium text-ink-soft">Display font (headings)</div>
+            <StyleOptionButton
+              active={!displayFontKey}
+              title="Template default"
+              onClick={() => setDisplayFont(null)}
+            />
+            {Object.entries(STOREFRONT_FONT_OPTIONS).map(([key, option]) => (
+              <StyleOptionButton
+                key={key}
+                active={displayFontKey === key}
+                title={option.label}
+                description={option.description}
+                onClick={() => setDisplayFont(key)}
+              />
+            ))}
+          </div>
+          <div className="mt-4 space-y-2">
+            <div className="text-xs font-medium text-ink-soft">Body font</div>
+            <StyleOptionButton
+              active={!bodyFontKey}
+              title="Template default"
+              onClick={() => setBodyFont(null)}
+            />
+            {(Object.keys(STOREFRONT_BODY_FONT_OPTIONS) as StorefrontThemeBodyFont[]).map(
+              (key) => {
+                const option = STOREFRONT_BODY_FONT_OPTIONS[key];
+                return (
+                  <StyleOptionButton
+                    key={key}
+                    active={bodyFontKey === key}
+                    title={option.label}
+                    description={option.description}
+                    onClick={() => setBodyFont(key)}
+                  />
+                );
+              },
+            )}
+          </div>
+        </EditorControlSection>
+
+        <EditorControlSection
+          title="Style"
+          open={openSection === "style"}
+          onOpenChange={(open) => setOpenSection(open ? "style" : "")}
+        >
+          <p className="text-xs leading-5 text-ink-soft">
+            Fine-tune buttons and spacing without changing the template layout.
+          </p>
+          {hasStyleOverrides ? (
+            <button
+              type="button"
+              onClick={resetStyleToTemplateDefault}
+              className="mt-3 w-full rounded-lg border border-border px-3 py-2 text-left text-sm font-semibold transition hover:border-ink/30"
+            >
+              Reset style to template default
+            </button>
+          ) : null}
+
+          <div className="mt-4 space-y-2">
+            <div className="text-xs font-medium text-ink-soft">Button shape</div>
+            <StyleOptionButton
+              active={!buttonStyle}
+              title="Template default"
+              onClick={() => setButtonStyle(null)}
+            />
+            {(
+              [
+                { value: "rounded" as const, title: "Rounded", description: "Soft corners" },
+                { value: "square" as const, title: "Square", description: "Sharp edges" },
+                { value: "pill" as const, title: "Pill", description: "Fully rounded" },
+              ] as const
+            ).map((option) => (
+              <StyleOptionButton
+                key={option.value}
+                active={buttonStyle === option.value}
+                title={option.title}
+                description={option.description}
+                onClick={() => setButtonStyle(option.value)}
+              />
+            ))}
+          </div>
+
+          <div className="mt-4 space-y-2">
+            <div className="text-xs font-medium text-ink-soft">Button radius</div>
+            <StyleOptionButton
+              active={!buttonRadius}
+              title="Template default"
+              onClick={() => setButtonRadius(null)}
+            />
+            {(
+              [
+                { value: "none" as const, title: "None" },
+                { value: "md" as const, title: "Medium" },
+                { value: "full" as const, title: "Full" },
+              ] as const
+            ).map((option) => (
+              <StyleOptionButton
+                key={option.value}
+                active={buttonRadius === option.value}
+                title={option.title}
+                onClick={() => setButtonRadius(option.value)}
+              />
+            ))}
+          </div>
+
+          <div className="mt-4 space-y-2">
+            <div className="text-xs font-medium text-ink-soft">Density</div>
+            <StyleOptionButton
+              active={!density}
+              title="Template default"
+              onClick={() => setDensity(null)}
+            />
+            {(
+              [
+                {
+                  value: "compact" as const,
+                  title: "Compact",
+                  description: "Tighter spacing, denser product grid",
+                },
+                {
+                  value: "airy" as const,
+                  title: "Airy",
+                  description: "More breathing room, wider product cards",
+                },
+              ] as const
+            ).map((option) => (
+              <StyleOptionButton
+                key={option.value}
+                active={density === option.value}
+                title={option.title}
+                description={option.description}
+                onClick={() => setDensity(option.value)}
+              />
+            ))}
+          </div>
+        </EditorControlSection>
+
+        <EditorControlSection
+          title="Images"
+          open={openSection === "images"}
+          onOpenChange={(open) => setOpenSection(open ? "images" : "")}
+        >
+          <p className="text-xs leading-5 text-ink-soft">
+            Double-click any image in the preview to upload a replacement. The Minimalistic hero
+            also accepts video (MP4, WebM, MOV). Product, hero, about, and category media update
+            instantly in the draft.
+          </p>
+        </EditorControlSection>
+
+        <EditorControlSection
+          title="Product data plug"
+          open={openSection === "product-data-plug"}
+          onOpenChange={(open) => setOpenSection(open ? "product-data-plug" : "")}
+        >
+          <p className="text-xs leading-5 text-ink-soft">
+            Choose what the homepage product section should plug into.
+          </p>
+          <div className="mt-3 space-y-2">
+            {[
+              {
+                value: "merchant_products",
+                title: "Customer products",
+                body: "Use products added to this storefront, with theme products filling empty slots.",
+              },
+              {
+                value: "theme_products",
+                title: "Theme products",
+                body: "Use the selected design's curated demo products for this section.",
+              },
+            ].map((option) => {
+              const active = getProductPlugSource(draft) === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() =>
+                    updateDraftField("data_plugs.home_products_source", option.value)
+                  }
+                  className={`w-full rounded-lg border px-3 py-2 text-left text-sm transition ${
+                    active ? "border-primary bg-primary/5" : "border-border hover:border-ink/30"
+                  }`}
+                >
+                  <div className="font-semibold">{option.title}</div>
+                  <div className="text-xs leading-5 text-ink-soft">{option.body}</div>
+                </button>
+              );
+            })}
+          </div>
+        </EditorControlSection>
+
+        <EditorControlSection
+          title="SEO"
+          open={openSection === "seo"}
+          onOpenChange={(open) => setOpenSection(open ? "seo" : "")}
+        >
+          <label className="block text-xs font-medium text-ink-soft">
+            Page title
+            <input
+              value={draft.seo.title}
+              onChange={(event) =>
+                setDraft((current) => ({
+                  ...current,
+                  seo: { ...current.seo, title: event.target.value },
+                }))
+              }
+              className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+            />
+          </label>
+          <label className="mt-3 block text-xs font-medium text-ink-soft">
+            Meta description
+            <textarea
+              value={draft.seo.description}
+              rows={3}
+              onChange={(event) =>
+                setDraft((current) => ({
+                  ...current,
+                  seo: { ...current.seo, description: event.target.value },
+                }))
+              }
+              className="mt-1 w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-sm"
+            />
+          </label>
+        </EditorControlSection>
+
+        {draft.pages?.contact ? (
+          <EditorControlSection
+            title="Contact details"
+            open={openSection === "contact-details"}
+            onOpenChange={(open) => setOpenSection(open ? "contact-details" : "")}
+          >
+            <label className="block text-xs font-medium text-ink-soft">
+              Email
+              <input
+                value={draft.pages.contact.email ?? ""}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    pages: {
+                      ...current.pages!,
+                      contact: {
+                        ...current.pages!.contact!,
+                        email: event.target.value || null,
+                        source: "merchant",
+                      },
+                    },
+                  }))
+                }
+                className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+              />
+            </label>
+            <label className="mt-3 block text-xs font-medium text-ink-soft">
+              Phone
+              <input
+                value={draft.pages.contact.phone ?? ""}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    pages: {
+                      ...current.pages!,
+                      contact: {
+                        ...current.pages!.contact!,
+                        phone: event.target.value || null,
+                        source: "merchant",
+                      },
+                    },
+                  }))
+                }
+                className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+              />
+            </label>
+          </EditorControlSection>
+        ) : null}
+      </>
+    );
+  }
+
   return (
-    <div className="rounded-2xl border border-border bg-card shadow-soft">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-4 sm:px-6">
+    <div className="relative rounded-2xl border border-border bg-card shadow-soft">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-3 sm:px-6 sm:py-4">
         <div>
-          <div className="text-xs font-medium uppercase tracking-wide text-ink-soft">
+          <div className="text-[10px] font-medium uppercase tracking-wide text-ink-soft sm:text-xs">
             Visual editor
           </div>
-          <h2 className="font-display text-xl font-bold">Edit your storefront</h2>
+          <h2 className="font-display text-lg font-bold sm:text-xl">Edit your storefront</h2>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <span
@@ -419,53 +839,54 @@ export function VisualStorefrontEditor({
         </div>
       </div>
 
-      <div className="grid gap-6 p-4 sm:p-6 xl:grid-cols-[minmax(0,1fr)_280px]">
-        <div className="space-y-4">
+      <div className="grid gap-4 p-3 sm:gap-6 sm:p-6 xl:grid-cols-[minmax(0,1fr)_280px]">
+        <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
-            {EDITOR_PAGES.map((page) => (
+            <div className="flex flex-wrap items-center gap-1.5">
+              {EDITOR_PAGES.map((page) => (
+                <button
+                  key={page.id}
+                  type="button"
+                  onClick={() => handlePageChange(page.id)}
+                  className={`rounded-md px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide transition ${
+                    activePage === page.id
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-secondary text-ink-soft hover:text-ink"
+                  }`}
+                >
+                  {page.label}
+                </button>
+              ))}
+            </div>
+            <div className="ml-auto flex items-center gap-1 rounded-md border border-border p-0.5">
               <button
-                key={page.id}
                 type="button"
-                onClick={() => handlePageChange(page.id)}
-                className={`rounded-full px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition ${
-                  activePage === page.id
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-secondary text-ink-soft hover:text-ink"
-                }`}
+                onClick={() => setViewport("desktop")}
+                className={`grid h-7 w-7 place-items-center rounded ${viewport === "desktop" ? "bg-primary/10 text-primary" : "text-ink-soft hover:text-ink"}`}
+                aria-label="Desktop preview"
               >
-                {page.label}
+                <Monitor className="h-3.5 w-3.5" />
               </button>
-            ))}
+              <button
+                type="button"
+                onClick={() => setViewport("tablet")}
+                className={`grid h-7 w-7 place-items-center rounded ${viewport === "tablet" ? "bg-primary/10 text-primary" : "text-ink-soft hover:text-ink"}`}
+                aria-label="Tablet preview"
+              >
+                <Tablet className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewport("mobile")}
+                className={`grid h-7 w-7 place-items-center rounded ${viewport === "mobile" ? "bg-primary/10 text-primary" : "text-ink-soft hover:text-ink"}`}
+                aria-label="Mobile preview"
+              >
+                <Smartphone className="h-3.5 w-3.5" />
+              </button>
+            </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setViewport("desktop")}
-              className={`grid h-9 w-9 place-items-center rounded-md border ${viewport === "desktop" ? "border-primary bg-primary/10" : "border-border"}`}
-              aria-label="Desktop preview"
-            >
-              <Monitor className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewport("tablet")}
-              className={`grid h-9 w-9 place-items-center rounded-md border ${viewport === "tablet" ? "border-primary bg-primary/10" : "border-border"}`}
-              aria-label="Tablet preview"
-            >
-              <Tablet className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewport("mobile")}
-              className={`grid h-9 w-9 place-items-center rounded-md border ${viewport === "mobile" ? "border-primary bg-primary/10" : "border-border"}`}
-              aria-label="Mobile preview"
-            >
-              <Smartphone className="h-4 w-4" />
-            </button>
-          </div>
-
-          <div className={`mx-auto transition-all ${viewportClass}`}>
+          <DevicePreviewFrame viewport={viewport}>
             <StorefrontEditorCanvas
               store={store}
               draft={draft}
@@ -475,397 +896,45 @@ export function VisualStorefrontEditor({
               activePage={activePage}
               onDraftChange={setDraft}
               selectedBlock={selectedBlock}
-              onSelectBlock={setSelectedBlock}
+              onSelectBlock={handleSelectBlock}
+              constrainHeight={viewport === "desktop"}
             />
-          </div>
+          </DevicePreviewFrame>
         </div>
 
-        <aside className="space-y-3">
-          <BlockEditorPanel
-            draft={draft}
-            activePage={activePage}
-            selectedBlock={selectedBlock}
-            onClose={() => setSelectedBlock(null)}
-            onUpdateProp={handleBlockPropChange}
-            onReorder={handleBlockReorder}
-          />
-
-          <EditorControlSection
-            title="Template style"
-            open={openSection === "template-style"}
-            onOpenChange={(open) => setOpenSection(open ? "template-style" : "")}
-          >
-            <div className="space-y-2">
-              {concreteTemplateOptions.map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => selectTemplate(option.value)}
-                  className={`w-full rounded-lg border px-3 py-2 text-left text-sm transition ${
-                    templateId === option.value
-                      ? "border-primary bg-primary/5"
-                      : "border-border hover:border-ink/30"
-                  }`}
-                >
-                  <div className="font-semibold">{option.label}</div>
-                  <div className="text-xs text-ink-soft">
-                    {option.bestFor} · {STOREFRONT_THEME_PRESETS[option.value].brandColor}
-                  </div>
-                </button>
-              ))}
-            </div>
-          </EditorControlSection>
-
-          <EditorControlSection
-            title="Color palette"
-            open={openSection === "color-palette"}
-            onOpenChange={(open) => setOpenSection(open ? "color-palette" : "")}
-          >
-            <p className="text-xs leading-5 text-ink-soft">
-              Pick a suggested palette, then fine-tune any color.
-            </p>
-            <div className="mt-3 space-y-2">
-              <button
-                type="button"
-                onClick={() => setPalette(getDefaultStorefrontPalette(templateId))}
-                className="w-full rounded-lg border border-border px-3 py-2 text-left text-sm transition hover:border-ink/30"
-              >
-                <div className="font-semibold">Template default</div>
-                <div className="mt-2 flex gap-1">
-                  {Object.values(getDefaultStorefrontPalette(templateId)).map((color) => (
-                    <span
-                      key={color}
-                      className="h-5 flex-1 rounded"
-                      style={{ backgroundColor: color }}
-                    />
-                  ))}
-                </div>
-              </button>
-              {STOREFRONT_PALETTE_PRESETS.map((preset) => (
-                <button
-                  key={preset.id}
-                  type="button"
-                  onClick={() => setPalette(preset.palette)}
-                  className="w-full rounded-lg border border-border px-3 py-2 text-left text-sm transition hover:border-ink/30"
-                >
-                  <div className="font-semibold">{preset.label}</div>
-                  <div className="mt-2 flex gap-1">
-                    {Object.values(preset.palette).map((color) => (
-                      <span
-                        key={color}
-                        className="h-5 flex-1 rounded"
-                        style={{ backgroundColor: color }}
-                      />
-                    ))}
-                  </div>
-                </button>
-              ))}
-            </div>
-            <div className="mt-4 space-y-3">
-              {PALETTE_FIELDS.map((field) => (
-                <label key={field.key} className="block text-xs font-medium text-ink-soft">
-                  {field.label}
-                  <div className="mt-1 flex items-center gap-2">
-                    <input
-                      type="color"
-                      value={palette[field.key]}
-                      onChange={(event) => updatePaletteColor(field.key, event.target.value)}
-                      className="h-9 w-12 cursor-pointer rounded-md border border-border bg-background p-1"
-                    />
-                    <input
-                      value={palette[field.key]}
-                      onChange={(event) => updatePaletteColor(field.key, event.target.value)}
-                      className="h-9 min-w-0 flex-1 rounded-md border border-border bg-background px-2 font-mono text-xs uppercase"
-                    />
-                  </div>
-                </label>
-              ))}
-            </div>
-          </EditorControlSection>
-
-          <EditorControlSection
-            title="Typography"
-            open={openSection === "typography"}
-            onOpenChange={(open) => setOpenSection(open ? "typography" : "")}
-          >
-            <p className="text-xs leading-5 text-ink-soft">
-              Headings and body text. Leave on template default to keep the design&apos;s standard fonts.
-            </p>
-            <div className="mt-3 space-y-2">
-              <div className="text-xs font-medium text-ink-soft">Display font (headings)</div>
-              <StyleOptionButton
-                active={!displayFontKey}
-                title="Template default"
-                onClick={() => setDisplayFont(null)}
-              />
-              {Object.entries(STOREFRONT_FONT_OPTIONS).map(([key, option]) => (
-                <StyleOptionButton
-                  key={key}
-                  active={displayFontKey === key}
-                  title={option.label}
-                  description={option.description}
-                  onClick={() => setDisplayFont(key)}
-                />
-              ))}
-            </div>
-            <div className="mt-4 space-y-2">
-              <div className="text-xs font-medium text-ink-soft">Body font</div>
-              <StyleOptionButton
-                active={!bodyFontKey}
-                title="Template default"
-                onClick={() => setBodyFont(null)}
-              />
-              {(Object.keys(STOREFRONT_BODY_FONT_OPTIONS) as StorefrontThemeBodyFont[]).map(
-                (key) => {
-                  const option = STOREFRONT_BODY_FONT_OPTIONS[key];
-                  return (
-                    <StyleOptionButton
-                      key={key}
-                      active={bodyFontKey === key}
-                      title={option.label}
-                      description={option.description}
-                      onClick={() => setBodyFont(key)}
-                    />
-                  );
-                },
-              )}
-            </div>
-          </EditorControlSection>
-
-          <EditorControlSection
-            title="Style"
-            open={openSection === "style"}
-            onOpenChange={(open) => setOpenSection(open ? "style" : "")}
-          >
-            <p className="text-xs leading-5 text-ink-soft">
-              Fine-tune buttons and spacing without changing the template layout.
-            </p>
-            {hasStyleOverrides ? (
-              <button
-                type="button"
-                onClick={resetStyleToTemplateDefault}
-                className="mt-3 w-full rounded-lg border border-border px-3 py-2 text-left text-sm font-semibold transition hover:border-ink/30"
-              >
-                Reset style to template default
-              </button>
-            ) : null}
-
-            <div className="mt-4 space-y-2">
-              <div className="text-xs font-medium text-ink-soft">Button shape</div>
-              <StyleOptionButton
-                active={!buttonStyle}
-                title="Template default"
-                onClick={() => setButtonStyle(null)}
-              />
-              {(
-                [
-                  { value: "rounded" as const, title: "Rounded", description: "Soft corners" },
-                  { value: "square" as const, title: "Square", description: "Sharp edges" },
-                  { value: "pill" as const, title: "Pill", description: "Fully rounded" },
-                ] as const
-              ).map((option) => (
-                <StyleOptionButton
-                  key={option.value}
-                  active={buttonStyle === option.value}
-                  title={option.title}
-                  description={option.description}
-                  onClick={() => setButtonStyle(option.value)}
-                />
-              ))}
-            </div>
-
-            <div className="mt-4 space-y-2">
-              <div className="text-xs font-medium text-ink-soft">Button radius</div>
-              <StyleOptionButton
-                active={!buttonRadius}
-                title="Template default"
-                onClick={() => setButtonRadius(null)}
-              />
-              {(
-                [
-                  { value: "none" as const, title: "None" },
-                  { value: "md" as const, title: "Medium" },
-                  { value: "full" as const, title: "Full" },
-                ] as const
-              ).map((option) => (
-                <StyleOptionButton
-                  key={option.value}
-                  active={buttonRadius === option.value}
-                  title={option.title}
-                  onClick={() => setButtonRadius(option.value)}
-                />
-              ))}
-            </div>
-
-            <div className="mt-4 space-y-2">
-              <div className="text-xs font-medium text-ink-soft">Density</div>
-              <StyleOptionButton
-                active={!density}
-                title="Template default"
-                onClick={() => setDensity(null)}
-              />
-              {(
-                [
-                  {
-                    value: "compact" as const,
-                    title: "Compact",
-                    description: "Tighter spacing, denser product grid",
-                  },
-                  {
-                    value: "airy" as const,
-                    title: "Airy",
-                    description: "More breathing room, wider product cards",
-                  },
-                ] as const
-              ).map((option) => (
-                <StyleOptionButton
-                  key={option.value}
-                  active={density === option.value}
-                  title={option.title}
-                  description={option.description}
-                  onClick={() => setDensity(option.value)}
-                />
-              ))}
-            </div>
-          </EditorControlSection>
-
-          <EditorControlSection
-            title="Images"
-            open={openSection === "images"}
-            onOpenChange={(open) => setOpenSection(open ? "images" : "")}
-          >
-            <p className="text-xs leading-5 text-ink-soft">
-              Double-click any image in the preview to upload a replacement. The Minimalistic hero
-              also accepts video (MP4, WebM, MOV). Product, hero, about, and category media update
-              instantly in the draft.
-            </p>
-          </EditorControlSection>
-
-          <EditorControlSection
-            title="Product data plug"
-            open={openSection === "product-data-plug"}
-            onOpenChange={(open) => setOpenSection(open ? "product-data-plug" : "")}
-          >
-            <p className="text-xs leading-5 text-ink-soft">
-              Choose what the homepage product section should plug into.
-            </p>
-            <div className="mt-3 space-y-2">
-              {[
-                {
-                  value: "merchant_products",
-                  title: "Customer products",
-                  body: "Use products added to this storefront, with theme products filling empty slots.",
-                },
-                {
-                  value: "theme_products",
-                  title: "Theme products",
-                  body: "Use the selected design's curated demo products for this section.",
-                },
-              ].map((option) => {
-                const active = getProductPlugSource(draft) === option.value;
-                return (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() =>
-                      updateDraftField("data_plugs.home_products_source", option.value)
-                    }
-                    className={`w-full rounded-lg border px-3 py-2 text-left text-sm transition ${
-                      active ? "border-primary bg-primary/5" : "border-border hover:border-ink/30"
-                    }`}
-                  >
-                    <div className="font-semibold">{option.title}</div>
-                    <div className="text-xs leading-5 text-ink-soft">{option.body}</div>
-                  </button>
-                );
-              })}
-            </div>
-          </EditorControlSection>
-
-          <EditorControlSection
-            title="SEO"
-            open={openSection === "seo"}
-            onOpenChange={(open) => setOpenSection(open ? "seo" : "")}
-          >
-            <label className="block text-xs font-medium text-ink-soft">
-              Page title
-              <input
-                value={draft.seo.title}
-                onChange={(event) =>
-                  setDraft((current) => ({
-                    ...current,
-                    seo: { ...current.seo, title: event.target.value },
-                  }))
-                }
-                className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
-              />
-            </label>
-            <label className="mt-3 block text-xs font-medium text-ink-soft">
-              Meta description
-              <textarea
-                value={draft.seo.description}
-                rows={3}
-                onChange={(event) =>
-                  setDraft((current) => ({
-                    ...current,
-                    seo: { ...current.seo, description: event.target.value },
-                  }))
-                }
-                className="mt-1 w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-sm"
-              />
-            </label>
-          </EditorControlSection>
-
-          {draft.pages?.contact ? (
-            <EditorControlSection
-              title="Contact details"
-              open={openSection === "contact-details"}
-              onOpenChange={(open) => setOpenSection(open ? "contact-details" : "")}
-            >
-              <label className="block text-xs font-medium text-ink-soft">
-                Email
-                <input
-                  value={draft.pages.contact.email ?? ""}
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      pages: {
-                        ...current.pages!,
-                        contact: {
-                          ...current.pages!.contact!,
-                          email: event.target.value || null,
-                          source: "merchant",
-                        },
-                      },
-                    }))
-                  }
-                  className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
-                />
-              </label>
-              <label className="mt-3 block text-xs font-medium text-ink-soft">
-                Phone
-                <input
-                  value={draft.pages.contact.phone ?? ""}
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      pages: {
-                        ...current.pages!,
-                        contact: {
-                          ...current.pages!.contact!,
-                          phone: event.target.value || null,
-                          source: "merchant",
-                        },
-                      },
-                    }))
-                  }
-                  className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
-                />
-              </label>
-            </EditorControlSection>
-          ) : null}
-        </aside>
+        <aside className="hidden space-y-3 xl:block">{renderEditorControls()}</aside>
       </div>
+
+      <button
+        type="button"
+        onClick={() => setControlsOpen(true)}
+        className={`fixed bottom-5 right-4 z-40 inline-flex items-center gap-2 rounded-full bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground shadow-elevated xl:hidden ${
+          controlsOpen ? "pointer-events-none opacity-0" : ""
+        }`}
+        aria-label="Open design controls"
+        aria-hidden={controlsOpen}
+        tabIndex={controlsOpen ? -1 : 0}
+      >
+        <PanelRight className="h-4 w-4" />
+        Customize
+      </button>
+
+      <Sheet open={controlsOpen} onOpenChange={setControlsOpen}>
+        <SheetContent
+          side="right"
+          className="flex w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-md"
+        >
+          <SheetHeader className="shrink-0 border-b border-border px-5 py-4 pr-12 text-left">
+            <SheetTitle>Customize</SheetTitle>
+            <SheetDescription>
+              Template, colors, typography, and storefront settings.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
+            {renderEditorControls()}
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

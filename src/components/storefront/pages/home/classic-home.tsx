@@ -77,14 +77,14 @@ export function ClassicHome({
             path="hero.headline"
             value={storefront.hero.headline}
             as="h1"
-            className={`mt-4 w-full text-4xl font-bold tracking-tight sm:text-5xl ${isBoldGrid ? "sm:text-6xl" : ""}`}
+            className={`mt-4 w-full text-[1.75rem] font-bold leading-tight tracking-tight sm:text-5xl ${isBoldGrid ? "sm:text-6xl" : ""}`}
             style={{ fontFamily: theme.displayFont }}
           />
           <EditableText
             path="hero.subheadline"
             value={storefront.hero.subheadline}
             as="p"
-            className="mt-4 w-full text-lg"
+            className="mt-3 w-full text-base sm:mt-4 sm:text-lg"
             style={{ color: theme.palette.muted }}
             multiline
           />

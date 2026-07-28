@@ -43,6 +43,8 @@ type StorefrontEditorCanvasProps = {
   readOnly?: boolean;
   selectedBlock?: SelectedBlockRef | null;
   onSelectBlock?: (selection: SelectedBlockRef | null) => void;
+  /** When false, parent (e.g. device iframe) owns scrolling. */
+  constrainHeight?: boolean;
 };
 
 export function StorefrontEditorCanvas({
@@ -56,6 +58,7 @@ export function StorefrontEditorCanvas({
   readOnly = false,
   selectedBlock = null,
   onSelectBlock,
+  constrainHeight = true,
 }: StorefrontEditorCanvasProps) {
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
 
@@ -149,20 +152,20 @@ export function StorefrontEditorCanvas({
 
   return (
     <div className="overflow-hidden rounded-2xl border border-border bg-canvas shadow-elevated">
-      <div className="flex items-center gap-2 border-b border-border bg-secondary px-4 py-2.5">
+      <div className="flex items-center gap-2 border-b border-border bg-secondary px-3 py-2 sm:px-4 sm:py-2.5">
         <span className="h-2.5 w-2.5 rounded-full bg-destructive/70" />
         <span className="h-2.5 w-2.5 rounded-full bg-accent/80" />
         <span className="h-2.5 w-2.5 rounded-full bg-primary/70" />
-        <span className="ml-3 truncate rounded bg-card px-3 py-1 text-xs text-ink-soft">
+        <span className="ml-2 min-w-0 flex-1 truncate rounded bg-card px-2.5 py-1 text-[11px] text-ink-soft sm:ml-3 sm:px-3 sm:text-xs">
           {getStorefrontUrl(store.slug)}
         </span>
         {!readOnly ? (
-          <span className="ml-auto text-[10px] font-semibold uppercase tracking-wide text-primary">
+          <span className="hidden text-[10px] font-semibold uppercase tracking-wide text-primary sm:inline">
             Click section labels or text to edit
           </span>
         ) : null}
       </div>
-      <div className="max-h-[72vh] overflow-y-auto">
+      <div className={constrainHeight ? "max-h-[72vh] overflow-y-auto" : undefined}>
         <StorefrontProvider value={previewData}>
           <StorefrontThemeProvider
             theme={theme}

@@ -329,7 +329,7 @@ function FashionProductsPage({
         style={{ backgroundColor: theme.palette.surface }}
       >
         <h1
-          className="text-4xl font-bold tracking-[-0.04em] sm:text-5xl"
+          className="text-[1.75rem] font-bold tracking-[-0.04em] sm:text-5xl"
           style={{ fontFamily: "var(--font-editorial)" }}
         >
           All Products
@@ -602,7 +602,7 @@ function BeautyProductsPage({
         <p className="text-xs font-semibold uppercase tracking-[0.22em]" style={{ color: theme.palette.muted }}>
           {isCosmetics ? "Cosmetics catalog" : "Beauty catalog"}
         </p>
-        <h1 className="mx-auto mt-3 max-w-3xl font-display text-5xl font-semibold leading-none tracking-[-0.055em] sm:text-6xl">
+        <h1 className="mx-auto mt-3 max-w-3xl font-display text-[1.85rem] font-semibold leading-[1.05] tracking-[-0.045em] sm:text-6xl sm:leading-none sm:tracking-[-0.055em]">
           {isCosmetics ? "Shop the skincare edit" : "Shop the beauty edit"}
         </h1>
         <p className="mx-auto mt-5 max-w-xl text-sm leading-6" style={{ color: theme.palette.muted }}>

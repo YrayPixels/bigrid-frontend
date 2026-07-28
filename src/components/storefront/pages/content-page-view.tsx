@@ -29,10 +29,10 @@ export function ContentPageView({
               path={titlePath}
               value={title}
               as="h1"
-              className="mx-auto mt-3 max-w-3xl font-display text-5xl font-semibold leading-none tracking-[-0.055em] sm:text-6xl"
+              className="mx-auto mt-3 max-w-3xl font-display text-[1.85rem] font-semibold leading-[1.05] tracking-[-0.045em] sm:text-6xl sm:leading-none sm:tracking-[-0.055em]"
             />
           ) : (
-            <h1 className="mx-auto mt-3 max-w-3xl font-display text-5xl font-semibold leading-none tracking-[-0.055em] sm:text-6xl">
+            <h1 className="mx-auto mt-3 max-w-3xl font-display text-[1.85rem] font-semibold leading-[1.05] tracking-[-0.045em] sm:text-6xl sm:leading-none sm:tracking-[-0.055em]">
               {title}
             </h1>
           )}

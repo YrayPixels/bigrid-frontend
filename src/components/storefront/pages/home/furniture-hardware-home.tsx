@@ -172,7 +172,7 @@ export function FurnitureHardwareHome({
                   path="hero.headline"
                   value={storefront.hero.headline}
                   as="h1"
-                  className="whitespace-pre-line text-[15vw] font-bold leading-[0.9] md:text-[6.5rem] lg:text-[8rem]"
+                  className="whitespace-pre-line text-[clamp(2.25rem,11vw,8rem)] font-bold leading-[0.9] md:text-[6.5rem] lg:text-[8rem]"
                 />
                 <EditableText
                   path="hero.subheadline"
