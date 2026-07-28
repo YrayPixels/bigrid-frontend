@@ -93,8 +93,13 @@ export function getToken(): string | null {
 
 export function setToken(token: string | null) {
   if (typeof window === "undefined") return;
-  if (token) window.localStorage.setItem(TOKEN_KEY, token);
-  else window.localStorage.removeItem(TOKEN_KEY);
+  if (token) {
+    window.localStorage.setItem(TOKEN_KEY, token);
+    document.cookie = "storehaus_auth_present=1; path=/; max-age=31536000; SameSite=Lax";
+  } else {
+    window.localStorage.removeItem(TOKEN_KEY);
+    document.cookie = "storehaus_auth_present=; path=/; max-age=0";
+  }
 }
 
 function emitLogoutEvent() {
@@ -264,6 +269,16 @@ export const api = {
     if (USE_MOCKS) return mockApi.resendEmailVerification(token);
     return http<{ message: string; user?: User }>(`${STOREHAUSE_API_PREFIX}/auth/resend-email-verification`, {
       method: "POST",
+    });
+  },
+
+  async exchangeAuthCode(code: string): Promise<{ token: string; user: User }> {
+    if (USE_MOCKS) {
+      throw new Error("Exchange code not supported in mock mode");
+    }
+    return http<{ token: string; user: User }>(`${STOREHAUSE_API_PREFIX}/auth/exchange-code`, {
+      method: "POST",
+      body: JSON.stringify({ code }),
     });
   },
 

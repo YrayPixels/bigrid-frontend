@@ -35,6 +35,16 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Admin route protection
+  if (pathname.startsWith("/admin")) {
+    const authPresent = request.cookies.get("storehaus_auth_present")?.value;
+    if (!authPresent) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/login";
+      return NextResponse.redirect(url);
+    }
+  }
+
   if (!isCodeWorkbenchEnabled() && isWorkbenchPath(pathname)) {
     const url = request.nextUrl.clone();
     url.pathname = "/admin/website";

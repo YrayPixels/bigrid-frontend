@@ -259,6 +259,13 @@ async function searchUnsplashPhotosViaProxy(
   if (!trimmed) return [];
 
   try {
+    const { getToken } = await import("@/lib/api/client");
+    const token = getToken();
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
     const url = new URL("/api/unsplash/search", window.location.origin);
     url.searchParams.set("query", trimmed);
     url.searchParams.set("count", String(Math.min(Math.max(count, 1), 30)));
@@ -268,6 +275,7 @@ async function searchUnsplashPhotosViaProxy(
 
     const response = await fetch(url.toString(), {
       signal: AbortSignal.timeout(SEARCH_TIMEOUT_MS + 2000),
+      headers: Object.keys(headers).length > 0 ? headers : undefined,
     });
 
     if (!response.ok) {

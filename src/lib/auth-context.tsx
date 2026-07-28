@@ -21,20 +21,42 @@ const Ctx = createContext<AuthCtx | undefined>(undefined);
 
 function AuthCallbackHandler({
   onAuthToken,
+  onAuthCode,
   onImpersonateToken,
+  onImpersonateCode,
   onError,
 }: {
   onAuthToken: (token: string) => void;
+  onAuthCode: (code: string) => void;
   onImpersonateToken: (token: string) => void;
+  onImpersonateCode: (code: string) => void;
   onError: (message: string) => void;
 }) {
   const searchParams = useSearchParams();
   useEffect(() => {
+    const authCode = searchParams.get("auth_code");
+    if (authCode) {
+      onAuthCode(authCode);
+      const url = new URL(window.location.href);
+      url.searchParams.delete("auth_code");
+      window.history.replaceState({}, "", url.pathname + url.search);
+      return;
+    }
+
     const authToken = searchParams.get("auth_token");
     if (authToken) {
       onAuthToken(authToken);
       const url = new URL(window.location.href);
       url.searchParams.delete("auth_token");
+      window.history.replaceState({}, "", url.pathname + url.search);
+      return;
+    }
+
+    const impersonateCode = searchParams.get("impersonate_code");
+    if (impersonateCode) {
+      onImpersonateCode(impersonateCode);
+      const url = new URL(window.location.href);
+      url.searchParams.delete("impersonate_code");
       window.history.replaceState({}, "", url.pathname + url.search);
       return;
     }
@@ -55,7 +77,7 @@ function AuthCallbackHandler({
       url.searchParams.delete("auth_error");
       window.history.replaceState({}, "", url.pathname + url.search);
     }
-  }, [searchParams, onAuthToken, onImpersonateToken, onError]);
+  }, [searchParams, onAuthToken, onAuthCode, onImpersonateToken, onImpersonateCode, onError]);
   return null;
 }
 
@@ -123,6 +145,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const handleAuthCode = async (code: string) => {
+    setLoading(true);
+    try {
+      const result = await api.exchangeAuthCode(code);
+      await handleAuthToken(result.token, false);
+    } catch (err) {
+      setLoading(false);
+      toast.error(err instanceof Error ? err.message : "Could not complete sign-in. Please try again.");
+    }
+  };
+
+  const handleImpersonateCode = async (code: string) => {
+    setLoading(true);
+    try {
+      const result = await api.exchangeAuthCode(code);
+      await handleAuthToken(result.token, true);
+    } catch (err) {
+      setLoading(false);
+      toast.error(err instanceof Error ? err.message : "Could not complete impersonation.");
+    }
+  };
+
   const handleImpersonation = (token: string) => {
     void handleAuthToken(token, true);
   };
@@ -161,7 +205,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       <Suspense fallback={null}>
         <AuthCallbackHandler
           onAuthToken={handleGoogleAuth}
+          onAuthCode={handleAuthCode}
           onImpersonateToken={handleImpersonation}
+          onImpersonateCode={handleImpersonateCode}
           onError={handleAuthError}
         />
       </Suspense>
