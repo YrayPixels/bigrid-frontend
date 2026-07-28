@@ -1,15 +1,14 @@
 import {
   appendMemory,
-  INFORMATIONAL_TOOL_NAMES,
   summarizeToolResult,
 } from "./agentThinking";
 import type { WebsiteBuilderContext, WebsiteBuilderToolDef } from "./types";
 import type { SessionAgent } from "./roles/SessionAgent";
 import type {
   ExecutorChatMessage,
-  ExecutorToolCall,
   OpenAiToolSchema,
 } from "./roles/ExecutorAgent";
+import { SessionManager } from "./roles/SessionManager";
 
 export type BuilderSessionLoopLog = {
   agent: "Session";
@@ -26,184 +25,252 @@ export type BuilderSessionLoopResult = {
   informationalReplies: string[];
 };
 
+type SharedRealtimeSlot = {
+  builderSessionId: string;
+  manager: BuilderSessionManager;
+};
+
+/** One muted Realtime connection shared across merchant messages for a builder session. */
+let sharedRealtime: SharedRealtimeSlot | null = null;
+
+export function stopSharedBuilderRealtimeSession(): void {
+  sharedRealtime?.manager.stop();
+  sharedRealtime = null;
+}
+
+export function getSharedBuilderRealtimeSession(): BuilderSessionManager | null {
+  return sharedRealtime?.manager?.isActive() ? sharedRealtime.manager : null;
+}
+
+export function isSharedBuilderRealtimeActive(builderSessionId?: string): boolean {
+  if (!sharedRealtime?.manager.isActive()) return false;
+  if (builderSessionId && sharedRealtime.builderSessionId !== builderSessionId) return false;
+  return true;
+}
+
 /**
- * Text-only streaming session loop (SessionManager-style, no voice).
- * Streams each model step, executes tools as soon as the step completes, continues.
+ * Owns one muted Realtime SessionManager.
+ * Reused across messages via ensureShared() — open-token only on cold start.
  */
 export class BuilderSessionManager {
+  private readonly session = new SessionManager();
+  private started = false;
+  private toolDefs: WebsiteBuilderToolDef[];
+  private openAiTools: OpenAiToolSchema[];
+  private onLog: (entry: BuilderSessionLoopLog) => void;
+
   constructor(
     private readonly sessionAgent: SessionAgent,
-    private readonly toolDefs: WebsiteBuilderToolDef[],
-    private readonly openAiTools: OpenAiToolSchema[],
-    private readonly onLog: (entry: BuilderSessionLoopLog) => void,
-  ) {}
+    toolDefs: WebsiteBuilderToolDef[],
+    openAiTools: OpenAiToolSchema[],
+    onLog: (entry: BuilderSessionLoopLog) => void,
+  ) {
+    this.toolDefs = toolDefs;
+    this.openAiTools = openAiTools;
+    this.onLog = onLog;
+  }
+
+  /**
+   * Return the shared live session for this builder session id, or create one.
+   * Does not call open-token if an active session already exists for the same id.
+   */
+  static ensureShared(input: {
+    builderSessionId: string;
+    sessionAgent: SessionAgent;
+    toolDefs: WebsiteBuilderToolDef[];
+    openAiTools: OpenAiToolSchema[];
+    onLog: (entry: BuilderSessionLoopLog) => void;
+  }): BuilderSessionManager {
+    const { builderSessionId, sessionAgent, toolDefs, openAiTools, onLog } = input;
+
+    if (
+      sharedRealtime &&
+      sharedRealtime.builderSessionId === builderSessionId &&
+      sharedRealtime.manager.isActive()
+    ) {
+      sharedRealtime.manager.replaceTools(toolDefs, openAiTools);
+      sharedRealtime.manager.setLogHandler(onLog);
+      return sharedRealtime.manager;
+    }
+
+    sharedRealtime?.manager.stop();
+    const manager = new BuilderSessionManager(sessionAgent, toolDefs, openAiTools, onLog);
+    sharedRealtime = { builderSessionId, manager };
+    return manager;
+  }
+
+  isActive(): boolean {
+    return this.started && this.session.isActive();
+  }
+
+  setLogHandler(onLog: (entry: BuilderSessionLoopLog) => void) {
+    this.onLog = onLog;
+  }
+
+  replaceTools(toolDefs: WebsiteBuilderToolDef[], openAiTools: OpenAiToolSchema[]) {
+    this.toolDefs = toolDefs;
+    this.openAiTools = openAiTools;
+  }
+
+  private resolveInstructions(
+    messages: ExecutorChatMessage[],
+    foldTrailingUser: boolean,
+  ): {
+    instructions: string;
+    history: Array<{ role: "user" | "assistant"; content: string }>;
+  } {
+    const systemMessage = messages.find((entry) => entry.role === "system");
+    const instructions =
+      systemMessage && "content" in systemMessage && typeof systemMessage.content === "string"
+        ? systemMessage.content
+        : this.sessionAgent.systemPrompt;
+
+    const conversation = messages
+      .filter(
+        (entry): entry is { role: "user" | "assistant"; content: string } =>
+          (entry.role === "user" || entry.role === "assistant") &&
+          typeof entry.content === "string" &&
+          entry.content.trim().length > 0,
+      )
+      .map((entry) => ({
+        role: entry.role,
+        content: entry.content,
+      }));
+
+    // When messages end with the current user turn, drop it from the folded history.
+    const history = foldTrailingUser ? conversation.slice(0, -1) : conversation;
+
+    return { instructions, history };
+  }
+
+  async start(input: {
+    messages: ExecutorChatMessage[];
+    /** When true (default), last user/assistant message is the current turn and is not folded into instructions. */
+    foldTrailingUser?: boolean;
+  }): Promise<void> {
+    const foldTrailingUser = input.foldTrailingUser !== false;
+    const { instructions, history } = this.resolveInstructions(input.messages, foldTrailingUser);
+    const logBridge = (entry: {
+      phase: BuilderSessionLoopLog["phase"];
+      title: string;
+      detail?: string;
+      data?: Record<string, unknown>;
+    }) =>
+      this.onLog({
+        agent: "Session",
+        phase: entry.phase,
+        title: entry.title,
+        detail: entry.detail,
+        data: entry.data,
+      });
+
+    if (this.isActive()) {
+      // Live session: refresh tools/instructions only — no open-token.
+      await this.session.refreshConfig({
+        instructions,
+        toolDefs: this.toolDefs,
+        openAiTools: this.openAiTools,
+        onLog: logBridge,
+      });
+      return;
+    }
+
+    this.onLog({
+      agent: "Session",
+      phase: "start",
+      title: "Starting muted Realtime session",
+    });
+
+    await this.session.startSession({
+      instructions,
+      toolDefs: this.toolDefs,
+      openAiTools: this.openAiTools,
+      history,
+      onLog: logBridge,
+    });
+
+    this.started = true;
+  }
 
   async runLoop(input: {
     messages: ExecutorChatMessage[];
     ctx: WebsiteBuilderContext;
     retryHint?: string;
-    maxIterations?: number;
   }): Promise<BuilderSessionLoopResult> {
-    const { messages, ctx, retryHint, maxIterations = 8 } = input;
-    let memory: string[] = [];
-    const toolCallsLog: Array<{ name: string; arguments: Record<string, unknown> }> = [];
-    const toolResultsLog: Array<Record<string, unknown>> = [];
-    const informationalReplies: string[] = [];
-    const announcedToolNames = new Set<string>();
+    const { messages, ctx, retryHint } = input;
+
+    await this.start({ messages });
+
+    let userMessage = ctx.message.trim();
+    if (retryHint?.trim()) {
+      userMessage =
+        `${userMessage}\n\n[internal] Critic feedback — fix this and call the correct tool(s) now:\n${retryHint.trim()}\n` +
+        "Do not apologize. Do not ask permission. Act with tools when possible.";
+    }
 
     this.onLog({
       agent: "Session",
-      phase: "start",
-      title: retryHint ? "Retrying with critic feedback" : "Running streaming session",
-      detail: retryHint?.slice(0, 280) ?? ctx.message.trim().slice(0, 280),
+      phase: "info",
+      title: retryHint ? "Retrying on open Realtime session" : "Sending message on Realtime session",
+      detail: retryHint?.slice(0, 280) ?? userMessage.slice(0, 280),
     });
 
-    for (let iteration = 0; iteration < maxIterations; iteration++) {
-      announcedToolNames.clear();
-      const decision = await this.sessionAgent
-        .runStream({
-          messages,
-          tools: this.openAiTools,
-          retryHint: iteration === 0 ? retryHint : undefined,
-          onToolCallDelta: (partial) => {
-            if (!partial.name || announcedToolNames.has(partial.name)) return;
-            announcedToolNames.add(partial.name);
-            this.onLog({
-              agent: "Session",
-              phase: "info",
-              title: `Streaming tool: ${partial.name}`,
-              detail: "Receiving arguments…",
-            });
-          },
-        })
-        .catch((error) => {
-          this.onLog({
-            agent: "Session",
-            phase: "error",
-            title: "Session agent failed",
-            detail: error instanceof Error ? error.message : "Unknown error",
-          });
-          return null;
-        });
+    try {
+      const turn = await this.session.sendMessage({ userMessage, ctx });
 
-      if (!decision) break;
+      if (turn.prose && !ctx.assistantMessage.trim()) {
+        ctx.assistantMessage = turn.prose;
+      }
 
-      if (!decision.toolCalls.length) {
-        if (decision.prose) ctx.assistantMessage = decision.prose;
-        this.onLog({
-          agent: "Session",
-          phase: "complete",
-          title: "Agent replied without tools",
-          detail: decision.prose.slice(0, 280) || undefined,
-        });
-        if (decision.prose && !ctx.profile.pending_action && !toolCallsLog.length) {
-          // Caller handles pending clarification from prose-only replies.
-        }
-        break;
+      let memory: string[] = [];
+      for (const result of turn.toolResultsLog) {
+        memory = appendMemory(
+          memory,
+          summarizeToolResult(String(result.name ?? "tool"), result),
+        );
       }
 
       this.onLog({
         agent: "Session",
-        phase: "info",
-        title: `Calling ${decision.toolCalls.length} tool(s)`,
-        data: {
-          tool_calls: decision.toolCalls.map((call) => ({
-            name: call.function?.name,
-            arguments: call.function?.arguments,
-          })),
-        },
+        phase: "complete",
+        title: "Session turn finished",
+        detail: `${turn.toolCallsLog.length} tool call(s)`,
       });
 
-      let lastFailedWithMessage = false;
-      for (const toolCall of decision.toolCalls) {
-        const outcome = await this.executeToolCall(toolCall, {
-          messages,
-          ctx,
-          toolCallsLog,
-          toolResultsLog,
-          informationalReplies,
-        });
-        memory = appendMemory(memory, outcome.summary);
-        if (outcome.failedWithMessage) lastFailedWithMessage = true;
+      return {
+        memory,
+        toolCallsLog: turn.toolCallsLog,
+        toolResultsLog: turn.toolResultsLog,
+        informationalReplies: turn.informationalReplies,
+      };
+    } catch (error) {
+      this.onLog({
+        agent: "Session",
+        phase: "error",
+        title: "Realtime turn failed",
+        detail: error instanceof Error ? error.message : "Unknown error",
+      });
+      // Drop the shared slot if the socket died so the next message cold-starts cleanly.
+      if (!this.session.isActive()) {
+        this.started = false;
+        if (sharedRealtime?.manager === this) {
+          sharedRealtime = null;
+        }
       }
-
-      if (lastFailedWithMessage) {
-        this.onLog({
-          agent: "Session",
-          phase: "error",
-          title: "Tool failed — stopping",
-          detail: ctx.assistantMessage.slice(0, 280),
-        });
-        break;
-      }
+      return {
+        memory: [],
+        toolCallsLog: [],
+        toolResultsLog: [],
+        informationalReplies: [],
+      };
     }
-
-    this.onLog({
-      agent: "Session",
-      phase: "complete",
-      title: "Session agent finished",
-      detail: `${toolCallsLog.length} tool call(s)`,
-    });
-
-    return { memory, toolCallsLog, toolResultsLog, informationalReplies };
   }
 
-  private async executeToolCall(
-    toolCall: ExecutorToolCall,
-    state: {
-      messages: ExecutorChatMessage[];
-      ctx: WebsiteBuilderContext;
-      toolCallsLog: Array<{ name: string; arguments: Record<string, unknown> }>;
-      toolResultsLog: Array<Record<string, unknown>>;
-      informationalReplies: string[];
-    },
-  ): Promise<{ summary: string; failedWithMessage: boolean }> {
-    const { messages, ctx, toolCallsLog, toolResultsLog, informationalReplies } = state;
-    const name = toolCall.function?.name;
-    const callId = toolCall.id;
-    if (!name || !callId) {
-      return { summary: "[tool:unknown] skipped", failedWithMessage: false };
+  stop(): void {
+    this.session.stopSession();
+    this.started = false;
+    if (sharedRealtime?.manager === this) {
+      sharedRealtime = null;
     }
-
-    const def = this.toolDefs.find((tool) => tool.name === name);
-    let parsed: Record<string, unknown> = {};
-    try {
-      parsed = toolCall.function.arguments ? JSON.parse(toolCall.function.arguments) : {};
-    } catch {
-      parsed = {};
-    }
-
-    toolCallsLog.push({ name, arguments: parsed });
-
-    if (!def) {
-      messages.push({
-        role: "tool",
-        tool_call_id: callId,
-        content: JSON.stringify({ error: `Unknown tool: ${name}` }),
-      });
-      return { summary: `[tool:${name}] error: unknown tool`, failedWithMessage: false };
-    }
-
-    const result = await def.handler(parsed, ctx);
-    toolResultsLog.push({ name, ...result });
-    messages.push({ role: "tool", tool_call_id: callId, content: JSON.stringify(result) });
-    const summary = summarizeToolResult(name, result);
-
-    if (INFORMATIONAL_TOOL_NAMES.has(name) && ctx.assistantMessage.trim()) {
-      informationalReplies.push(ctx.assistantMessage.trim());
-    }
-
-    this.onLog({
-      agent: "Session",
-      phase: "complete",
-      title: `Tool finished: ${name}`,
-      detail: summary,
-      data: { name, arguments: parsed, result },
-    });
-
-    return {
-      summary,
-      failedWithMessage: result.ok === false && Boolean(ctx.assistantMessage),
-    };
   }
 }

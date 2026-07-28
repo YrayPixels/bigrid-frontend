@@ -100,15 +100,57 @@ export class CriticAgent extends BuilderAgent {
     } = input;
 
     // Deterministic short-circuits before spending an LLM call.
+    if (allowRetry) {
+      const actableRetry = missedActableRequestRetryHint(userText, completedToolNames);
+      if (actableRetry) {
+        return { status: "RETRY", reason: actableRetry };
+      }
+    }
+
     if (completedToolNames.includes("ask_clarifying_question")) {
       return {
         status: "NEED_USER",
         reason: assistantDraft.trim() || "Need a clarifying detail from the merchant.",
       };
     }
-    if (completedToolNames.length > 0 && lastToolSummaries.every((line) => !/\berror\b/i.test(line))) {
-      // Successful tool work usually does not need a critic LLM.
+
+    // Content/design tools can succeed while still missing the request — always review.
+    const needsQualityReview = completedToolNames.some((name) =>
+      QUALITY_REVIEW_TOOLS.has(name),
+    );
+    const allToolsOk =
+      completedToolNames.length > 0 &&
+      lastToolSummaries.every((line) => !/\berror\b/i.test(line));
+
+    if (allToolsOk && !needsQualityReview) {
       return { status: "DONE", reason: "Tools completed successfully." };
+    }
+
+    // FAQ invent/update under-fulfillment: one Q&A pair = 2 paths.
+    if (
+      allowRetry &&
+      completedToolNames.includes("refine_website_copy") &&
+      /\bfaqs?\b/i.test(userText) &&
+      /\b(come up with|invent|generate|update|refresh|rewrite|revise|improve|fix|fit|brand|relevant)\b/i.test(
+        userText,
+      )
+    ) {
+      const pathMatch = lastToolSummaries
+        .find((line) => /refine_website_copy/.test(line))
+        ?.match(/\((\d+)\s+path/);
+      const paths = pathMatch ? Number(pathMatch[1]) : null;
+      if (paths !== null && paths > 0 && paths <= 2) {
+        return {
+          status: "RETRY",
+          reason:
+            "Rewrite the full FAQ section (3–5 Q&As) for this business brand — not a single FAQ item. Use the store business name, never a product name.",
+        };
+      }
+    }
+
+    if (allToolsOk && needsQualityReview && !allowRetry) {
+      // After one retry, accept successful tool runs rather than looping forever.
+      return { status: "DONE", reason: "Tools completed after retry." };
     }
 
     const data = await postChat({
@@ -150,4 +192,132 @@ export class CriticAgent extends BuilderAgent {
 
     return { status: "DONE", reason: "No further action required." };
   }
+}
+
+/** Tools that can return ok while still under-fulfilling the merchant request. */
+const QUALITY_REVIEW_TOOLS = new Set([
+  "refine_website_copy",
+  "switch_design",
+  "generate_website",
+  "design_website",
+  "apply_brand_color",
+  "change_font",
+  "update_theme_style",
+  "replace_template_images",
+  "source_website_images",
+  "generate_product_descriptions",
+  "generate_custom_site",
+  "edit_custom_site_code",
+]);
+
+/**
+ * Merchant asked for an inventable refine (SEO, headline, about, FAQ, colors, photos,
+ * product descriptions) but the agent asked instead of calling the matching tool.
+ */
+export function missedActableRequestRetryHint(
+  userText: string,
+  completedToolNames: string[],
+): string | null {
+  const text = userText.trim();
+  if (!text) return null;
+
+  const onlyMissedAct =
+    completedToolNames.length === 0 ||
+    (completedToolNames.length === 1 && completedToolNames[0] === "ask_clarifying_question");
+  if (!onlyMissedAct) return null;
+
+  const inventVerb =
+    /\b(update|improve|refresh|rewrite|revise|fix|optimize|optimise|polish|make|change|want|source|find|write|different|new)\b/i.test(
+      text,
+    );
+
+  if (
+    (/\bseo\b/i.test(text) ||
+      /\b(search\s+visibility|meta\s+description|search\s+title)\b/i.test(text)) &&
+    (inventVerb || /\bseo\s+title\s+and\s+description\b/i.test(text)) &&
+    !(/\bseo\.(title|description)\b/i.test(text) ||
+      (/\btitle\s*[:=]/i.test(text) && /\bdescription\s*[:=]/i.test(text)))
+  ) {
+    return (
+      "Call refine_website_copy now to rewrite seo.title and seo.description for this business " +
+      "(compelling search title and meta description). Do not ask the merchant for the title or description."
+    );
+  }
+
+  if (/\bheadline\b/i.test(text) && inventVerb) {
+    return (
+      "Call refine_website_copy now to rewrite the homepage headline to be more compelling for this business. " +
+      "Do not ask what the headline should say."
+    );
+  }
+
+  if (/\babout\b/i.test(text) && inventVerb) {
+    return (
+      "Call refine_website_copy now to rewrite the about section for this business brand story. " +
+      "Do not ask what the about copy should say."
+    );
+  }
+
+  if (
+    /\bfaqs?\b/i.test(text) &&
+    /\b(come up with|invent|generate|update|refresh|rewrite|revise|improve|fix|fit|brand|relevant)\b/i.test(
+      text,
+    )
+  ) {
+    return (
+      "Call refine_website_copy now to rewrite ALL FAQ items (3–5 Q&As) for this business brand. " +
+      "Use the store business name, never a product name. Do not ask clarifying questions."
+    );
+  }
+
+  if (
+    /\b(color|colour|palette)\b/i.test(text) &&
+    /\b(different|new|change|update|want|another)\b/i.test(text) &&
+    !/\b(design|layout|look|style|template)\b/i.test(text)
+  ) {
+    return (
+      "Call apply_brand_color now and pick a fresh palette that fits this business. " +
+      "Do not ask which colors they want."
+    );
+  }
+
+  if (
+    /\b(product\s+descriptions?|descriptions?\s+for\s+(?:all\s+)?(?:my\s+)?products?|write\s+compelling\s+descriptions?)\b/i.test(
+      text,
+    ) &&
+    !/\bfor\s+the\s+[a-z0-9][\w\s-]{1,40}\b/i.test(text)
+  ) {
+    return (
+      "Call generate_product_descriptions now for all products. " +
+      "Do not ask which product."
+    );
+  }
+
+  if (
+    /\b(source\s+brand\s+photos?|brand\s+photos?|photo\s+ideas?|find\s+(?:me\s+)?(?:better\s+)?(?:photos?|images?)|better\s+photos?|update\s+(?:the\s+)?(?:images?|photos?))\b/i.test(
+      text,
+    ) &&
+    !/\b(iphone|samsung|sofa|for\s+the\s+)\b/i.test(text)
+  ) {
+    if (/\b(source|ideas?|what\s+photos|brand)\b/i.test(text)) {
+      return (
+        "Call source_website_images now with brand-matched photo suggestions. " +
+        "Do not ask which photos they want first."
+      );
+    }
+    return (
+      "Call replace_template_images now with scope=full_site (or hero if they only mentioned the header). " +
+      "Do not ask which photos first."
+    );
+  }
+
+  return null;
+}
+
+/** @deprecated Prefer missedActableRequestRetryHint */
+export function missedSeoInventRetryHint(
+  userText: string,
+  completedToolNames: string[],
+): string | null {
+  return missedActableRequestRetryHint(userText, completedToolNames);
 }

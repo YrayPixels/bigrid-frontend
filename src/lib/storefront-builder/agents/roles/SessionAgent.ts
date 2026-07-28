@@ -42,7 +42,13 @@ export class SessionAgent extends BuilderAgent {
         "When the merchant names a specific product for a photo update, pass product_name (and scope=products). Never refresh all product photos for one named product.\n" +
         "When the merchant names a specific product for a description update, call generate_product_descriptions with product_name. Never rewrite all descriptions for one named product.\n" +
         "When adding a product and they want a photo, call add_products with find_images=true. If price is missing, ask_clarifying_question for the price first.\n" +
-        "If which product or section is unclear, call ask_clarifying_question instead of guessing.\n" +
+        "When they ask to invent/update/refresh FAQ for their brand (no specific Q&A), call refine_website_copy with instruction to rewrite ALL FAQ items for this business. Use the store business name — never a product name as the brand.\n" +
+        "When they ask to update/improve SEO title and description (or search visibility) without providing the exact text, call refine_website_copy to rewrite seo.title and seo.description from the business name and what they sell. Do NOT ask them for the title or description.\n" +
+        "When they ask to improve/rewrite the headline or about section without exact text, call refine_website_copy immediately — invent on-brand copy. Do NOT ask what it should say.\n" +
+        "When they want different colors/a new palette without naming hex, call apply_brand_color and pick a fitting palette. Do NOT ask which colors.\n" +
+        "When they want better/brand photos or to source images, call source_website_images or replace_template_images with a chosen scope. Do NOT ask which photos first.\n" +
+        "When they want product descriptions polished (no product named), call generate_product_descriptions for all products.\n" +
+        "ask_clarifying_question ONLY when blocked (missing product price, or which specific product/section cannot be resolved). Never ask for inventable copy, SEO, FAQ, colors, or photo preferences.\n" +
         "If Pending clarification context is present, continue that pending action with the merchant's answer.\n" +
         "If Recent product focus is present and the merchant refers to it/its/again/the description without a product name, use that focused product_name.\n" +
         `Enabled tools: ${input.toolDefs.map((tool) => tool.name).join(", ")}`

@@ -40,7 +40,7 @@ export class BrandingTools {
       {
         name: "apply_brand_color",
         description:
-          "Update ONLY the color palette (primary, accent, background, surface, text, muted, border). Does NOT change the layout, template, or design. Use ONLY when the merchant specifically asks about color/palette/hex — not for design or layout changes.",
+          "Update ONLY the color palette (primary, accent, background, surface, text, muted, border). Does NOT change the layout, template, or design. Use when the merchant asks about color/palette/hex — including vague 'different colors' / 'new palette' (pick a fitting palette yourself; do not ask which). Not for design or layout changes.",
         parameters: {
           type: "object",
           properties: {

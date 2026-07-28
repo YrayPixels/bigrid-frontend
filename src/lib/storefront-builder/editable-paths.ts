@@ -516,7 +516,23 @@ export function tryAppendFaqItem(
   instruction: string,
 ): { storefront: StorefrontContent; changed_paths: string[] } | null {
   const lower = instruction.toLowerCase();
+
+  // Invent/rewrite the whole FAQ section — not a single append.
+  if (
+    /\b(come up with|invent|generate|rewrite|refresh|revise|improve|fix|regenerate|relevant|fit\s+my\s+brand|for\s+my\s+brand)\b/.test(
+      lower,
+    ) &&
+    /\bfaqs?\b/.test(lower)
+  ) {
+    return null;
+  }
+  if (/\b(add|create)\b.*\b(relevant|some|new)\s+faqs?\b/.test(lower)) {
+    return null;
+  }
+
   const isFaqAdd =
+    /\b(add|create|new|another)\b\s+(a|an|another)\s+(faq\s+)?(question|item)\b/.test(lower) ||
+    /\badd\s+(a|an|another)\s+faq\b/.test(lower) ||
     /\b(add|create|new|another)\b.*\b(faq|question)\b/.test(lower) ||
     /\b(faq|question)\b.*\b(add|about)\b/.test(lower) ||
     /\b(third|fourth|fifth|another)\b.*\bfaq\b/.test(lower);

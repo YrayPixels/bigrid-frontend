@@ -50,6 +50,7 @@ import {
   type ExecutorChatMessage,
   type OpenAiToolSchema,
 } from "./roles";
+import { missedActableRequestRetryHint } from "./roles/CriticAgent";
 
 const STATIC_TOOL_REPLY_MESSAGES: Record<string, string> = {
   refine_website_copy: "Done — I've updated the copy. Check the preview on the right!",
@@ -157,6 +158,9 @@ function defaultArgsForDirectTool(
   return {};
 }
 
+/** Temporary: skip Critic LLM calls so Executor/Session run unreviewed. Flip back to true when done checking. */
+const CRITIC_ENABLED = false;
+
 /**
  * Waterfall orchestrator (default): InterpretPlanner → Executor → Critic.
  * Feature-flagged path: SessionAgent (tools) → outcome Critic (max 1 retry).
@@ -218,8 +222,8 @@ export class StorefrontBuilderManager {
       const unique = [...new Set(informationalReplies)];
       const mutateReply =
         ctx.assistantMessage &&
-        !unique.includes(ctx.assistantMessage.trim()) &&
-        toolCallsLog.some((call) => !INFORMATIONAL_TOOL_NAMES.has(call.name))
+          !unique.includes(ctx.assistantMessage.trim()) &&
+          toolCallsLog.some((call) => !INFORMATIONAL_TOOL_NAMES.has(call.name))
           ? ctx.assistantMessage.trim()
           : "";
       ctx.assistantMessage = [...unique, mutateReply].filter(Boolean).join("\n\n");
@@ -735,6 +739,17 @@ export class StorefrontBuilderManager {
     };
 
     const askCritic = async (lastToolSummaries: string[], remainingCount: number) => {
+      if (!CRITIC_ENABLED) {
+        const status = remainingCount > 0 ? ("CONTINUE" as const) : ("DONE" as const);
+        this.log({
+          agent: "Critic",
+          phase: "complete",
+          title: `Critic skipped: ${status}`,
+          detail: "CRITIC_ENABLED=false",
+        });
+        return { status, reason: "Critic disabled." };
+      }
+
       this.log({
         agent: "Critic",
         phase: "start",
@@ -1021,6 +1036,47 @@ export class StorefrontBuilderManager {
   }
 
   /**
+   * Open the muted Realtime session (mint token + WebRTC) without sending a merchant message.
+   * Subsequent runTurn calls reuse this connection.
+   */
+  async startRealtimeSession(args: {
+    session: BuilderSession;
+    history?: Array<{ role: "user" | "assistant"; content: string }>;
+    toolDefs: WebsiteBuilderToolDef[];
+  }): Promise<void> {
+    const { session, history = [], toolDefs } = args;
+    const { sessionAgent } = this.agents;
+    const pendingAction = getPendingAction(session);
+    const contextHint = [
+      pendingAction ? formatPendingActionHint(pendingAction) : "",
+      formatProductFocusHint(getProductFocus(session.business_profile)),
+      formatBuilderHistorySnippet(history),
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+
+    sessionAgent.configure({ session, toolDefs, contextHint });
+    const openAiTools = toOpenAiTools(toolDefs);
+    const messages: ExecutorChatMessage[] = [
+      { role: "system", content: sessionAgent.systemPrompt },
+      ...history.map((entry) => ({
+        role: entry.role === "assistant" ? ("assistant" as const) : ("user" as const),
+        content: entry.content,
+      })),
+    ];
+
+    const streamingSession = BuilderSessionManager.ensureShared({
+      builderSessionId: session.id,
+      sessionAgent,
+      toolDefs,
+      openAiTools,
+      onLog: (entry) => this.log(entry),
+    });
+
+    await streamingSession.start({ messages, foldTrailingUser: false });
+  }
+
+  /**
    * Feature-flagged path: SessionAgent (all tools) → outcome Critic (max 1 RETRY).
    */
   private async runToolAgentTurn(args: {
@@ -1074,12 +1130,13 @@ export class StorefrontBuilderManager {
       payload: { type: "agent_turn", plan: [], tool_calls: [], tool_results: [] },
     };
 
-    const streamingSession = new BuilderSessionManager(
+    const streamingSession = BuilderSessionManager.ensureShared({
+      builderSessionId: session.id,
       sessionAgent,
       toolDefs,
       openAiTools,
-      (entry) => this.log(entry),
-    );
+      onLog: (entry) => this.log(entry),
+    });
 
     const applyProseClarification = (
       toolCallsLog: Array<{ name: string; arguments: Record<string, unknown> }>,
@@ -1102,6 +1159,8 @@ export class StorefrontBuilderManager {
       }
     };
 
+    await streamingSession.start({ messages });
+
     const loop = await streamingSession.runLoop({ messages, ctx });
     applyProseClarification(loop.toolCallsLog);
 
@@ -1110,64 +1169,27 @@ export class StorefrontBuilderManager {
     let toolResultsLog = loop.toolResultsLog;
     let informationalReplies = loop.informationalReplies;
 
-    const lastToolSummaries = toolResultsLog.map((result) =>
-      summarizeToolResult(String(result.name ?? "tool"), result),
-    );
-
-    this.log({
-      agent: "Critic",
-      phase: "start",
-      title: "Reviewing outcome",
-    });
-    let criticDecision = await critic
-      .reviewOutcome({
-        userText: message,
-        memoryLines: memory,
-        lastToolSummaries,
-        completedToolNames: toolCallsLog.map((call) => call.name),
-        assistantDraft: ctx.assistantMessage,
-        allowRetry: true,
-      })
-      .catch(() => ({ status: "DONE" as const, reason: "Proceeding." }));
-
-    this.log({
-      agent: "Critic",
-      phase: "complete",
-      title: `Critic decision: ${criticDecision.status}`,
-      detail: criticDecision.reason,
-      data: { status: criticDecision.status, reason: criticDecision.reason },
-    });
-
-    if (criticDecision.status === "RETRY") {
-      const retryLoop = await streamingSession.runLoop({
-        messages,
-        ctx,
-        retryHint: criticDecision.reason,
-      });
-      memory = [...memory, ...retryLoop.memory];
-      toolCallsLog = [...toolCallsLog, ...retryLoop.toolCallsLog];
-      toolResultsLog = [...toolResultsLog, ...retryLoop.toolResultsLog];
-      informationalReplies = [...informationalReplies, ...retryLoop.informationalReplies];
-      applyProseClarification(toolCallsLog);
-
-      const retrySummaries = toolResultsLog.map((result) =>
+    if (CRITIC_ENABLED) {
+      const lastToolSummaries = toolResultsLog.map((result) =>
         summarizeToolResult(String(result.name ?? "tool"), result),
       );
+
       this.log({
         agent: "Critic",
         phase: "start",
-        title: "Reviewing retry outcome",
+        title: "Reviewing outcome",
       });
-      criticDecision = await critic
+      let criticDecision = await critic
         .reviewOutcome({
           userText: message,
           memoryLines: memory,
-          lastToolSummaries: retrySummaries,
+          lastToolSummaries,
           completedToolNames: toolCallsLog.map((call) => call.name),
           assistantDraft: ctx.assistantMessage,
-          allowRetry: false,
+          allowRetry: true,
         })
-        .catch(() => ({ status: "DONE" as const, reason: "Proceeding after retry." }));
+        .catch(() => ({ status: "DONE" as const, reason: "Proceeding." }));
+
       this.log({
         agent: "Critic",
         phase: "complete",
@@ -1175,22 +1197,96 @@ export class StorefrontBuilderManager {
         detail: criticDecision.reason,
         data: { status: criticDecision.status, reason: criticDecision.reason },
       });
-    }
 
-    if (criticDecision.status === "NEED_USER") {
-      if (!ctx.assistantMessage) ctx.assistantMessage = criticDecision.reason;
-      if (!ctx.profile.pending_action) {
-        ctx.profile = withPendingAction(ctx.profile, {
-          type: "clarification",
-          question: ctx.assistantMessage || criticDecision.reason,
-          original_message: message,
+      if (criticDecision.status === "RETRY") {
+        ctx.profile = withPendingAction(ctx.profile, null);
+        if (!toolCallsLog.length) ctx.assistantMessage = "";
+        const retryLoop = await streamingSession.runLoop({
+          messages,
+          ctx,
+          retryHint: criticDecision.reason,
+        });
+        memory = [...memory, ...retryLoop.memory];
+        toolCallsLog = [...toolCallsLog, ...retryLoop.toolCallsLog];
+        toolResultsLog = [...toolResultsLog, ...retryLoop.toolResultsLog];
+        informationalReplies = [...informationalReplies, ...retryLoop.informationalReplies];
+        applyProseClarification(toolCallsLog);
+
+        const retrySummaries = toolResultsLog.map((result) =>
+          summarizeToolResult(String(result.name ?? "tool"), result),
+        );
+        this.log({
+          agent: "Critic",
+          phase: "start",
+          title: "Reviewing retry outcome",
+        });
+        criticDecision = await critic
+          .reviewOutcome({
+            userText: message,
+            memoryLines: memory,
+            lastToolSummaries: retrySummaries,
+            completedToolNames: toolCallsLog.map((call) => call.name),
+            assistantDraft: ctx.assistantMessage,
+            allowRetry: false,
+          })
+          .catch(() => ({ status: "DONE" as const, reason: "Proceeding after retry." }));
+        this.log({
+          agent: "Critic",
+          phase: "complete",
+          title: `Critic decision: ${criticDecision.status}`,
+          detail: criticDecision.reason,
+          data: { status: criticDecision.status, reason: criticDecision.reason },
         });
       }
-      ctx.payload = {
-        type: "requirements_request",
-        profile: ctx.profile,
-        pending_action: ctx.profile.pending_action,
-      };
+
+      if (criticDecision.status === "NEED_USER") {
+        if (!ctx.assistantMessage) ctx.assistantMessage = criticDecision.reason;
+        if (!ctx.profile.pending_action) {
+          ctx.profile = withPendingAction(ctx.profile, {
+            type: "clarification",
+            question: ctx.assistantMessage || criticDecision.reason,
+            original_message: message,
+          });
+        }
+        ctx.payload = {
+          type: "requirements_request",
+          profile: ctx.profile,
+          pending_action: ctx.profile.pending_action,
+        };
+      }
+    } else {
+      // Critic LLM off — still force one deterministic retry for clear invent/refine misses.
+      const actableRetryHint = missedActableRequestRetryHint(
+        message,
+        toolCallsLog.map((call) => call.name),
+      );
+      if (actableRetryHint) {
+        this.log({
+          agent: "Critic",
+          phase: "complete",
+          title: "Critic skipped: RETRY",
+          detail: actableRetryHint,
+        });
+        ctx.profile = withPendingAction(ctx.profile, null);
+        ctx.assistantMessage = "";
+        const retryLoop = await streamingSession.runLoop({
+          messages,
+          ctx,
+          retryHint: actableRetryHint,
+        });
+        memory = [...memory, ...retryLoop.memory];
+        toolCallsLog = [...toolCallsLog, ...retryLoop.toolCallsLog];
+        toolResultsLog = [...toolResultsLog, ...retryLoop.toolResultsLog];
+        informationalReplies = [...informationalReplies, ...retryLoop.informationalReplies];
+        applyProseClarification(toolCallsLog);
+      } else {
+        this.log({
+          agent: "Critic",
+          phase: "complete",
+          title: "Critic skipped: DONE",
+          detail: "CRITIC_ENABLED=false",
+        });
+      }
     }
 
     return this.finalizeAssistantTurn({

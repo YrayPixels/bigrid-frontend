@@ -826,7 +826,7 @@ export async function applyStorefrontEditAsync(
     }
   }
 
-  if (shouldRefreshFaq(instruction)) {
+  if (shouldRefreshFaq(instruction) || shouldRefreshFaq(options?.message ?? "")) {
     return applyFaqRefreshTurn(storefront, instruction, options?.store);
   }
 
@@ -1404,15 +1404,37 @@ const BUILDER_FAQ_GENERATOR_PROMPT =
   "You write FAQ sections for small business online stores.\n" +
   "Return ONLY valid JSON: {\"items\": [{\"question\": string, \"answer\": string}]}\n" +
   "Write 3-5 practical questions customers would ask this business.\n" +
-  "Answers must be 1-2 warm sentences. Use the business name when natural.";
+  "Answers must be 1-2 warm sentences. Use the business name when natural.\n" +
+  "Never use a product name as if it were the brand name.";
 
-function shouldRefreshFaq(instruction: string): boolean {
+/** Full FAQ section invent/rewrite — not a single new list item. */
+export function shouldRefreshFaq(instruction: string): boolean {
   const lower = instruction.toLowerCase();
+  if (!/\bfaqs?\b/.test(lower) && !/\bfrequently asked\b/.test(lower)) return false;
+
+  // Singular append ("add a question about shipping") is not a full refresh.
+  if (isSingularFaqAppendIntent(lower)) return false;
+
   return (
-    /\b(update|refresh|rewrite|revise|improve|fix|change|regenerate|redo)\b.*\bfaq\b/i.test(lower) ||
-    /\bfaq\b.*\b(update|refresh|rewrite|revise|improve|fix|change|answers?|questions?)\b/i.test(lower) ||
-    (/\bfaq\b/i.test(lower) &&
-      /\b(update|refresh|rewrite|revise|improve|fix|change|answers?|questions?)\b/i.test(lower))
+    /\b(update|refresh|rewrite|revise|improve|fix|change|regenerate|redo)\b.*\bfaqs?\b/.test(lower) ||
+    /\bfaqs?\b.*\b(update|refresh|rewrite|revise|improve|fix|change|answers?|questions?)\b/.test(lower) ||
+    (/\bfaqs?\b/.test(lower) &&
+      /\b(update|refresh|rewrite|revise|improve|fix|change|answers?|questions?)\b/.test(lower)) ||
+    /\b(come up with|invent|generate|write|make)\b.*\bfaqs?\b/.test(lower) ||
+    /\bfaqs?\b.*\b(come up with|invent|generate|write|make|fit|brand|business)\b/.test(lower) ||
+    /\b(fit|tailor|match)\b.*\b(brand|business|store|shop)\b.*\bfaqs?\b/.test(lower) ||
+    /\bfaqs?\b.*\b(fit|tailor|match)\b.*\b(brand|business|store|shop)\b/.test(lower) ||
+    /\b(add|create)\b.*\b(relevant|some|new)\s+faqs?\b/.test(lower) ||
+    /\brelevant\s+faqs?\b/.test(lower)
+  );
+}
+
+function isSingularFaqAppendIntent(lower: string): boolean {
+  return (
+    /\b(add|create|new|another)\b\s+(a|an|another)\s+(faq\s+)?(question|item)\b/.test(lower) ||
+    /\badd\s+(a|an|another)\s+faq\b/.test(lower) ||
+    /\b(third|fourth|fifth)\b.*\bfaq\b/.test(lower) ||
+    (/[""].+[""]/.test(lower) && /\b(add|create|new)\b/.test(lower))
   );
 }
 

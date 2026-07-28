@@ -240,7 +240,23 @@ export function blockTypeLabel(type: StorefrontBlockType): string {
 /** True when the merchant wants a new FAQ list item, not a homepage FAQ block. */
 export function isFaqItemAppendInstruction(instruction: string): boolean {
   const lower = instruction.toLowerCase();
+
+  // Full-section invent/rewrite is not a single-item append.
+  if (
+    /\b(come up with|invent|generate|rewrite|refresh|revise|improve|fix|regenerate|relevant|fit\s+my\s+brand|for\s+my\s+brand)\b/.test(
+      lower,
+    ) &&
+    /\bfaqs?\b/.test(lower)
+  ) {
+    return false;
+  }
+  if (/\b(add|create)\b.*\b(relevant|some|new)\s+faqs?\b/.test(lower)) {
+    return false;
+  }
+
   const isFaqAdd =
+    /\b(add|create|new|another)\b\s+(a|an|another)\s+(faq\s+)?(question|item)\b/.test(lower) ||
+    /\badd\s+(a|an|another)\s+faq\b/.test(lower) ||
     /\b(add|create|new|another)\b.*\b(faq|question)\b/.test(lower) ||
     /\b(faq|question)\b.*\b(add|about)\b/.test(lower) ||
     /\b(third|fourth|fifth|another)\b.*\bfaq\b/.test(lower);

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { FileSpreadsheet, ImagePlus, ListTree, Loader2, Send, Sparkles, Trash2 } from "lucide-react";
+import { FileSpreadsheet, ImagePlus, ListTree, Loader2, Play, Send, Sparkles, Square, Trash2 } from "lucide-react";
 import { formatProductsForAi, parseProductFile } from "@/lib/product-parser";
 import type {
   BuilderMediaTarget,
@@ -26,8 +26,15 @@ import type { WorkbenchEditStep } from "@/lib/bolt/workbench-edit-agent";
 import type { FileDiffSummary, WorkbenchEditCheckpoint } from "@/lib/bolt/workbench-diff";
 import { BUILDER_CHAT_HEADER } from "@/lib/storefront-builder/copy";
 import { getLatestSuggestedActions } from "@/lib/storefront-builder/suggested-actions";
+import {
+  isBuilderRealtimeSessionActive,
+  startBuilderRealtimeSession,
+  stopBuilderRealtimeSession,
+} from "@/lib/storefront-builder/client";
+import { isBuilderToolAgentEnabled } from "@/lib/features";
 import { cn } from "@/lib/utils";
 import type { AgentThinkingLogEntry } from "@/lib/storefront-builder/agents/types";
+import { toast } from "sonner";
 
 export function BuilderChatPanel({
   session,
@@ -94,6 +101,10 @@ export function BuilderChatPanel({
 }) {
   const [input, setInput] = useState("");
   const [designPickerOpen, setDesignPickerOpen] = useState(false);
+  const [realtimeActive, setRealtimeActive] = useState(() =>
+    isBuilderRealtimeSessionActive(session.id),
+  );
+  const [startingRealtime, setStartingRealtime] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -104,7 +115,9 @@ export function BuilderChatPanel({
   const logoUrl = session.store?.logo_url ?? null;
   const businessName = session.store?.business_name ?? session.business_profile.business_name ?? "Your store";
   const suggestedActions = getLatestSuggestedActions(session);
-  const busy = sending || generating || clearing || selectingTemplate;
+  const busy = sending || generating || clearing || selectingTemplate || startingRealtime;
+  const useRealtimeGate = isBuilderToolAgentEnabled();
+  const showComposer = !useRealtimeGate || realtimeActive;
   const selectedTemplateId =
     session.selected_template_id && session.selected_template_id !== "ai_pick"
       ? session.selected_template_id
@@ -131,6 +144,10 @@ export function BuilderChatPanel({
     (aiStreaming || liveActions.length > 0 || agentSteps.length > 0 || lastDiffs.length > 0);
 
   useEffect(() => {
+    setRealtimeActive(isBuilderRealtimeSessionActive(session.id));
+  }, [session.id]);
+
+  useEffect(() => {
     const instant = aiStreaming || sending || generating || thinkingStreaming;
     endRef.current?.scrollIntoView({ behavior: instant ? "instant" : "smooth", block: "end" });
   }, [
@@ -150,8 +167,44 @@ export function BuilderChatPanel({
   function sendMessage() {
     const message = input.trim();
     if (!message || busy) return;
+    if (!ensureRealtimeReady()) return;
     setInput("");
     onSendMessage(message);
+  }
+
+  function ensureRealtimeReady(): boolean {
+    if (useRealtimeGate && !realtimeActive) {
+      toast.error("Start the AI session before sending a message.");
+      return false;
+    }
+    return true;
+  }
+
+  function promptMessage(message: string) {
+    if (!message.trim() || busy) return;
+    if (!ensureRealtimeReady()) return;
+    onSendMessage(message);
+  }
+
+  async function handleStartRealtime() {
+    if (startingRealtime || realtimeActive) return;
+    setStartingRealtime(true);
+    try {
+      await startBuilderRealtimeSession({ session });
+      setRealtimeActive(true);
+      toast.success("AI session started");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not start AI session");
+      setRealtimeActive(false);
+    } finally {
+      setStartingRealtime(false);
+    }
+  }
+
+  function handleStopRealtime() {
+    stopBuilderRealtimeSession();
+    setRealtimeActive(false);
+    toast.message("AI session stopped");
   }
 
   function handleSubmit(event: React.FormEvent) {
@@ -360,7 +413,7 @@ export function BuilderChatPanel({
             <BuilderSuggestedActions
               actions={suggestedActions}
               disabled={busy}
-              onPrompt={onSendMessage}
+              onPrompt={promptMessage}
               onColor={onApplyColor}
               onUpload={openUploadPicker}
               onApplyImage={onApplyImage}
@@ -410,65 +463,93 @@ export function BuilderChatPanel({
 
       {isCodeVariant ? (
         <div className="shrink-0 border-t border-border px-4 pt-3">
-          <WorkbenchErrorAlert onFixWithAi={onSendMessage} onGoToError={onGoToPreviewError} />
+          <WorkbenchErrorAlert onFixWithAi={promptMessage} onGoToError={onGoToPreviewError} />
         </div>
       ) : null}
 
       <form onSubmit={handleSubmit} className="shrink-0 border-t border-border p-4">
-        <div className="flex items-end gap-2">
+        {!showComposer ? (
           <button
             type="button"
-            disabled={!session.store || busy}
-            onClick={() => openUploadPicker("media.hero_image_url")}
-            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-border bg-background text-ink-soft hover:border-primary/40 hover:text-ink disabled:opacity-50"
-            aria-label="Upload image"
-            title="Upload a photo for your website"
+            disabled={startingRealtime}
+            onClick={() => void handleStartRealtime()}
+            className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-md bg-ink px-4 text-sm font-medium text-background disabled:opacity-50"
           >
-            <ImagePlus className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            disabled={!session.store || busy || parsingFile}
-            onClick={() => productFileRef.current?.click()}
-            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-border bg-background text-ink-soft hover:border-primary/40 hover:text-ink disabled:opacity-50"
-            aria-label="Upload product list"
-            title="Upload a CSV or Excel file with products"
-          >
-            {parsingFile ? (
+            {startingRealtime ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
-              <FileSpreadsheet className="h-4 w-4" />
+              <Play className="h-4 w-4" />
             )}
+            {startingRealtime ? "Starting AI session…" : "Start AI session"}
           </button>
-          {isCodeVariant && projectFilePaths.length > 0 ? (
-            <WorkbenchChatInput
-              value={input}
-              onChange={setInput}
-              onSubmit={sendMessage}
-              filePaths={projectFilePaths}
-              busy={busy}
-              placeholder={inputPlaceholder}
-            />
-          ) : (
-            <textarea
-              data-builder-chat-input
-              value={input}
-              onChange={(event) => setInput(event.target.value)}
-              onKeyDown={handleKeyDown}
-              rows={2}
-              placeholder={inputPlaceholder}
-              className="min-h-[72px] flex-1 resize-none rounded-md border border-border bg-background px-3 py-2 text-sm shadow-soft outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-            />
-          )}
-          <button
-            type="submit"
-            disabled={!input.trim() || busy}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-md bg-ink text-background disabled:opacity-50"
-            aria-label="Send message"
-          >
-            {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-          </button>
-        </div>
+        ) : (
+          <div className="flex items-end gap-2">
+            {useRealtimeGate ? (
+              <button
+                type="button"
+                disabled={startingRealtime}
+                onClick={handleStopRealtime}
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-border bg-background text-ink-soft hover:border-red-500/40 hover:text-red-600 disabled:opacity-50"
+                aria-label="Stop AI session"
+                title="Stop AI session"
+              >
+                <Square className="h-3.5 w-3.5 fill-current" />
+              </button>
+            ) : null}
+            <button
+              type="button"
+              disabled={!session.store || busy}
+              onClick={() => openUploadPicker("media.hero_image_url")}
+              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-border bg-background text-ink-soft hover:border-primary/40 hover:text-ink disabled:opacity-50"
+              aria-label="Upload image"
+              title="Upload a photo for your website"
+            >
+              <ImagePlus className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              disabled={!session.store || busy || parsingFile}
+              onClick={() => productFileRef.current?.click()}
+              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-border bg-background text-ink-soft hover:border-primary/40 hover:text-ink disabled:opacity-50"
+              aria-label="Upload product list"
+              title="Upload a CSV or Excel file with products"
+            >
+              {parsingFile ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <FileSpreadsheet className="h-4 w-4" />
+              )}
+            </button>
+            {isCodeVariant && projectFilePaths.length > 0 ? (
+              <WorkbenchChatInput
+                value={input}
+                onChange={setInput}
+                onSubmit={sendMessage}
+                filePaths={projectFilePaths}
+                busy={busy}
+                placeholder={inputPlaceholder}
+              />
+            ) : (
+              <textarea
+                data-builder-chat-input
+                value={input}
+                onChange={(event) => setInput(event.target.value)}
+                onKeyDown={handleKeyDown}
+                rows={2}
+                placeholder={inputPlaceholder}
+                className="min-h-[72px] flex-1 resize-none rounded-md border border-border bg-background px-3 py-2 text-sm shadow-soft outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+              />
+            )}
+            <button
+              type="submit"
+              disabled={!input.trim() || busy}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-md bg-ink text-background disabled:opacity-50"
+              aria-label="Send message"
+            >
+              {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            </button>
+          </div>
+        )}
       </form>
     </div>
   );
