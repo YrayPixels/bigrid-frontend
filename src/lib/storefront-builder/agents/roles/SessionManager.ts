@@ -66,6 +66,7 @@ export class SessionManager {
   private instructions = "";
   private ctx: WebsiteBuilderContext | null = null;
   private onLog: ((entry: RealtimeSessionLog) => void) | null = null;
+  private onContentDelta: ((text: string) => void) | null = null;
 
   private pending: PendingResponse | null = null;
   private prose = "";
@@ -106,6 +107,31 @@ export class SessionManager {
       this.startPromise = null;
     });
     return this.startPromise;
+  }
+
+  /**
+   * Update tools on an open session (HeySolana-style registerFunctions).
+   * No open-token / reconnect.
+   */
+  registerFunctions(
+    toolDefs: WebsiteBuilderToolDef[],
+    openAiTools: OpenAiToolSchema[],
+  ): void {
+    this.tools = toolDefs.map((tool) => ({
+      name: tool.name,
+      description: tool.description,
+      parameters: tool.parameters,
+      handler: tool.handler,
+    }));
+    this.openAiTools = openAiTools;
+    if (this.isActive()) {
+      void this.pushSessionConfig();
+      this.onLog?.({
+        phase: "info",
+        title: "Tools re-registered",
+        detail: `${openAiTools.length} tool(s)`,
+      });
+    }
   }
 
   /**
@@ -210,6 +236,7 @@ export class SessionManager {
   async sendMessage(input: {
     userMessage: string;
     ctx: WebsiteBuilderContext;
+    onContentDelta?: (text: string) => void;
   }): Promise<RealtimeSessionTurnResult> {
     if (!this.isActive()) {
       throw new Error("Realtime session is not started. Call startSession() first.");
@@ -224,6 +251,7 @@ export class SessionManager {
     this.responseHadTools = false;
     this.turnFinished = false;
     this.functionCallArgs.clear();
+    this.onContentDelta = input.onContentDelta ?? null;
 
     this.onLog?.({
       phase: "info",
@@ -260,6 +288,8 @@ export class SessionManager {
         detail: error instanceof Error ? error.message : "Unknown error",
       });
       throw error;
+    } finally {
+      this.onContentDelta = null;
     }
   }
 
@@ -431,13 +461,19 @@ export class SessionManager {
 
     if (type === "response.output_text.delta" || type === "response.text.delta") {
       const delta = typeof message.delta === "string" ? message.delta : "";
-      if (delta) this.prose += delta;
+      if (delta) {
+        this.prose += delta;
+        this.onContentDelta?.(this.prose);
+      }
       return;
     }
 
     if (type === "response.output_text.done" || type === "response.text.done") {
       const finalText = typeof message.text === "string" ? message.text : "";
-      if (finalText) this.prose = finalText;
+      if (finalText) {
+        this.prose = finalText;
+        this.onContentDelta?.(this.prose);
+      }
       return;
     }
 

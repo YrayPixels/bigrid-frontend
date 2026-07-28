@@ -78,6 +78,7 @@ export const BUILDER_TOOL_DECISION_RULES = [
   "Paystack / payouts / payment setup: get_payment_settings or update_payment_settings (confirm=true for payouts).",
   "Custom domain / connect domain / verify DNS: list_domains, add_domain, verify_domain.",
   "Abandoned carts / who left items in cart: list_abandoned_carts.",
+  "Draft or send abandoned-cart recovery email/WhatsApp: draft_abandoned_recovery then send_abandoned_recovery (confirm=true to send). Never say you cannot send email — use these tools.",
   "Draft exists + add products (with optional find/get photo): add_products. Set find_images=true when they ask for a photo. If price is missing, ask_clarifying_question for the price — do not invent a price.",
   "Add product + find image in one request (e.g. 'add a Dell Latitude 5900 and find an image'): ONE step with add_products (find_images=true). Do NOT also call replace_template_images.",
   "Draft exists + [Image: url] reference + header/homepage/hero context (NOT product/add): refine_website_copy to update media.hero_image_url or media.about_image_url.",
@@ -141,6 +142,8 @@ export const BUILDER_INTERPRET_PLANNER_SYSTEM_PROMPT_PREFIX =
   "- Paystack / payouts → [\"get_payment_settings\"] (update_payment_settings only after confirm)\n" +
   "- Domains → [\"list_domains\"] / [\"add_domain\"] / [\"verify_domain\"]\n" +
   "- Abandoned carts → [\"list_abandoned_carts\"]\n" +
+  "- Draft/send recovery email or WhatsApp for abandoned cart → [\"draft_abandoned_recovery\"] then [\"send_abandoned_recovery\"] (confirm to send)\n" +
+  "- Send that / email them / recover cart via email → [\"send_abandoned_recovery\"] (draft first if message not reviewed)\n" +
   "- Orders only → [\"list_orders\"] (get_order only when a specific order is named)\n\n" +
   "Tool assignment rules:\n" +
   "- Copy (headline, CTA, about, FAQ, SEO, section text) → refine_website_copy\n" +
@@ -164,7 +167,7 @@ export const BUILDER_INTERPRET_PLANNER_SYSTEM_PROMPT_PREFIX =
   "- Categories → manage_categories; Essentials tiles → link_category_showcase\n" +
   "- Homepage sections / product grid → add_page_block / remove_page_block / reorder_page_blocks / update_page_section\n" +
   "- Publish / readiness / store profile → get_storefront_readiness / publish_website / update_store_profile\n" +
-  "- Metrics / orders / top sellers / traffic / customers / discounts / payments / domains / abandoned carts → get_store_metrics / get_top_selling_products / get_traffic_sources / list_orders / get_order / update_order_status / list_customers / get_customer / list_discounts / create_discount / update_discount / get_payment_settings / update_payment_settings / list_domains / add_domain / verify_domain / list_abandoned_carts\n" +
+  "- Metrics / orders / top sellers / traffic / customers / discounts / payments / domains / abandoned carts → get_store_metrics / get_top_selling_products / get_traffic_sources / list_orders / get_order / update_order_status / list_customers / get_customer / list_discounts / create_discount / update_discount / get_payment_settings / update_payment_settings / list_domains / add_domain / verify_domain / list_abandoned_carts / draft_abandoned_recovery / send_abandoned_recovery\n" +
   "- Product descriptions (all or named) → generate_product_descriptions\n" +
   "- Product image analysis → process_product_image (no separate 'ask for details' step)\n" +
   "- Manual product details in words (no image URL) → add_products directly, not process_product_image\n" +
@@ -199,8 +202,10 @@ export const BUILDER_OUTCOME_CRITIC_SYSTEM_PROMPT =
   "FAQ invent/update/come-up-with/fit-my-brand asks require rewriting the full FAQ section (multiple Q&As), not adding a single generic question.\n" +
   "SEO invent/update/improve/search visibility asks require refine_website_copy rewriting seo.title and seo.description — asking the merchant for the title/description is a miss (RETRY).\n" +
   "Headline/about/color/photo invent-or-improve chips require acting with tools — asking which headline/about/colors/photos is a miss (RETRY).\n" +
-  "Do NOT return RETRY for successful catalog/commerce tool runs (add/archive/list products, orders, metrics) when those tools match the ask.\n" +
+  "Do NOT return RETRY for successful catalog/commerce tool runs (add/archive/list products, orders, metrics, abandoned recovery draft/send) when those tools match the ask.\n" +
   "Do NOT return RETRY when ask_clarifying_question already ran for a truly blocking detail (price / which named product).\n" +
+  "Saying you cannot send email when draft_abandoned_recovery / send_abandoned_recovery are available is a miss (RETRY).\n" +
+  "Abandoned recovery send without confirm showing a draft for merchant review is NEED_USER, not RETRY.\n" +
   "Never mention templates, agents, or internal systems in the reason — write for an internal retry hint, short and concrete.\n\n" +
   'Return ONLY valid JSON: { "status": "DONE" | "NEED_USER" | "RETRY", "reason": string }';
 

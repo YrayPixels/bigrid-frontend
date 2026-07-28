@@ -110,6 +110,20 @@ export class BuilderSessionManager {
   replaceTools(toolDefs: WebsiteBuilderToolDef[], openAiTools: OpenAiToolSchema[]) {
     this.toolDefs = toolDefs;
     this.openAiTools = openAiTools;
+    if (this.isActive()) {
+      this.session.registerFunctions(toolDefs, openAiTools);
+    }
+  }
+
+  /**
+   * Refresh tools/instructions on a live session, or cold-start if not yet connected.
+   * Prefer explicit start() from the UI; runLoop uses this only when already active.
+   */
+  async ensureStarted(input: {
+    messages: ExecutorChatMessage[];
+    foldTrailingUser?: boolean;
+  }): Promise<void> {
+    return this.start(input);
   }
 
   private resolveInstructions(
@@ -196,9 +210,27 @@ export class BuilderSessionManager {
     messages: ExecutorChatMessage[];
     ctx: WebsiteBuilderContext;
     retryHint?: string;
+    onContentDelta?: (text: string) => void;
   }): Promise<BuilderSessionLoopResult> {
-    const { messages, ctx, retryHint } = input;
+    const { messages, ctx, retryHint, onContentDelta } = input;
 
+    // HeySolana pattern: messages never mint a session — Start button does.
+    if (!this.isActive()) {
+      this.onLog({
+        agent: "Session",
+        phase: "error",
+        title: "Realtime session not started",
+        detail: "Press Start AI session before sending a message.",
+      });
+      return {
+        memory: [],
+        toolCallsLog: [],
+        toolResultsLog: [],
+        informationalReplies: [],
+      };
+    }
+
+    // Live: refresh tools/instructions only (no open-token).
     await this.start({ messages });
 
     let userMessage = ctx.message.trim();
@@ -216,7 +248,11 @@ export class BuilderSessionManager {
     });
 
     try {
-      const turn = await this.session.sendMessage({ userMessage, ctx });
+      const turn = await this.session.sendMessage({
+        userMessage,
+        ctx,
+        onContentDelta,
+      });
 
       if (turn.prose && !ctx.assistantMessage.trim()) {
         ctx.assistantMessage = turn.prose;
@@ -250,7 +286,7 @@ export class BuilderSessionManager {
         title: "Realtime turn failed",
         detail: error instanceof Error ? error.message : "Unknown error",
       });
-      // Drop the shared slot if the socket died so the next message cold-starts cleanly.
+      // Drop the shared slot if the socket died so the next Start cold-starts cleanly.
       if (!this.session.isActive()) {
         this.started = false;
         if (sharedRealtime?.manager === this) {

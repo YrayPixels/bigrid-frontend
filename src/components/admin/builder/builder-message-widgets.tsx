@@ -134,6 +134,10 @@ function publicToolLabel(name: string, changedPaths?: string[]) {
       return "Verifying domain";
     case "list_abandoned_carts":
       return "Listing abandoned carts";
+    case "draft_abandoned_recovery":
+      return "Drafting recovery message";
+    case "send_abandoned_recovery":
+      return "Sending recovery message";
     case "suggest_site_improvements":
       return "Suggesting improvements";
     case "generate_product_descriptions":

@@ -26,6 +26,8 @@ const COMMERCE_OPS_TOOL_NAMES = [
   "add_domain",
   "verify_domain",
   "list_abandoned_carts",
+  "draft_abandoned_recovery",
+  "send_abandoned_recovery",
   "get_traffic_sources",
 ] as const;
 

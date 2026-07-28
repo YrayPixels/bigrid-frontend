@@ -6,6 +6,7 @@ import { Loader2 } from "lucide-react";
 import { MerchantShell } from "@/components/merchant-shell";
 import { OnboardingShell } from "@/components/admin/onboarding-shell";
 import { useAuth } from "@/lib/auth-context";
+import { BuilderRealtimeProvider } from "@/lib/storefront-builder/realtime-context";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -35,5 +36,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     return <OnboardingShell>{children}</OnboardingShell>;
   }
 
-  return <MerchantShell>{children}</MerchantShell>;
+  return (
+    <BuilderRealtimeProvider>
+      <MerchantShell>{children}</MerchantShell>
+    </BuilderRealtimeProvider>
+  );
 }

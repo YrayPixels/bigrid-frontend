@@ -96,12 +96,7 @@ export function fallbackSuggestedActions(session: BuilderSession): BuilderSugges
       Array.isArray(session.storefront_snapshot.products) &&
       session.storefront_snapshot.products.length > 0;
 
-    return [
-      {
-        type: "prompt",
-        label: "Build custom site",
-        message: "Build me a completely custom website from scratch — unique design, not a template",
-      },
+    const actions: BuilderSuggestedAction[] = [
       {
         type: "prompt",
         label: "Refine my headline",
@@ -109,62 +104,29 @@ export function fallbackSuggestedActions(session: BuilderSession): BuilderSugges
       },
       {
         type: "prompt",
-        label: "Improve SEO",
-        message: "Update my website SEO title and description",
-      },
-      {
-        type: "prompt",
-        label: "Rewrite about section",
-        message: "Rewrite the about section to better reflect my brand story",
-      },
-      {
-        type: "prompt",
         label: "Change my colors",
         message: "I want a different color palette for my website",
       },
-      ...(hasProducts
-        ? []
-        : [
-            {
-              type: "link" as const,
-              label: "Add products",
-              href: "/admin/products",
-            },
-          ]),
-      {
-        type: "upload",
-        label: "Upload header photo",
-        target: "media.hero_image_url" as const,
-      },
-      ...(!session.store?.logo_url
-        ? [
-            {
-              type: "prompt" as const,
-              label: "Upload logo",
-              message: "I want to upload my business logo",
-            },
-          ]
-        : []),
-      {
-        type: "prompt",
-        label: "Source brand photos",
-        message: "Help me find photos that fit my brand",
-      },
-      ...COLOR_PRESETS[industryKey(industry)].slice(0, 2).map(
-        (preset): BuilderSuggestedAction => ({
-          type: "color",
-          label: preset.label,
-          color: preset.color,
-        }),
-      ),
+      hasProducts
+        ? ({
+            type: "prompt",
+            label: "Source brand photos",
+            message: "Help me find photos that fit my brand",
+          } satisfies BuilderSuggestedAction)
+        : ({
+            type: "link",
+            label: "Add products",
+            href: "/admin/products",
+          } satisfies BuilderSuggestedAction),
     ];
+    return actions.slice(0, 3);
   }
 
   if (session.status === "template_recommendation" || session.store) {
-    return [
+    const actions: BuilderSuggestedAction[] = [
       { type: "prompt", label: "Build my website", message: "build my website" },
       { type: "prompt", label: "Go ahead", message: "Go ahead and create my site" },
-      ...COLOR_PRESETS[industryKey(industry)].map(
+      ...COLOR_PRESETS[industryKey(industry)].slice(0, 1).map(
         (preset): BuilderSuggestedAction => ({
           type: "color",
           label: preset.label,
@@ -172,9 +134,10 @@ export function fallbackSuggestedActions(session: BuilderSession): BuilderSugges
         }),
       ),
     ];
+    return actions.slice(0, 3);
   }
 
-  return [
+  const starterActions: BuilderSuggestedAction[] = [
     {
       type: "prompt",
       label: "Handmade candles",
@@ -190,21 +153,15 @@ export function fallbackSuggestedActions(session: BuilderSession): BuilderSugges
       label: "Streetwear shop",
       message: "Men's streetwear brand for people who like bold colors.",
     },
-    ...COLOR_PRESETS[industryKey(industry)].slice(0, 2).map(
-      (preset): BuilderSuggestedAction => ({
-        type: "color",
-        label: preset.label,
-        color: preset.color,
-      }),
-    ),
   ];
+  return starterActions;
 }
 
 export function getLatestSuggestedActions(session: BuilderSession): BuilderSuggestedAction[] {
   const lastAssistant = [...session.messages].reverse().find((message) => message.role === "assistant");
   const fromPayload = normalizeSuggestedActions(lastAssistant?.payload?.suggested_actions);
-  if (fromPayload.length) return fromPayload;
-  return fallbackSuggestedActions(session);
+  if (fromPayload.length) return fromPayload.slice(0, 3);
+  return fallbackSuggestedActions(session).slice(0, 3);
 }
 
 export function colorPresetActions(
@@ -256,20 +213,18 @@ export async function aiSuggestedActions({
     "",
     "Rules:",
     "- Actions must be specific to the merchant's situation, not generic templates.",
-    "- Generate exactly 5-7 actions. Keep labels short (2-5 words). Messages should be copy-pastable.",
+    "- Generate exactly 3 actions. Keep labels short (2-5 words). Messages should be copy-pastable.",
     "- Never mention templates, JSON, agents, tools, or internal system details.",
     ...(isPreBuild
       ? [
           "- This merchant hasn't described their business yet. Offer prompt chips with example business descriptions they can use (e.g. 'I sell handmade candles').",
-          "- Include at least 3 prompt actions with varied business examples across different industries.",
-          "- Add at most 2 color actions.",
+          "- Include 3 prompt actions with varied business examples across different industries.",
         ]
       : [
           "- This merchant has a website draft. Suggest refinement actions only: change headline, rewrite about section, improve SEO copy, update colors, upload photos, source brand images.",
           "- Do NOT suggest switching designs, rebuilding, or changing templates — the site already exists.",
-          "- Use prompt actions for copy/SEO refinements and upload actions for missing images.",
-          "- Add at most 2 color actions, and only with valid hex colors.",
-          "- Include a link action to add products if the store has none.",
+          "- Prefer the 3 most useful next steps for this merchant right now.",
+          "- Include a link action to add products if the store has none (counts toward the 3).",
         ]),
     "",
     "Context:",
@@ -303,7 +258,7 @@ export async function aiSuggestedActions({
         : null;
 
     const normalized = normalizeSuggestedActions(rawActions);
-    if (normalized.length >= 2) return normalized.slice(0, 8);
+    if (normalized.length >= 2) return normalized.slice(0, 3);
   } catch {
     // AI unavailable — use fallback.
   }
@@ -314,7 +269,7 @@ export async function aiSuggestedActions({
     return [
       { type: "link" as const, label: "Add products", href: "/admin/products" },
       ...base.filter((action) => action.type !== "link"),
-    ].slice(0, 8);
+    ].slice(0, 3);
   }
-  return base.slice(0, 8);
+  return base.slice(0, 3);
 }

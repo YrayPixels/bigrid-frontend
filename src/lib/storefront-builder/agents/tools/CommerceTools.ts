@@ -1,5 +1,7 @@
 import { api } from "@/lib/api/client";
 import type {
+  AbandonedRecoveryItem,
+  AbandonedRecoverySourceType,
   CreateStoreDiscountInput,
   StoreDiscountStatus,
   StoreDiscountType,
@@ -37,6 +39,94 @@ function isDiscountValueType(value: string): value is StoreDiscountValueType {
 
 function isDiscountStatus(value: string): value is StoreDiscountStatus {
   return value === "active" || value === "draft" || value === "archived";
+}
+
+function isRecoverySourceType(value: string): value is AbandonedRecoverySourceType {
+  return value === "checkout" || value === "cart";
+}
+
+function isRecoveryChannel(value: string): value is "email" | "whatsapp" {
+  return value === "email" || value === "whatsapp";
+}
+
+async function resolveAbandonedRecoveryItem(args: {
+  source_type?: string;
+  source_id?: string;
+  customer?: string;
+}): Promise<
+  | { ok: true; item: AbandonedRecoveryItem }
+  | { ok: false; error: string; message: string }
+> {
+  const listed = await api.getAbandonedRecoveries({ page: 1, per_page: 50 });
+  const items = listed.items;
+
+  if (!items.length) {
+    return {
+      ok: false,
+      error: "no_abandoned_carts",
+      message: "No abandoned carts right now to recover.",
+    };
+  }
+
+  const sourceType = asString(args.source_type);
+  const sourceId = asString(args.source_id);
+  if (sourceType && sourceId && isRecoverySourceType(sourceType)) {
+    const match = items.find(
+      (item) => item.source_type === sourceType && String(item.source_id) === sourceId,
+    );
+    if (match) return { ok: true, item: match };
+    return {
+      ok: false,
+      error: "abandoned_not_found",
+      message: `I couldn't find abandoned ${sourceType} #${sourceId}. Use list_abandoned_carts first.`,
+    };
+  }
+
+  const customer = asString(args.customer)?.trim();
+  if (customer) {
+    const lower = customer.toLowerCase();
+    const matches = items.filter((item) => {
+      const email = item.customer_email?.toLowerCase() ?? "";
+      const name = item.customer_name?.toLowerCase() ?? "";
+      const phone = item.customer_phone?.replace(/\D/g, "") ?? "";
+      const needlePhone = customer.replace(/\D/g, "");
+      return (
+        email === lower ||
+        email.includes(lower) ||
+        name.includes(lower) ||
+        (needlePhone.length >= 7 && phone.includes(needlePhone))
+      );
+    });
+
+    if (matches.length === 1) return { ok: true, item: matches[0]! };
+    if (matches.length > 1) {
+      return {
+        ok: false,
+        error: "ambiguous_customer",
+        message: `I found ${matches.length} abandoned carts matching "${customer}". Tell me which email or use list_abandoned_carts and pass source_type + source_id.`,
+      };
+    }
+    return {
+      ok: false,
+      error: "abandoned_not_found",
+      message: `No abandoned cart matched "${customer}". Use list_abandoned_carts first.`,
+    };
+  }
+
+  if (items.length === 1) return { ok: true, item: items[0]! };
+
+  return {
+    ok: false,
+    error: "missing_target",
+    message:
+      "Tell me which customer (email/name) or pass source_type + source_id from list_abandoned_carts.",
+  };
+}
+
+function defaultRecoveryChannel(item: AbandonedRecoveryItem): "email" | "whatsapp" | null {
+  if (item.customer_email) return "email";
+  if (item.customer_phone) return "whatsapp";
+  return null;
 }
 
 /** Customers, discounts, payments, domains, abandoned carts, traffic. */
@@ -602,6 +692,8 @@ export class CommerceTools {
             });
             const rows = response.items.map((item) => ({
               id: item.id,
+              source_type: item.source_type,
+              source_id: item.source_id,
               kind: item.kind,
               customer_name: item.customer_name,
               customer_email: item.customer_email,
@@ -611,6 +703,8 @@ export class CommerceTools {
               abandoned_at: item.abandoned_at,
               item_count: item.items?.length ?? 0,
               recovery_url: item.recovery_url,
+              can_email: Boolean(item.customer_email),
+              can_whatsapp: Boolean(item.customer_phone),
             }));
 
             ctx.payload = {
@@ -630,7 +724,9 @@ export class CommerceTools {
                     `- **${item.customer_name || item.customer_email || "Guest"}** · ${item.kind} · ${formatMoney(
                       item.total_amount,
                       item.currency,
-                    )} · ${item.item_count} item(s)`,
+                    )} · ${item.item_count} item(s)${item.can_email ? " · email" : ""}${
+                      item.can_whatsapp ? " · WhatsApp" : ""
+                    }`,
                 )
                 .join("\n");
               ctx.assistantMessage = [
@@ -639,6 +735,7 @@ export class CommerceTools {
                 )}`,
                 `Checkout ${response.summary.checkout_count} · Cart ${response.summary.cart_count}`,
                 preview,
+                "I can draft or send a recovery email/WhatsApp — tell me who to reach out to.",
               ].join("\n");
             }
 
@@ -647,6 +744,274 @@ export class CommerceTools {
             return {
               ok: false,
               error: err instanceof Error ? err.message : "list_abandoned_carts_failed",
+            };
+          }
+        },
+      },
+      {
+        name: "draft_abandoned_recovery",
+        description:
+          "Draft an abandoned-cart recovery message (email or WhatsApp). Use when the merchant wants a recovery email/message written, or before send_abandoned_recovery. Identify the cart with source_type+source_id from list_abandoned_carts, or customer email/name.",
+        parameters: {
+          type: "object",
+          properties: {
+            source_type: { type: "string", enum: ["checkout", "cart"] },
+            source_id: { type: "string", description: "Numeric source id from list_abandoned_carts." },
+            customer: {
+              type: "string",
+              description: "Customer email, name, or phone when source ids are unknown.",
+            },
+            channel: {
+              type: "string",
+              enum: ["email", "whatsapp"],
+              description: "Defaults to email when the customer has an email, otherwise WhatsApp.",
+            },
+          },
+          additionalProperties: false,
+        },
+        handler: async (args, ctx) => {
+          try {
+            const resolved = await resolveAbandonedRecoveryItem({
+              source_type: asString(args.source_type),
+              source_id: asString(args.source_id),
+              customer: asString(args.customer),
+            });
+            if (!resolved.ok) {
+              ctx.assistantMessage = resolved.message;
+              return { ok: false, error: resolved.error, message: resolved.message };
+            }
+
+            const item = resolved.item;
+            const requested = asString(args.channel);
+            const channel =
+              requested && isRecoveryChannel(requested)
+                ? requested
+                : defaultRecoveryChannel(item);
+
+            if (!channel) {
+              const message =
+                "This abandoned cart has no email or phone on file, so I can't send a recovery message.";
+              ctx.assistantMessage = message;
+              return { ok: false, error: "no_contact", message };
+            }
+
+            if (channel === "email" && !item.customer_email) {
+              const message =
+                "No email on file for this customer. Try WhatsApp, or pick another abandoned cart.";
+              ctx.assistantMessage = message;
+              return { ok: false, error: "no_email", message };
+            }
+
+            if (channel === "whatsapp" && !item.customer_phone) {
+              const message =
+                "No phone on file for this customer. Try email, or pick another abandoned cart.";
+              ctx.assistantMessage = message;
+              return { ok: false, error: "no_phone", message };
+            }
+
+            const { draft } = await api.draftAbandonedRecoveryMessage({
+              source_type: item.source_type,
+              source_id: String(item.source_id),
+              channel,
+            });
+
+            const who = item.customer_name || item.customer_email || item.customer_phone || "the customer";
+            ctx.payload = {
+              type: "abandoned_recovery_draft",
+              source_type: item.source_type,
+              source_id: item.source_id,
+              channel,
+              draft,
+              customer_name: item.customer_name,
+              customer_email: item.customer_email,
+              customer_phone: item.customer_phone,
+            };
+            ctx.assistantMessage = [
+              `Draft ${channel} recovery for **${who}** (${formatMoney(item.total_amount, item.currency)}):`,
+              channel === "email" && draft.subject ? `**Subject:** ${draft.subject}` : null,
+              "",
+              draft.message,
+              "",
+              "Say the word and I'll send it (or tell me what to change first).",
+            ]
+              .filter((line) => line !== null)
+              .join("\n");
+
+            return {
+              ok: true,
+              source_type: item.source_type,
+              source_id: item.source_id,
+              channel,
+              draft,
+            };
+          } catch (err) {
+            return {
+              ok: false,
+              error: err instanceof Error ? err.message : "draft_abandoned_recovery_failed",
+            };
+          }
+        },
+      },
+      {
+        name: "send_abandoned_recovery",
+        description:
+          "Send an abandoned-cart recovery email or WhatsApp message to the customer. Requires confirm=true. Prefer drafting first with draft_abandoned_recovery so the merchant can review. If message is omitted, drafts automatically then sends. Identify with source_type+source_id or customer email/name.",
+        parameters: {
+          type: "object",
+          properties: {
+            source_type: { type: "string", enum: ["checkout", "cart"] },
+            source_id: { type: "string", description: "Numeric source id from list_abandoned_carts." },
+            customer: {
+              type: "string",
+              description: "Customer email, name, or phone when source ids are unknown.",
+            },
+            channel: {
+              type: "string",
+              enum: ["email", "whatsapp"],
+              description: "Defaults to email when available.",
+            },
+            message: {
+              type: "string",
+              description: "Optional custom body. If omitted, an AI draft is generated and sent.",
+            },
+            subject: {
+              type: "string",
+              description: "Optional email subject (email channel only).",
+            },
+            confirm: {
+              type: "boolean",
+              description: "Must be true to actually send. Without it, a draft is shown for review.",
+            },
+          },
+          additionalProperties: false,
+        },
+        handler: async (args, ctx) => {
+          try {
+            const resolved = await resolveAbandonedRecoveryItem({
+              source_type: asString(args.source_type),
+              source_id: asString(args.source_id),
+              customer: asString(args.customer),
+            });
+            if (!resolved.ok) {
+              ctx.assistantMessage = resolved.message;
+              return { ok: false, error: resolved.error, message: resolved.message };
+            }
+
+            const item = resolved.item;
+            const requested = asString(args.channel);
+            const channel =
+              requested && isRecoveryChannel(requested)
+                ? requested
+                : defaultRecoveryChannel(item);
+
+            if (!channel) {
+              const message =
+                "This abandoned cart has no email or phone on file, so I can't send a recovery message.";
+              ctx.assistantMessage = message;
+              return { ok: false, error: "no_contact", message };
+            }
+
+            if (channel === "email" && !item.customer_email) {
+              const message =
+                "No email on file for this customer. Try WhatsApp, or pick another abandoned cart.";
+              ctx.assistantMessage = message;
+              return { ok: false, error: "no_email", message };
+            }
+
+            if (channel === "whatsapp" && !item.customer_phone) {
+              const message =
+                "No phone on file for this customer. Try email, or pick another abandoned cart.";
+              ctx.assistantMessage = message;
+              return { ok: false, error: "no_phone", message };
+            }
+
+            let message = asString(args.message)?.trim() || "";
+            let subject = asString(args.subject)?.trim() || undefined;
+
+            if (!message || (channel === "email" && !subject)) {
+              const { draft } = await api.draftAbandonedRecoveryMessage({
+                source_type: item.source_type,
+                source_id: String(item.source_id),
+                channel,
+              });
+              if (!message) message = draft.message;
+              if (channel === "email" && !subject) subject = draft.subject ?? undefined;
+            }
+
+            const who = item.customer_name || item.customer_email || item.customer_phone || "the customer";
+
+            if (args.confirm !== true) {
+              ctx.payload = {
+                type: "abandoned_recovery_draft",
+                source_type: item.source_type,
+                source_id: item.source_id,
+                channel,
+                draft: { subject: subject ?? null, message, recovery_url: item.recovery_url },
+                awaiting_confirm: true,
+              };
+              ctx.assistantMessage = [
+                `Ready to send this ${channel} recovery to **${who}**:`,
+                channel === "email" && subject ? `**Subject:** ${subject}` : null,
+                "",
+                message,
+                "",
+                "Confirm and I'll send it now.",
+              ]
+                .filter((line) => line !== null)
+                .join("\n");
+              return {
+                ok: false,
+                error: "confirmation_required",
+                message: "Ask the merchant to confirm sending, then call with confirm=true.",
+                source_type: item.source_type,
+                source_id: item.source_id,
+                channel,
+                draft: { subject: subject ?? null, message },
+              };
+            }
+
+            const result = await api.sendAbandonedRecoveryMessage({
+              source_type: item.source_type,
+              source_id: String(item.source_id),
+              channel,
+              message,
+              subject: channel === "email" ? subject : undefined,
+            });
+
+            ctx.payload = {
+              type: "abandoned_recovery_sent",
+              source_type: item.source_type,
+              source_id: item.source_id,
+              channel,
+              mode: result.mode,
+              whatsapp_url: result.whatsapp_url ?? null,
+              outreach: result.outreach ?? null,
+            };
+
+            if (result.mode === "link_ready" && result.whatsapp_url) {
+              ctx.assistantMessage = [
+                `WhatsApp link is ready for **${who}** — open it to finish sending:`,
+                result.whatsapp_url,
+              ].join("\n");
+            } else {
+              ctx.assistantMessage =
+                channel === "email"
+                  ? `Recovery email sent to **${item.customer_email || who}**.`
+                  : `WhatsApp recovery message sent to **${who}**.`;
+            }
+
+            return {
+              ok: true,
+              mode: result.mode,
+              channel,
+              source_type: item.source_type,
+              source_id: item.source_id,
+              whatsapp_url: result.whatsapp_url ?? null,
+            };
+          } catch (err) {
+            return {
+              ok: false,
+              error: err instanceof Error ? err.message : "send_abandoned_recovery_failed",
             };
           }
         },
