@@ -299,12 +299,14 @@ export async function runBuilderAgentTurn({
   templateOptions,
   history,
   onLog,
+  onAssistantDelta,
 }: {
   session: BuilderSession;
   message: string;
   templateOptions: StorefrontTemplateOption[];
   history?: Array<{ role: "user" | "assistant"; content: string }>;
   onLog?: (entry: AgentThinkingLogEntry) => void;
+  onAssistantDelta?: (text: string) => void;
 }): Promise<{ turn: BuilderAiTurn; thinkingLog: AgentThinkingLogEntry[] }> {
   const recommendations = await loadRecommendations(session);
   const thinkingLog: AgentThinkingLogEntry[] = [];
@@ -318,6 +320,7 @@ export async function runBuilderAgentTurn({
     recommendations,
     templateOptions,
     history,
+    onAssistantDelta,
   });
   return { turn, thinkingLog };
 }
@@ -395,6 +398,7 @@ export async function processBuilderMessage({
   mediaUpdates,
   logoUrl,
   onLog,
+  onAssistantDelta,
 }: {
   session: BuilderSession;
   message: string;
@@ -403,6 +407,7 @@ export async function processBuilderMessage({
   mediaUpdates?: Partial<Record<BuilderMediaTarget, string>>;
   logoUrl?: string | null;
   onLog?: (entry: AgentThinkingLogEntry) => void;
+  onAssistantDelta?: (text: string) => void;
 }): Promise<BuilderSessionResponse> {
   const enrichedSession: BuilderSession = {
     ...session,
@@ -456,6 +461,7 @@ export async function processBuilderMessage({
       templateOptions,
       history,
       onLog,
+      onAssistantDelta,
     });
     return persistAgentTurn({ session, message, turn, thinkingLog });
   } catch {

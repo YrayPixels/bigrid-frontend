@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
@@ -65,21 +65,37 @@ export function DashboardAiBuilderFab({
     }
   };
 
+  const [pendingUserMessage, setPendingUserMessage] = useState("");
+  const [streamingAssistantMessage, setStreamingAssistantMessage] = useState("");
+
   const sendMessage = useMutation({
     mutationFn: async (message: string) => {
+      setPendingUserMessage(message);
+      setStreamingAssistantMessage("");
+      const onAssistantDelta = (text: string) => setStreamingAssistantMessage(text);
+
       if (!session) {
         const started = await api.startBuilderSession();
         return processBuilderMessage({
           session: started.session as BuilderSession,
           message,
           templateOptions,
+          onAssistantDelta,
         });
       }
 
-      return processBuilderMessage({ session, message, templateOptions });
+      return processBuilderMessage({ session, message, templateOptions, onAssistantDelta });
     },
-    onSuccess: handleSessionResponse,
-    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not send message"),
+    onSuccess: async (data) => {
+      await handleSessionResponse(data);
+      setPendingUserMessage("");
+      setStreamingAssistantMessage("");
+    },
+    onError: (error) => {
+      setPendingUserMessage("");
+      setStreamingAssistantMessage("");
+      toast.error(error instanceof Error ? error.message : "Could not send message");
+    },
   });
 
   const applyColor = useMutation({
@@ -170,6 +186,8 @@ export function DashboardAiBuilderFab({
                 generating={sendMessage.isPending && !!session.storefront_snapshot}
                 templateOptions={templateOptions}
                 selectingTemplate={selectTemplate.isPending}
+                pendingUserMessage={pendingUserMessage}
+                streamingAssistantMessage={streamingAssistantMessage}
                 onSendMessage={(message) => sendMessage.mutate(message)}
                 onApplyColor={(color, label) => applyColor.mutate({ color, label })}
                 onUploadMedia={(target, file) => uploadMedia.mutate({ target, file })}

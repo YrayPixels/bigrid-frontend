@@ -1,7 +1,18 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { FileSpreadsheet, ImagePlus, ListTree, Loader2, Play, Send, Sparkles, Square, Trash2 } from "lucide-react";
+import {
+  FileSpreadsheet,
+  ImagePlus,
+  ListTree,
+  Loader2,
+  Play,
+  Plus,
+  Send,
+  Sparkles,
+  Square,
+  Trash2,
+} from "lucide-react";
 import { formatProductsForAi, parseProductFile } from "@/lib/product-parser";
 import type {
   BuilderMediaTarget,
@@ -14,7 +25,6 @@ import { BuilderMessageWidgets } from "@/components/admin/builder/builder-messag
 import { BuilderLogoManager } from "@/components/admin/builder/builder-logo-manager";
 import { BuilderSuggestedActions } from "@/components/admin/builder/builder-suggested-actions";
 import { BuilderTemplateRecommendations } from "@/components/admin/builder/builder-template-recommendations";
-import { BuilderThinkingLogCompact } from "@/components/admin/builder/builder-thinking-log-compact";
 import {
   WorkbenchLiveActions,
   type LiveBoltAction,
@@ -22,16 +32,12 @@ import {
 import { WorkbenchChangesPanel } from "@/components/admin/builder/workbench-changes-panel";
 import { WorkbenchChatInput } from "@/components/admin/builder/workbench-chat-input";
 import { WorkbenchErrorAlert } from "@/components/admin/builder/workbench-error-alert";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { WorkbenchEditStep } from "@/lib/bolt/workbench-edit-agent";
 import type { FileDiffSummary, WorkbenchEditCheckpoint } from "@/lib/bolt/workbench-diff";
 import { BUILDER_CHAT_HEADER } from "@/lib/storefront-builder/copy";
 import { getLatestSuggestedActions } from "@/lib/storefront-builder/suggested-actions";
-import {
-  isBuilderRealtimeSessionActive,
-  startBuilderRealtimeSession,
-  stopBuilderRealtimeSession,
-} from "@/lib/storefront-builder/client";
-import { isBuilderToolAgentEnabled } from "@/lib/features";
+import { useBuilderRealtime } from "@/lib/storefront-builder/realtime-context";
 import { cn } from "@/lib/utils";
 import type { AgentThinkingLogEntry } from "@/lib/storefront-builder/agents/types";
 import { toast } from "sonner";
@@ -67,6 +73,8 @@ export function BuilderChatPanel({
   onSelectDiffFile,
   onGoToPreviewError,
   projectFilePaths = [],
+  pendingUserMessage = "",
+  streamingAssistantMessage = "",
 }: {
   session: BuilderSession;
   sending: boolean;
@@ -98,17 +106,26 @@ export function BuilderChatPanel({
   onSelectDiffFile?: (path: string) => void;
   onGoToPreviewError?: (filePath: string, line: number) => void;
   projectFilePaths?: string[];
+  /** Optimistic user bubble while the turn is in flight. */
+  pendingUserMessage?: string;
+  /** Live assistant text as Realtime deltas arrive. */
+  streamingAssistantMessage?: string;
 }) {
   const [input, setInput] = useState("");
   const [designPickerOpen, setDesignPickerOpen] = useState(false);
-  const [realtimeActive, setRealtimeActive] = useState(() =>
-    isBuilderRealtimeSessionActive(session.id),
-  );
-  const [startingRealtime, setStartingRealtime] = useState(false);
+  const {
+    isSessionActive: realtimeActive,
+    starting: startingRealtime,
+    realtimeRequired,
+    startSession,
+    stopSession,
+    syncFromShared,
+  } = useBuilderRealtime();
   const scrollRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const productFileRef = useRef<HTMLInputElement>(null);
+  const composerInputRef = useRef<HTMLTextAreaElement>(null);
   const [uploadTarget, setUploadTarget] = useState<BuilderMediaTarget>("media.hero_image_url");
   const [parsingFile, setParsingFile] = useState(false);
   const brandColor = session.store?.brand_color ?? session.business_profile.brand_color ?? "#0E7C66";
@@ -116,7 +133,7 @@ export function BuilderChatPanel({
   const businessName = session.store?.business_name ?? session.business_profile.business_name ?? "Your store";
   const suggestedActions = getLatestSuggestedActions(session);
   const busy = sending || generating || clearing || selectingTemplate || startingRealtime;
-  const useRealtimeGate = isBuilderToolAgentEnabled();
+  const useRealtimeGate = realtimeRequired;
   const showComposer = !useRealtimeGate || realtimeActive;
   const selectedTemplateId =
     session.selected_template_id && session.selected_template_id !== "ai_pick"
@@ -144,11 +161,17 @@ export function BuilderChatPanel({
     (aiStreaming || liveActions.length > 0 || agentSteps.length > 0 || lastDiffs.length > 0);
 
   useEffect(() => {
-    setRealtimeActive(isBuilderRealtimeSessionActive(session.id));
-  }, [session.id]);
+    syncFromShared(session.id);
+  }, [session.id, syncFromShared]);
 
   useEffect(() => {
-    const instant = aiStreaming || sending || generating || thinkingStreaming;
+    const instant =
+      aiStreaming ||
+      sending ||
+      generating ||
+      thinkingStreaming ||
+      Boolean(pendingUserMessage) ||
+      Boolean(streamingAssistantMessage);
     endRef.current?.scrollIntoView({ behavior: instant ? "instant" : "smooth", block: "end" });
   }, [
     session.messages,
@@ -160,9 +183,10 @@ export function BuilderChatPanel({
     agentSteps,
     aiStreaming,
     lastDiffs.length,
+    pendingUserMessage,
+    streamingAssistantMessage,
   ]);
 
-  const showLiveThinking = busy && (thinkingStreaming || thinkingEntries.length > 0);
 
   function sendMessage() {
     const message = input.trim();
@@ -188,22 +212,16 @@ export function BuilderChatPanel({
 
   async function handleStartRealtime() {
     if (startingRealtime || realtimeActive) return;
-    setStartingRealtime(true);
     try {
-      await startBuilderRealtimeSession({ session });
-      setRealtimeActive(true);
+      await startSession(session);
       toast.success("AI session started");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not start AI session");
-      setRealtimeActive(false);
-    } finally {
-      setStartingRealtime(false);
     }
   }
 
   function handleStopRealtime() {
-    stopBuilderRealtimeSession();
-    setRealtimeActive(false);
+    stopSession();
     toast.message("AI session stopped");
   }
 
@@ -281,13 +299,20 @@ export function BuilderChatPanel({
 
   const canClear = session.messages.length > 0 && onClearChat && !busy;
   const inputPlaceholder = isCodeVariant
-    ? 'Use @ to tag a file or folder — e.g. "@src/routes/ fix the hero"'
+    ? 'Use @ to tag a file — e.g. "@src/routes/ fix the hero"'
     : session.storefront_snapshot
-      ? 'Try "Switch to a cozy candle shop with warm earthy colors" or pick a design below'
-      : "Tell me about your business — what you sell, who it's for, and the vibe you want...";
+      ? "Ask anything about your site…"
+      : "Describe your business — what you sell, who it's for…";
   const headerSubtitle = isCodeVariant
     ? "Prompt the AI to edit your site code. Changes show in the editor and preview."
     : BUILDER_CHAT_HEADER.subtitle;
+
+  useEffect(() => {
+    const el = composerInputRef.current;
+    if (!el) return;
+    el.style.height = "0px";
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+  }, [input]);
 
   return (
     <div
@@ -382,6 +407,32 @@ export function BuilderChatPanel({
             <ChatBubble key={message.id} message={message} brandColor={brandColor} />
           ))}
 
+          {pendingUserMessage.trim() ? (
+            <ChatBubble
+              message={{
+                id: "pending-user",
+                role: "user",
+                content: pendingUserMessage.trim(),
+                created_at: new Date().toISOString(),
+              }}
+              brandColor={brandColor}
+              pending
+            />
+          ) : null}
+
+          {streamingAssistantMessage.trim() ? (
+            <ChatBubble
+              message={{
+                id: "streaming-assistant",
+                role: "assistant",
+                content: streamingAssistantMessage,
+                created_at: new Date().toISOString(),
+              }}
+              brandColor={brandColor}
+              streaming
+            />
+          ) : null}
+
           {showLiveWorkbench ? (
             <div className="flex justify-start">
               <div className="w-full max-w-[92%] space-y-2 rounded-2xl bg-secondary px-3 py-3 text-sm">
@@ -400,9 +451,7 @@ export function BuilderChatPanel({
             </div>
           ) : null}
 
-          {showLiveThinking ? (
-            <BuilderThinkingLogCompact entries={thinkingEntries} streaming={thinkingStreaming} />
-          ) : busy && !showLiveWorkbench ? (
+          {busy && !showLiveWorkbench && !streamingAssistantMessage.trim() ? (
             <div className="inline-flex items-center gap-2 rounded-full bg-secondary px-3 py-1 text-xs text-ink-soft">
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
               {generating ? "Building your website..." : "Thinking..."}
@@ -467,13 +516,13 @@ export function BuilderChatPanel({
         </div>
       ) : null}
 
-      <form onSubmit={handleSubmit} className="shrink-0 border-t border-border p-4">
+      <form onSubmit={handleSubmit} className="shrink-0 border-t border-border p-3 sm:p-4">
         {!showComposer ? (
           <button
             type="button"
             disabled={startingRealtime}
             onClick={() => void handleStartRealtime()}
-            className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-md bg-ink px-4 text-sm font-medium text-background disabled:opacity-50"
+            className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-ink px-5 text-sm font-medium text-background transition hover:opacity-90 disabled:opacity-50"
           >
             {startingRealtime ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -483,67 +532,91 @@ export function BuilderChatPanel({
             {startingRealtime ? "Starting AI session…" : "Start AI session"}
           </button>
         ) : (
-          <div className="flex items-end gap-2">
-            {useRealtimeGate ? (
-              <button
-                type="button"
-                disabled={startingRealtime}
-                onClick={handleStopRealtime}
-                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-border bg-background text-ink-soft hover:border-red-500/40 hover:text-red-600 disabled:opacity-50"
-                aria-label="Stop AI session"
-                title="Stop AI session"
-              >
-                <Square className="h-3.5 w-3.5 fill-current" />
-              </button>
-            ) : null}
-            <button
-              type="button"
-              disabled={!session.store || busy}
-              onClick={() => openUploadPicker("media.hero_image_url")}
-              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-border bg-background text-ink-soft hover:border-primary/40 hover:text-ink disabled:opacity-50"
-              aria-label="Upload image"
-              title="Upload a photo for your website"
-            >
-              <ImagePlus className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              disabled={!session.store || busy || parsingFile}
-              onClick={() => productFileRef.current?.click()}
-              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-border bg-background text-ink-soft hover:border-primary/40 hover:text-ink disabled:opacity-50"
-              aria-label="Upload product list"
-              title="Upload a CSV or Excel file with products"
-            >
-              {parsingFile ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <FileSpreadsheet className="h-4 w-4" />
-              )}
-            </button>
+          <div
+            className={cn(
+              "flex w-full items-end gap-1.5 rounded-[28px] border border-border/80 bg-secondary/70 p-1.5 pl-2 shadow-soft",
+              "transition focus-within:border-primary/45 focus-within:bg-background focus-within:ring-2 focus-within:ring-primary/15",
+            )}
+          >
+            <Popover>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  className="mb-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-ink-soft transition hover:bg-background hover:text-ink"
+                  aria-label="Add attachments"
+                  title="Add photo, products, or stop session"
+                >
+                  <Plus className="h-5 w-5" strokeWidth={1.75} />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent align="start" side="top" className="w-56 p-1.5">
+                <div className="flex flex-col gap-0.5">
+                  <button
+                    type="button"
+                    disabled={!session.store || busy}
+                    onClick={() => openUploadPicker("media.hero_image_url")}
+                    className="inline-flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm text-ink transition hover:bg-secondary disabled:opacity-50"
+                  >
+                    <ImagePlus className="h-4 w-4 text-ink-soft" />
+                    Upload photo
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!session.store || busy || parsingFile}
+                    onClick={() => productFileRef.current?.click()}
+                    className="inline-flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm text-ink transition hover:bg-secondary disabled:opacity-50"
+                  >
+                    {parsingFile ? (
+                      <Loader2 className="h-4 w-4 animate-spin text-ink-soft" />
+                    ) : (
+                      <FileSpreadsheet className="h-4 w-4 text-ink-soft" />
+                    )}
+                    Upload product list
+                  </button>
+                  {useRealtimeGate ? (
+                    <button
+                      type="button"
+                      disabled={startingRealtime}
+                      onClick={handleStopRealtime}
+                      className="inline-flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm text-red-600 transition hover:bg-red-50 disabled:opacity-50"
+                    >
+                      <Square className="h-3.5 w-3.5 fill-current" />
+                      Stop AI session
+                    </button>
+                  ) : null}
+                </div>
+              </PopoverContent>
+            </Popover>
+
             {isCodeVariant && projectFilePaths.length > 0 ? (
-              <WorkbenchChatInput
-                value={input}
-                onChange={setInput}
-                onSubmit={sendMessage}
-                filePaths={projectFilePaths}
-                busy={busy}
-                placeholder={inputPlaceholder}
-              />
+              <div className="min-w-0 flex-1">
+                <WorkbenchChatInput
+                  value={input}
+                  onChange={setInput}
+                  onSubmit={sendMessage}
+                  filePaths={projectFilePaths}
+                  busy={busy}
+                  placeholder={inputPlaceholder}
+                  className="min-h-[40px] border-0 bg-transparent px-1 py-2.5 shadow-none focus:border-transparent focus:ring-0"
+                />
+              </div>
             ) : (
               <textarea
+                ref={composerInputRef}
                 data-builder-chat-input
                 value={input}
                 onChange={(event) => setInput(event.target.value)}
                 onKeyDown={handleKeyDown}
-                rows={2}
+                rows={1}
                 placeholder={inputPlaceholder}
-                className="min-h-[72px] flex-1 resize-none rounded-md border border-border bg-background px-3 py-2 text-sm shadow-soft outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                className="max-h-40 min-h-[40px] flex-1 resize-none overflow-y-auto bg-transparent px-1 py-2.5 text-sm leading-5 text-ink outline-none placeholder:text-ink-soft/80"
               />
             )}
+
             <button
               type="submit"
               disabled={!input.trim() || busy}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-md bg-ink text-background disabled:opacity-50"
+              className="mb-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-ink text-background transition hover:opacity-90 disabled:opacity-35"
               aria-label="Send message"
             >
               {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
@@ -558,9 +631,13 @@ export function BuilderChatPanel({
 function ChatBubble({
   message,
   brandColor,
+  pending = false,
+  streaming = false,
 }: {
   message: BuilderMessage;
   brandColor: string;
+  pending?: boolean;
+  streaming?: boolean;
 }) {
   const isUser = message.role === "user";
 
@@ -569,10 +646,18 @@ function ChatBubble({
       <div
         className={`max-w-[92%] rounded-2xl px-4 py-3 text-sm leading-6 ${
           isUser ? "bg-ink text-background" : "bg-secondary text-ink"
-        }`}
+        } ${pending ? "opacity-70" : ""} ${streaming ? "min-h-[2.75rem]" : ""}`}
       >
-        {message.content}
-        {!isUser ? <BuilderMessageWidgets message={message} brandColor={brandColor} /> : null}
+        <span className="whitespace-pre-wrap break-words">{message.content}</span>
+        {streaming ? (
+          <span
+            className="ml-0.5 inline-block h-[1em] w-[2px] translate-y-px animate-pulse bg-current align-baseline"
+            aria-hidden
+          />
+        ) : null}
+        {!isUser && !streaming && !pending ? (
+          <BuilderMessageWidgets message={message} brandColor={brandColor} />
+        ) : null}
       </div>
     </div>
   );

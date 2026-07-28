@@ -126,6 +126,9 @@ export function inferToolsFromStepDescription(description: string, allowed: Set<
   if (/\b(custom domain|domains?|dns|verify.*(domain|dns))\b/.test(text)) {
     return pick("list_domains");
   }
+  if (/\b(send|email|whatsapp|draft).*(abandon|recover|cart|checkout)|(abandon|recover).*(email|whatsapp|message|send)\b/.test(text)) {
+    return pick("send_abandoned_recovery");
+  }
   if (/\b(abandoned cart|left.*(cart|checkout)|recoverable)\b/.test(text)) {
     return pick("list_abandoned_carts");
   }
@@ -239,6 +242,7 @@ export const INFORMATIONAL_TOOL_NAMES = new Set([
   "get_payment_settings",
   "list_domains",
   "list_abandoned_carts",
+  "draft_abandoned_recovery",
   "get_storefront_readiness",
   "suggest_site_improvements",
   "manage_categories",
@@ -323,6 +327,12 @@ export function summarizeToolResult(name: string, result: Record<string, unknown
   if (name === "list_abandoned_carts" && result.ok) {
     const count = Array.isArray(result.items) ? result.items.length : 0;
     return `[tool:list_abandoned_carts] ${count} abandoned cart(s)`;
+  }
+  if (name === "draft_abandoned_recovery" && result.ok) {
+    return `[tool:draft_abandoned_recovery] ${result.channel ?? "message"} draft ready`;
+  }
+  if (name === "send_abandoned_recovery" && result.ok) {
+    return `[tool:send_abandoned_recovery] ${result.channel ?? "message"} ${result.mode ?? "sent"}`;
   }
   if (name === "suggest_site_improvements" && result.ok) {
     const count = Array.isArray(result.suggestions) ? result.suggestions.length : 0;

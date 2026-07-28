@@ -68,7 +68,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Providers>
           <ConfirmDialogProvider>
             {children}
-            <Toaster richColors position="bottom-right" />
+            <Toaster richColors position="top-right" />
           </ConfirmDialogProvider>
         </Providers>
       </body>

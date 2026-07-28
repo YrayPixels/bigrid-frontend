@@ -28,9 +28,10 @@ export function BuilderSuggestedActions({
   onUpload: (target: BuilderMediaTarget) => void;
   onApplyImage?: (target: BuilderMediaTarget, url: string, label: string) => void;
 }) {
-  const visibleActions = isCodeWorkbenchEnabled()
+  const visibleActions = (isCodeWorkbenchEnabled()
     ? actions
-    : actions.filter((action) => !isWorkbenchLink(action));
+    : actions.filter((action) => !isWorkbenchLink(action))
+  ).slice(0, 3);
 
   if (!visibleActions.length) return null;
 

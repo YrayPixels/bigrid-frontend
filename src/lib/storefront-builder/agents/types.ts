@@ -71,6 +71,8 @@ export type WebsiteBuilderToolName =
   | "add_domain"
   | "verify_domain"
   | "list_abandoned_carts"
+  | "draft_abandoned_recovery"
+  | "send_abandoned_recovery"
   // Custom site
   | "generate_custom_site"
   | "edit_custom_site_code";

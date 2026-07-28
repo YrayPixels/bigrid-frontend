@@ -82,6 +82,8 @@ const STATIC_TOOL_REPLY_MESSAGES: Record<string, string> = {
   add_domain: "Domain added — follow the DNS steps to verify.",
   verify_domain: "Checked domain verification status.",
   list_abandoned_carts: "Here are abandoned carts.",
+  draft_abandoned_recovery: "Here's a recovery message draft.",
+  send_abandoned_recovery: "Recovery message sent.",
   suggest_site_improvements: "Here are suggested next steps for your store.",
 };
 function toOpenAiTools(defs: WebsiteBuilderToolDef[]): OpenAiToolSchema[] {
@@ -348,8 +350,9 @@ export class StorefrontBuilderManager {
     recommendations: StorefrontTemplateRecommendation[];
     templateOptions: StorefrontTemplateOption[];
     history?: Array<{ role: "user" | "assistant"; content: string }>;
+    onAssistantDelta?: (text: string) => void;
   }): Promise<BuilderAiTurn> {
-    const { message, session, recommendations, templateOptions, history } = args;
+    const { message, session, recommendations, templateOptions, history, onAssistantDelta } = args;
     const availableTemplateIds = templateOptions
       .filter((option) => option.value !== "ai_pick")
       .map((option) => option.value as StorefrontTemplateId);
@@ -576,6 +579,7 @@ export class StorefrontBuilderManager {
         toolDefs,
         pendingAction,
         fallback,
+        onAssistantDelta,
       });
     }
 
@@ -1088,6 +1092,7 @@ export class StorefrontBuilderManager {
     toolDefs: WebsiteBuilderToolDef[];
     pendingAction: ReturnType<typeof getPendingAction>;
     fallback: BuilderAiTurn;
+    onAssistantDelta?: (text: string) => void;
   }): Promise<BuilderAiTurn> {
     const {
       message,
@@ -1098,6 +1103,7 @@ export class StorefrontBuilderManager {
       toolDefs,
       pendingAction,
       fallback,
+      onAssistantDelta,
     } = args;
     const { sessionAgent, critic } = this.agents;
 
@@ -1159,9 +1165,13 @@ export class StorefrontBuilderManager {
       }
     };
 
-    await streamingSession.start({ messages });
-
-    const loop = await streamingSession.runLoop({ messages, ctx });
+    // Session must already be started via BuilderRealtimeProvider / Start button.
+    // runLoop refreshes tools in place and sendMessage — never remints open-token.
+    const loop = await streamingSession.runLoop({
+      messages,
+      ctx,
+      onContentDelta: onAssistantDelta,
+    });
     applyProseClarification(loop.toolCallsLog);
 
     let memory = loop.memory;
@@ -1205,6 +1215,7 @@ export class StorefrontBuilderManager {
           messages,
           ctx,
           retryHint: criticDecision.reason,
+          onContentDelta: onAssistantDelta,
         });
         memory = [...memory, ...retryLoop.memory];
         toolCallsLog = [...toolCallsLog, ...retryLoop.toolCallsLog];
@@ -1273,6 +1284,7 @@ export class StorefrontBuilderManager {
           messages,
           ctx,
           retryHint: actableRetryHint,
+          onContentDelta: onAssistantDelta,
         });
         memory = [...memory, ...retryLoop.memory];
         toolCallsLog = [...toolCallsLog, ...retryLoop.toolCallsLog];

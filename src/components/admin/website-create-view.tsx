@@ -26,7 +26,6 @@ import {
   asConcreteTemplateId,
   processBuilderMessage,
   removeBuilderLogo,
-  stopBuilderRealtimeSession,
 } from "@/lib/storefront-builder/client";
 import {
   STOREFRONT_TEMPLATE_OPTIONS,
@@ -41,7 +40,6 @@ import { alignStorefrontTemplateToSelection } from "@/lib/storefront/template";
 import type { AgentThinkingLogEntry } from "@/lib/storefront-builder/agents/types";
 import {
   extractThinkingLogTurns,
-  getLatestThinkingTurn,
   type ThinkingLogTurn,
 } from "@/lib/storefront-builder/session-thinking-log";
 import { isCodeWorkbenchEnabled } from "@/lib/features";
@@ -61,6 +59,7 @@ export function WebsiteCreateView({ onDraftChanged }: WebsiteCreateViewProps) {
   const [thinkingStreaming, setThinkingStreaming] = useState(false);
   const [thinkingLogOpen, setThinkingLogOpen] = useState(false);
   const [pendingUserMessage, setPendingUserMessage] = useState("");
+  const [streamingAssistantMessage, setStreamingAssistantMessage] = useState("");
   const thinkingRunRef = useRef<AgentThinkingLogEntry[]>([]);
 
   const templatesQuery = useStorefrontTemplates();
@@ -90,17 +89,10 @@ export function WebsiteCreateView({ onDraftChanged }: WebsiteCreateViewProps) {
     () => (liveThinkingTurn ? [...sessionThinkingTurns, liveThinkingTurn] : sessionThinkingTurns),
     [sessionThinkingTurns, liveThinkingTurn],
   );
-  const latestLiveEntries = liveThinkingTurn?.entries ?? getLatestThinkingTurn(sessionThinkingTurns)?.entries ?? [];
 
   useEffect(() => {
     if (!loading && !user) router.replace("/login");
   }, [loading, user, router]);
-
-  useEffect(() => {
-    return () => {
-      stopBuilderRealtimeSession();
-    };
-  }, []);
 
   useEffect(() => {
     if (!session?.storefront_snapshot) return;
@@ -112,10 +104,10 @@ export function WebsiteCreateView({ onDraftChanged }: WebsiteCreateViewProps) {
     setLocalStorefront(
       templateId
         ? (alignStorefrontTemplateToSelection(
-            session.storefront_snapshot,
-            templateId,
-            session.store?.brand_color,
-          ) ?? session.storefront_snapshot)
+          session.storefront_snapshot,
+          templateId,
+          session.store?.brand_color,
+        ) ?? session.storefront_snapshot)
         : session.storefront_snapshot,
     );
   }, [
@@ -138,10 +130,10 @@ export function WebsiteCreateView({ onDraftChanged }: WebsiteCreateViewProps) {
       setLocalStorefront(
         templateId
           ? (alignStorefrontTemplateToSelection(
-              nextStorefront,
-              templateId,
-              data.session?.store?.brand_color,
-            ) ?? nextStorefront)
+            nextStorefront,
+            templateId,
+            data.session?.store?.brand_color,
+          ) ?? nextStorefront)
           : nextStorefront,
       );
       merchantInvalidators.storefront(queryClient);
@@ -161,6 +153,7 @@ export function WebsiteCreateView({ onDraftChanged }: WebsiteCreateViewProps) {
 
       thinkingRunRef.current = [];
       setPendingUserMessage(message);
+      setStreamingAssistantMessage("");
       setThinkingEntries([]);
       setThinkingStreaming(true);
 
@@ -173,6 +166,9 @@ export function WebsiteCreateView({ onDraftChanged }: WebsiteCreateViewProps) {
             thinkingRunRef.current = [...thinkingRunRef.current, entry];
             setThinkingEntries(thinkingRunRef.current);
           },
+          onAssistantDelta: (text) => {
+            setStreamingAssistantMessage(text);
+          },
         });
       } finally {
         setThinkingStreaming(false);
@@ -182,11 +178,13 @@ export function WebsiteCreateView({ onDraftChanged }: WebsiteCreateViewProps) {
       await handleSessionResponse(data);
       setThinkingEntries([]);
       setPendingUserMessage("");
+      setStreamingAssistantMessage("");
       thinkingRunRef.current = [];
     },
     onError: (error) => {
       setThinkingEntries([]);
       setPendingUserMessage("");
+      setStreamingAssistantMessage("");
       thinkingRunRef.current = [];
       toast.error(error instanceof Error ? error.message : "Could not send message");
     },
@@ -316,14 +314,13 @@ export function WebsiteCreateView({ onDraftChanged }: WebsiteCreateViewProps) {
     uploadLogo.isPending ||
     removeLogo.isPending;
   const hasThinkingHistory = allThinkingTurns.length > 0;
-  const previewThinkingEntries = thinkingStreaming ? thinkingEntries : latestLiveEntries;
   const publishState = session.store
     ? {
-        status: session.store.status ?? "draft",
-        published_at: session.store.published_at ?? null,
-        is_published: session.store.is_published ?? false,
-        has_unpublished_changes: session.store.has_unpublished_changes ?? !!localStorefront,
-      }
+      status: session.store.status ?? "draft",
+      published_at: session.store.published_at ?? null,
+      is_published: session.store.is_published ?? false,
+      has_unpublished_changes: session.store.has_unpublished_changes ?? !!localStorefront,
+    }
     : null;
 
   const previewTemplateId =
@@ -334,18 +331,18 @@ export function WebsiteCreateView({ onDraftChanged }: WebsiteCreateViewProps) {
 
   const previewStore = session.store
     ? {
-        ...session.store,
-        ...(previewTemplateId ? { storefront_template_id: previewTemplateId } : {}),
-      }
+      ...session.store,
+      ...(previewTemplateId ? { storefront_template_id: previewTemplateId } : {}),
+    }
     : null;
 
   const previewStorefront =
     localStorefront && previewTemplateId
       ? (alignStorefrontTemplateToSelection(
-          localStorefront,
-          previewTemplateId,
-          session.store?.brand_color,
-        ) ?? localStorefront)
+        localStorefront,
+        previewTemplateId,
+        session.store?.brand_color,
+      ) ?? localStorefront)
       : localStorefront;
 
   return (
@@ -374,13 +371,6 @@ export function WebsiteCreateView({ onDraftChanged }: WebsiteCreateViewProps) {
                 Code workbench
               </Link>
             ) : null}
-            <Link
-              href="/admin/builder/thinking"
-              className="inline-flex items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2 text-xs font-medium text-ink-soft hover:text-ink"
-            >
-              <Sparkles className="h-3.5 w-3.5" />
-              AI thinking log
-            </Link>
           </div>
         </div>
         <BuilderProgress status={session.status} />
@@ -419,6 +409,8 @@ export function WebsiteCreateView({ onDraftChanged }: WebsiteCreateViewProps) {
           onApplyImage={(target, url, label) => applyImage.mutate({ target, url, label })}
           onSelectTemplate={(templateId) => selectTemplate.mutate(templateId)}
           onClearChat={() => clearChat.mutate()}
+          pendingUserMessage={pendingUserMessage}
+          streamingAssistantMessage={streamingAssistantMessage}
         />
         <BuilderPreviewPanel
           store={previewStore}
@@ -427,7 +419,6 @@ export function WebsiteCreateView({ onDraftChanged }: WebsiteCreateViewProps) {
           publishing={publishStorefront.isPending}
           onPublish={() => publishStorefront.mutate()}
           generating={sendMessage.isPending || selectTemplate.isPending}
-          thinkingEntries={previewThinkingEntries}
           thinkingStreaming={thinkingStreaming}
           hasThinkingHistory={hasThinkingHistory}
           onOpenThinkingLog={() => setThinkingLogOpen(true)}

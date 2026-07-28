@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { Code2, ExternalLink, ListTree, Loader2, Sparkles } from "lucide-react";
-import { BuilderThinkingLogCompact } from "@/components/admin/builder/builder-thinking-log-compact";
 import {
   PublishStorefrontButton,
   PublishStatusBadge,
@@ -11,7 +10,6 @@ import { StorefrontPreview } from "@/components/storefront/storefront-preview";
 import type { Store, StorefrontContent, StorefrontPublishState } from "@/lib/api/types";
 import { isCodeWorkbenchEnabled } from "@/lib/features";
 import { getStorefrontUrl } from "@/lib/store-host";
-import type { AgentThinkingLogEntry } from "@/lib/storefront-builder/agents/types";
 
 export function BuilderPreviewPanel({
   store,
@@ -20,7 +18,6 @@ export function BuilderPreviewPanel({
   publishing = false,
   onPublish,
   generating,
-  thinkingEntries = [],
   thinkingStreaming = false,
   hasThinkingHistory = false,
   onOpenThinkingLog,
@@ -31,37 +28,11 @@ export function BuilderPreviewPanel({
   publishing?: boolean;
   onPublish?: () => void;
   generating: boolean;
-  thinkingEntries?: AgentThinkingLogEntry[];
   thinkingStreaming?: boolean;
   hasThinkingHistory?: boolean;
   onOpenThinkingLog?: () => void;
 }) {
-  const showThinkingInsteadOfSkeleton =
-    generating && !storefront && (thinkingStreaming || thinkingEntries.length > 0);
-
-  if (generating && !storefront && !showThinkingInsteadOfSkeleton) {
-    return (
-      <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-soft">
-        <PreviewHeader
-          store={store}
-          storefront={null}
-          publish={publish}
-          publishing={publishing}
-          onPublish={onPublish}
-          hasThinkingHistory={hasThinkingHistory}
-          onOpenThinkingLog={onOpenThinkingLog}
-        />
-        <div className="flex flex-1 flex-col items-center justify-center p-4">
-          <div className="inline-flex items-center gap-2 rounded-full bg-secondary px-4 py-2 text-sm text-ink-soft">
-            <Loader2 className="h-4 w-4 animate-spin text-primary" />
-            Starting agent pipeline…
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (showThinkingInsteadOfSkeleton) {
+  if (generating && !storefront) {
     return (
       <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-soft">
         <PreviewHeader
@@ -73,12 +44,11 @@ export function BuilderPreviewPanel({
           hasThinkingHistory={hasThinkingHistory || thinkingStreaming}
           onOpenThinkingLog={onOpenThinkingLog}
         />
-        <div className="min-h-0 flex-1 p-4">
-          <BuilderThinkingLogCompact
-            entries={thinkingEntries}
-            streaming={thinkingStreaming}
-            className="h-full"
-          />
+        <div className="flex flex-1 flex-col items-center justify-center p-4">
+          <div className="inline-flex items-center gap-2 rounded-full bg-secondary px-4 py-2 text-sm text-ink-soft">
+            <Loader2 className="h-4 w-4 animate-spin text-primary" />
+            Building your website…
+          </div>
         </div>
       </div>
     );
