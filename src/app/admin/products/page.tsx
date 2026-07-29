@@ -1775,6 +1775,11 @@ export default function AdminProductsPage() {
         onOpenChange={setScanDialogOpen}
         existingProducts={products}
         currency={defaultCurrency}
+        uploadImage={async (file) => {
+          if (!store) throw new Error("Store not loaded.");
+          const { url } = await api.uploadStorefrontImage(store.id, file);
+          return url;
+        }}
         onCreated={() => {
           merchantInvalidators.products(queryClient);
           merchantInvalidators.storefront(queryClient);
