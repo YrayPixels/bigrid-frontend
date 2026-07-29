@@ -23,7 +23,21 @@ export type User = {
   email_verified_at?: string | null;
   has_store: boolean;
   impersonating?: boolean;
+  role?: "owner" | "manager" | "cashier" | null;
+  can_access_admin?: boolean;
+  can_sell?: boolean;
+  can_manage_staff?: boolean;
+  default_location_id?: string | null;
+  redirect?: string;
 };
+
+export function postAuthPath(user: User): string {
+  if (user.redirect) return user.redirect;
+  if (user.role === "cashier" || (user.can_sell && !user.can_access_admin)) {
+    return "/sell";
+  }
+  return user.has_store ? "/admin" : "/admin/onboarding";
+}
 
 export function isEmailVerified(user: User | null | undefined): boolean {
   return Boolean(user?.email_verified_at);
@@ -356,6 +370,7 @@ export type StoreProduct = {
   /** Gallery URLs; first entry mirrors image_url (cover). */
   images?: string[] | null;
   sku?: string;
+  barcode?: string | null;
   brand?: string | null;
   category?: string;
   category_id?: string | null;
@@ -363,7 +378,17 @@ export type StoreProduct = {
   status?: "active" | "draft" | "archived";
   in_stock?: boolean;
   low_stock?: boolean;
-  variants?: { name: string; options: string[] }[];
+  variants?: Array<{
+    name: string;
+    options: Array<
+      | string
+      | {
+          value: string;
+          price?: number | null;
+          image_url?: string | null;
+        }
+    >;
+  }>;
   perks?: string[];
 };
 
@@ -606,6 +631,17 @@ export type PublicStorefront = {
     allow_pickup?: boolean;
     default_delivery_fee?: number;
     fulfilment_promise?: string | null;
+    shipping_locations?: Array<{
+      id: string;
+      name: string;
+      city?: string | null;
+      state?: string | null;
+      area?: string | null;
+      delivery_fee?: number | null;
+      free_shipping_enabled?: boolean;
+      free_shipping_min_subtotal?: number | null;
+      is_default?: boolean;
+    }>;
   };
 };
 
@@ -689,6 +725,14 @@ export type StoreOrder = {
   tracking_number?: string | null;
   status: StoreOrderStatus;
   payment_status: StorePaymentStatus;
+  payment_method?: "paystack" | "cash" | "bank_transfer" | string | null;
+  payment_reference?: string | null;
+  amount_tendered?: number | null;
+  source?: "online" | "pos" | string;
+  location_id?: string | null;
+  location_name?: string | null;
+  cashier_user_id?: string | null;
+  cashier_name?: string | null;
   paystack_reference?: string | null;
   settlement_status?: string | null;
   currency: string;
@@ -703,6 +747,100 @@ export type StoreOrder = {
   shipped_at?: string | null;
   created_at: string | null;
   updated_at: string | null;
+};
+
+export type StoreLocation = {
+  id: string;
+  name: string;
+  city?: string | null;
+  state?: string | null;
+  area?: string | null;
+  delivery_fee?: number | null;
+  free_shipping_enabled?: boolean;
+  free_shipping_min_subtotal?: number | null;
+  is_default: boolean;
+  created_at?: string | null;
+};
+
+export type MerchantStaffMember = {
+  id: string;
+  user_id: string;
+  name: string;
+  email: string;
+  role: "manager" | "cashier";
+  status: "invited" | "active" | "disabled";
+  default_location_id: string | null;
+  default_location_name?: string | null;
+  created_at?: string | null;
+};
+
+export type PosCatalogProduct = {
+  id: string;
+  name: string;
+  sku: string | null;
+  barcode?: string | null;
+  price: number;
+  sale_price: number | null;
+  effective_price: number;
+  currency: string;
+  image_url: string | null;
+  stock_quantity: number | null;
+  variants: Array<{
+    name: string;
+    options: Array<
+      | string
+      | {
+          value: string;
+          price?: number | null;
+          image_url?: string | null;
+        }
+    >;
+  }> | Record<string, unknown>[] | unknown;
+  category_id: string | null;
+};
+
+export type PosLookupResponse = {
+  match: "exact" | "ambiguous" | "candidates" | "none";
+  product: PosCatalogProduct | null;
+  candidates: PosCatalogProduct[];
+  query?: string;
+};
+
+export type PosCatalogResponse = {
+  store: { id: string; name: string; currency: string };
+  categories: Array<{ id: string; name: string }>;
+  products: PosCatalogProduct[];
+};
+
+export type CreatePosOrderInput = {
+  items: Array<{
+    product_id: string;
+    quantity: number;
+    selected_options?: Record<string, string>;
+  }>;
+  payment_method: "cash" | "bank_transfer";
+  payment_reference?: string | null;
+  amount_tendered?: number | null;
+  location_id?: string | null;
+  customer_name?: string | null;
+  customer_phone?: string | null;
+  customer_email?: string | null;
+  notes?: string | null;
+};
+
+export type CreateStaffInput = {
+  name: string;
+  email: string;
+  password: string;
+  role: "manager" | "cashier";
+  location_id?: string | null;
+};
+
+export type UpdateStaffInput = {
+  name?: string;
+  role?: "manager" | "cashier";
+  status?: "active" | "disabled";
+  location_id?: string | null;
 };
 
 export type StoreCustomer = {
@@ -789,6 +927,8 @@ export type MerchantDashboardStatusCount = {
 };
 
 export type MerchantDashboardOverview = {
+  location_id?: string;
+  locations?: StoreLocation[];
   metrics: MerchantDashboardMetrics;
   sales_by_day: { date: string; orders: number; sales: number }[];
   top_products?: MerchantDashboardTopProduct[];
@@ -805,6 +945,8 @@ export type CreateStoreOrderInput = {
     phone: string;
   };
   delivery_address: string;
+  delivery_city?: string;
+  delivery_state?: string;
   delivery_method?: "delivery" | "pickup";
   notes?: string;
   callback_url?: string;

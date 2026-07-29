@@ -12,6 +12,7 @@ import {
 import type { StoreProduct } from "@/lib/api/types";
 import {
   cartLineKey,
+  cartLineUnitPrice,
   defaultSelectedOptions,
   type SelectedOptions,
 } from "@/lib/storefront/cart-line";
@@ -153,15 +154,7 @@ export function CartProvider({ storeId, children }: { storeId: string; children:
   const value = useMemo<CartContextValue>(() => {
     const itemCount = lines.reduce((sum, line) => sum + line.quantity, 0);
     const subtotal = lines.reduce((sum, line) => {
-      const unit =
-        typeof line.product.effective_price === "number"
-          ? line.product.effective_price
-          : line.product.sale_price != null &&
-              line.product.sale_price >= 0 &&
-              line.product.sale_price < line.product.price
-            ? line.product.sale_price
-            : line.product.price;
-      return sum + unit * line.quantity;
+      return sum + cartLineUnitPrice(line.product, line.selectedOptions) * line.quantity;
     }, 0);
     return { lines, itemCount, subtotal, addItem, removeItem, setQuantity, clear, refreshLines };
   }, [addItem, clear, lines, removeItem, setQuantity, refreshLines]);

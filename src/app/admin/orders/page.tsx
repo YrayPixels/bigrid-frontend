@@ -28,6 +28,8 @@ import {
   useMerchantOrders,
 } from "@/hooks/use-merchant-queries";
 import type { StoreOrderStatus } from "@/lib/api/types";
+import { useLocationScope } from "@/lib/location-scope";
+import { Badge } from "@/components/ui/badge";
 
 const STATUS_OPTIONS: { value: "all" | StoreOrderStatus; label: string }[] = [
   { value: "all", label: "All statuses" },
@@ -92,6 +94,7 @@ function statusClass(status: string) {
 
 export default function AdminOrdersPage() {
   const queryClient = useQueryClient();
+  const { locationId, selectedLabel } = useLocationScope();
   const [status, setStatus] = useState<"all" | StoreOrderStatus>("all");
   const [paymentStatus, setPaymentStatus] = useState<string>("all");
   const [search, setSearch] = useState("");
@@ -105,16 +108,17 @@ export default function AdminOrdersPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [status, paymentStatus, debouncedSearch]);
+  }, [status, paymentStatus, debouncedSearch, locationId]);
 
   const ordersQuery = useMerchantOrders({
     status,
     payment_status: paymentStatus,
     search: debouncedSearch,
     page,
+    location_id: locationId,
   });
 
-  const dashboardQuery = useMerchantDashboard();
+  const dashboardQuery = useMerchantDashboard({ locationId });
 
   const metrics = dashboardQuery.data?.metrics;
   const statsLoading = dashboardQuery.isLoading;
@@ -175,8 +179,7 @@ export default function AdminOrdersPage() {
                 </Tooltip>
               </div>
               <p className="mt-1 text-xs text-ink-soft sm:text-sm">
-                Manage customer checkout orders, delivery details, payment state, and fulfillment
-                status.
+                {selectedLabel}: manage checkout orders, delivery, payments, and fulfillment.
               </p>
             </div>
             <button
@@ -328,9 +331,21 @@ export default function AdminOrdersPage() {
                       >
                         {order.order_number}
                       </Link>
-                      <div className="mt-1 text-xs capitalize text-ink-soft">
-                        Payment: {order.payment_status}
+                      <div className="mt-1 flex flex-wrap items-center gap-2">
+                        <Badge variant={order.source === "pos" ? "default" : "secondary"}>
+                          {order.source === "pos" ? "In-store" : "Online"}
+                        </Badge>
+                        <span className="text-xs capitalize text-ink-soft">
+                          Payment: {order.payment_status}
+                          {order.payment_method ? ` · ${order.payment_method.replace("_", " ")}` : ""}
+                        </span>
                       </div>
+                      {order.source === "pos" && order.cashier_name ? (
+                        <div className="mt-1 text-xs text-ink-soft">
+                          Cashier: {order.cashier_name}
+                          {order.location_name ? ` · ${order.location_name}` : ""}
+                        </div>
+                      ) : null}
                     </td>
                     <td className="px-5 py-4">
                       <div className="font-medium">{order.customer_name}</div>

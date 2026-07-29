@@ -35,8 +35,8 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Admin route protection
-  if (pathname.startsWith("/admin")) {
+  // Admin / sell route protection
+  if (pathname.startsWith("/admin") || pathname.startsWith("/sell")) {
     const authPresent = request.cookies.get("storehaus_auth_present")?.value;
     if (!authPresent) {
       const url = request.nextUrl.clone();

@@ -39,3 +39,5 @@ bolt-templates/**/.git
 *.sw?
 
 .env
+
+.pnpm-store

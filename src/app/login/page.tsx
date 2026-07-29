@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api/client";
 import { merchantKeys } from "@/lib/query-keys";
+import { postAuthPath } from "@/lib/api/types";
 import {
   AuthShell,
   AuthSubmitButton,
@@ -28,7 +29,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (!loading && user) {
-      router.replace(user.has_store ? "/admin" : "/admin/onboarding");
+      router.replace(postAuthPath(user));
     }
   }, [user, loading, router]);
 
@@ -38,7 +39,7 @@ export default function LoginPage() {
     try {
       const { user: nextUser } = await api.login({ email, password, remember });
       setUser(nextUser);
-      if (nextUser.has_store) {
+      if (nextUser.has_store && nextUser.can_access_admin !== false) {
         await Promise.all([
           queryClient.prefetchQuery({
             queryKey: merchantKeys.store.me(),
@@ -46,14 +47,14 @@ export default function LoginPage() {
             staleTime: 5 * 60 * 1000,
           }),
           queryClient.prefetchQuery({
-            queryKey: merchantKeys.dashboard(),
-            queryFn: () => api.getDashboardOverview(),
+            queryKey: merchantKeys.dashboard("all"),
+            queryFn: () => api.getDashboardOverview("all"),
             staleTime: 60 * 1000,
           }),
         ]);
       }
       toast.success(`Welcome back, ${nextUser.name.split(" ")[0]}!`);
-      router.replace(nextUser.has_store ? "/admin" : "/admin/onboarding");
+      router.replace(postAuthPath(nextUser));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Login failed");
     } finally {
