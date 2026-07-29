@@ -1,16 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useRef, useState, type CSSProperties } from "react";
+import { FormEvent, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { cartLineKey, useCart } from "@/lib/storefront/cart-context";
-import { formatSelectedOptions } from "@/lib/storefront/cart-line";
+import { cartLineUnitPrice, formatSelectedOptions } from "@/lib/storefront/cart-line";
 import { cartThresholdDiscount } from "@/lib/storefront/pricing";
+import { quoteDeliveryFee } from "@/lib/storefront/shipping-quote";
 import { storefrontApi } from "@/lib/api/storefront";
 import { openPaystackCheckout } from "@/lib/paystack";
 import { formatMoney } from "@/lib/storefront/format";
 import { useStorefront } from "@/lib/storefront/store-context";
 import { useAbandonedCartTracking } from "@/lib/storefront/use-abandoned-cart-tracking";
+import { PlacesAutocompleteInput } from "@/components/places/places-autocomplete-input";
+import { isGooglePlacesEnabled, type ParsedPlace } from "@/lib/places/parse-place";
 import { PageContainer } from "@/components/storefront/theme/page-container";
 import { useStorefrontTheme } from "@/lib/storefront/theme-context";
 import { beautyTemplateImages } from "@/lib/storefront/beauty-defaults";
@@ -27,15 +30,45 @@ export function CheckoutPageView() {
   const { lines, subtotal, clear } = useCart();
   const { theme, mode } = useStorefrontTheme();
   const cartDiscount = cartThresholdDiscount(subtotal, discounts ?? []);
+  const merchandiseSubtotal = Math.max(0, subtotal - cartDiscount.amount);
   const allowDelivery = checkout?.allow_local_delivery ?? true;
   const allowPickup = checkout?.allow_pickup ?? false;
-  const deliveryFee = Number(checkout?.default_delivery_fee ?? 0);
+  const placesEnabled = isGooglePlacesEnabled();
   const [deliveryMethod, setDeliveryMethod] = useState<"delivery" | "pickup">(
     allowDelivery ? "delivery" : "pickup",
   );
-  const payableTotal =
-    Math.max(0, subtotal - cartDiscount.amount) +
-    (deliveryMethod === "delivery" ? deliveryFee : 0);
+  const [deliveryAddress, setDeliveryAddress] = useState("");
+  const [deliveryCity, setDeliveryCity] = useState("");
+  const [deliveryState, setDeliveryState] = useState("");
+
+  function applyCheckoutPlace(place: ParsedPlace) {
+    setDeliveryAddress(place.formattedAddress || place.streetAddress);
+    setDeliveryCity(place.city);
+    setDeliveryState(place.state);
+  }
+  const shippingQuote = useMemo(
+    () =>
+      quoteDeliveryFee({
+        deliveryMethod,
+        deliveryAddress,
+        city: deliveryCity,
+        state: deliveryState,
+        subtotal: merchandiseSubtotal,
+        defaultDeliveryFee: Number(checkout?.default_delivery_fee ?? 0),
+        locations: checkout?.shipping_locations,
+      }),
+    [
+      deliveryMethod,
+      deliveryAddress,
+      deliveryCity,
+      deliveryState,
+      merchandiseSubtotal,
+      checkout?.default_delivery_fee,
+      checkout?.shipping_locations,
+    ],
+  );
+  const deliveryFee = shippingQuote.deliveryFee;
+  const payableTotal = merchandiseSubtotal + deliveryFee;
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const submitLabel = paymentsEnabled
@@ -63,6 +96,16 @@ export function CheckoutPageView() {
     isCosmetics ||
     theme.id === "furniture-hardware" ||
     theme.id === "hair-and-fashion";
+
+  function shippingAmountLabel(currency?: string) {
+    if (deliveryMethod === "pickup") return "Pickup";
+    return deliveryFee > 0 ? formatMoney(deliveryFee, currency) : "Free";
+  }
+
+  const showShippingLocationNote =
+    deliveryMethod === "delivery" &&
+    shippingQuote.locationName &&
+    (shippingQuote.freeShippingApplied || shippingQuote.locationId);
 
   if (lines.length === 0) {
     if (isStyledCheckout) {
@@ -137,7 +180,9 @@ export function CheckoutPageView() {
           email: String(form.get("email") ?? ""),
           phone: String(form.get("phone") ?? ""),
         },
-        delivery_address: String(form.get("delivery_address") ?? ""),
+        delivery_address: deliveryAddress,
+        delivery_city: deliveryCity,
+        delivery_state: deliveryState,
         delivery_method: deliveryMethod,
         notes: String(form.get("notes") ?? ""),
         session_token: sessionToken || undefined,
@@ -335,23 +380,68 @@ export function CheckoutPageView() {
               </fieldset>
             ) : null}
 
-            <label className="mt-4 block space-y-2 text-sm">
-              <span className="font-semibold">
-                {deliveryMethod === "pickup" ? "Contact address" : "Delivery address"}
-              </span>
-              <textarea
+            <div className="mt-4 space-y-4">
+              <PlacesAutocompleteInput
+                useUiInput={false}
                 name="delivery_address"
                 required
-                rows={4}
                 disabled={mode === "edit"}
-                className={inputClass}
+                label={deliveryMethod === "pickup" ? "Contact address" : "Delivery address"}
+                placeholder={
+                  placesEnabled
+                    ? "Search your address…"
+                    : "Street, area, landmark…"
+                }
+                hint={
+                  placesEnabled
+                    ? "Select a suggestion so we can match local delivery and free shipping."
+                    : undefined
+                }
+                value={deliveryAddress}
+                onChange={setDeliveryAddress}
+                onPlaceSelect={applyCheckoutPlace}
+                inputClassName={inputClass}
                 style={{
                   backgroundColor: `${theme.palette.surface}cc`,
                   borderColor: theme.palette.border,
                   color: theme.palette.text,
                 }}
               />
-            </label>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="space-y-2 text-sm">
+                  <span className="font-semibold">City</span>
+                  <input
+                    name="delivery_city"
+                    value={deliveryCity}
+                    onChange={(event) => setDeliveryCity(event.target.value)}
+                    disabled={mode === "edit"}
+                    readOnly={placesEnabled && Boolean(deliveryCity)}
+                    className={inputClass}
+                    style={{
+                      backgroundColor: `${theme.palette.surface}cc`,
+                      borderColor: theme.palette.border,
+                      color: theme.palette.text,
+                    }}
+                  />
+                </label>
+                <label className="space-y-2 text-sm">
+                  <span className="font-semibold">State</span>
+                  <input
+                    name="delivery_state"
+                    value={deliveryState}
+                    onChange={(event) => setDeliveryState(event.target.value)}
+                    disabled={mode === "edit"}
+                    readOnly={placesEnabled && Boolean(deliveryState)}
+                    className={inputClass}
+                    style={{
+                      backgroundColor: `${theme.palette.surface}cc`,
+                      borderColor: theme.palette.border,
+                      color: theme.palette.text,
+                    }}
+                  />
+                </label>
+              </div>
+            </div>
             <label className="mt-4 block space-y-2 text-sm">
               <span className="font-semibold">Order notes</span>
               <textarea
@@ -448,7 +538,10 @@ export function CheckoutPageView() {
                       </div>
                     </div>
                     <span className="font-semibold">
-                      {formatMoney(((typeof line.product.effective_price === 'number' ? line.product.effective_price : line.product.sale_price != null && line.product.sale_price < line.product.price ? line.product.sale_price : line.product.price) * line.quantity), line.product.currency)}
+                      {formatMoney(
+                        cartLineUnitPrice(line.product, line.selectedOptions) * line.quantity,
+                        line.product.currency,
+                      )}
                     </span>
                   </div>
                 );
@@ -471,13 +564,15 @@ export function CheckoutPageView() {
               ) : null}
               <div className="flex items-center justify-between">
                 <span>Shipping</span>
-                <strong>
-                  {deliveryMethod === "pickup"
-                    ? "Pickup"
-                    : deliveryFee > 0
-                      ? formatMoney(deliveryFee, currency)
-                      : "Free"}
-                </strong>
+                <div className="text-right">
+                  <strong>{shippingAmountLabel(currency)}</strong>
+                  {showShippingLocationNote ? (
+                    <div className="mt-0.5 text-xs" style={{ color: theme.palette.muted }}>
+                      {shippingQuote.freeShippingApplied ? "Free shipping" : "Shipping"} ·{" "}
+                      {shippingQuote.locationName}
+                    </div>
+                  ) : null}
+                </div>
               </div>
               <div className="flex items-center justify-between text-base">
                 <span>Total</span>
@@ -569,18 +664,51 @@ export function CheckoutPageView() {
               </div>
             </fieldset>
           ) : null}
-          <label className="block space-y-2 text-sm">
-            <span className="font-medium">
-              {deliveryMethod === "pickup" ? "Contact address" : "Delivery address"}
-            </span>
-            <textarea
+          <div className="space-y-4">
+            <PlacesAutocompleteInput
+              useUiInput={false}
               name="delivery_address"
               required
-              rows={4}
               disabled={mode === "edit"}
-              className={`w-full rounded-md border ${theme.borderColor} ${theme.pageBg} px-3 py-2`}
+              label={deliveryMethod === "pickup" ? "Contact address" : "Delivery address"}
+              placeholder={
+                placesEnabled ? "Search your address…" : "Street, area, landmark…"
+              }
+              hint={
+                placesEnabled
+                  ? "Select a suggestion so we can match local delivery and free shipping."
+                  : undefined
+              }
+              value={deliveryAddress}
+              onChange={setDeliveryAddress}
+              onPlaceSelect={applyCheckoutPlace}
+              inputClassName={`w-full rounded-md border ${theme.borderColor} ${theme.pageBg} px-3 py-2`}
             />
-          </label>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="space-y-2 text-sm">
+                <span className="font-medium">City</span>
+                <input
+                  name="delivery_city"
+                  value={deliveryCity}
+                  onChange={(event) => setDeliveryCity(event.target.value)}
+                  disabled={mode === "edit"}
+                  readOnly={placesEnabled && Boolean(deliveryCity)}
+                  className={`w-full rounded-md border ${theme.borderColor} ${theme.pageBg} px-3 py-2`}
+                />
+              </label>
+              <label className="space-y-2 text-sm">
+                <span className="font-medium">State</span>
+                <input
+                  name="delivery_state"
+                  value={deliveryState}
+                  onChange={(event) => setDeliveryState(event.target.value)}
+                  disabled={mode === "edit"}
+                  readOnly={placesEnabled && Boolean(deliveryState)}
+                  className={`w-full rounded-md border ${theme.borderColor} ${theme.pageBg} px-3 py-2`}
+                />
+              </label>
+            </div>
+          </div>
           <label className="block space-y-2 text-sm">
             <span className="font-medium">Order notes</span>
             <textarea
@@ -621,7 +749,10 @@ export function CheckoutPageView() {
                     : ""}
                 </span>
                 <span>
-                  {formatMoney(((typeof line.product.effective_price === 'number' ? line.product.effective_price : line.product.sale_price != null && line.product.sale_price < line.product.price ? line.product.sale_price : line.product.price) * line.quantity), line.product.currency)}
+                  {formatMoney(
+                    cartLineUnitPrice(line.product, line.selectedOptions) * line.quantity,
+                    line.product.currency,
+                  )}
                 </span>
               </div>
             ))}
@@ -634,13 +765,15 @@ export function CheckoutPageView() {
           ) : null}
           <div className="mt-3 flex items-center justify-between gap-4 text-sm">
             <span>Shipping</span>
-            <span>
-              {deliveryMethod === "pickup"
-                ? "Pickup"
-                : deliveryFee > 0
-                  ? formatMoney(deliveryFee)
-                  : "Free"}
-            </span>
+            <div className="text-right">
+              <span>{shippingAmountLabel()}</span>
+              {showShippingLocationNote ? (
+                <div className="mt-0.5 text-xs text-muted-foreground">
+                  {shippingQuote.freeShippingApplied ? "Free shipping" : "Shipping"} ·{" "}
+                  {shippingQuote.locationName}
+                </div>
+              ) : null}
+            </div>
           </div>
           <div
             className={`mt-6 flex items-center justify-between border-t ${theme.borderColor} pt-4 font-semibold`}

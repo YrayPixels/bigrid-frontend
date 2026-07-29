@@ -1,26 +1,43 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import type { StoreProduct } from "@/lib/api/types";
-import { requireVariantSelection } from "@/lib/storefront/cart-line";
+import type { StoreDiscount, StoreProduct } from "@/lib/api/types";
+import {
+  defaultSelectedOptions,
+  requireVariantSelection,
+  resolveVariantSelection,
+  type SelectedOptions,
+} from "@/lib/storefront/cart-line";
 import { useCart } from "@/lib/storefront/cart-context";
 import {
   maxPurchaseQuantity,
   productAvailabilityError,
 } from "@/lib/storefront/product-availability";
-import { defaultSelectedOptions, type SelectedOptions } from "@/lib/storefront/cart-line";
+import { productUnitPrice } from "@/lib/storefront/pricing";
+import { useStorefront } from "@/lib/storefront/store-context";
 
-export function useProductPurchase(product: StoreProduct) {
+export function useProductPurchase(product: StoreProduct, discountsOverride?: StoreDiscount[]) {
   const { addItem } = useCart();
   const router = useRouter();
+  const { discounts: storeDiscounts } = useStorefront();
+  const discounts = discountsOverride ?? storeDiscounts ?? [];
   const stockCap = maxPurchaseQuantity(product);
   const [quantity, setQuantityState] = useState(1);
   const [selectedOptions, setSelectedOptions] = useState<SelectedOptions>(() =>
     defaultSelectedOptions(product.variants),
   );
   const availabilityError = productAvailabilityError(product);
+
+  const selection = useMemo(
+    () => resolveVariantSelection(product, selectedOptions),
+    [product, selectedOptions],
+  );
+  const priced = useMemo(
+    () => productUnitPrice(product, discounts, selectedOptions),
+    [product, discounts, selectedOptions],
+  );
 
   function setQuantity(next: number | ((current: number) => number)) {
     setQuantityState((current) => {
@@ -60,5 +77,7 @@ export function useProductPurchase(product: StoreProduct) {
     availabilityError,
     stockCap,
     outOfStock: Boolean(availabilityError),
+    priced,
+    displayImageUrl: selection.imageUrl,
   };
 }

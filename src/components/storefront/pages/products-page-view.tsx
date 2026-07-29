@@ -121,7 +121,12 @@ function productSearchText(product: StoreProduct) {
     product.name,
     product.description,
     product.category,
-    ...(product.variants ?? []).flatMap((variant) => [variant.name, ...variant.options]),
+    ...(product.variants ?? []).flatMap((variant) => [
+      variant.name,
+      ...variant.options.map((option) =>
+        typeof option === "string" ? option : option.value,
+      ),
+    ]),
   ]
     .filter(Boolean)
     .join(" ")

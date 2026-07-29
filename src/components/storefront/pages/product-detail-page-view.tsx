@@ -7,7 +7,7 @@ import type { StoreProduct } from "@/lib/api/types";
 import { ProductReviewsModule } from "@/components/storefront/product-reviews-module";
 import { RelatedProductsSection } from "@/components/storefront/related-products-section";
 import { ProductVariantSelector } from "@/components/storefront/product-variant-selector";
-import { mergeProductPerks, productUnitPrice } from "@/lib/storefront/pricing";
+import { mergeProductPerks } from "@/lib/storefront/pricing";
 import { useStorefront } from "@/lib/storefront/store-context";
 import { beautyTemplateImages } from "@/lib/storefront/beauty-defaults";
 import { cosmeticsTemplateImages } from "@/lib/storefront/cosmetics-defaults";
@@ -114,7 +114,7 @@ function ProductGallery({
 }
 
 function FashionProductDetail({ product }: { product: StoreProduct }) {
-  const { store, storefront, discounts } = useStorefront();
+  const { store, storefront } = useStorefront();
   const { theme } = useStorefrontTheme();
   const {
     quantity,
@@ -124,21 +124,24 @@ function FashionProductDetail({ product }: { product: StoreProduct }) {
     addToCart,
     buyNow,
     outOfStock,
+    priced,
+    displayImageUrl,
   } = useProductPurchase(product);
   const variantGroups = product.variants ?? [];
   const perks = mergeProductPerks(product, store.store_perks);
-  const priced = productUnitPrice(product, discounts ?? []);
   const faqPage = storefront.pages?.faq;
-  const galleryImages = useMemo(
-    () =>
-      resolveProductGalleryImages(
-        product.image_url,
-        fashionTemplateImages.products,
-        8,
-        product.images,
-      ),
-    [product.image_url, product.images],
-  );
+  const galleryImages = useMemo(() => {
+    const images = resolveProductGalleryImages(
+      displayImageUrl ?? product.image_url,
+      fashionTemplateImages.products,
+      8,
+      product.images,
+    );
+    if (displayImageUrl && images[0] !== displayImageUrl) {
+      return [displayImageUrl, ...images.filter((src) => src !== displayImageUrl)];
+    }
+    return images;
+  }, [displayImageUrl, product.image_url, product.images]);
 
   return (
     <div style={{ backgroundColor: theme.palette.background, color: theme.palette.text }}>
@@ -312,7 +315,7 @@ function FashionProductDetail({ product }: { product: StoreProduct }) {
 }
 
 function MinimalisticProductDetail({ product }: { product: StoreProduct }) {
-  const { store, storefront, discounts } = useStorefront();
+  const { store, storefront } = useStorefront();
   const { theme } = useStorefrontTheme();
   const {
     quantity,
@@ -322,20 +325,23 @@ function MinimalisticProductDetail({ product }: { product: StoreProduct }) {
     addToCart,
     buyNow,
     outOfStock,
+    priced,
+    displayImageUrl,
   } = useProductPurchase(product);
   const perks = mergeProductPerks(product, store.store_perks);
-  const priced = productUnitPrice(product, discounts ?? []);
   const faqPage = storefront.pages?.faq;
-  const galleryImages = useMemo(
-    () =>
-      resolveProductGalleryImages(
-        product.image_url,
-        minimalisticTemplateImages.products,
-        8,
-        product.images,
-      ),
-    [product.image_url, product.images],
-  );
+  const galleryImages = useMemo(() => {
+    const images = resolveProductGalleryImages(
+      displayImageUrl ?? product.image_url,
+      minimalisticTemplateImages.products,
+      8,
+      product.images,
+    );
+    if (displayImageUrl && images[0] !== displayImageUrl) {
+      return [displayImageUrl, ...images.filter((src) => src !== displayImageUrl)];
+    }
+    return images;
+  }, [displayImageUrl, product.image_url, product.images]);
 
   return (
     <div style={{ backgroundColor: theme.palette.background, color: theme.palette.text }}>
@@ -535,7 +541,7 @@ function MinimalisticProductDetail({ product }: { product: StoreProduct }) {
 }
 
 function BeautyProductDetail({ product }: { product: StoreProduct }) {
-  const { store, storefront, discounts } = useStorefront();
+  const { store, storefront } = useStorefront();
   const { theme } = useStorefrontTheme();
   const {
     quantity,
@@ -545,17 +551,25 @@ function BeautyProductDetail({ product }: { product: StoreProduct }) {
     addToCart,
     buyNow,
     outOfStock,
+    priced,
+    displayImageUrl,
   } = useProductPurchase(product);
   const perks = mergeProductPerks(product, store.store_perks);
-  const priced = productUnitPrice(product, discounts ?? []);
   const faqPage = storefront.pages?.faq;
   const isCosmetics = theme.id === "cosmetics";
   const templateImages = isCosmetics ? cosmeticsTemplateImages : beautyTemplateImages;
-  const galleryImages = useMemo(
-    () =>
-      resolveProductGalleryImages(product.image_url, templateImages.products, 8, product.images),
-    [product.image_url, product.images, templateImages],
-  );
+  const galleryImages = useMemo(() => {
+    const images = resolveProductGalleryImages(
+      displayImageUrl ?? product.image_url,
+      templateImages.products,
+      8,
+      product.images,
+    );
+    if (displayImageUrl && images[0] !== displayImageUrl) {
+      return [displayImageUrl, ...images.filter((src) => src !== displayImageUrl)];
+    }
+    return images;
+  }, [displayImageUrl, product.image_url, product.images, templateImages]);
 
   return (
     <div style={{ backgroundColor: theme.palette.background, color: theme.palette.text }}>
@@ -670,20 +684,29 @@ function BeautyProductDetail({ product }: { product: StoreProduct }) {
 
 function DefaultProductDetail({ product }: { product: StoreProduct }) {
   const { theme, mode } = useStorefrontTheme();
-  const { store, discounts } = useStorefront();
+  const { store } = useStorefront();
   const {
     selectedOptions,
     setSelectedOptions,
     addToCart,
     buyNow,
     outOfStock,
+    priced,
+    displayImageUrl,
   } = useProductPurchase(product);
   const perks = mergeProductPerks(product, store.store_perks);
-  const priced = productUnitPrice(product, discounts ?? []);
-  const galleryImages = useMemo(
-    () => resolveProductGalleryImages(product.image_url, [], 8, product.images),
-    [product.image_url, product.images],
-  );
+  const galleryImages = useMemo(() => {
+    const images = resolveProductGalleryImages(
+      displayImageUrl ?? product.image_url,
+      [],
+      8,
+      product.images,
+    );
+    if (displayImageUrl && images[0] !== displayImageUrl) {
+      return [displayImageUrl, ...images.filter((src) => src !== displayImageUrl)];
+    }
+    return images;
+  }, [displayImageUrl, product.image_url, product.images]);
 
   return (
     <PageContainer>

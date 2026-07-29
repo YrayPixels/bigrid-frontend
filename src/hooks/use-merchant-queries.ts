@@ -45,13 +45,15 @@ export function useMerchantDashboard(
   options?: Omit<
     UseQueryOptions<MerchantDashboardOverview, Error>,
     "queryKey" | "queryFn"
-  >,
+  > & { locationId?: string },
 ) {
+  const locationId = options?.locationId ?? "all";
+  const { locationId: _locationId, ...queryOptions } = options ?? {};
   return useQuery({
-    queryKey: merchantKeys.dashboard(),
-    queryFn: () => api.getDashboardOverview(),
+    queryKey: merchantKeys.dashboard(locationId),
+    queryFn: () => api.getDashboardOverview(locationId),
     staleTime: 60 * 1000,
-    ...options,
+    ...queryOptions,
   });
 }
 
@@ -126,16 +128,30 @@ export function useProducts(
 }
 
 export function useMerchantOrders(
-  params: { status: string; search: string; page: number; payment_status?: string },
+  params: {
+    status: string;
+    search: string;
+    page: number;
+    payment_status?: string;
+    location_id?: string;
+  },
   options?: Omit<UseQueryOptions<StoreOrdersResponse, Error>, "queryKey" | "queryFn">,
 ) {
   const paymentStatus = params.payment_status ?? "all";
+  const locationId = params.location_id ?? "all";
   return useQuery({
-    queryKey: merchantKeys.orders.list(params.status, params.search, params.page, paymentStatus),
+    queryKey: merchantKeys.orders.list(
+      params.status,
+      params.search,
+      params.page,
+      paymentStatus,
+      locationId,
+    ),
     queryFn: () =>
       api.getOrders({
         status: params.status === "all" ? undefined : params.status,
         payment_status: paymentStatus === "all" ? undefined : paymentStatus,
+        location_id: locationId === "all" ? undefined : locationId,
         search: params.search || undefined,
         page: params.page,
         per_page: 15,
@@ -299,7 +315,7 @@ export const merchantInvalidators = {
   store: (qc: QueryClient) =>
     qc.invalidateQueries({ queryKey: merchantKeys.store.all }),
   dashboard: (qc: QueryClient) =>
-    qc.invalidateQueries({ queryKey: merchantKeys.dashboard() }),
+    qc.invalidateQueries({ queryKey: ["merchant-dashboard-overview"] }),
   products: (qc: QueryClient) => qc.invalidateQueries({ queryKey: ["products"] }),
   categories: (qc: QueryClient) => qc.invalidateQueries({ queryKey: ["categories"] }),
   orders: (qc: QueryClient) =>
