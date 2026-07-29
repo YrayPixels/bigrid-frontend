@@ -17,6 +17,7 @@ import {
   MoreVertical,
   Package,
   Plus,
+  ScanBarcode,
   Search,
   Tag,
   Trash2,
@@ -25,6 +26,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { ProductFormDialog } from "@/components/admin/product-form-dialog";
+import { ProductScanAddDialog } from "@/components/admin/product-scan-add-dialog";
 import { AdminStatCard } from "@/components/admin/stat-card";
 import { confirm } from "@/components/ui/confirm-dialog";
 import { Button } from "@/components/ui/button";
@@ -67,6 +69,7 @@ import {
   useStoreMe,
 } from "@/hooks/use-merchant-queries";
 import { useAuth } from "@/lib/auth-context";
+import { useLocationScope } from "@/lib/location-scope";
 import { api } from "@/lib/api/client";
 import type { ProductImportReport, Store, StoreCategory, StoreProduct } from "@/lib/api/types";
 
@@ -368,13 +371,19 @@ function isColorVariantName(name: string) {
   return /^(colou?rs?)$/i.test(name.trim());
 }
 
+function variantOptionValue(
+  option: NonNullable<StoreProduct["variants"]>[number]["options"][number],
+): string {
+  return typeof option === "string" ? option : option.value;
+}
+
 function collectColorOptions(products: StoreProduct[]): string[] {
   const colors = new Set<string>();
   for (const product of products) {
     for (const variant of product.variants ?? []) {
       if (!isColorVariantName(variant.name)) continue;
       for (const option of variant.options) {
-        const trimmed = option.trim();
+        const trimmed = variantOptionValue(option).trim();
         if (trimmed) colors.add(trimmed);
       }
     }
@@ -396,7 +405,9 @@ function productHasColor(product: StoreProduct, color: string): boolean {
   return (product.variants ?? []).some(
     (variant) =>
       isColorVariantName(variant.name) &&
-      variant.options.some((option) => option.trim().toLowerCase() === needle),
+      variant.options.some(
+        (option) => variantOptionValue(option).trim().toLowerCase() === needle,
+      ),
   );
 }
 
@@ -404,7 +415,7 @@ function productHasVariantGroup(product: StoreProduct, groupName: string): boole
   return (product.variants ?? []).some(
     (variant) =>
       variant.name.trim().toLowerCase() === groupName.trim().toLowerCase() &&
-      variant.options.some((option) => option.trim()),
+      variant.options.some((option) => variantOptionValue(option).trim()),
   );
 }
 
@@ -876,6 +887,7 @@ export default function AdminProductsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user } = useAuth();
+  const { locationId, selectedLabel } = useLocationScope();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -891,6 +903,7 @@ export default function AdminProductsPage() {
   const [maxPrice, setMaxPrice] = useState("");
   const [inStockOnly, setInStockOnly] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [scanDialogOpen, setScanDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<StoreProduct | undefined>();
   const [importing, setImporting] = useState(false);
   const [importReport, setImportReport] = useState<ProductImportReport | null>(null);
@@ -1341,7 +1354,9 @@ export default function AdminProductsPage() {
               </Tooltip>
             </div>
             <span className="mt-1 block text-xs text-ink-soft">
-              Track catalog value, sales, and stock health at a glance.
+              {locationId === "all"
+                ? "Track catalog value, sales, and stock health at a glance."
+                : `${selectedLabel}: catalog and stock are shared across all store locations.`}
             </span>
           </div>
           <div className="inline-flex w-fit items-center gap-2 rounded-xl border border-border bg-white px-3 py-2 text-xs font-medium text-ink-soft shadow-sm">
@@ -1459,6 +1474,15 @@ export default function AdminProductsPage() {
                         {lowStockCount} low stock
                       </span>
                     ) : null}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setScanDialogOpen(true)}
+                      className="h-10 flex-1 rounded-xl sm:flex-none"
+                    >
+                      <ScanBarcode className="h-4 w-4" />
+                      Scan to add
+                    </Button>
                     <Button
                       onClick={openNewProduct}
                       className="h-10 flex-1 rounded-xl bg-[#1f1f1f] text-white sm:flex-none"
@@ -1641,10 +1665,16 @@ export default function AdminProductsPage() {
                     <p className="mt-2 max-w-sm text-sm text-ink-soft">
                       Adjust the filters, add a product manually, or upload a CSV/XLSX catalog.
                     </p>
-                    <Button className="mt-5" onClick={openNewProduct}>
-                      <Plus className="h-4 w-4" />
-                      Add product
-                    </Button>
+                    <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+                      <Button variant="outline" onClick={() => setScanDialogOpen(true)}>
+                        <ScanBarcode className="h-4 w-4" />
+                        Scan to add
+                      </Button>
+                      <Button onClick={openNewProduct}>
+                        <Plus className="h-4 w-4" />
+                        Add product
+                      </Button>
+                    </div>
                   </div>
                 </div>
               )}
@@ -1739,6 +1769,23 @@ export default function AdminProductsPage() {
           </SheetFooter>
         </SheetContent>
       </Sheet>
+
+      <ProductScanAddDialog
+        open={scanDialogOpen}
+        onOpenChange={setScanDialogOpen}
+        existingProducts={products}
+        currency={defaultCurrency}
+        onCreated={() => {
+          merchantInvalidators.products(queryClient);
+          merchantInvalidators.storefront(queryClient);
+          setLastUpdated(new Date());
+          setStatusFilter("archived");
+        }}
+        onEditProduct={(product) => {
+          setScanDialogOpen(false);
+          openEditProduct(product);
+        }}
+      />
 
       <ProductFormDialog
         open={dialogOpen}

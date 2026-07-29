@@ -283,7 +283,7 @@ export class CatalogTools {
       {
         name: "set_product_variants",
         description:
-          "Set size/color (or other) option groups on a product. Replaces the full variants array. Example: [{ name: \"Size\", options: [\"S\",\"M\",\"L\"] }].",
+          "Set size/color (or other) option groups on a product. Replaces the full variants array. Options may be strings or objects with value, optional price, and optional image_url. Example: [{ name: \"Size\", options: [{ value: \"S\", price: 5000 }, { value: \"L\", price: 7000 }] }].",
         parameters: {
           type: "object",
           properties: {
@@ -295,7 +295,24 @@ export class CatalogTools {
                 type: "object",
                 properties: {
                   name: { type: "string" },
-                  options: { type: "array", items: { type: "string" } },
+                  options: {
+                    type: "array",
+                    items: {
+                      anyOf: [
+                        { type: "string" },
+                        {
+                          type: "object",
+                          properties: {
+                            value: { type: "string" },
+                            price: { type: ["number", "null"] },
+                            image_url: { type: ["string", "null"] },
+                          },
+                          required: ["value"],
+                          additionalProperties: false,
+                        },
+                      ],
+                    },
+                  },
                 },
                 required: ["name", "options"],
                 additionalProperties: false,
@@ -317,11 +334,58 @@ export class CatalogTools {
             .map((row: { name?: unknown; options?: unknown }) => {
               const name = asString(row?.name);
               const options = Array.isArray(row?.options)
-                ? row.options.map((o: unknown) => String(o).trim()).filter(Boolean)
+                ? row.options
+                    .map((o: unknown) => {
+                      if (typeof o === "string") {
+                        const value = o.trim();
+                        return value ? { value } : null;
+                      }
+                      if (!o || typeof o !== "object") return null;
+                      const opt = o as {
+                        value?: unknown;
+                        price?: unknown;
+                        image_url?: unknown;
+                      };
+                      const value = asString(opt.value);
+                      if (!value) return null;
+                      const mapped: {
+                        value: string;
+                        price?: number | null;
+                        image_url?: string | null;
+                      } = { value };
+                      if (opt.price != null && opt.price !== "") {
+                        const price = Number(opt.price);
+                        if (Number.isFinite(price) && price >= 0) mapped.price = price;
+                      }
+                      if (typeof opt.image_url === "string" && opt.image_url.trim()) {
+                        mapped.image_url = opt.image_url.trim();
+                      }
+                      return mapped;
+                    })
+                    .filter(
+                      (
+                        o,
+                      ): o is {
+                        value: string;
+                        price?: number | null;
+                        image_url?: string | null;
+                      } => !!o,
+                    )
                 : [];
               return name && options.length ? { name, options } : null;
             })
-            .filter((row): row is { name: string; options: string[] } => !!row);
+            .filter(
+              (
+                row,
+              ): row is {
+                name: string;
+                options: Array<{
+                  value: string;
+                  price?: number | null;
+                  image_url?: string | null;
+                }>;
+              } => !!row,
+            );
 
           try {
             const updated = await api.updateProduct(resolved.product.id, { variants });

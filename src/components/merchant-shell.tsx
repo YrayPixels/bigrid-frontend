@@ -14,14 +14,18 @@ import {
   ShoppingBag,
   ShoppingCart,
   Sparkles,
+  Store,
   Users,
+  UserPlus,
   type LucideIcon,
 } from "lucide-react";
 import { SettingsNavMenu } from "@/components/admin/settings-nav-tree";
+import { LocationScopeSwitcher } from "@/components/admin/location-scope-switcher";
 import { BizgridLogo } from "@/components/bizgrid-logo";
 import { LaunchChecklistReminder } from "@/components/admin/launch-checklist-reminder";
 import { EmailVerificationBanner } from "@/components/admin/email-verification-banner";
 import { useAuth } from "@/lib/auth-context";
+import { useLocationScope } from "@/lib/location-scope";
 import {
   Sidebar,
   SidebarContent,
@@ -72,8 +76,10 @@ const navGroups: NavGroup[] = [
   {
     label: "Sales",
     items: [
+      { href: "/sell", label: "Sell", icon: Store },
       { href: "/admin/orders", label: "Orders", icon: ShoppingBag },
       { href: "/admin/customers", label: "Customers", icon: Users },
+      { href: "/admin/staff", label: "Staff", icon: UserPlus },
       { href: "/admin/marketing/recovery", label: "Abandoned Cart", icon: ShoppingCart },
     ],
   },
@@ -120,6 +126,7 @@ function DashboardSidebarCollapseTrigger() {
 export function MerchantShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { user, signOut, impersonating } = useAuth();
+  const { selectedLabel } = useLocationScope();
 
   return (
     <SidebarProvider className="bg-canvas">
@@ -212,7 +219,11 @@ export function MerchantShell({ children }: { children: React.ReactNode }) {
         )}
         <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center gap-3 border-b border-border/60 bg-canvas-raised px-4 lg:px-6">
           <SidebarTrigger className="md:hidden" />
-          <span className="text-sm font-medium text-ink-soft">Merchant dashboard</span>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium text-ink">Merchant dashboard</p>
+            <p className="truncate text-xs text-ink-soft sm:hidden">{selectedLabel}</p>
+          </div>
+          <LocationScopeSwitcher />
         </header>
         <EmailVerificationBanner />
         <LaunchChecklistReminder />

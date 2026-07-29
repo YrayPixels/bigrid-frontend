@@ -6,7 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api, getToken, onAuthLogout, setToken } from "@/lib/api/client";
 import { merchantKeys } from "@/lib/query-keys";
-import type { User } from "@/lib/api/types";
+import { postAuthPath, type User } from "@/lib/api/types";
 
 type AuthCtx = {
   user: User | null;
@@ -115,7 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const freshUser = await api.me();
       setUser(freshUser);
       setImpersonating(Boolean(freshUser.impersonating) || impersonation);
-      if (freshUser.has_store) {
+      if (freshUser.has_store && freshUser.can_access_admin !== false) {
         await Promise.all([
           qc.prefetchQuery({
             queryKey: merchantKeys.store.me(),
@@ -123,15 +123,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             staleTime: 5 * 60 * 1000,
           }),
           qc.prefetchQuery({
-            queryKey: merchantKeys.dashboard(),
-            queryFn: () => api.getDashboardOverview(),
+            queryKey: merchantKeys.dashboard("all"),
+            queryFn: () => api.getDashboardOverview("all"),
             staleTime: 60 * 1000,
           }),
         ]);
       }
       if (!impersonation) {
         toast.success(`Welcome${freshUser.name ? `, ${freshUser.name.split(" ")[0]}` : ""}!`);
-        router.replace(freshUser.has_store ? "/admin" : "/admin/onboarding");
+        router.replace(postAuthPath(freshUser));
       }
     } catch {
       setToken(null);

@@ -6,6 +6,7 @@ import { Loader2 } from "lucide-react";
 import { MerchantShell } from "@/components/merchant-shell";
 import { OnboardingShell } from "@/components/admin/onboarding-shell";
 import { useAuth } from "@/lib/auth-context";
+import { LocationScopeProvider } from "@/lib/location-scope";
 import { BuilderRealtimeProvider } from "@/lib/storefront-builder/realtime-context";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -16,6 +17,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   useEffect(() => {
     if (!loading && !user) router.replace("/login");
+    if (!loading && user && user.can_access_admin === false) {
+      router.replace("/sell");
+    }
   }, [loading, user, router]);
 
   // Only block on the initial auth check. After sign-out (`!user`), render nothing
@@ -38,7 +42,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   return (
     <BuilderRealtimeProvider>
-      <MerchantShell>{children}</MerchantShell>
+      <LocationScopeProvider>
+        <MerchantShell>{children}</MerchantShell>
+      </LocationScopeProvider>
     </BuilderRealtimeProvider>
   );
 }

@@ -16,6 +16,7 @@ import {
 import { useMerchantDashboard, useStoreMe } from "@/hooks/use-merchant-queries";
 import { getStorefrontUrl } from "@/lib/store-host";
 import { useAuth } from "@/lib/auth-context";
+import { useLocationScope } from "@/lib/location-scope";
 import { DashboardAiBuilderFab } from "@/components/admin/dashboard-ai-builder-fab";
 import { PublishStatusBadge } from "@/components/admin/publish-storefront-button";
 import { DashboardMetricCard } from "@/components/admin/dashboard/metric-card";
@@ -60,6 +61,7 @@ function periodTrend(values: number[]) {
 export default function AdminDashboardPage() {
   const router = useRouter();
   const { user } = useAuth();
+  const { locationId, selectedLabel } = useLocationScope();
   const [builderOpen, setBuilderOpen] = useState(false);
 
   useEffect(() => {
@@ -81,6 +83,7 @@ export default function AdminDashboardPage() {
 
   const dashboardQuery = useMerchantDashboard({
     enabled: !!user && (user.has_store || !!store),
+    locationId,
   });
 
   const todayLabel = useMemo(
@@ -160,7 +163,7 @@ export default function AdminDashboardPage() {
     has_unpublished_changes: store.has_unpublished_changes ?? false,
   };
 
-  const loading = dashboardQuery.isLoading;
+  const loading = dashboardQuery.isLoading || dashboardQuery.isFetching;
 
   return (
     <div className="w-full min-w-0 px-4 py-6 sm:px-6 sm:py-8 md:py-10">
@@ -182,7 +185,7 @@ export default function AdminDashboardPage() {
         <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
           <div className="hidden items-center gap-2 rounded-full border border-border bg-card px-3.5 py-2 text-xs text-ink-soft shadow-soft md:inline-flex">
             <CalendarDays className="h-3.5 w-3.5 shrink-0" />
-            Store data as of {asOfLabel}
+            {selectedLabel} · as of {asOfLabel}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <PublishStatusBadge publish={publishState} />
@@ -239,7 +242,11 @@ export default function AdminDashboardPage() {
           icon={<Eye className="h-5 w-5" />}
           iconClassName="text-[oklch(0.55_0.1_230)] bg-[oklch(0.55_0.1_230)]/10"
           loading={loading}
-          footer={`${formatNumber(metrics?.visits_today ?? 0)} visits today`}
+          footer={
+            locationId === "all"
+              ? `${formatNumber(metrics?.visits_today ?? 0)} visits today`
+              : "Storefront visits (all locations)"
+          }
         />
         <DashboardMetricCard
           title="Total orders"

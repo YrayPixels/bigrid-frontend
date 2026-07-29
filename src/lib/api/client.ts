@@ -32,6 +32,13 @@ import type {
   StoreDomainsResponse,
   StoreDomain,
   UpdateStorePaymentSettingsInput,
+  PosCatalogResponse,
+  PosLookupResponse,
+  CreatePosOrderInput,
+  StoreLocation,
+  MerchantStaffMember,
+  CreateStaffInput,
+  UpdateStaffInput,
   BillingCheckoutResponse,
   BillingPortalResponse,
   BillingSubscriptionResponse,
@@ -324,10 +331,17 @@ export const api = {
     return res.store;
   },
 
-  async getDashboardOverview(): Promise<MerchantDashboardOverview> {
+  async getDashboardOverview(locationId: string = "all"): Promise<MerchantDashboardOverview> {
     const token = requireToken();
     if (USE_MOCKS) return mockApi.getDashboardOverview(token);
-    return http<MerchantDashboardOverview>(`${STOREHAUSE_API_PREFIX}/dashboard`);
+    const params = new URLSearchParams();
+    if (locationId && locationId !== "all") {
+      params.set("location_id", locationId);
+    }
+    const query = params.toString();
+    return http<MerchantDashboardOverview>(
+      `${STOREHAUSE_API_PREFIX}/dashboard${query ? `?${query}` : ""}`,
+    );
   },
 
   async getStorefrontTemplates(): Promise<StorefrontTemplateOption[]> {
@@ -371,6 +385,8 @@ export const api = {
     filters: {
       status?: string;
       payment_status?: string;
+      source?: string;
+      location_id?: string;
       search?: string;
       page?: number;
       per_page?: number;
@@ -383,6 +399,10 @@ export const api = {
     if (filters.status && filters.status !== "all") params.set("status", filters.status);
     if (filters.payment_status && filters.payment_status !== "all") {
       params.set("payment_status", filters.payment_status);
+    }
+    if (filters.source && filters.source !== "all") params.set("source", filters.source);
+    if (filters.location_id && filters.location_id !== "all") {
+      params.set("location_id", filters.location_id);
     }
     if (filters.search) params.set("search", filters.search);
     if (filters.page) params.set("page", String(filters.page));
@@ -1110,6 +1130,140 @@ export const api = {
       method: "POST",
       body: JSON.stringify(input),
     });
+  },
+
+  async getPosCatalog(filters: { search?: string; category_id?: string } = {}): Promise<PosCatalogResponse> {
+    requireToken();
+    const params = new URLSearchParams();
+    if (filters.search) params.set("search", filters.search);
+    if (filters.category_id) params.set("category_id", filters.category_id);
+    return http<PosCatalogResponse>(
+      `${STOREHAUSE_API_PREFIX}/pos/catalog${params.toString() ? `?${params.toString()}` : ""}`,
+    );
+  },
+
+  async lookupPosProduct(
+    code: string,
+    mode: "exact" | "search" = "exact",
+  ): Promise<PosLookupResponse> {
+    requireToken();
+    const params = new URLSearchParams({ code, mode });
+    return http<PosLookupResponse>(`${STOREHAUSE_API_PREFIX}/pos/lookup?${params.toString()}`);
+  },
+
+  async getPosPaymentInfo(): Promise<StorePaymentSettings> {
+    requireToken();
+    const res = await http<{ payments: StorePaymentSettings }>(
+      `${STOREHAUSE_API_PREFIX}/pos/payment-info`,
+    );
+    return res.payments;
+  },
+
+  async createPosOrder(body: CreatePosOrderInput): Promise<StoreOrder> {
+    requireToken();
+    const res = await http<{ order: StoreOrder }>(`${STOREHAUSE_API_PREFIX}/pos/orders`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+    return res.order;
+  },
+
+  async getPosOrders(filters: { location_id?: string } = {}): Promise<StoreOrder[]> {
+    requireToken();
+    const params = new URLSearchParams();
+    if (filters.location_id) params.set("location_id", filters.location_id);
+    const res = await http<{ data: StoreOrder[] }>(
+      `${STOREHAUSE_API_PREFIX}/pos/orders${params.toString() ? `?${params.toString()}` : ""}`,
+    );
+    return res.data;
+  },
+
+  async getPosOrder(orderId: string): Promise<StoreOrder> {
+    requireToken();
+    const res = await http<{ order: StoreOrder }>(`${STOREHAUSE_API_PREFIX}/pos/orders/${orderId}`);
+    return res.order;
+  },
+
+  async getLocations(): Promise<StoreLocation[]> {
+    requireToken();
+    const res = await http<{ data: StoreLocation[] }>(`${STOREHAUSE_API_PREFIX}/pos/locations`);
+    return res.data;
+  },
+
+  async createLocation(body: {
+    name: string;
+    city?: string | null;
+    state?: string | null;
+    area?: string | null;
+    delivery_fee?: number | null;
+    free_shipping_enabled?: boolean;
+    free_shipping_min_subtotal?: number | null;
+    is_default?: boolean;
+  }): Promise<StoreLocation> {
+    requireToken();
+    const res = await http<{ location: StoreLocation }>(`${STOREHAUSE_API_PREFIX}/locations`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+    return res.location;
+  },
+
+  async updateLocation(
+    locationId: string,
+    body: {
+      name?: string;
+      city?: string | null;
+      state?: string | null;
+      area?: string | null;
+      delivery_fee?: number | null;
+      free_shipping_enabled?: boolean;
+      free_shipping_min_subtotal?: number | null;
+      is_default?: boolean;
+    },
+  ): Promise<StoreLocation> {
+    requireToken();
+    const res = await http<{ location: StoreLocation }>(
+      `${STOREHAUSE_API_PREFIX}/locations/${locationId}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      },
+    );
+    return res.location;
+  },
+
+  async deleteLocation(locationId: string): Promise<void> {
+    requireToken();
+    await http(`${STOREHAUSE_API_PREFIX}/locations/${locationId}`, { method: "DELETE" });
+  },
+
+  async getStaff(): Promise<{
+    data: MerchantStaffMember[];
+    owner: { id: string; name: string; email: string; role: string };
+  }> {
+    requireToken();
+    return http(`${STOREHAUSE_API_PREFIX}/staff`);
+  },
+
+  async createStaff(body: CreateStaffInput): Promise<MerchantStaffMember> {
+    requireToken();
+    const res = await http<{ staff: MerchantStaffMember }>(`${STOREHAUSE_API_PREFIX}/staff`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+    return res.staff;
+  },
+
+  async updateStaff(staffId: string, body: UpdateStaffInput): Promise<MerchantStaffMember> {
+    requireToken();
+    const res = await http<{ staff: MerchantStaffMember }>(
+      `${STOREHAUSE_API_PREFIX}/staff/${staffId}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      },
+    );
+    return res.staff;
   },
 };
 

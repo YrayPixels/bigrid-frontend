@@ -41,6 +41,12 @@ import { cn } from "@/lib/utils";
 import { generateProductDescriptionCopy } from "@/lib/storefront-builder/product-description";
 import type { StoreCategory, StoreProduct } from "@/lib/api/types";
 
+type VariantOptionForm = {
+  value: string;
+  price: string;
+  image_url: string;
+};
+
 type ProductForm = {
   id?: string;
   name: string;
@@ -51,13 +57,63 @@ type ProductForm = {
   currency: string;
   images: string[];
   sku: string;
+  barcode: string;
   brand: string;
   category_id: string;
   stock_quantity: string;
   status: "active" | "draft" | "archived";
-  variants: { name: string; options: string[] }[];
+  variants: { name: string; options: VariantOptionForm[] }[];
   perks: string[];
 };
+
+type StoreVariantOption = NonNullable<StoreProduct["variants"]>[number]["options"][number];
+
+function blankVariantOption(value = ""): VariantOptionForm {
+  return { value, price: "", image_url: "" };
+}
+
+function normalizeVariantOption(option: StoreVariantOption): VariantOptionForm {
+  if (typeof option === "string") {
+    return blankVariantOption(option);
+  }
+  return {
+    value: option.value,
+    price: option.price != null ? String(option.price) : "",
+    image_url: option.image_url ?? "",
+  };
+}
+
+function serializeVariantOption(option: VariantOptionForm) {
+  return {
+    value: option.value,
+    price: option.price,
+    image_url: option.image_url,
+  };
+}
+
+function mapVariantOptionToProduct(option: VariantOptionForm) {
+  const value = option.value.trim();
+  if (!value) return null;
+
+  const mapped: {
+    value: string;
+    price?: number | null;
+    image_url?: string | null;
+  } = { value };
+
+  const priceStr = option.price.trim();
+  if (priceStr) {
+    const price = Number(priceStr);
+    mapped.price = Number.isFinite(price) ? price : null;
+  }
+
+  const imageUrl = option.image_url.trim();
+  if (imageUrl) {
+    mapped.image_url = imageUrl;
+  }
+
+  return mapped;
+}
 
 type CategoryTreeNode = {
   category: StoreCategory;
@@ -92,6 +148,7 @@ const blankForm: ProductForm = {
   currency: STORE_CURRENCY,
   images: [],
   sku: "",
+  barcode: "",
   brand: "",
   category_id: "",
   stock_quantity: "",
@@ -161,7 +218,7 @@ function serializeForm(form: ProductForm) {
     ...form,
     variants: form.variants.map((variant) => ({
       name: variant.name,
-      options: [...variant.options],
+      options: variant.options.map(serializeVariantOption),
     })),
     perks: [...form.perks],
     images: [...form.images],
@@ -183,6 +240,7 @@ function formFromProduct(product?: StoreProduct): ProductForm {
     currency: STORE_CURRENCY,
     images: normalizeProductImages(product.images, product.image_url),
     sku: product.sku ?? "",
+    barcode: product.barcode ?? "",
     brand: product.brand ?? "",
     category_id: product.category_id ?? "",
     stock_quantity:
@@ -191,7 +249,7 @@ function formFromProduct(product?: StoreProduct): ProductForm {
     variants: product.variants?.length
       ? product.variants.map((variant) => ({
           name: variant.name,
-          options: [...variant.options],
+          options: variant.options.map(normalizeVariantOption),
         }))
       : [],
     perks: product.perks?.length ? [...product.perks] : [],
@@ -207,7 +265,9 @@ function productFromForm(form: ProductForm, existing?: StoreProduct): StoreProdu
   const variants = form.variants
     .map((variant) => ({
       name: variant.name.trim(),
-      options: variant.options.map((option) => option.trim()).filter(Boolean),
+      options: variant.options
+        .map(mapVariantOptionToProduct)
+        .filter((option): option is NonNullable<typeof option> => option !== null),
     }))
     .filter((variant) => variant.name && variant.options.length);
   const perks = form.perks.map((perk) => perk.trim()).filter(Boolean);
@@ -224,6 +284,7 @@ function productFromForm(form: ProductForm, existing?: StoreProduct): StoreProdu
     image_url: images[0] ?? null,
     images: images.length ? images : null,
     sku: form.sku.trim() || undefined,
+    barcode: form.barcode.trim() || null,
     brand: form.brand.trim() || null,
     category_id: form.category_id || null,
     stock_quantity: Number.isFinite(stock) ? stock : undefined,
@@ -580,6 +641,7 @@ export function ProductFormDialog({
   }
 
   function onFilesDragOver(event: DragEvent) {
+    if (![...event.dataTransfer.types].includes("Files")) return;
     event.preventDefault();
     event.stopPropagation();
     if (form.images.length >= MAX_PRODUCT_IMAGES || uploadingImage) return;
@@ -593,6 +655,7 @@ export function ProductFormDialog({
   }
 
   function onFilesDrop(event: DragEvent) {
+    if (![...event.dataTransfer.types].includes("Files")) return;
     event.preventDefault();
     event.stopPropagation();
     setImageDropActive(false);
@@ -609,13 +672,38 @@ export function ProductFormDialog({
       ...current,
       variants: current.variants.map((variant, variantIndex) => {
         if (variantIndex !== index) return variant;
-        if (variant.options.some((option) => option.toLowerCase() === value.toLowerCase())) {
+        if (
+          variant.options.some(
+            (option) => option.value.trim().toLowerCase() === value.toLowerCase(),
+          )
+        ) {
           return variant;
         }
-        return { ...variant, options: [...variant.options, value] };
+        return { ...variant, options: [...variant.options, blankVariantOption(value)] };
       }),
     }));
     setOptionDrafts((current) => ({ ...current, [index]: "" }));
+  }
+
+  function updateVariantOption(
+    variantIndex: number,
+    optionIndex: number,
+    field: keyof VariantOptionForm,
+    raw: string,
+  ) {
+    setForm((current) => ({
+      ...current,
+      variants: current.variants.map((variant, index) =>
+        index === variantIndex
+          ? {
+              ...variant,
+              options: variant.options.map((option, idx) =>
+                idx === optionIndex ? { ...option, [field]: raw } : option,
+              ),
+            }
+          : variant,
+      ),
+    }));
   }
 
   function removeVariantOption(variantIndex: number, optionIndex: number) {
@@ -842,133 +930,125 @@ export function ProductFormDialog({
                   title="Product images"
                   description={`Up to ${MAX_PRODUCT_IMAGES} images. First image is the cover.`}
                 >
-                  <div
-                    onDragOver={onFilesDragOver}
-                    onDragLeave={onFilesDragLeave}
-                    onDrop={onFilesDrop}
-                    className={cn(
-                      "rounded-lg border border-dashed transition-colors",
-                      "flex items-center gap-3 px-3 py-3 sm:flex-col sm:px-4 sm:py-8 sm:text-center",
-                      imageDropActive
-                        ? "border-primary bg-primary/5"
-                        : "border-border bg-secondary/20",
-                    )}
-                  >
-                    <ImagePlus className="h-5 w-5 shrink-0 text-ink-soft sm:mx-auto sm:h-6 sm:w-6" />
-                    <div className="min-w-0 flex-1 sm:mt-2 sm:flex-none">
-                      <p className="text-sm font-medium">
-                        <span className="sm:hidden">Add product photos</span>
-                        <span className="hidden sm:inline">Drag & drop images here</span>
-                      </p>
-                      <p className="mt-0.5 text-xs text-ink-soft sm:mt-1">
-                        PNG, JPG, or WebP · max {MAX_PRODUCT_IMAGES}
-                      </p>
-                      {uploadProgress ? (
-                        <p className="mt-1 text-xs font-medium text-primary sm:mt-3 sm:text-sm">
-                          Uploading {uploadProgress.current} of {uploadProgress.total}…
-                        </p>
-                      ) : null}
-                    </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="shrink-0 sm:mt-4"
-                      disabled={uploadingImage || form.images.length >= MAX_PRODUCT_IMAGES}
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      {uploadingImage ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <ImagePlus className="h-4 w-4" />
-                      )}
-                      <span className="sm:hidden">Browse</span>
-                      <span className="hidden sm:inline">Choose files</span>
-                    </Button>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      className="sr-only"
-                      onChange={(event) => {
-                        const files = Array.from(event.target.files ?? []);
-                        event.target.value = "";
-                        void uploadFiles(files);
-                      }}
-                      disabled={uploadingImage || form.images.length >= MAX_PRODUCT_IMAGES}
-                    />
-                  </div>
-
-                  {form.images.length ? (
-                    <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-                      {form.images.map((image, index) => (
-                        <div
-                          key={`${image}-${index}`}
-                          draggable
-                          onDragStart={() => onImageDragStart(index)}
-                          onDragOver={(event) => onImageDragOver(event, index)}
-                          onDrop={() => onImageDrop(index)}
-                          onDragEnd={() => {
-                            setDragImageIndex(null);
-                            setDropImageIndex(null);
-                          }}
-                          className={cn(
-                            "relative overflow-hidden rounded-lg border bg-secondary/40",
-                            dropImageIndex === index
-                              ? "border-primary ring-2 ring-primary/30"
-                              : "border-border",
-                            dragImageIndex === index && "opacity-60",
-                          )}
-                        >
-                          <div className="absolute left-2 top-2 z-10 flex items-center gap-1">
-                            <span className="inline-flex h-6 w-6 cursor-grab items-center justify-center rounded-md bg-background/90 text-ink-soft shadow-sm active:cursor-grabbing">
-                              <GripVertical className="h-3.5 w-3.5" />
+                  <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+                    {form.images.map((image, index) => (
+                      <div
+                        key={`${image}-${index}`}
+                        draggable
+                        onDragStart={() => onImageDragStart(index)}
+                        onDragOver={(event) => onImageDragOver(event, index)}
+                        onDrop={() => onImageDrop(index)}
+                        onDragEnd={() => {
+                          setDragImageIndex(null);
+                          setDropImageIndex(null);
+                        }}
+                        className={cn(
+                          "relative overflow-hidden rounded-lg border bg-secondary/40",
+                          dropImageIndex === index
+                            ? "border-primary ring-2 ring-primary/30"
+                            : "border-border",
+                          dragImageIndex === index && "opacity-60",
+                        )}
+                      >
+                        <div className="absolute left-2 top-2 z-10 flex items-center gap-1">
+                          <span className="inline-flex h-6 w-6 cursor-grab items-center justify-center rounded-md bg-background/90 text-ink-soft shadow-sm active:cursor-grabbing">
+                            <GripVertical className="h-3.5 w-3.5" />
+                          </span>
+                          {index === 0 ? (
+                            <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold text-primary-foreground">
+                              Cover
                             </span>
-                            {index === 0 ? (
-                              <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold text-primary-foreground">
-                                Cover
-                              </span>
-                            ) : null}
-                          </div>
-                          <div className="aspect-square w-full">
-                            <img
-                              src={image}
-                              alt={`Product image ${index + 1}`}
-                              className="h-full w-full object-contain object-center"
-                              draggable={false}
-                            />
-                          </div>
-                          <div className="flex items-center justify-between gap-1 border-t border-border bg-background/95 p-1.5">
-                            <span className="px-1 text-[11px] text-ink-soft">Drag to reorder</span>
-                            <div className="flex items-center gap-0.5">
-                              {index > 0 ? (
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-7 px-2 text-[11px]"
-                                  onClick={() => setCoverImage(index)}
-                                >
-                                  Set cover
-                                </Button>
-                              ) : null}
+                          ) : null}
+                        </div>
+                        <div className="aspect-square w-full">
+                          <img
+                            src={image}
+                            alt={`Product image ${index + 1}`}
+                            className="h-full w-full object-contain object-center"
+                            draggable={false}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between gap-1 border-t border-border bg-background/95 p-1.5">
+                          <span className="px-1 text-[11px] text-ink-soft">Drag to reorder</span>
+                          <div className="flex items-center gap-0.5">
+                            {index > 0 ? (
                               <Button
                                 type="button"
                                 variant="ghost"
-                                size="icon"
-                                className="h-7 w-7 text-destructive"
-                                onClick={() => removeImage(index)}
-                                aria-label="Remove image"
+                                size="sm"
+                                className="h-7 px-2 text-[11px]"
+                                onClick={() => setCoverImage(index)}
                               >
-                                <Trash2 className="h-3.5 w-3.5" />
+                                Set cover
                               </Button>
-                            </div>
+                            ) : null}
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-destructive"
+                              onClick={() => removeImage(index)}
+                              aria-label="Remove image"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  ) : null}
+                      </div>
+                    ))}
+
+                    {form.images.length < MAX_PRODUCT_IMAGES ? (
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        onDragOver={onFilesDragOver}
+                        onDragLeave={onFilesDragLeave}
+                        onDrop={onFilesDrop}
+                        disabled={uploadingImage}
+                        className={cn(
+                          "flex aspect-square w-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed px-3 text-center transition-colors",
+                          "disabled:cursor-not-allowed disabled:opacity-60",
+                          imageDropActive
+                            ? "border-primary bg-primary/5"
+                            : "border-border bg-secondary/20 hover:border-primary/40 hover:bg-secondary/40",
+                        )}
+                      >
+                        {uploadingImage ? (
+                          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                        ) : (
+                          <ImagePlus className="h-6 w-6 text-ink-soft" />
+                        )}
+                        <div className="space-y-0.5">
+                          <p className="text-sm font-medium">
+                            {uploadingImage
+                              ? uploadProgress
+                                ? `${uploadProgress.current}/${uploadProgress.total}`
+                                : "Uploading…"
+                              : "Add images"}
+                          </p>
+                          <p className="text-[11px] text-ink-soft">
+                            {uploadingImage
+                              ? "Please wait"
+                              : "Drop or browse · PNG, JPG, WebP"}
+                          </p>
+                        </div>
+                      </button>
+                    ) : null}
+                  </div>
+
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="sr-only"
+                    onChange={(event) => {
+                      const files = Array.from(event.target.files ?? []);
+                      event.target.value = "";
+                      void uploadFiles(files);
+                    }}
+                    disabled={uploadingImage || form.images.length >= MAX_PRODUCT_IMAGES}
+                  />
 
                   <div className="flex flex-wrap items-end gap-3">
                     <label className="min-w-0 flex-1 space-y-2 text-sm font-medium">
@@ -1250,6 +1330,20 @@ export function ProductFormDialog({
                       </div>
                     </div>
                     <label className="block space-y-2">
+                      <FieldLabel optional hint="For POS scan">
+                        Barcode
+                      </FieldLabel>
+                      <Input
+                        value={form.barcode}
+                        onChange={(event) =>
+                          setForm((current) => ({ ...current, barcode: event.target.value }))
+                        }
+                        placeholder="EAN / UPC / QR payload"
+                        inputMode="text"
+                        autoComplete="off"
+                      />
+                    </label>
+                    <label className="block space-y-2">
                       <FieldLabel optional>Status</FieldLabel>
                       <select
                         value={form.status}
@@ -1343,14 +1437,14 @@ export function ProductFormDialog({
 
                 <FormSection
                   title="Variants"
-                  description="Optional options like Size or Color. Leave empty for simple products."
+                  description="Optional options like Size or Color. Sizes can have different prices; colors can have different images."
                   defaultOpen={Boolean(form.variants.length)}
                 >
                   {form.variants.length ? (
                     <div className="space-y-3">
                       {form.variants.map((variant, index) => (
                         <div key={index} className="rounded-lg border border-border p-3">
-                          <div className="flex items-start gap-2">
+                          <div className="flex items-center gap-2">
                             <Input
                               value={variant.name}
                               onChange={(event) =>
@@ -1363,14 +1457,19 @@ export function ProductFormDialog({
                                   ),
                                 }))
                               }
-                              placeholder="Size"
-                              className="max-w-[140px]"
+                              placeholder="Size or Color"
+                              className="max-w-[160px] font-medium"
                             />
+                            <span className="text-xs text-ink-soft">
+                              {variant.options.length
+                                ? `${variant.options.length} option${variant.options.length === 1 ? "" : "s"}`
+                                : "No options yet"}
+                            </span>
                             <Button
                               type="button"
                               variant="ghost"
                               size="icon"
-                              className="shrink-0"
+                              className="ml-auto shrink-0 text-ink-soft hover:text-destructive"
                               onClick={() =>
                                 setForm((current) => ({
                                   ...current,
@@ -1384,38 +1483,186 @@ export function ProductFormDialog({
                               <X className="h-4 w-4" />
                             </Button>
                           </div>
-                          <div className="mt-3 flex flex-wrap items-center gap-2 rounded-md border border-input bg-transparent px-2 py-1.5">
-                            {variant.options.map((option, optionIndex) => (
-                              <span
-                                key={`${option}-${optionIndex}`}
-                                className="inline-flex items-center gap-1 rounded-md bg-secondary px-2 py-0.5 text-xs font-medium"
-                              >
-                                {option}
-                                <button
-                                  type="button"
-                                  className="rounded-sm text-ink-soft hover:text-foreground"
-                                  onClick={() => removeVariantOption(index, optionIndex)}
-                                  aria-label={`Remove ${option}`}
-                                >
-                                  <X className="h-3 w-3" />
-                                </button>
-                              </span>
-                            ))}
-                            <input
-                              value={optionDrafts[index] ?? ""}
-                              onChange={(event) =>
-                                setOptionDrafts((current) => ({
-                                  ...current,
-                                  [index]: event.target.value.replace(/,/g, ""),
-                                }))
-                              }
-                              onKeyDown={(event) => handleOptionKeyDown(event, index)}
-                              onBlur={() => addVariantOption(index, optionDrafts[index] ?? "")}
-                              placeholder={
-                                variant.options.length ? "Add option" : "Type S, then Enter"
-                              }
-                              className="min-w-[120px] flex-1 bg-transparent py-1 text-sm outline-none placeholder:text-muted-foreground"
-                            />
+
+                          <div className="mt-3 overflow-x-auto">
+                            <div className="min-w-[420px] space-y-2">
+                              {variant.options.length ? (
+                                <div className="grid grid-cols-[minmax(0,1.1fr)_104px_minmax(148px,1.2fr)_36px] items-center gap-2 px-0.5 text-[11px] font-medium text-ink-soft">
+                                  <span>Value</span>
+                                  <span>Price (NGN)</span>
+                                  <span>Image</span>
+                                  <span className="sr-only">Remove</span>
+                                </div>
+                              ) : null}
+
+                              {variant.options.map((option, optionIndex) => {
+                                const imageInGallery = form.images.includes(option.image_url);
+                                const hasCustomUrl =
+                                  Boolean(option.image_url.trim()) && !imageInGallery;
+
+                                return (
+                                  <div
+                                    key={`${index}-${optionIndex}`}
+                                    className="grid grid-cols-[minmax(0,1.1fr)_104px_minmax(148px,1.2fr)_36px] items-center gap-2"
+                                  >
+                                    <Input
+                                      value={option.value}
+                                      onChange={(event) =>
+                                        updateVariantOption(
+                                          index,
+                                          optionIndex,
+                                          "value",
+                                          event.target.value,
+                                        )
+                                      }
+                                      placeholder="S, Blue, 128GB…"
+                                    />
+                                    <Input
+                                      type="number"
+                                      min="0"
+                                      step="any"
+                                      value={option.price}
+                                      onChange={(event) =>
+                                        updateVariantOption(
+                                          index,
+                                          optionIndex,
+                                          "price",
+                                          event.target.value,
+                                        )
+                                      }
+                                      placeholder="—"
+                                    />
+                                    <div className="min-w-0">
+                                      {form.images.length ? (
+                                        <div className="flex items-center gap-1.5">
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              updateVariantOption(
+                                                index,
+                                                optionIndex,
+                                                "image_url",
+                                                "",
+                                              )
+                                            }
+                                            className={cn(
+                                              "flex h-9 w-9 shrink-0 items-center justify-center rounded-md border text-[10px] font-medium transition-colors",
+                                              !option.image_url.trim()
+                                                ? "border-primary bg-primary/10 text-primary"
+                                                : "border-input text-ink-soft hover:bg-secondary",
+                                            )}
+                                            aria-label="No image"
+                                            title="No image"
+                                          >
+                                            None
+                                          </button>
+                                          {form.images.map((image, imageIndex) => {
+                                            const selected = option.image_url === image;
+                                            return (
+                                              <button
+                                                key={`${image}-${imageIndex}`}
+                                                type="button"
+                                                onClick={() =>
+                                                  updateVariantOption(
+                                                    index,
+                                                    optionIndex,
+                                                    "image_url",
+                                                    image,
+                                                  )
+                                                }
+                                                className={cn(
+                                                  "h-9 w-9 shrink-0 overflow-hidden rounded-md border transition",
+                                                  selected
+                                                    ? "border-primary ring-2 ring-primary/30"
+                                                    : "border-input hover:border-primary/40",
+                                                )}
+                                                aria-label={
+                                                  imageIndex === 0
+                                                    ? "Use cover image"
+                                                    : `Use gallery image ${imageIndex + 1}`
+                                                }
+                                                title={
+                                                  imageIndex === 0
+                                                    ? "Cover image"
+                                                    : `Gallery ${imageIndex + 1}`
+                                                }
+                                              >
+                                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                                <img
+                                                  src={image}
+                                                  alt=""
+                                                  className="h-full w-full object-cover"
+                                                />
+                                              </button>
+                                            );
+                                          })}
+                                          {hasCustomUrl ? (
+                                            <Input
+                                              value={option.image_url}
+                                              onChange={(event) =>
+                                                updateVariantOption(
+                                                  index,
+                                                  optionIndex,
+                                                  "image_url",
+                                                  event.target.value,
+                                                )
+                                              }
+                                              placeholder="https://…"
+                                              className="h-9 min-w-0 flex-1"
+                                            />
+                                          ) : null}
+                                        </div>
+                                      ) : (
+                                        <Input
+                                          value={option.image_url}
+                                          onChange={(event) =>
+                                            updateVariantOption(
+                                              index,
+                                              optionIndex,
+                                              "image_url",
+                                              event.target.value,
+                                            )
+                                          }
+                                          placeholder="Image URL (optional)"
+                                        />
+                                      )}
+                                    </div>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-9 w-9 shrink-0 text-ink-soft hover:text-destructive"
+                                      onClick={() => removeVariantOption(index, optionIndex)}
+                                      aria-label={`Remove ${option.value || "option"}`}
+                                    >
+                                      <X className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                );
+                              })}
+
+                              <div className="rounded-md border border-dashed border-input px-2.5 py-1.5">
+                                <Input
+                                  value={optionDrafts[index] ?? ""}
+                                  onChange={(event) =>
+                                    setOptionDrafts((current) => ({
+                                      ...current,
+                                      [index]: event.target.value.replace(/,/g, ""),
+                                    }))
+                                  }
+                                  onKeyDown={(event) => handleOptionKeyDown(event, index)}
+                                  onBlur={() =>
+                                    addVariantOption(index, optionDrafts[index] ?? "")
+                                  }
+                                  placeholder={
+                                    variant.options.length
+                                      ? "Add another option, press Enter"
+                                      : "Type an option (e.g. Blue), then Enter"
+                                  }
+                                  className="h-8 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
+                                />
+                              </div>
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -1552,6 +1799,7 @@ export function ProductFormDialog({
                     </span>
                     {form.brand.trim() ? <span>{form.brand}</span> : null}
                     {form.sku.trim() ? <span>SKU {form.sku}</span> : null}
+                    {form.barcode.trim() ? <span>Barcode {form.barcode}</span> : null}
                   </div>
                 </div>
               </aside>

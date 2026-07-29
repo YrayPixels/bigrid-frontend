@@ -1,4 +1,8 @@
 import type { StoreDiscount, StoreProduct } from "@/lib/api/types";
+import {
+  resolveVariantSelection,
+  type SelectedOptions,
+} from "@/lib/storefront/cart-line";
 
 export type PricedUnit = {
   unitPrice: number;
@@ -28,28 +32,15 @@ function discountAmount(amount: number, discount: StoreDiscount): number {
   return Math.round(Math.min(amount, value) * 100) / 100;
 }
 
-export function productUnitPrice(
+function applyProductDiscounts(
   product: StoreProduct,
-  discounts: StoreDiscount[] = [],
+  unit: number,
+  regular: number,
+  discounts: StoreDiscount[],
+  startingLabel: string | null,
 ): PricedUnit {
-  if (typeof product.effective_price === "number") {
-    return {
-      unitPrice: product.effective_price,
-      compareAtPrice: product.compare_at_price ?? null,
-      discountLabel: product.discount_label ?? null,
-    };
-  }
-
-  const regular = product.price;
-  const sale =
-    product.sale_price != null && product.sale_price >= 0 && product.sale_price < regular
-      ? product.sale_price
-      : null;
-  const unit = sale ?? regular;
-  const label: string | null = sale != null ? "Sale" : null;
-
   let best = unit;
-  let bestLabel = label;
+  let bestLabel = startingLabel;
   for (const discount of discounts) {
     if (!isDiscountActive(discount)) continue;
     if (discount.type !== "product" && discount.type !== "seasonal") continue;
@@ -66,6 +57,42 @@ export function productUnitPrice(
     compareAtPrice: best < regular ? regular : null,
     discountLabel: best < regular ? bestLabel : null,
   };
+}
+
+export function productUnitPrice(
+  product: StoreProduct,
+  discounts: StoreDiscount[] = [],
+  selectedOptions?: SelectedOptions | null,
+): PricedUnit {
+  const regular = product.price;
+  const selection = resolveVariantSelection(product, selectedOptions);
+
+  if (selection.optionPriceApplied) {
+    return applyProductDiscounts(
+      product,
+      selection.basePrice,
+      Math.max(regular, selection.basePrice),
+      discounts,
+      null,
+    );
+  }
+
+  if (typeof product.effective_price === "number") {
+    return {
+      unitPrice: product.effective_price,
+      compareAtPrice: product.compare_at_price ?? null,
+      discountLabel: product.discount_label ?? null,
+    };
+  }
+
+  const sale =
+    product.sale_price != null && product.sale_price >= 0 && product.sale_price < regular
+      ? product.sale_price
+      : null;
+  const unit = sale ?? regular;
+  const label: string | null = sale != null ? "Sale" : null;
+
+  return applyProductDiscounts(product, unit, regular, discounts, label);
 }
 
 export function cartThresholdDiscount(

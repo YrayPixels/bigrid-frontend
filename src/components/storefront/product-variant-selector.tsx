@@ -1,25 +1,37 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import type { ProductVariantGroup, SelectedOptions } from "@/lib/storefront/cart-line";
+import {
+  normalizeVariantGroups,
+  type ProductVariantGroup,
+  type SelectedOptions,
+} from "@/lib/storefront/cart-line";
+import { formatMoney } from "@/lib/storefront/format";
 import { useStorefrontTheme } from "@/lib/storefront/theme-context";
 import { cn } from "@/lib/utils";
 
 export {
   defaultSelectedOptions,
   formatSelectedOptions,
+  normalizeVariantGroups,
   type ProductVariantGroup,
   type SelectedOptions,
 } from "@/lib/storefront/cart-line";
 
 type ProductVariantSelectorProps = {
-  variants: ProductVariantGroup[];
+  variants: ProductVariantGroup[] | StoreProductVariants;
   selectedOptions: SelectedOptions;
   onChange: (next: SelectedOptions) => void;
   /** Visual chrome to match template buy boxes */
   appearance?: "square" | "pill" | "soft";
   className?: string;
+  currency?: string;
 };
+
+type StoreProductVariants = Array<{
+  name: string;
+  options: Array<string | { value: string; price?: number | null; image_url?: string | null }>;
+}>;
 
 export function ProductVariantSelector({
   variants,
@@ -27,15 +39,17 @@ export function ProductVariantSelector({
   onChange,
   appearance = "soft",
   className,
+  currency = "NGN",
 }: ProductVariantSelectorProps) {
   const { theme } = useStorefrontTheme();
+  const groups = normalizeVariantGroups(variants);
 
-  if (!variants.length) return null;
+  if (!groups.length) return null;
 
   return (
     <div className={cn("space-y-5", className)}>
-      {variants.map((variant) => {
-        const selected = selectedOptions[variant.name] ?? variant.options[0];
+      {groups.map((variant) => {
+        const selected = selectedOptions[variant.name] ?? variant.options[0]?.value;
         return (
           <div key={variant.name}>
             <div className="flex items-center justify-between gap-3 text-sm font-semibold">
@@ -55,7 +69,7 @@ export function ProductVariantSelector({
               )}
             >
               {variant.options.map((option) => {
-                const isSelected = selected === option;
+                const isSelected = selected === option.value;
                 const baseStyle: CSSProperties = {
                   borderColor: isSelected ? theme.palette.primary : theme.palette.border,
                   backgroundColor: isSelected
@@ -75,19 +89,37 @@ export function ProductVariantSelector({
 
                 return (
                   <button
-                    key={option}
+                    key={option.value}
                     type="button"
-                    onClick={() => onChange({ ...selectedOptions, [variant.name]: option })}
+                    onClick={() =>
+                      onChange({ ...selectedOptions, [variant.name]: option.value })
+                    }
                     className={cn(
                       "border text-xs font-semibold transition hover:opacity-90",
                       appearance === "square" && "px-3 py-3",
                       appearance === "pill" && "rounded-full px-4 py-2 text-sm",
                       appearance === "soft" && "rounded-full px-4 py-2",
+                      option.image_url && "flex items-center gap-2",
                     )}
                     style={baseStyle}
                     aria-pressed={isSelected}
                   >
-                    {option}
+                    {option.image_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={option.image_url}
+                        alt=""
+                        className="h-6 w-6 rounded-full object-cover"
+                      />
+                    ) : null}
+                    <span>
+                      {option.value}
+                      {option.price != null ? (
+                        <span className="ml-1 font-normal opacity-80">
+                          · {formatMoney(option.price, currency)}
+                        </span>
+                      ) : null}
+                    </span>
                   </button>
                 );
               })}

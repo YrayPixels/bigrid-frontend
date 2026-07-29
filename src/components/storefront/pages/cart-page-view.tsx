@@ -4,7 +4,7 @@ import Link from "next/link";
 import type { CSSProperties } from "react";
 import { Minus, Pencil, Plus, Trash2 } from "lucide-react";
 import { cartLineKey, useCart } from "@/lib/storefront/cart-context";
-import { formatSelectedOptions } from "@/lib/storefront/cart-line";
+import { cartLineUnitPrice, formatSelectedOptions } from "@/lib/storefront/cart-line";
 import { cartThresholdDiscount } from "@/lib/storefront/pricing";
 import { useStorefront } from "@/lib/storefront/store-context";
 import { beautyTemplateImages } from "@/lib/storefront/beauty-defaults";
@@ -187,11 +187,11 @@ function FashionCartPageView() {
 
                           <div className="mt-5 flex items-baseline gap-2">
                             <span className="text-xl font-bold">
-                              {formatMoney(line.product.price, line.product.currency)}
+                              {formatMoney(cartLineUnitPrice(line.product, line.selectedOptions), line.product.currency)}
                             </span>
                             <span className="text-sm" style={{ color: theme.palette.muted }}>
                               {formatMoney(
-                                line.product.price * line.quantity,
+                                cartLineUnitPrice(line.product, line.selectedOptions) * line.quantity,
                                 line.product.currency,
                               )}
                             </span>
@@ -568,11 +568,11 @@ function MinimalisticCartPageView() {
 
                           <div className="mt-5 flex items-baseline gap-2">
                             <span className="text-xl font-bold">
-                              {formatMoney(line.product.price, line.product.currency)}
+                              {formatMoney(cartLineUnitPrice(line.product, line.selectedOptions), line.product.currency)}
                             </span>
                             <span className="text-sm" style={{ color: theme.palette.muted }}>
                               {formatMoney(
-                                line.product.price * line.quantity,
+                                cartLineUnitPrice(line.product, line.selectedOptions) * line.quantity,
                                 line.product.currency,
                               )}
                             </span>
@@ -835,7 +835,7 @@ export function CartPageView() {
             <div>
               <div className="font-semibold">{line.product.name}</div>
               <div className="text-sm" style={{ color: theme.palette.muted }}>
-                {formatMoney(line.product.price, line.product.currency)} each
+                {formatMoney(cartLineUnitPrice(line.product, line.selectedOptions), line.product.currency)} each
                 {selectedSummary ? ` · ${selectedSummary}` : ""}
               </div>
             </div>

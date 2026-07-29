@@ -3,13 +3,19 @@ export const merchantKeys = {
     all: ["store"] as const,
     me: () => [...merchantKeys.store.all, "me"] as const,
   },
-  dashboard: () => ["merchant-dashboard-overview"] as const,
+  dashboard: (locationId: string = "all") =>
+    ["merchant-dashboard-overview", locationId] as const,
   products: (storeId?: string) => ["products", storeId] as const,
   categories: (storeId?: string) => ["categories", storeId] as const,
   orders: {
     all: ["merchant-orders"] as const,
-    list: (status: string, search: string, page: number, paymentStatus = "all") =>
-      [...merchantKeys.orders.all, status, paymentStatus, search, page] as const,
+    list: (
+      status: string,
+      search: string,
+      page: number,
+      paymentStatus = "all",
+      locationId = "all",
+    ) => [...merchantKeys.orders.all, status, paymentStatus, search, page, locationId] as const,
     productStats: (storeId?: string) =>
       [...merchantKeys.orders.all, "product-stats", storeId] as const,
   },
