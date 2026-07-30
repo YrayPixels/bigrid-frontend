@@ -6,6 +6,7 @@ import { Camera, ImageIcon, Loader2, ScanBarcode } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api/client";
 import type { PosCatalogProduct } from "@/lib/api/types";
+import { startBarcodeCameraScan, waitForVideoElement } from "@/lib/barcode-camera-scan";
 import { formatMoney } from "@/lib/storefront/format";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -56,6 +57,7 @@ export function SellScanDialog({ open, onOpenChange, onProduct }: Props) {
   const [mode, setMode] = useState<ScanMode>("barcode");
   const [manualCode, setManualCode] = useState("");
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [ocrHint, setOcrHint] = useState<string | null>(null);
   const [candidates, setCandidates] = useState<PosCatalogProduct[]>([]);
@@ -77,8 +79,9 @@ export function SellScanDialog({ open, onOpenChange, onProduct }: Props) {
 
   const resolveCode = async (raw: string, lookupMode: "exact" | "search" = "exact") => {
     const code = raw.trim();
-    if (!code) return;
+    if (!code || busyRef.current) return;
 
+    busyRef.current = true;
     setBusy(true);
     try {
       const result = await api.lookupPosProduct(code, lookupMode);
@@ -99,11 +102,13 @@ export function SellScanDialog({ open, onOpenChange, onProduct }: Props) {
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Lookup failed");
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
   };
 
   const handleDecoded = (code: string) => {
+    if (busyRef.current) return;
     const now = Date.now();
     if (code === lastCodeRef.current && now - lastCodeAtRef.current < 1800) return;
     lastCodeRef.current = code;
@@ -118,6 +123,7 @@ export function SellScanDialog({ open, onOpenChange, onProduct }: Props) {
       setCameraError(null);
       setOcrHint(null);
       setBusy(false);
+      busyRef.current = false;
       setManualCode("");
       return;
     }
@@ -126,61 +132,55 @@ export function SellScanDialog({ open, onOpenChange, onProduct }: Props) {
 
     const start = async () => {
       setCameraError(null);
-      stopCamera();
-
-      const video = videoRef.current;
-      if (!video) return;
 
       try {
+        const video = await waitForVideoElement(
+          () => videoRef.current,
+          () => cancelled,
+        );
+
         if (mode === "barcode") {
           scanningRef.current = true;
-          const { BrowserMultiFormatReader } = await import("@zxing/browser");
-          if (cancelled) return;
-          const reader = new BrowserMultiFormatReader();
-          const controls = await reader.decodeFromConstraints(
-            {
-              audio: false,
-              video: {
-                facingMode: { ideal: "environment" },
-                width: { ideal: 1280 },
-                height: { ideal: 720 },
-              },
-            },
+          const controls = await startBarcodeCameraScan(
             video,
-            (result, _error, ctrl) => {
-              if (!scanningRef.current || cancelled) {
-                ctrl.stop();
-                return;
-              }
-              if (result) {
-                handleDecoded(result.getText());
-              }
+            (code) => {
+              if (!scanningRef.current || cancelled) return;
+              handleDecoded(code);
+            },
+            {
+              cancelled: () => cancelled,
+              onStream: (stream) => {
+                streamRef.current = stream;
+              },
             },
           );
           if (cancelled) {
             controls.stop();
             return;
           }
+          streamRef.current = controls.stream;
           stopScanRef.current = () => controls.stop();
           return;
         }
 
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: false,
-          video: {
-            facingMode: { ideal: "environment" },
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-          },
-        });
+          video: { facingMode: { ideal: "environment" } },
+        }).catch(() =>
+          navigator.mediaDevices.getUserMedia({ audio: false, video: true }),
+        );
         if (cancelled) {
           stream.getTracks().forEach((track) => track.stop());
           return;
         }
         streamRef.current = stream;
         video.srcObject = stream;
-        await video.play();
+        video.muted = true;
+        await video.play().catch(() => undefined);
       } catch (err) {
+        if (!cancelled && err instanceof Error && err.message === "Cancelled") {
+          return;
+        }
         if (!cancelled) {
           setCameraError(
             err instanceof Error

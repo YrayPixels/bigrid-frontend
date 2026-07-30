@@ -6,6 +6,7 @@ import { Archive, Camera, Loader2, ScanBarcode, SkipForward } from "lucide-react
 import { toast } from "sonner";
 import { api } from "@/lib/api/client";
 import type { StoreProduct } from "@/lib/api/types";
+import { startBarcodeCameraScan, waitForVideoElement } from "@/lib/barcode-camera-scan";
 import { lookupBarcodeProduct } from "@/lib/barcode-product-lookup";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -117,56 +118,54 @@ export function ProductScanAddDialog({
     }
   };
 
-  const startLiveCamera = async () => {
-    const video = videoRef.current;
-    if (!video) return;
+  const startLiveCamera = async (cancelled: () => boolean) => {
+    const video = await waitForVideoElement(() => videoRef.current, cancelled);
+    if (cancelled()) return;
 
     stopCamera();
     setCameraError(null);
 
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: false,
-      video: {
-        facingMode: { ideal: "environment" },
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
-      },
-    });
+    const stream = await navigator.mediaDevices
+      .getUserMedia({
+        audio: false,
+        video: { facingMode: { ideal: "environment" } },
+      })
+      .catch(() =>
+        navigator.mediaDevices.getUserMedia({ audio: false, video: true }),
+      );
+
+    if (cancelled()) {
+      stream.getTracks().forEach((track) => track.stop());
+      return;
+    }
+
     streamRef.current = stream;
     video.srcObject = stream;
-    await video.play();
+    video.muted = true;
+    await video.play().catch(() => undefined);
   };
 
   const startBarcodeScan = async (cancelled: () => boolean) => {
-    const video = videoRef.current;
-    if (!video) return;
+    const video = await waitForVideoElement(() => videoRef.current, cancelled);
+    if (cancelled()) return;
 
     stopCamera();
     setCameraError(null);
-
     scanningRef.current = true;
-    const { BrowserMultiFormatReader } = await import("@zxing/browser");
-    if (cancelled()) return;
 
-    const reader = new BrowserMultiFormatReader();
-    const controls = await reader.decodeFromConstraints(
-      {
-        audio: false,
-        video: {
-          facingMode: { ideal: "environment" },
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-        },
-      },
+    const controls = await startBarcodeCameraScan(
       video,
-      (result, _error, ctrl) => {
+      (code) => {
         if (!scanningRef.current || cancelled() || phaseRef.current !== "scan") {
-          ctrl.stop();
           return;
         }
-        if (result) {
-          handleDecoded(result.getText());
-        }
+        handleDecoded(code);
+      },
+      {
+        cancelled,
+        onStream: (stream) => {
+          streamRef.current = stream;
+        },
       },
     );
 
@@ -174,6 +173,7 @@ export function ProductScanAddDialog({
       controls.stop();
       return;
     }
+    streamRef.current = controls.stream;
     stopScanRef.current = () => controls.stop();
   };
 
@@ -339,9 +339,12 @@ export function ProductScanAddDialog({
           return;
         }
         if (phase === "photo") {
-          await startLiveCamera();
+          await startLiveCamera(isCancelled);
         }
       } catch (err) {
+        if (!cancelled && err instanceof Error && err.message === "Cancelled") {
+          return;
+        }
         if (!cancelled) {
           setCameraError(
             err instanceof Error
