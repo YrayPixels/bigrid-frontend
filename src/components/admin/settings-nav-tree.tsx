@@ -104,7 +104,7 @@ function isNavItemActive(item: SettingsNavItem, pathname: string, activeTab: str
   return false;
 }
 
-export function SettingsNavMenu() {
+export function SettingsNavMenu({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const activeTab = searchParams.get("tab") ?? "payouts";
@@ -139,7 +139,7 @@ export function SettingsNavMenu() {
               return (
                 <SidebarMenuSubItem key={item.id}>
                   <SidebarMenuSubButton asChild isActive={isActive}>
-                    <Link href={item.href}>
+                    <Link href={item.href} onClick={onNavigate}>
                       <span className="flex-1 truncate">{item.label}</span>
                       <span
                         className={cn(

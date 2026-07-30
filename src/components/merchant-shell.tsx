@@ -123,84 +123,98 @@ function DashboardSidebarCollapseTrigger() {
   );
 }
 
-export function MerchantShell({ children }: { children: React.ReactNode }) {
+function MerchantSidebar() {
   const pathname = usePathname();
+  const { user, signOut } = useAuth();
+  const { isMobile, setOpenMobile } = useSidebar();
+
+  const closeMobile = () => {
+    if (isMobile) setOpenMobile(false);
+  };
+
+  return (
+    <Sidebar collapsible="icon">
+      <SidebarHeader className="border-b border-border/60 px-3 py-3 group-data-[collapsible=icon]:px-2 group-data-[collapsible=icon]:py-3">
+        <div className="flex items-center justify-between gap-2 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:justify-center">
+          <Link
+            href="/admin"
+            onClick={closeMobile}
+            className="flex min-w-0 flex-1 items-center gap-2.5 group-data-[collapsible=icon]:flex-none group-data-[collapsible=icon]:justify-center"
+          >
+            <BizgridLogo size={36} className="shrink-0" />
+            <span className="truncate font-display text-base font-bold tracking-tight text-ink group-data-[collapsible=icon]:hidden">
+              Bizgrid
+            </span>
+          </Link>
+          <DashboardSidebarCollapseTrigger />
+        </div>
+      </SidebarHeader>
+      <SidebarRail />
+
+      <SidebarContent>
+        {navGroups.map((group) => (
+          <SidebarGroup key={group.label}>
+            <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {group.items.map((item) => {
+                  const active = isNavItemActive(pathname, item);
+                  const Icon = item.icon;
+                  return (
+                    <SidebarMenuItem key={item.href}>
+                      <SidebarMenuButton asChild isActive={active} tooltip={item.label}>
+                        <Link href={item.href} onClick={closeMobile}>
+                          <Icon className="h-4 w-4" />
+                          <span>{item.label}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
+
+        <SidebarGroup>
+          <SidebarGroupLabel>Account</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SettingsNavMenu onNavigate={closeMobile} />
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      </SidebarContent>
+
+      <SidebarFooter className="border-t border-border/60 p-4">
+        {user ? (
+          <div className="space-y-3">
+            <div className="px-2 group-data-[collapsible=icon]:hidden">
+              <div className="truncate text-sm font-medium">{user.name}</div>
+              <div className="truncate text-xs text-ink-soft">{user.email}</div>
+            </div>
+            <button
+              onClick={() => void signOut()}
+              className="inline-flex w-full items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-ink-soft hover:text-ink group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-2"
+              title="Sign out"
+            >
+              <LogOut className="h-4 w-4" />
+              <span className="group-data-[collapsible=icon]:hidden">Sign out</span>
+            </button>
+          </div>
+        ) : null}
+      </SidebarFooter>
+    </Sidebar>
+  );
+}
+
+export function MerchantShell({ children }: { children: React.ReactNode }) {
   const { user, signOut, impersonating } = useAuth();
   const { selectedLabel } = useLocationScope();
 
   return (
     <SidebarProvider className="bg-canvas">
-      <Sidebar collapsible="icon">
-        <SidebarHeader className="border-b border-border/60 px-3 py-3 group-data-[collapsible=icon]:px-2 group-data-[collapsible=icon]:py-3">
-          <div className="flex items-center justify-between gap-2 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:justify-center">
-            <Link
-              href="/admin"
-              className="flex min-w-0 flex-1 items-center gap-2.5 group-data-[collapsible=icon]:flex-none group-data-[collapsible=icon]:justify-center"
-            >
-              <BizgridLogo size={36} className="shrink-0" />
-              <span className="truncate font-display text-base font-bold tracking-tight text-ink group-data-[collapsible=icon]:hidden">
-                Bizgrid
-              </span>
-            </Link>
-            <DashboardSidebarCollapseTrigger />
-          </div>
-        </SidebarHeader>
-        <SidebarRail />
-
-        <SidebarContent>
-          {navGroups.map((group) => (
-            <SidebarGroup key={group.label}>
-              <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {group.items.map((item) => {
-                    const active = isNavItemActive(pathname, item);
-                    const Icon = item.icon;
-                    return (
-                      <SidebarMenuItem key={item.href}>
-                        <SidebarMenuButton asChild isActive={active} tooltip={item.label}>
-                          <Link href={item.href}>
-                            <Icon className="h-4 w-4" />
-                            <span>{item.label}</span>
-                          </Link>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    );
-                  })}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-          ))}
-
-          <SidebarGroup>
-            <SidebarGroupLabel>Account</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                <SettingsNavMenu />
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        </SidebarContent>
-
-        <SidebarFooter className="border-t border-border/60 p-4">
-          {user ? (
-            <div className="space-y-3">
-              <div className="px-2 group-data-[collapsible=icon]:hidden">
-                <div className="truncate text-sm font-medium">{user.name}</div>
-                <div className="truncate text-xs text-ink-soft">{user.email}</div>
-              </div>
-              <button
-                onClick={() => void signOut()}
-                className="inline-flex w-full items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-ink-soft hover:text-ink group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-2"
-                title="Sign out"
-              >
-                <LogOut className="h-4 w-4" />
-                <span className="group-data-[collapsible=icon]:hidden">Sign out</span>
-              </button>
-            </div>
-          ) : null}
-        </SidebarFooter>
-      </Sidebar>
+      <MerchantSidebar />
 
       <SidebarInset className="flex min-w-0 flex-col">
         {impersonating && (
