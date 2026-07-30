@@ -8,6 +8,11 @@ import { toast } from "sonner";
 import { api } from "@/lib/api/client";
 import type { PosCatalogProduct } from "@/lib/api/types";
 import { useSellCart, type SellCartLine } from "@/lib/sell-cart";
+import { usePosOffline } from "@/lib/pos-offline/context";
+import {
+  filterCachedProducts,
+  lookupCachedProduct,
+} from "@/lib/pos-offline/db";
 import { formatMoney } from "@/lib/storefront/format";
 import { SellScanDialog } from "@/components/sell/sell-scan-dialog";
 import {
@@ -233,19 +238,57 @@ export default function SellPage() {
   const [scanOpen, setScanOpen] = useState(false);
   const [quickAddOpen, setQuickAddOpen] = useState(false);
   const [quickAddSeed, setQuickAddSeed] = useState<SellQuickAddSeed | null>(null);
+  const { online, catalog: offlineCatalog, cacheEmpty } = usePosOffline();
+  const storeId = offlineCatalog?.store_id ?? null;
 
   useEffect(() => {
     let cancelled = false;
     const timer = setTimeout(async () => {
       setLoading(true);
       try {
-        const catalog = await api.getPosCatalog({
-          search: search.trim() || undefined,
-          category_id: categoryId || undefined,
-        });
-        if (cancelled) return;
-        setProducts(catalog.products);
-        setCategories(catalog.categories);
+        if (!online) {
+          if (!offlineCatalog) {
+            if (!cancelled) {
+              setProducts([]);
+              setCategories([]);
+              toast.error("No offline catalog yet. Connect once to download products.");
+            }
+            return;
+          }
+          if (cancelled) return;
+          setCategories(offlineCatalog.categories);
+          setProducts(
+            filterCachedProducts(offlineCatalog.products, {
+              search: search.trim() || undefined,
+              category_id: categoryId,
+            }),
+          );
+          return;
+        }
+
+        try {
+          const catalog = await api.getPosCatalog({
+            search: search.trim() || undefined,
+            category_id: categoryId || undefined,
+          });
+          if (cancelled) return;
+          setProducts(catalog.products);
+          setCategories(catalog.categories);
+        } catch (err) {
+          if (offlineCatalog) {
+            if (cancelled) return;
+            setCategories(offlineCatalog.categories);
+            setProducts(
+              filterCachedProducts(offlineCatalog.products, {
+                search: search.trim() || undefined,
+                category_id: categoryId,
+              }),
+            );
+            toast.message("Using offline catalog");
+            return;
+          }
+          throw err;
+        }
       } catch (err) {
         if (!cancelled) {
           toast.error(err instanceof Error ? err.message : "Failed to load products");
@@ -258,9 +301,13 @@ export default function SellPage() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [search, categoryId]);
+  }, [search, categoryId, online, offlineCatalog]);
 
-  const currency = products[0]?.currency || lines[0]?.currency || "NGN";
+  const currency =
+    products[0]?.currency ||
+    offlineCatalog?.store.currency ||
+    lines[0]?.currency ||
+    "NGN";
 
   const variantReady = useMemo(() => {
     if (!variantProduct) return false;
@@ -269,6 +316,10 @@ export default function SellPage() {
   }, [variantProduct, selectedOptions]);
 
   const openQuickAdd = (seed?: SellQuickAddSeed) => {
+    if (!online) {
+      toast.error("Quick add needs a connection");
+      return;
+    }
     setQuickAddSeed(seed ?? null);
     setQuickAddOpen(true);
   };
@@ -301,6 +352,27 @@ export default function SellPage() {
     const code = search.trim();
     if (!code) return;
     event.preventDefault();
+
+    if (!online && offlineCatalog) {
+      const local = lookupCachedProduct(offlineCatalog.products, code);
+      if (local.match === "exact" && local.product) {
+        onTapProduct(local.product);
+        setSearch("");
+        return;
+      }
+      if (local.candidates.length === 1) {
+        onTapProduct(local.candidates[0]!);
+        setSearch("");
+        return;
+      }
+      if (local.candidates.length > 1) {
+        toast.message("Multiple matches — refine search");
+        return;
+      }
+      toast.error("Not in offline catalog");
+      return;
+    }
+
     try {
       const result = await api.lookupPosProduct(code, "exact");
       if (result.match === "exact" && result.product) {
@@ -318,7 +390,20 @@ export default function SellPage() {
         return;
       }
     } catch {
+      if (offlineCatalog) {
+        const local = lookupCachedProduct(offlineCatalog.products, code);
+        if (local.match === "exact" && local.product) {
+          onTapProduct(local.product);
+          setSearch("");
+          return;
+        }
+      }
       // Fall through to quick-add for unknown codes / names.
+    }
+
+    if (!online) {
+      toast.error("Connect to add a new product");
+      return;
     }
 
     if (looksLikeBarcode(code)) {
@@ -411,27 +496,31 @@ export default function SellPage() {
           {!loading && products.length === 0 ? (
             <div className="col-span-full flex flex-col items-center gap-3 py-12 text-center">
               <p className="text-sm text-zinc-500">
-                {search.trim()
-                  ? `No products match “${search.trim()}”.`
-                  : "No products found."}
+                {cacheEmpty
+                  ? "No offline catalog yet. Connect once to download products."
+                  : search.trim()
+                    ? `No products match “${search.trim()}”.`
+                    : "No products found."}
               </p>
-              <Button
-                type="button"
-                className="h-11 rounded-xl"
-                onClick={() => {
-                  const query = search.trim();
-                  if (query && looksLikeBarcode(query)) {
-                    openQuickAdd({ barcode: query, nameHint: "" });
-                    return;
-                  }
-                  openQuickAdd({ nameHint: query || undefined });
-                }}
-              >
-                <PackagePlus className="mr-2 size-4" />
-                {search.trim()
-                  ? `Add “${search.trim().slice(0, 40)}${search.trim().length > 40 ? "…" : ""}”`
-                  : "Add new product"}
-              </Button>
+              {online && !cacheEmpty ? (
+                <Button
+                  type="button"
+                  className="h-11 rounded-xl"
+                  onClick={() => {
+                    const query = search.trim();
+                    if (query && looksLikeBarcode(query)) {
+                      openQuickAdd({ barcode: query, nameHint: "" });
+                      return;
+                    }
+                    openQuickAdd({ nameHint: query || undefined });
+                  }}
+                >
+                  <PackagePlus className="mr-2 size-4" />
+                  {search.trim()
+                    ? `Add “${search.trim().slice(0, 40)}${search.trim().length > 40 ? "…" : ""}”`
+                    : "Add new product"}
+                </Button>
+              ) : null}
             </div>
           ) : null}
           {products.map((product) => {
@@ -592,7 +681,16 @@ export default function SellPage() {
         open={scanOpen}
         onOpenChange={setScanOpen}
         onProduct={onTapProduct}
+        resolveLocally={
+          !online && offlineCatalog
+            ? (code) => lookupCachedProduct(offlineCatalog.products, code)
+            : undefined
+        }
         onUnknownCode={(code) => {
+          if (!online) {
+            toast.error("Connect to add a new product");
+            return;
+          }
           openQuickAdd({ barcode: code, barcodeLocked: true });
         }}
       />
@@ -602,6 +700,14 @@ export default function SellPage() {
         onOpenChange={setQuickAddOpen}
         currency={currency}
         seed={quickAddSeed}
+        uploadImage={
+          storeId
+            ? async (file) => {
+                const { url } = await api.uploadStorefrontImage(storeId, file);
+                return url;
+              }
+            : undefined
+        }
         onCreated={onQuickAddCreated}
       />
     </div>

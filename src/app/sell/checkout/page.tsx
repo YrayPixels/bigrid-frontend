@@ -6,6 +6,12 @@ import { toast } from "sonner";
 import { api } from "@/lib/api/client";
 import type { StorePaymentSettings } from "@/lib/api/types";
 import { useSellCart } from "@/lib/sell-cart";
+import { usePosOffline } from "@/lib/pos-offline/context";
+import {
+  createClientOrderId,
+  enqueuePendingOrder,
+  isBrowserOnline,
+} from "@/lib/pos-offline/db";
 import { formatMoney } from "@/lib/storefront/format";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +28,7 @@ export default function SellCheckoutPage() {
     customerPhone,
     clearCart,
   } = useSellCart();
+  const { online, catalog, refreshPendingCount } = usePosOffline();
 
   const [tender, setTender] = useState<Tender>(null);
   const [amountReceived, setAmountReceived] = useState("");
@@ -38,19 +45,23 @@ export default function SellCheckoutPage() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      if (!isBrowserOnline()) {
+        if (!cancelled) setPayments(catalog?.payment_info ?? null);
+        return;
+      }
       try {
         const info = await api.getPosPaymentInfo();
         if (!cancelled) setPayments(info);
       } catch {
-        // Transfer may still be blocked server-side if not configured.
+        if (!cancelled) setPayments(catalog?.payment_info ?? null);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [catalog?.payment_info]);
 
-  const currency = lines[0]?.currency || "NGN";
+  const currency = lines[0]?.currency || catalog?.store.currency || "NGN";
   const received = Number(amountReceived);
   const changeDue = useMemo(() => {
     if (!Number.isFinite(received)) return 0;
@@ -64,26 +75,98 @@ export default function SellCheckoutPage() {
   const submit = async () => {
     if (!tender || lines.length === 0) return;
     setSubmitting(true);
+
+    const clientOrderId = createClientOrderId();
+    const placedAt = new Date().toISOString();
+    const payload = {
+      items: lines.map((line) => ({
+        product_id: line.product_id,
+        quantity: line.quantity,
+        selected_options:
+          Object.keys(line.selected_options).length > 0
+            ? line.selected_options
+            : undefined,
+      })),
+      payment_method: tender,
+      payment_reference: tender === "bank_transfer" ? transferRef.trim() || null : null,
+      amount_tendered: tender === "cash" ? received : null,
+      location_id: locationId,
+      customer_name: customerName.trim() || null,
+      customer_phone: customerPhone.trim() || null,
+      client_order_id: clientOrderId,
+      placed_at: placedAt,
+    } as const;
+
+    const localReceipt = {
+      order_number: `OFF-${clientOrderId.slice(0, 8).toUpperCase()}`,
+      currency,
+      subtotal,
+      total_amount: subtotal,
+      payment_method: tender,
+      amount_tendered: tender === "cash" ? received : null,
+      payment_reference: tender === "bank_transfer" ? transferRef.trim() || null : null,
+      customer_name: customerName.trim() || null,
+      customer_phone: customerPhone.trim() || null,
+      items: lines.map((line) => ({
+        product_id: line.product_id,
+        name: line.name,
+        quantity: line.quantity,
+        unit_price: line.unit_price,
+        image_url: line.image_url,
+      })),
+      placed_at: placedAt,
+    };
+
     try {
-      const order = await api.createPosOrder({
-        items: lines.map((line) => ({
-          product_id: line.product_id,
-          quantity: line.quantity,
-          selected_options:
-            Object.keys(line.selected_options).length > 0
-              ? line.selected_options
-              : undefined,
-        })),
-        payment_method: tender,
-        payment_reference: tender === "bank_transfer" ? transferRef.trim() || null : null,
-        amount_tendered: tender === "cash" ? received : null,
-        location_id: locationId,
-        customer_name: customerName.trim() || null,
-        customer_phone: customerPhone.trim() || null,
-      });
+      if (!online || !isBrowserOnline()) {
+        const storeId = catalog?.store_id;
+        if (!storeId) {
+          throw new Error("No offline catalog — connect once before selling offline");
+        }
+        await enqueuePendingOrder({
+          client_order_id: clientOrderId,
+          store_id: storeId,
+          payload: { ...payload },
+          local_receipt: localReceipt,
+          status: "pending",
+          last_error: null,
+          created_at: placedAt,
+          updated_at: placedAt,
+          server_order_id: null,
+        });
+        await refreshPendingCount();
+        clearCart();
+        toast.message("Sale saved offline — will sync when online");
+        router.replace(`/sell/done/pending:${clientOrderId}`);
+        return;
+      }
+
+      const order = await api.createPosOrder({ ...payload });
       clearCart();
       router.replace(`/sell/done/${order.id}`);
     } catch (err) {
+      // Network blip while "online" — queue locally.
+      if (online && err instanceof TypeError) {
+        const storeId = catalog?.store_id;
+        if (storeId) {
+          await enqueuePendingOrder({
+            client_order_id: clientOrderId,
+            store_id: storeId,
+            payload: { ...payload },
+            local_receipt: localReceipt,
+            status: "pending",
+            last_error: null,
+            created_at: placedAt,
+            updated_at: placedAt,
+            server_order_id: null,
+          });
+          await refreshPendingCount();
+          clearCart();
+          toast.message("Sale saved offline — will sync when online");
+          router.replace(`/sell/done/pending:${clientOrderId}`);
+          return;
+        }
+      }
       toast.error(err instanceof Error ? err.message : "Sale failed");
     } finally {
       setSubmitting(false);
@@ -105,6 +188,9 @@ export default function SellCheckoutPage() {
         <p className="mt-1 text-3xl font-semibold tracking-tight sm:text-4xl">
           {formatMoney(subtotal, currency)}
         </p>
+        {!online ? (
+          <p className="mt-2 text-xs text-amber-700">Offline sale — will sync later</p>
+        ) : null}
       </div>
 
       <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -193,7 +279,7 @@ export default function SellCheckoutPage() {
             submitting ||
             (tender === "cash" ? !canConfirmCash : tender === "bank_transfer" ? !canConfirmTransfer : true)
           }
-          onClick={submit}
+          onClick={() => void submit()}
         >
           {submitting ? "Recording…" : "Confirm sale"}
         </Button>

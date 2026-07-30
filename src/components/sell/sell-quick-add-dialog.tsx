@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Loader2, PackagePlus } from "lucide-react";
+import { Camera, ImagePlus, Loader2, PackagePlus, X } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api/client";
 import type { PosCatalogProduct, StoreProduct } from "@/lib/api/types";
@@ -29,6 +29,7 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   currency: string;
   seed?: SellQuickAddSeed | null;
+  uploadImage?: (file: File) => Promise<string>;
   onCreated: (product: PosCatalogProduct) => void;
 };
 
@@ -78,16 +79,33 @@ export function SellQuickAddDialog({
   onOpenChange,
   currency,
   seed,
+  uploadImage,
   onCreated,
 }: Props) {
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
   const [barcode, setBarcode] = useState("");
   const [barcodeLocked, setBarcodeLocked] = useState(false);
+  const [lookupImageUrl, setLookupImageUrl] = useState<string | null>(null);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null);
+  const [brand, setBrand] = useState<string | null>(null);
+  const [description, setDescription] = useState("");
   const [busy, setBusy] = useState(false);
   const [lookingUp, setLookingUp] = useState(false);
   const nameRef = useRef<HTMLInputElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const enrichTokenRef = useRef(0);
+
+  const clearPhoto = () => {
+    setPhotoFile(null);
+    setPhotoPreviewUrl((prev) => {
+      if (prev?.startsWith("blob:")) URL.revokeObjectURL(prev);
+      return null;
+    });
+  };
+
+  const previewUrl = photoPreviewUrl || lookupImageUrl;
 
   useEffect(() => {
     if (!open) return;
@@ -100,6 +118,10 @@ export function SellQuickAddDialog({
     setBarcodeLocked(locked);
     setName(nextName);
     setPrice("");
+    setLookupImageUrl(null);
+    clearPhoto();
+    setBrand(null);
+    setDescription("");
     setBusy(false);
     setLookingUp(false);
 
@@ -117,9 +139,19 @@ export function SellQuickAddDialog({
     void lookupBarcodeProduct(nextBarcode)
       .then((lookup) => {
         if (token !== enrichTokenRef.current) return;
-        const lookedUpName = lookup?.name?.trim();
+        if (!lookup) return;
+        const lookedUpName = lookup.name?.trim();
         if (lookedUpName) {
           setName((current) => (current.trim() ? current : lookedUpName));
+        }
+        if (lookup.image_url?.trim()) {
+          setLookupImageUrl(lookup.image_url.trim());
+        }
+        if (lookup.brand?.trim()) {
+          setBrand(lookup.brand.trim());
+        }
+        if (lookup.description?.trim()) {
+          setDescription(lookup.description.trim());
         }
       })
       .finally(() => {
@@ -131,6 +163,22 @@ export function SellQuickAddDialog({
       enrichTokenRef.current += 1;
     };
   }, [open, seed]);
+
+  useEffect(() => {
+    if (open) return;
+    clearPhoto();
+  }, [open]);
+
+  const onPickPhoto = (file: File | null) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Choose an image file");
+      return;
+    }
+    clearPhoto();
+    setPhotoFile(file);
+    setPhotoPreviewUrl(URL.createObjectURL(file));
+  };
 
   const saveAndAdd = async () => {
     const trimmedName = name.trim();
@@ -150,23 +198,37 @@ export function SellQuickAddDialog({
 
     setBusy(true);
     try {
+      let finalImage = lookupImageUrl?.trim() || null;
+
+      if (photoFile) {
+        if (!uploadImage) {
+          toast.error("Image upload is unavailable right now");
+          return;
+        }
+        finalImage = await uploadImage(photoFile);
+      }
+
       const slugSource = trimmedBarcode
         ? `pos-${trimmedBarcode}`
         : `pos-${trimmedName}`;
       const product = await api.createProduct({
         name: trimmedName,
         slug: slugify(slugSource),
-        description: "",
+        description,
         price: priceValue,
         currency,
-        image_url: null,
-        images: null,
+        image_url: finalImage,
+        images: finalImage ? [finalImage] : null,
         barcode: trimmedBarcode || null,
+        brand,
         status: "active",
       });
 
       const posProduct = storeProductToPosCatalog(product, currency);
       posProduct.stock_quantity = null;
+      if (!posProduct.image_url && finalImage) {
+        posProduct.image_url = finalImage;
+      }
 
       onCreated(posProduct);
       onOpenChange(false);
@@ -198,6 +260,92 @@ export function SellQuickAddDialog({
             void saveAndAdd();
           }}
         >
+          <div className="space-y-2">
+            <Label>Photo</Label>
+            {previewUrl ? (
+              <div className="relative overflow-hidden rounded-xl bg-zinc-100 ring-1 ring-zinc-200">
+                <img
+                  src={previewUrl}
+                  alt=""
+                  className="aspect-[4/3] w-full object-cover"
+                />
+                <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-2 bg-gradient-to-t from-black/55 to-transparent px-3 py-2">
+                  <p className="text-xs text-white">
+                    {photoFile
+                      ? "Your photo"
+                      : "Photo from barcode lookup"}
+                  </p>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    className="h-8"
+                    disabled={busy}
+                    onClick={() => {
+                      clearPhoto();
+                      setLookupImageUrl(null);
+                    }}
+                  >
+                    <X className="mr-1 size-3.5" />
+                    Remove
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-11 flex-1"
+                  disabled={busy || !uploadImage}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <ImagePlus className="mr-2 size-4" />
+                  Upload photo
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-11"
+                  disabled={busy || !uploadImage}
+                  onClick={() => fileInputRef.current?.click()}
+                  aria-label="Take photo"
+                >
+                  <Camera className="size-4" />
+                </Button>
+              </div>
+            )}
+            {!previewUrl && uploadImage ? (
+              <p className="text-xs text-zinc-500">Optional — helps recognize it next time.</p>
+            ) : null}
+            {!uploadImage ? (
+              <p className="text-xs text-amber-700">Photo upload unavailable for this store.</p>
+            ) : null}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={(event) => {
+                const file = event.target.files?.[0] ?? null;
+                event.target.value = "";
+                onPickPhoto(file);
+              }}
+            />
+            {previewUrl && uploadImage ? (
+              <Button
+                type="button"
+                variant="ghost"
+                className="h-9 px-0 text-sm"
+                disabled={busy}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                Replace photo
+              </Button>
+            ) : null}
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="pos-quick-name">Name</Label>
             <Input

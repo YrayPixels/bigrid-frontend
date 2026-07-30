@@ -713,6 +713,7 @@ export type StoreOrderItem = {
 
 export type StoreOrder = {
   id: string;
+  client_order_id?: string | null;
   order_number: string;
   invoice_number?: string | null;
   store_customer_id?: string | null;
@@ -812,6 +813,16 @@ export type PosCatalogResponse = {
   products: PosCatalogProduct[];
 };
 
+export type PosCatalogSyncResponse = PosCatalogResponse & {
+  meta: {
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+    synced_at: string;
+  };
+};
+
 export type CreatePosOrderInput = {
   items: Array<{
     product_id: string;
@@ -826,6 +837,8 @@ export type CreatePosOrderInput = {
   customer_phone?: string | null;
   customer_email?: string | null;
   notes?: string | null;
+  client_order_id?: string | null;
+  placed_at?: string | null;
 };
 
 export type CreateStaffInput = {
