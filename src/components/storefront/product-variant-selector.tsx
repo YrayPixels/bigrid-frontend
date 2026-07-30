@@ -105,7 +105,6 @@ export function ProductVariantSelector({
                     aria-pressed={isSelected}
                   >
                     {option.image_url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={option.image_url}
                         alt=""

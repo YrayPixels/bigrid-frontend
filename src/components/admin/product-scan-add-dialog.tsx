@@ -406,7 +406,6 @@ export function ProductScanAddDialog({
 
         <div className="relative aspect-[4/3] overflow-hidden rounded-xl bg-zinc-900">
           {phase === "review" && previewUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
             <img src={previewUrl} alt="Captured product" className="h-full w-full object-cover" />
           ) : (
             <video

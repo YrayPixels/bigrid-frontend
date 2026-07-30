@@ -890,7 +890,7 @@ export default function AdminProductsPage() {
   const { locationId, selectedLabel } = useLocationScope();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("active");
   const categoryIdFromUrl = searchParams.get("category_id");
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>(() =>
     categoryIdFromUrl ? [categoryIdFromUrl] : [],

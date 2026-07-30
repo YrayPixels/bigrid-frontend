@@ -1587,7 +1587,6 @@ export function ProductFormDialog({
                                                     : `Gallery ${imageIndex + 1}`
                                                 }
                                               >
-                                                {/* eslint-disable-next-line @next/next/no-img-element */}
                                                 <img
                                                   src={image}
                                                   alt=""
