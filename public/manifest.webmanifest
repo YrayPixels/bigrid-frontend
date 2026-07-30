@@ -8,6 +8,7 @@
   "background_color": "#f4f4f5",
   "theme_color": "#18181b",
   "orientation": "portrait-primary",
+  "id": "/sell",
   "icons": [
     {
       "src": "/bizgridlogo.png",

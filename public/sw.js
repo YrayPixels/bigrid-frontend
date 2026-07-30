@@ -1,5 +1,10 @@
-/* Bizgrid Sell offline shell */
-const CACHE = "bizgrid-sell-v2";
+/* Bizgrid Sell offline shell
+ *
+ * VERSION must stay in sync with src/lib/pos-offline/pwa-version.ts
+ * On pushes to main, CI bumps the patch via scripts/bump-pwa-version.mjs.
+ */
+const VERSION = "1.0.0";
+const CACHE = `bizgrid-sell-${VERSION}`;
 const PRECACHE = ["/sell", "/sell/checkout", "/sell/sales", "/manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
@@ -15,9 +20,15 @@ self.addEventListener("install", (event) => {
           }
         }),
       );
-      await self.skipWaiting();
+      // Stay in waiting until the client asks to activate (or first install).
     })(),
   );
+});
+
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
 });
 
 self.addEventListener("activate", (event) => {
