@@ -22,7 +22,6 @@ export function useProductPurchase(product: StoreProduct, discountsOverride?: St
   const { addItem } = useCart();
   const router = useRouter();
   const { discounts: storeDiscounts } = useStorefront();
-  const discounts = discountsOverride ?? storeDiscounts ?? [];
   const stockCap = maxPurchaseQuantity(product);
   const [quantity, setQuantityState] = useState(1);
   const [selectedOptions, setSelectedOptions] = useState<SelectedOptions>(() =>
@@ -35,8 +34,13 @@ export function useProductPurchase(product: StoreProduct, discountsOverride?: St
     [product, selectedOptions],
   );
   const priced = useMemo(
-    () => productUnitPrice(product, discounts, selectedOptions),
-    [product, discounts, selectedOptions],
+    () =>
+      productUnitPrice(
+        product,
+        discountsOverride ?? storeDiscounts ?? [],
+        selectedOptions,
+      ),
+    [product, discountsOverride, storeDiscounts, selectedOptions],
   );
 
   function setQuantity(next: number | ((current: number) => number)) {
