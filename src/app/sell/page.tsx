@@ -3,13 +3,17 @@
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
-import { Minus, Plus, ScanBarcode, Search, Trash2, X } from "lucide-react";
+import { Minus, Plus, PackagePlus, ScanBarcode, Search, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api/client";
 import type { PosCatalogProduct } from "@/lib/api/types";
 import { useSellCart, type SellCartLine } from "@/lib/sell-cart";
 import { formatMoney } from "@/lib/storefront/format";
 import { SellScanDialog } from "@/components/sell/sell-scan-dialog";
+import {
+  SellQuickAddDialog,
+  type SellQuickAddSeed,
+} from "@/components/sell/sell-quick-add-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -24,6 +28,11 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+
+/** Digit-only product barcodes (EAN/UPC/ITF). */
+function looksLikeBarcode(value: string): boolean {
+  return /^[0-9]{8,18}$/.test(value.trim());
+}
 
 function hasVariants(product: PosCatalogProduct): boolean {
   return Array.isArray(product.variants) && product.variants.length > 0;
@@ -222,6 +231,8 @@ export default function SellPage() {
   const [variantProduct, setVariantProduct] = useState<PosCatalogProduct | null>(null);
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
   const [scanOpen, setScanOpen] = useState(false);
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
+  const [quickAddSeed, setQuickAddSeed] = useState<SellQuickAddSeed | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -257,6 +268,11 @@ export default function SellPage() {
     return groups.every((g) => Boolean(selectedOptions[g.name]));
   }, [variantProduct, selectedOptions]);
 
+  const openQuickAdd = (seed?: SellQuickAddSeed) => {
+    setQuickAddSeed(seed ?? null);
+    setQuickAddOpen(true);
+  };
+
   const onTapProduct = (product: PosCatalogProduct) => {
     if (product.stock_quantity !== null && product.stock_quantity <= 0) {
       toast.error("Out of stock");
@@ -269,6 +285,15 @@ export default function SellPage() {
     }
     addProduct(product);
     toast.success(`Added ${product.name}`);
+  };
+
+  const onQuickAddCreated = (product: PosCatalogProduct) => {
+    setProducts((prev) => {
+      if (prev.some((row) => row.id === product.id)) return prev;
+      return [product, ...prev];
+    });
+    addProduct(product);
+    setSearch("");
   };
 
   const onSearchKeyDown = async (event: KeyboardEvent<HTMLInputElement>) => {
@@ -290,9 +315,16 @@ export default function SellPage() {
       }
       if (result.candidates.length > 1) {
         toast.message("Multiple matches — refine search or use Scan");
+        return;
       }
     } catch {
-      // Fall through to catalog search results already shown.
+      // Fall through to quick-add for unknown codes / names.
+    }
+
+    if (looksLikeBarcode(code)) {
+      openQuickAdd({ barcode: code, barcodeLocked: false, nameHint: "" });
+    } else {
+      openQuickAdd({ nameHint: code });
     }
   };
 
@@ -377,9 +409,30 @@ export default function SellPage() {
               ))
             : null}
           {!loading && products.length === 0 ? (
-            <p className="col-span-full py-12 text-center text-sm text-zinc-500">
-              No products found.
-            </p>
+            <div className="col-span-full flex flex-col items-center gap-3 py-12 text-center">
+              <p className="text-sm text-zinc-500">
+                {search.trim()
+                  ? `No products match “${search.trim()}”.`
+                  : "No products found."}
+              </p>
+              <Button
+                type="button"
+                className="h-11 rounded-xl"
+                onClick={() => {
+                  const query = search.trim();
+                  if (query && looksLikeBarcode(query)) {
+                    openQuickAdd({ barcode: query, nameHint: "" });
+                    return;
+                  }
+                  openQuickAdd({ nameHint: query || undefined });
+                }}
+              >
+                <PackagePlus className="mr-2 size-4" />
+                {search.trim()
+                  ? `Add “${search.trim().slice(0, 40)}${search.trim().length > 40 ? "…" : ""}”`
+                  : "Add new product"}
+              </Button>
+            </div>
           ) : null}
           {products.map((product) => {
             const outOfStock = product.stock_quantity !== null && product.stock_quantity <= 0;
@@ -539,6 +592,17 @@ export default function SellPage() {
         open={scanOpen}
         onOpenChange={setScanOpen}
         onProduct={onTapProduct}
+        onUnknownCode={(code) => {
+          openQuickAdd({ barcode: code, barcodeLocked: true });
+        }}
+      />
+
+      <SellQuickAddDialog
+        open={quickAddOpen}
+        onOpenChange={setQuickAddOpen}
+        currency={currency}
+        seed={quickAddSeed}
+        onCreated={onQuickAddCreated}
       />
     </div>
   );
