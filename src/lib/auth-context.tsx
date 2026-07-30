@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api, getToken, onAuthLogout, setToken } from "@/lib/api/client";
+import { cacheAuthUser, readCachedAuthUser } from "@/lib/auth-user-cache";
 import { merchantKeys } from "@/lib/query-keys";
 import { postAuthPath, type User } from "@/lib/api/types";
 
@@ -90,18 +91,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refresh = async () => {
     if (!getToken()) {
+      cacheAuthUser(null);
       setUser(null);
       setImpersonating(false);
       setLoading(false);
       return;
     }
+    // Restore last session immediately so Sell can open while offline.
+    const cached = readCachedAuthUser();
+    if (cached) {
+      setUser(cached);
+      setImpersonating(Boolean(cached.impersonating));
+      setLoading(false);
+    }
     try {
       const freshUser = await api.me();
+      cacheAuthUser(freshUser);
       setUser(freshUser);
       setImpersonating(Boolean(freshUser.impersonating));
     } catch {
-      setUser(null);
-      setImpersonating(false);
+      if (!cached) {
+        setUser(null);
+        setImpersonating(false);
+      }
     } finally {
       setLoading(false);
     }
@@ -113,6 +125,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     try {
       const freshUser = await api.me();
+      cacheAuthUser(freshUser);
       setUser(freshUser);
       setImpersonating(Boolean(freshUser.impersonating) || impersonation);
       if (freshUser.has_store && freshUser.can_access_admin !== false) {
@@ -135,6 +148,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } catch {
       setToken(null);
+      cacheAuthUser(null);
       setUser(null);
       setImpersonating(false);
       if (!impersonation) {
@@ -182,6 +196,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     void refresh();
     return onAuthLogout(() => {
+      cacheAuthUser(null);
       setUser(null);
       setImpersonating(false);
       setLoading(false);
@@ -193,6 +208,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     // Clear local session and leave admin routes immediately so sign-out never
     // gets stuck behind a slow/failed logout request or an admin-layout spinner.
+    cacheAuthUser(null);
     setUser(null);
     setImpersonating(false);
     qc.clear();
@@ -200,8 +216,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     router.replace("/login");
   };
 
+  const setUserPersisted = (next: User | null) => {
+    cacheAuthUser(next);
+    setUser(next);
+  };
+
   return (
-    <Ctx.Provider value={{ user, loading, refresh, signOut, setUser, impersonating }}>
+    <Ctx.Provider value={{ user, loading, refresh, signOut, setUser: setUserPersisted, impersonating }}>
       <Suspense fallback={null}>
         <AuthCallbackHandler
           onAuthToken={handleGoogleAuth}
