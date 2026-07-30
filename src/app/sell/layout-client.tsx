@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
@@ -27,6 +28,7 @@ function SellShellInner({ children }: { children: ReactNode }) {
   const { catalog, online } = usePosOffline();
   const locations = catalog?.locations ?? [];
   const storeName = catalog?.store.name || "Bizgrid";
+  const storeLogo = catalog?.store.logo_url?.trim() || null;
 
   useEffect(() => {
     if (!loading && !user) router.replace("/login");
@@ -61,14 +63,28 @@ function SellShellInner({ children }: { children: ReactNode }) {
       <header className="sticky top-0 z-20 border-b border-zinc-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-6 lg:px-8">
           <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="truncate text-sm font-semibold tracking-tight sm:text-base">
-                {storeName}
-                {!online ? (
-                  <span className="ml-2 text-xs font-normal text-amber-700">Offline</span>
-                ) : null}
-              </p>
-              <p className="truncate text-xs text-zinc-500 sm:text-sm">{user.name}</p>
+            <div className="flex min-w-0 items-center gap-3">
+              {storeLogo ? (
+                <div className="relative size-10 shrink-0 overflow-hidden rounded-xl bg-zinc-100 ring-1 ring-zinc-200">
+                  <Image
+                    src={storeLogo}
+                    alt=""
+                    fill
+                    className="object-cover"
+                    sizes="40px"
+                    unoptimized
+                  />
+                </div>
+              ) : null}
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold tracking-tight sm:text-base">
+                  {storeName}
+                  {!online ? (
+                    <span className="ml-2 text-xs font-normal text-amber-700">Offline</span>
+                  ) : null}
+                </p>
+                <p className="truncate text-xs text-zinc-500 sm:text-sm">{user.name}</p>
+              </div>
             </div>
             <div className="flex items-center gap-1 sm:gap-2">
               {locations.length > 1 ? (
