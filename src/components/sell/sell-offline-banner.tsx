@@ -1,9 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CloudOff, Download, Wifi } from "lucide-react";
+import { CloudOff, Download, RefreshCw, Wifi } from "lucide-react";
+import { toast } from "sonner";
 import { usePosOffline } from "@/lib/pos-offline/context";
 import { Button } from "@/components/ui/button";
+
+const SYNC_REMINDER_MS = 4 * 60 * 60 * 1000;
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -24,9 +27,44 @@ function useInstallPrompt() {
   return [event, setEvent] as const;
 }
 
+function useStaleCatalogSync(syncedAt: string | null | undefined) {
+  const [stale, setStale] = useState(false);
+
+  useEffect(() => {
+    const check = () => {
+      if (!syncedAt) {
+        setStale(false);
+        return;
+      }
+      const age = Date.now() - new Date(syncedAt).getTime();
+      setStale(Number.isFinite(age) && age >= SYNC_REMINDER_MS);
+    };
+    check();
+    const id = window.setInterval(check, 60_000);
+    return () => window.clearInterval(id);
+  }, [syncedAt]);
+
+  return stale;
+}
+
 export function SellOfflineBanner() {
-  const { online, pendingCount, cacheEmpty, refreshCatalogFromNetwork } = usePosOffline();
+  const { online, pendingCount, cacheEmpty, catalog, refreshCatalogFromNetwork } =
+    usePosOffline();
   const [installEvent, setInstallEvent] = useInstallPrompt();
+  const catalogStale = useStaleCatalogSync(catalog?.synced_at);
+  const [syncing, setSyncing] = useState(false);
+
+  const syncNow = async () => {
+    setSyncing(true);
+    try {
+      await refreshCatalogFromNetwork();
+      toast.success("Synced with the web");
+    } catch {
+      toast.error("Could not sync right now");
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   if (cacheEmpty && online) {
     return (
@@ -38,7 +76,8 @@ export function SellOfflineBanner() {
             size="sm"
             variant="outline"
             className="h-8 border-amber-300 bg-white"
-            onClick={() => void refreshCatalogFromNetwork()}
+            onClick={() => void syncNow()}
+            disabled={syncing}
           >
             Retry download
           </Button>
@@ -71,6 +110,30 @@ export function SellOfflineBanner() {
           <p>
             Syncing {pendingCount} offline sale{pendingCount === 1 ? "" : "s"}…
           </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (catalogStale) {
+    return (
+      <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-950 sm:px-6 lg:px-8">
+        <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-2">
+          <p>
+            Last sync was over 4 hours ago. Sync with the web to keep products and prices
+            up to date.
+          </p>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-8 border-amber-300 bg-white"
+            onClick={() => void syncNow()}
+            disabled={syncing}
+          >
+            <RefreshCw className={`mr-1.5 size-3.5 ${syncing ? "animate-spin" : ""}`} />
+            {syncing ? "Syncing…" : "Sync now"}
+          </Button>
         </div>
       </div>
     );
