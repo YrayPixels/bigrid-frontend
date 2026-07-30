@@ -7,13 +7,13 @@ import { useStorefront } from "./store-context";
 export function CartRefreshEffect() {
   const { refreshLines } = useCart();
   const { storefront } = useStorefront();
-  const products = storefront.products ?? [];
 
   useEffect(() => {
+    const products = storefront.products ?? [];
     if (products.length > 0) {
       refreshLines(products);
     }
-  }, [products, refreshLines]);
+  }, [storefront.products, refreshLines]);
 
   return null;
 }
