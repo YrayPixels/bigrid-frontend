@@ -1,0 +1,42 @@
+name: Bump Sell PWA version
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    # Avoid looping on the bump commit itself (also skipped for GITHUB_TOKEN pushes).
+    if: ${{ !startsWith(github.event.head_commit.message, 'chore(pwa): bump version') }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Bump PWA patch version
+        id: bump
+        run: node scripts/bump-pwa-version.mjs
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/lib/pos-offline/pwa-version.ts public/sw.js
+          if git diff --staged --quiet; then
+            echo "No version changes to commit"
+            exit 0
+          fi
+          git commit -m "chore(pwa): bump version to ${{ steps.bump.outputs.version }}"
+          git push

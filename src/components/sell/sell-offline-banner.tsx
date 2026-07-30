@@ -4,6 +4,11 @@ import { useEffect, useState } from "react";
 import { CloudOff, Download, RefreshCw, Wifi } from "lucide-react";
 import { toast } from "sonner";
 import { usePosOffline } from "@/lib/pos-offline/context";
+import {
+  applyPosPwaUpdate,
+  subscribePosPwaUpdate,
+} from "@/lib/pos-offline/register-sw";
+import { PWA_VERSION } from "@/lib/pos-offline/pwa-version";
 import { Button } from "@/components/ui/button";
 
 const SYNC_REMINDER_MS = 4 * 60 * 60 * 1000;
@@ -47,12 +52,26 @@ function useStaleCatalogSync(syncedAt: string | null | undefined) {
   return stale;
 }
 
+function usePwaUpdateAvailable() {
+  const [updateAvailable, setUpdateAvailable] = useState(false);
+
+  useEffect(() => {
+    return subscribePosPwaUpdate((state) => {
+      setUpdateAvailable(state.updateAvailable);
+    });
+  }, []);
+
+  return updateAvailable;
+}
+
 export function SellOfflineBanner() {
   const { online, pendingCount, cacheEmpty, catalog, refreshCatalogFromNetwork } =
     usePosOffline();
   const [installEvent, setInstallEvent] = useInstallPrompt();
   const catalogStale = useStaleCatalogSync(catalog?.synced_at);
+  const updateAvailable = usePwaUpdateAvailable();
   const [syncing, setSyncing] = useState(false);
+  const [updating, setUpdating] = useState(false);
 
   const syncNow = async () => {
     setSyncing(true);
@@ -65,6 +84,29 @@ export function SellOfflineBanner() {
       setSyncing(false);
     }
   };
+
+  if (updateAvailable && online) {
+    return (
+      <div className="border-b border-sky-200 bg-sky-50 px-4 py-2 text-sm text-sky-950 sm:px-6 lg:px-8">
+        <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-2">
+          <p>A new Bizgrid Sell update is ready. You’re on v{PWA_VERSION}.</p>
+          <Button
+            type="button"
+            size="sm"
+            className="h-8"
+            disabled={updating}
+            onClick={() => {
+              setUpdating(true);
+              applyPosPwaUpdate();
+            }}
+          >
+            <RefreshCw className={`mr-1.5 size-3.5 ${updating ? "animate-spin" : ""}`} />
+            {updating ? "Updating…" : "Update now"}
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   if (cacheEmpty && online) {
     return (
