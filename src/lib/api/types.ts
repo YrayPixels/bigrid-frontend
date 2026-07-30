@@ -808,7 +808,7 @@ export type PosLookupResponse = {
 };
 
 export type PosCatalogResponse = {
-  store: { id: string; name: string; currency: string };
+  store: { id: string; name: string; currency: string; logo_url?: string | null };
   categories: Array<{ id: string; name: string }>;
   products: PosCatalogProduct[];
 };
