@@ -24,6 +24,8 @@ type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onProduct: (product: PosCatalogProduct) => void;
+  /** Called when a scanned/typed code has no catalog match. */
+  onUnknownCode?: (code: string) => void;
 };
 
 function extractOcrQueries(text: string): string[] {
@@ -44,7 +46,7 @@ function extractOcrQueries(text: string): string[] {
   return [...new Set(ranked)].slice(0, 8);
 }
 
-export function SellScanDialog({ open, onOpenChange, onProduct }: Props) {
+export function SellScanDialog({ open, onOpenChange, onProduct, onUnknownCode }: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -96,6 +98,11 @@ export function SellScanDialog({ open, onOpenChange, onProduct }: Props) {
         if (lookupMode === "exact") {
           toast.message("Multiple matches — pick one");
         }
+        return;
+      }
+      if (lookupMode === "exact" && onUnknownCode) {
+        onOpenChange(false);
+        onUnknownCode(code);
         return;
       }
       toast.error(lookupMode === "exact" ? "No product for that code" : "No matching products");
