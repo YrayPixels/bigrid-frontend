@@ -33,6 +33,7 @@ import type {
   StoreDomain,
   UpdateStorePaymentSettingsInput,
   PosCatalogResponse,
+  PosCatalogSyncResponse,
   PosLookupResponse,
   CreatePosOrderInput,
   StoreLocation,
@@ -1140,6 +1141,15 @@ export const api = {
     return http<PosCatalogResponse>(
       `${STOREHAUSE_API_PREFIX}/pos/catalog${params.toString() ? `?${params.toString()}` : ""}`,
     );
+  },
+
+  async syncPosCatalog(page = 1, perPage = 200): Promise<PosCatalogSyncResponse> {
+    requireToken();
+    const params = new URLSearchParams({
+      page: String(page),
+      per_page: String(perPage),
+    });
+    return http<PosCatalogSyncResponse>(`${STOREHAUSE_API_PREFIX}/pos/catalog/sync?${params.toString()}`);
   },
 
   async lookupPosProduct(

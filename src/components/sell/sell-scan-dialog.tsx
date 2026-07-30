@@ -26,6 +26,16 @@ type Props = {
   onProduct: (product: PosCatalogProduct) => void;
   /** Called when a scanned/typed code has no catalog match. */
   onUnknownCode?: (code: string) => void;
+  /** Prefer local/offline lookup when provided (returns null to fall through to API). */
+  resolveLocally?: (
+    code: string,
+  ) =>
+    | {
+        match: "exact" | "ambiguous" | "none";
+        product: PosCatalogProduct | null;
+        candidates: PosCatalogProduct[];
+      }
+    | null;
 };
 
 function extractOcrQueries(text: string): string[] {
@@ -46,7 +56,13 @@ function extractOcrQueries(text: string): string[] {
   return [...new Set(ranked)].slice(0, 8);
 }
 
-export function SellScanDialog({ open, onOpenChange, onProduct, onUnknownCode }: Props) {
+export function SellScanDialog({
+  open,
+  onOpenChange,
+  onProduct,
+  onUnknownCode,
+  resolveLocally,
+}: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -86,6 +102,28 @@ export function SellScanDialog({ open, onOpenChange, onProduct, onUnknownCode }:
     busyRef.current = true;
     setBusy(true);
     try {
+      const local = resolveLocally?.(code) ?? null;
+      if (local) {
+        if (local.match === "exact" && local.product) {
+          setCandidates([]);
+          onProduct(local.product);
+          onOpenChange(false);
+          return;
+        }
+        if (local.candidates.length > 0) {
+          setCandidates(local.candidates);
+          toast.message("Multiple matches — pick one");
+          return;
+        }
+        if (lookupMode === "exact" && onUnknownCode) {
+          onOpenChange(false);
+          onUnknownCode(code);
+          return;
+        }
+        toast.error("No product for that code");
+        return;
+      }
+
       const result = await api.lookupPosProduct(code, lookupMode);
       if (result.match === "exact" && result.product) {
         setCandidates([]);

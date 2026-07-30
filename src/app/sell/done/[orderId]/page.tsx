@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Check, Copy, Share2 } from "lucide-react";
+import { Check, CloudOff, Copy, Share2 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api/client";
 import type { StoreOrder } from "@/lib/api/types";
+import { getPendingOrder, type PendingPosOrder } from "@/lib/pos-offline/db";
 import { formatMoney } from "@/lib/storefront/format";
 import { Button } from "@/components/ui/button";
 
@@ -14,13 +15,31 @@ export default function SellDonePage() {
   const params = useParams<{ orderId: string }>();
   const router = useRouter();
   const [order, setOrder] = useState<StoreOrder | null>(null);
+  const [pending, setPending] = useState<PendingPosOrder | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const orderId = params.orderId;
+  const isPending = orderId.startsWith("pending:");
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const next = await api.getPosOrder(params.orderId);
+        if (isPending) {
+          const clientId = orderId.slice("pending:".length);
+          const row = await getPendingOrder(clientId);
+          if (!row) throw new Error("Offline sale not found");
+          if (!cancelled) {
+            if (row.server_order_id) {
+              router.replace(`/sell/done/${row.server_order_id}`);
+              return;
+            }
+            setPending(row);
+          }
+          return;
+        }
+
+        const next = await api.getPosOrder(orderId);
         if (!cancelled) setOrder(next);
       } catch (err) {
         if (!cancelled) {
@@ -34,9 +53,9 @@ export default function SellDonePage() {
     return () => {
       cancelled = true;
     };
-  }, [params.orderId, router]);
+  }, [orderId, isPending, router]);
 
-  if (loading || !order) {
+  if (loading || (!order && !pending)) {
     return (
       <div className="flex flex-1 items-center justify-center text-sm text-zinc-500">
         Loading receipt…
@@ -44,20 +63,50 @@ export default function SellDonePage() {
     );
   }
 
+  const receipt = pending
+    ? {
+        order_number: pending.local_receipt.order_number,
+        total_amount: pending.local_receipt.total_amount,
+        currency: pending.local_receipt.currency,
+        payment_method: pending.local_receipt.payment_method,
+        amount_tendered: pending.local_receipt.amount_tendered,
+        items: pending.local_receipt.items.map((item) => ({
+          quantity: item.quantity,
+          name: item.name,
+          total: item.unit_price * item.quantity,
+          currency: pending.local_receipt.currency,
+        })),
+        offline: true,
+        syncError: pending.last_error,
+      }
+    : {
+        order_number: order!.order_number,
+        total_amount: order!.total_amount,
+        currency: order!.currency,
+        payment_method: order!.payment_method,
+        amount_tendered: order!.amount_tendered,
+        items: order!.items || [],
+        offline: false,
+        syncError: null as string | null,
+      };
+
   const receiptText = [
-    `Receipt ${order.order_number}`,
-    `Total: ${formatMoney(order.total_amount, order.currency)}`,
-    `Paid by ${order.payment_method === "bank_transfer" ? "transfer" : "cash"}`,
-    ...(order.items || []).map(
+    `Receipt ${receipt.order_number}`,
+    receipt.offline ? "(Saved offline — pending sync)" : null,
+    `Total: ${formatMoney(receipt.total_amount, receipt.currency)}`,
+    `Paid by ${receipt.payment_method === "bank_transfer" ? "transfer" : "cash"}`,
+    ...receipt.items.map(
       (item) =>
-        `${item.quantity}× ${item.name} — ${formatMoney(item.total, item.currency || order.currency)}`,
+        `${item.quantity}× ${item.name} — ${formatMoney(item.total, item.currency || receipt.currency)}`,
     ),
-  ].join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
 
   const share = async () => {
     try {
       if (navigator.share) {
-        await navigator.share({ title: order.order_number, text: receiptText });
+        await navigator.share({ title: receipt.order_number, text: receiptText });
         return;
       }
       const wa = `https://wa.me/?text=${encodeURIComponent(receiptText)}`;
@@ -84,16 +133,25 @@ export default function SellDonePage() {
       <h1 className="mt-4 text-center text-2xl font-semibold tracking-tight sm:text-3xl">
         Sale complete
       </h1>
-      <p className="mt-1 text-center text-sm text-zinc-500">{order.order_number}</p>
+      <p className="mt-1 text-center text-sm text-zinc-500">{receipt.order_number}</p>
+      {receipt.offline ? (
+        <p className="mt-2 flex items-center justify-center gap-1.5 text-center text-xs text-amber-700">
+          <CloudOff className="size-3.5" />
+          Saved offline — will sync when online
+        </p>
+      ) : null}
+      {receipt.syncError ? (
+        <p className="mt-2 text-center text-xs text-red-600">{receipt.syncError}</p>
+      ) : null}
       <p className="mt-4 text-center text-3xl font-semibold sm:text-4xl">
-        {formatMoney(order.total_amount, order.currency)}
+        {formatMoney(receipt.total_amount, receipt.currency)}
       </p>
       <p className="mt-1 text-center text-sm capitalize text-zinc-500">
-        {(order.payment_method || "paid").replace("_", " ")}
-        {order.payment_method === "cash" && order.amount_tendered != null
+        {(receipt.payment_method || "paid").replace("_", " ")}
+        {receipt.payment_method === "cash" && receipt.amount_tendered != null
           ? ` · Change ${formatMoney(
-              Math.max(0, order.amount_tendered - order.total_amount),
-              order.currency,
+              Math.max(0, receipt.amount_tendered - receipt.total_amount),
+              receipt.currency,
             )}`
           : ""}
       </p>

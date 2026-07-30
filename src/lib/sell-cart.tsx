@@ -4,6 +4,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
@@ -21,6 +22,13 @@ export type SellCartLine = {
   quantity: number;
   selected_options: Record<string, string>;
   stock_quantity: number | null;
+};
+
+type PersistedCart = {
+  lines: SellCartLine[];
+  customerName: string;
+  customerPhone: string;
+  locationId: string | null;
 };
 
 type SellCartContextValue = {
@@ -41,6 +49,34 @@ type SellCartContextValue = {
 
 const SellCartContext = createContext<SellCartContextValue | null>(null);
 
+const CART_STORAGE_PREFIX = "storehause_pos_cart:";
+
+function storageKey(storeId: string | null | undefined) {
+  return `${CART_STORAGE_PREFIX}${storeId || "default"}`;
+}
+
+function readPersistedCart(storeId: string | null | undefined): PersistedCart | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(storageKey(storeId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as PersistedCart;
+    if (!parsed || !Array.isArray(parsed.lines)) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writePersistedCart(storeId: string | null | undefined, cart: PersistedCart) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(storageKey(storeId), JSON.stringify(cart));
+  } catch {
+    // Quota / private mode — ignore.
+  }
+}
+
 function lineKey(productId: string, selectedOptions: Record<string, string>): string {
   const options = Object.keys(selectedOptions)
     .sort()
@@ -49,11 +85,41 @@ function lineKey(productId: string, selectedOptions: Record<string, string>): st
   return `${productId}::${options}`;
 }
 
-export function SellCartProvider({ children }: { children: ReactNode }) {
+export function SellCartProvider({
+  children,
+  storeId = null,
+}: {
+  children: ReactNode;
+  storeId?: string | null;
+}) {
+  const [hydrated, setHydrated] = useState(false);
   const [lines, setLines] = useState<SellCartLine[]>([]);
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [locationId, setLocationId] = useState<string | null>(null);
+  const [activeStoreId, setActiveStoreId] = useState<string | null>(storeId ?? null);
+
+  useEffect(() => {
+    setActiveStoreId(storeId ?? null);
+    const saved = readPersistedCart(storeId);
+    if (saved) {
+      setLines(saved.lines);
+      setCustomerName(saved.customerName || "");
+      setCustomerPhone(saved.customerPhone || "");
+      setLocationId(saved.locationId);
+    }
+    setHydrated(true);
+  }, [storeId]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    writePersistedCart(activeStoreId, {
+      lines,
+      customerName,
+      customerPhone,
+      locationId,
+    });
+  }, [hydrated, activeStoreId, lines, customerName, customerPhone, locationId]);
 
   const addProduct = useCallback(
     (product: PosCatalogProduct, selectedOptions: Record<string, string> = {}) => {
