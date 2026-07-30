@@ -1,10 +1,11 @@
 /* Bizgrid Sell offline shell */
-const CACHE = "bizgrid-sell-v1";
+const CACHE = "bizgrid-sell-v2";
 const PRECACHE = ["/sell", "/sell/checkout", "/sell/sales", "/manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE).then(async (cache) => {
+    (async () => {
+      const cache = await caches.open(CACHE);
       await Promise.all(
         PRECACHE.map(async (url) => {
           try {
@@ -15,7 +16,7 @@ self.addEventListener("install", (event) => {
         }),
       );
       await self.skipWaiting();
-    }),
+    })(),
   );
 });
 
@@ -29,43 +30,87 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+function isApiPath(pathname) {
+  return pathname.startsWith("/api/") || pathname.includes("/v1/");
+}
+
+function isSellAsset(pathname) {
+  return (
+    pathname === "/sell" ||
+    pathname.startsWith("/sell/") ||
+    pathname.startsWith("/_next/static/") ||
+    pathname.startsWith("/_next/image") ||
+    pathname.startsWith("/icons/") ||
+    pathname === "/manifest.webmanifest" ||
+    pathname === "/bizgridlogo.png" ||
+    pathname === "/favicon.ico"
+  );
+}
+
+async function putInCache(request, response) {
+  if (!response || !response.ok) return;
+  try {
+    const cache = await caches.open(CACHE);
+    await cache.put(request, response.clone());
+  } catch {
+    // Quota / opaque failures — ignore.
+  }
+}
+
+async function cacheFirst(request) {
+  const cached = await caches.match(request, { ignoreSearch: true });
+  if (cached) return cached;
+  const network = await fetch(request);
+  await putInCache(request, network);
+  return network;
+}
+
+async function networkFirst(request, { fallbackPath } = {}) {
+  try {
+    const network = await fetch(request);
+    await putInCache(request, network);
+    return network;
+  } catch {
+    const cached = await caches.match(request, { ignoreSearch: true });
+    if (cached) return cached;
+    if (fallbackPath) {
+      const fallback = await caches.match(fallbackPath);
+      if (fallback) return fallback;
+    }
+    return new Response("Offline — open Sell once while online to cache this page.", {
+      status: 503,
+      statusText: "Service Unavailable",
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
+    });
+  }
+}
+
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   if (request.method !== "GET") return;
 
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
+  if (isApiPath(url.pathname)) return;
+  if (!isSellAsset(url.pathname)) return;
 
-  // Never cache API calls — IndexedDB owns offline data.
-  if (url.pathname.startsWith("/api/") || url.pathname.includes("/v1/")) {
+  // Build artifacts + icons: prefer cache so cold offline starts work.
+  if (
+    url.pathname.startsWith("/_next/static/") ||
+    url.pathname.startsWith("/icons/") ||
+    url.pathname === "/manifest.webmanifest" ||
+    url.pathname === "/bizgridlogo.png" ||
+    url.pathname === "/favicon.ico"
+  ) {
+    event.respondWith(cacheFirst(request));
     return;
   }
 
-  const isSellShell =
-    url.pathname === "/sell" ||
-    url.pathname.startsWith("/sell/") ||
-    url.pathname.startsWith("/_next/static/") ||
-    url.pathname.startsWith("/icons/") ||
-    url.pathname === "/manifest.webmanifest";
-
-  if (!isSellShell) return;
-
+  // Sell navigations and RSC payloads: network when available, cache offline.
+  const isNavigate = request.mode === "navigate" || request.destination === "document";
   event.respondWith(
-    (async () => {
-      try {
-        const network = await fetch(request);
-        const cache = await caches.open(CACHE);
-        cache.put(request, network.clone());
-        return network;
-      } catch {
-        const cached = await caches.match(request);
-        if (cached) return cached;
-        if (url.pathname.startsWith("/sell")) {
-          const fallback = await caches.match("/sell");
-          if (fallback) return fallback;
-        }
-        throw new Error("Offline and not cached");
-      }
-    })(),
+    networkFirst(request, {
+      fallbackPath: isNavigate || url.pathname.startsWith("/sell") ? "/sell" : undefined,
+    }),
   );
 });

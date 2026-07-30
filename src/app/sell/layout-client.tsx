@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
 import { History, LogOut, ShoppingBag } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
+import { getToken } from "@/lib/api/client";
 import { SellProviders } from "@/components/sell/sell-providers";
 import { SellOfflineBanner } from "@/components/sell/sell-offline-banner";
 import { usePosOffline } from "@/lib/pos-offline/context";
@@ -31,8 +32,16 @@ function SellShellInner({ children }: { children: ReactNode }) {
   const storeLogo = catalog?.store.logo_url?.trim() || null;
 
   useEffect(() => {
-    if (!loading && !user) router.replace("/login");
-    if (!loading && user && user.can_sell === false) {
+    if (loading) return;
+    if (!user) {
+      // Offline with a stored token: stay on Sell instead of bouncing to /login
+      // (login is not available offline). Auth restores from the local user cache.
+      const offlineWithSession =
+        typeof navigator !== "undefined" && !navigator.onLine && Boolean(getToken());
+      if (!offlineWithSession) router.replace("/login");
+      return;
+    }
+    if (user.can_sell === false) {
       router.replace(user.can_access_admin ? "/admin" : "/login");
     }
   }, [loading, user, router]);
@@ -51,9 +60,20 @@ function SellShellInner({ children }: { children: ReactNode }) {
   }, [user, catalog, locationId, locations, setLocationId]);
 
   if (loading || !user) {
+    const offlineWaiting =
+      !loading &&
+      !user &&
+      typeof navigator !== "undefined" &&
+      !navigator.onLine &&
+      Boolean(getToken());
     return (
-      <div className="flex min-h-dvh items-center justify-center bg-zinc-100 text-sm text-zinc-500">
-        Loading…
+      <div className="flex min-h-dvh flex-col items-center justify-center gap-2 bg-zinc-100 px-6 text-center text-sm text-zinc-500">
+        <p>{offlineWaiting ? "Offline" : "Loading…"}</p>
+        {offlineWaiting ? (
+          <p className="max-w-sm text-xs text-zinc-400">
+            Open Sell once while online so your session and catalog can be cached for offline use.
+          </p>
+        ) : null}
       </div>
     );
   }
