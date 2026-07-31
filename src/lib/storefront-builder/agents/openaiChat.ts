@@ -142,7 +142,19 @@ export async function callOpenAiChat(body: PostChatBody): Promise<ChatCompletion
   const withModel = await ensureChatModel(body);
 
   if (API_BASE) {
-    return proxyChatThroughBackend(withModel);
+    try {
+      return await proxyChatThroughBackend(withModel);
+    } catch (error) {
+      // Guest / server-side turns often have no Sanctum token. Fall back to a local
+      // provider key so storefront AI edit still works for public preview chat.
+      const message = error instanceof Error ? error.message : String(error);
+      const unauthorized = /401|403|unauthorized|unauthenticated/i.test(message);
+      const hasLocalKey = !!(process.env.OPENAI_API_KEY ?? process.env.DEEPSEEK_API_KEY);
+      if (unauthorized && hasLocalKey) {
+        return rawFetchChat(withModel);
+      }
+      throw error;
+    }
   }
 
   const hasTools = Array.isArray(withModel.tools) && withModel.tools.length > 0;

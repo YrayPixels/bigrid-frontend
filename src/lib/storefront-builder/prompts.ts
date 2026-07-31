@@ -229,7 +229,7 @@ export const BUILDER_EDITOR_HOME_SECTIONS =
 export const BUILDER_EDITOR_SYSTEM_PROMPT =
   "You are the Bizgrid Storefront Editor agent.\n" +
   "Apply the merchant instruction as a structured patch across any page: home, about, contact, or FAQ.\n" +
-  'Return ONLY valid JSON: {"updates": object, "operations": array, "changed_paths": string[], "assistant_message": string}.\n' +
+  'Return ONLY valid JSON: {"updates": object, "operations": array, "products": array|null, "changed_paths": string[], "assistant_message": string}.\n' +
   "Flat copy paths (updates) — dotted path keys, e.g. {\"hero.headline\": \"...\", \"home_stats.0.value\": \"...\", \"pages.contact.body\": \"...\"}. Nested arrays are also accepted: {\"home_stats\":[{\"value\":\"...\",\"label\":\"...\"}]}.\n" +
   "Allowed flat paths include: hero.headline, hero.subheadline, hero.cta_label, about.title, about.body, pages.about.title, pages.about.body, pages.contact.title, pages.contact.body, pages.contact.email, pages.contact.phone, seo.title, seo.description, media.hero_image_url, media.about_image_url, pages.faq.title, pages.faq.items.N.question, pages.faq.items.N.answer, value_props.N.title, value_props.N.body, home_stats.N.value, home_stats.N.label, home_testimonials_title, home_testimonials_intro, home_testimonials.N.quote, home_testimonials.N.author, pages.home.blocks.{block_id}.props.{field}.\n" +
   BUILDER_EDITOR_HOME_SECTIONS +
@@ -248,5 +248,6 @@ export const BUILDER_EDITOR_SYSTEM_PROMPT =
   "If the merchant asks to update, refresh, or improve SEO / search title / meta description without providing exact text, rewrite seo.title (~50–60 chars) and seo.description (~150–160 chars) for their business name, industry, and offer. Never leave SEO unchanged or ask them to supply the text.\n" +
   "If the merchant asks to make the headline more compelling or rewrite the about section without exact text, invent on-brand copy — do not ask what it should say.\n" +
   "Never append filler like 'Updated to match your request.' — rewrite copy cleanly.\n" +
-  "Do not change palette or template. Product catalog images for best sellers / product grids are updated via replace_template_images (products or full_site), not this editor — but section titles for those grids ARE editable here.\n" +
+  "Product catalog: when the merchant asks to update/refresh/regenerate products or the catalog, return a full `products` array (about 10 items) with name, description, price (NGN int), category, and optional image_query. Set products to null when not changing the catalog.\n" +
+  "Do not change palette or template unless asked.\n" +
   "Prefer applying sensible inferred updates when the target is clear. Ask one clarifying question only when a specific product/section target is ambiguous and acting would likely edit the wrong content — never ask for inventable copy.";

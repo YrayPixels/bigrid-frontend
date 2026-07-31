@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useState, type FormEvent } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState, type FormEvent } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth-context";
@@ -14,9 +14,12 @@ import {
   Field,
   GoogleAuthFooter,
 } from "@/components/auth-shell";
+import { loadGuestPreview } from "@/lib/guest-preview-storage";
 
-export default function SignupPage() {
+function SignupForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const fromPreview = searchParams.get("from") === "preview";
   const { user, loading, refresh } = useAuth();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -25,6 +28,13 @@ export default function SignupPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [previewShopName, setPreviewShopName] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!fromPreview) return;
+    const guest = loadGuestPreview();
+    setPreviewShopName(guest?.store.business_name ?? null);
+  }, [fromPreview]);
 
   useEffect(() => {
     if (!loading && user) {
@@ -61,8 +71,14 @@ export default function SignupPage() {
 
   return (
     <AuthShell
-      title="Join us"
-      subtitle="Free during the MVP — no card required."
+      title={fromPreview ? "Claim your store" : "Join us"}
+      subtitle={
+        fromPreview
+          ? previewShopName
+            ? `Create an account to manage ${previewShopName} and keep building.`
+            : "Create an account to save your preview and manage your store."
+          : "Free during the MVP — no card required."
+      }
       footer={
         <p className="text-center text-xs leading-relaxed text-ink-soft">
           By signing up, I confirm that I have read and agree to Bizgrid&apos;s{" "}
@@ -128,7 +144,11 @@ export default function SignupPage() {
           }
         />
         <AuthSubmitButton disabled={submitting}>
-          {submitting ? "Creating account..." : "Continue"}
+          {submitting
+            ? "Creating account..."
+            : fromPreview
+              ? "Create account & continue"
+              : "Continue"}
         </AuthSubmitButton>
       </form>
 
@@ -139,5 +159,13 @@ export default function SignupPage() {
         </Link>
       </p>
     </AuthShell>
+  );
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense fallback={null}>
+      <SignupForm />
+    </Suspense>
   );
 }
