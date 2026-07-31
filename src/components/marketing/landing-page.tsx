@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { BizgridLogo } from "@/components/bizgrid-logo";
+import { LandingPreviewPrompt } from "@/components/marketing/landing-preview-prompt";
 
 const FEATURES = [
   {
@@ -59,33 +60,6 @@ const SHOWCASE_SHOPS = [
   },
 ] as const;
 
-const PREVIEW_IMAGES = [
-  {
-    src: "/landing/preview-candle.jpg",
-    alt: "Product page preview",
-    className: "aspect-[3/4] bg-muted rounded-lg overflow-hidden relative group",
-    showProgress: true,
-  },
-  {
-    src: "/landing/preview-perfume.jpg",
-    alt: "Editorial product layout",
-    className: "aspect-[3/4] bg-muted rounded-lg overflow-hidden hidden md:block",
-    showProgress: false,
-  },
-  {
-    src: "/landing/preview-gallery.jpg",
-    alt: "Product gallery grid",
-    className: "aspect-[3/4] bg-muted rounded-lg overflow-hidden hidden md:block",
-    showProgress: false,
-  },
-  {
-    src: "/landing/preview-checkout.jpg",
-    alt: "Checkout flow preview",
-    className: "aspect-[3/4] bg-muted rounded-lg overflow-hidden",
-    showProgress: false,
-  },
-] as const;
-
 export function LandingPage() {
   return (
     <div className="min-h-screen bg-canvas text-ink font-sans selection:bg-primary/20">
@@ -133,12 +107,12 @@ export function LandingPage() {
               with marketing tools built in.
             </p>
             <div className="animate-reveal flex flex-col items-center justify-center gap-4 [animation-delay:200ms] sm:flex-row">
-              <Link
-                href="/signup"
+              <a
+                href="#try-preview"
                 className="w-full rounded-full bg-primary px-8 py-4 text-lg font-semibold text-primary-foreground shadow-soft transition-all hover:opacity-90 hover:shadow-glow sm:w-auto"
               >
                 Build your store
-              </Link>
+              </a>
               <a
                 href="#showcase"
                 className="w-full rounded-full border border-border bg-card/60 px-8 py-4 text-lg font-medium backdrop-blur-sm transition-all hover:bg-muted sm:w-auto"
@@ -147,50 +121,12 @@ export function LandingPage() {
               </a>
             </div>
             <p className="animate-reveal mt-5 text-sm text-ink-soft [animation-delay:300ms]">
-              Free during the MVP — no card required.
+              Free during the MVP — start the chat below, preview first, no card required.
             </p>
           </div>
         </section>
 
-        <section className="animate-reveal px-6 py-12 [animation-delay:400ms]">
-          <div className="mx-auto max-w-4xl overflow-hidden rounded-2xl border border-border bg-card shadow-elevated">
-            <div className="flex flex-col items-center gap-4 bg-muted/40 p-6 md:flex-row">
-              <div className="flex w-full flex-1 items-center gap-3 rounded-xl border border-border bg-canvas-raised px-4 py-3">
-                <span className="font-mono text-primary">/</span>
-                <input
-                  type="text"
-                  readOnly
-                  value="I sell handmade soy candles. Warm, cozy, gift-friendly."
-                  className="w-full border-none bg-transparent font-sans text-sm text-ink outline-none"
-                  aria-label="Example store description"
-                />
-              </div>
-              <div className="flex items-center gap-2 font-mono text-xs whitespace-nowrap text-ink-soft uppercase">
-                Building <span className="text-primary">storefront…</span>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4 p-4 md:grid-cols-4">
-              {PREVIEW_IMAGES.map((preview) => (
-                <div key={preview.src} className={preview.className}>
-                  <Image
-                    src={preview.src}
-                    alt={preview.alt}
-                    width={640}
-                    height={832}
-                    className="h-full w-full object-cover"
-                  />
-                  {preview.showProgress ? (
-                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-ink/40 to-transparent p-3">
-                      <div className="h-1 w-full overflow-hidden rounded-full bg-white/30">
-                        <div className="animate-line h-full bg-primary" />
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
+        <LandingPreviewPrompt />
 
         <section id="platform" className="mx-auto max-w-6xl border-t border-border px-6 py-24">
           <div className="mb-14 max-w-2xl">

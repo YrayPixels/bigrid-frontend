@@ -15,6 +15,7 @@ import {
   type BusinessProfileInput,
 } from "@/lib/business-profile";
 import { STORE_PLATFORM_DOMAIN } from "@/lib/store-host";
+import { loadGuestPreview, clearGuestPreview } from "@/lib/guest-preview-storage";
 
 const DEFAULT_BRAND_COLOR = "#0E7C66";
 
@@ -37,12 +38,25 @@ export default function AdminOnboardingPage() {
   const [industry, setIndustry] = useState<Industry | null>(null);
   const [description, setDescription] = useState("");
   const [businessProfile, setBusinessProfile] = useState<BusinessProfileInput>(EMPTY_PROFILE);
+  const [brandColor, setBrandColor] = useState(DEFAULT_BRAND_COLOR);
+  const [fromGuestPreview, setFromGuestPreview] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) router.replace("/login");
     else if (!loading && user?.has_store) router.replace("/admin");
   }, [loading, user, router]);
+
+  useEffect(() => {
+    const guest = loadGuestPreview();
+    if (!guest) return;
+    setFromGuestPreview(true);
+    if (guest.profile.business_name) setBusinessName(guest.profile.business_name);
+    if (guest.profile.description) setDescription(guest.profile.description);
+    if (guest.profile.industry) setIndustry(guest.profile.industry);
+    if (guest.profile.brand_color) setBrandColor(guest.profile.brand_color);
+    else if (guest.store.brand_color) setBrandColor(guest.store.brand_color);
+  }, []);
 
   useEffect(() => {
     if (!slugTouched) {
@@ -78,7 +92,7 @@ export default function AdminOnboardingPage() {
         slug: storeSlug,
         industry,
         description: description.trim(),
-        brand_color: DEFAULT_BRAND_COLOR,
+        brand_color: brandColor,
         logo_url: null,
         business_location: businessProfile.business_location!,
         weekly_orders: businessProfile.weekly_orders!,
@@ -87,7 +101,12 @@ export default function AdminOnboardingPage() {
         physical_store_count: businessProfile.physical_store_count!,
       });
       await refresh();
-      toast.success("Store created. Let's build your website.");
+      clearGuestPreview();
+      toast.success(
+        fromGuestPreview
+          ? "Store created from your preview. Let's refine it in the builder."
+          : "Store created. Let's build your website.",
+      );
       router.replace("/admin/website?from=onboarding&mode=create");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not create store");
@@ -143,8 +162,18 @@ export default function AdminOnboardingPage() {
             <div className="space-y-5">
               <header>
                 <h1 className="font-display text-2xl font-bold">You&apos;re almost done!</h1>
-                <p className="mt-1 text-sm text-ink-soft">Tell us a little bit about your business.</p>
+                <p className="mt-1 text-sm text-ink-soft">
+                  {fromGuestPreview
+                    ? "We prefilled this from your storefront preview — confirm the details to continue."
+                    : "Tell us a little bit about your business."}
+                </p>
               </header>
+              {fromGuestPreview ? (
+                <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm text-ink-soft">
+                  Your preview shop is ready. Finish these steps to create the real store and open the
+                  website builder.
+                </div>
+              ) : null}
               <label className="block">
                 <span className="mb-1.5 block text-sm font-medium">
                   Business name <span className="text-destructive">*</span>

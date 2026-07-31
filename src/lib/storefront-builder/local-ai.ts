@@ -1005,6 +1005,7 @@ async function tryAiStorefrontEdit(
     const parsed = parseJsonObject<{
       updates?: Record<string, unknown>;
       operations?: unknown[];
+      products?: unknown;
       changed_paths?: string[];
       assistant_message?: string;
     }>(content, {});
@@ -1016,8 +1017,9 @@ async function tryAiStorefrontEdit(
     const flatUpdates = flattenAiEditUpdates(rawUpdates);
     const assistantMessage =
       typeof parsed.assistant_message === "string" ? parsed.assistant_message : undefined;
+    const productPatch = normalizeAiProductPatch(parsed.products, storefront.products ?? [], store);
 
-    if (!operations.length && !Object.keys(flatUpdates).length) return null;
+    if (!operations.length && !Object.keys(flatUpdates).length && !productPatch) return null;
 
     let next = structuredClone(storefront);
     ensureHomeBlocksOnStorefront(next);
@@ -1044,6 +1046,26 @@ async function tryAiStorefrontEdit(
       }
     }
 
+    if (productPatch) {
+      const { findProductImageUrl } = await import("@/lib/storefront-builder/image-sourcing");
+      const usedUrls = new Set<string>();
+      const sourcedProducts = [];
+      for (let index = 0; index < productPatch.products.length; index += 1) {
+        const product = productPatch.products[index];
+        const sourced = await findProductImageUrl(product, {
+          intent: productPatch.imageQueries[index] || product.name,
+          usedUrls,
+        });
+        if (sourced.url) usedUrls.add(sourced.url);
+        sourcedProducts.push({ ...product, image_url: sourced.url ?? product.image_url });
+      }
+      next.products = sourcedProducts;
+      changedPaths.push("products");
+      for (let index = 0; index < sourcedProducts.length; index += 1) {
+        changedPaths.push(`products.${index}.name`, `products.${index}.description`);
+      }
+    }
+
     const uniqueChangedPaths = [...new Set(changedPaths)];
     if (!uniqueChangedPaths.length) return null;
 
@@ -1060,6 +1082,52 @@ async function tryAiStorefrontEdit(
   }
 }
 
+function normalizeAiProductPatch(
+  raw: unknown,
+  existing: NonNullable<StorefrontContent["products"]>,
+  store?: Store | null,
+): {
+  products: NonNullable<StorefrontContent["products"]>;
+  imageQueries: string[];
+} | null {
+  if (!Array.isArray(raw) || raw.length < 4) return null;
+
+  const brand = store?.business_name?.trim() || "our shop";
+  const slugBase = slugify(brand) || "shop";
+  const imageQueries: string[] = [];
+
+  const products = raw.slice(0, 12).map((entry, index) => {
+    const item = entry && typeof entry === "object" ? (entry as Record<string, unknown>) : {};
+    const name = typeof item.name === "string" && item.name.trim() ? item.name.trim().slice(0, 80) : `Product ${index + 1}`;
+    const description =
+      typeof item.description === "string" && item.description.trim()
+        ? item.description.trim().slice(0, 280)
+        : `A ${name} from ${brand}.`;
+    const price = Number.isFinite(Number(item.price)) ? Math.max(3500, Math.round(Number(item.price))) : 15000;
+    const category = typeof item.category === "string" ? item.category.trim().slice(0, 40) : existing[index]?.category;
+    const prior = existing[index];
+    const imageQuery =
+      typeof item.image_query === "string" && item.image_query.trim()
+        ? item.image_query.trim().slice(0, 80)
+        : name;
+    imageQueries.push(imageQuery);
+
+    return {
+      id: prior?.id ?? `draft-product-${index + 1}`,
+      slug: prior?.slug ?? `${slugBase}-${slugify(name)}`,
+      name,
+      description,
+      price,
+      currency: prior?.currency ?? "NGN",
+      image_url: null as string | null,
+      category: category || prior?.category,
+      status: "active" as const,
+    };
+  });
+
+  return { products, imageQueries };
+}
+
 function buildStorefrontEditorContext(storefront: StorefrontContent) {
   return {
     hero: storefront.hero,
@@ -1071,6 +1139,13 @@ function buildStorefrontEditorContext(storefront: StorefrontContent) {
     home_testimonials_intro: storefront.home_testimonials_intro ?? null,
     home_testimonials: storefront.home_testimonials ?? null,
     value_props: storefront.value_props,
+    products: (storefront.products ?? []).map((product) => ({
+      id: product.id,
+      name: product.name,
+      description: product.description,
+      price: product.price,
+      category: product.category ?? null,
+    })),
     pages: {
       home: { blocks: resolvePageBlocks(storefront, "home") },
       about: { ...(storefront.pages?.about ?? null), blocks: resolvePageBlocks(storefront, "about") },
