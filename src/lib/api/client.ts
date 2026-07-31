@@ -284,12 +284,19 @@ export const api = {
     });
   },
 
-  async resendEmailVerification(): Promise<{ message: string; user?: User }> {
+  async resendEmailVerification(): Promise<{
+    message: string;
+    user?: User;
+    email_verification_sent?: boolean;
+  }> {
     const token = requireToken();
     if (USE_MOCKS) return mockApi.resendEmailVerification(token);
-    return http<{ message: string; user?: User }>(`${STOREHAUSE_API_PREFIX}/auth/resend-email-verification`, {
-      method: "POST",
-    });
+    return http<{ message: string; user?: User; email_verification_sent?: boolean }>(
+      `${STOREHAUSE_API_PREFIX}/auth/resend-email-verification`,
+      {
+        method: "POST",
+      },
+    );
   },
 
   async exchangeAuthCode(code: string): Promise<{ token: string; user: User }> {

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -74,7 +75,11 @@ export function PayoutDetailsCard() {
           <div className="rounded-xl border border-amber-600/25 bg-amber-500/10 p-4 text-sm text-ink">
             <p className="font-medium">Verify your email to save payout details</p>
             <p className="mt-1 text-ink-soft">
-              Check the banner at the top of the dashboard for your verification code.
+              Open{" "}
+              <Link href="/verify-email" className="font-medium text-primary hover:underline">
+                verify email
+              </Link>{" "}
+              and enter the 6-digit code we sent you. Check spam if it&apos;s not in your inbox.
             </p>
           </div>
         ) : null}
