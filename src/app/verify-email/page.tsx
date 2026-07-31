@@ -16,6 +16,7 @@ export default function VerifyEmailPage() {
   const [code, setCode] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [resending, setResending] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
 
   useEffect(() => {
     if (!loading && !user) router.replace("/login");
@@ -23,6 +24,12 @@ export default function VerifyEmailPage() {
       router.replace(user.has_store ? "/admin" : "/admin/onboarding");
     }
   }, [loading, user, router]);
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = window.setTimeout(() => setResendCooldown((seconds) => Math.max(0, seconds - 1)), 1000);
+    return () => window.clearTimeout(timer);
+  }, [resendCooldown]);
 
   function finishVerified(nextUser: User, message = "Email verified") {
     setUser(nextUser);
@@ -51,6 +58,7 @@ export default function VerifyEmailPage() {
   }
 
   async function handleResend() {
+    if (resendCooldown > 0) return;
     setResending(true);
     try {
       const res = await api.resendEmailVerification();
@@ -58,9 +66,22 @@ export default function VerifyEmailPage() {
         finishVerified(res.user, "Email already verified");
         return;
       }
-      toast.success("Verification code sent — check your inbox");
+      if (res.email_verification_sent === false) {
+        toast.error(res.message || "We could not send the email. Try again or contact support.");
+        return;
+      }
+      setResendCooldown(60);
+      toast.success("Verification code sent — check your inbox and spam folder");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not resend code");
+      const err = error as { status?: number; message?: string };
+      if (err?.status === 429) {
+        setResendCooldown(60);
+        toast.error("Please wait a minute before requesting another code");
+      } else if (err?.status === 503) {
+        toast.error(err.message || "We could not send the email. Try again or contact support.");
+      } else {
+        toast.error(error instanceof Error ? error.message : "Could not resend code");
+      }
     } finally {
       setResending(false);
     }
@@ -99,7 +120,7 @@ export default function VerifyEmailPage() {
           required
           autoComplete="one-time-code"
           placeholder="6-digit code"
-          helperText="Code expires in 15 minutes."
+          helperText="Code expires in 15 minutes. Check spam if you don’t see it."
         />
         <AuthSubmitButton disabled={submitting}>
           {submitting ? "Verifying..." : "Verify email"}
@@ -110,11 +131,15 @@ export default function VerifyEmailPage() {
         Didn&apos;t get it?{" "}
         <button
           type="button"
-          disabled={resending}
+          disabled={resending || resendCooldown > 0}
           onClick={() => void handleResend()}
           className="font-semibold text-primary hover:underline disabled:opacity-60"
         >
-          {resending ? "Sending..." : "Resend code"}
+          {resending
+            ? "Sending..."
+            : resendCooldown > 0
+              ? `Resend in ${resendCooldown}s`
+              : "Resend code"}
         </button>
       </p>
 
