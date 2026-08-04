@@ -12,7 +12,7 @@ jobs:
   bump:
     runs-on: ubuntu-latest
     # Avoid looping on the bump commit itself (also skipped for GITHUB_TOKEN pushes).
-    if: ${{ !startsWith(github.event.head_commit.message, 'chore(pwa): bump version') }}
+    if: "${{ startsWith(github.event.head_commit.message, 'chore(pwa): bump version') == false }}"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
