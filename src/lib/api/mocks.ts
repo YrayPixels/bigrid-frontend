@@ -1110,11 +1110,23 @@ export const mockApi = {
 
     return Object.values(db.stores)
       .filter((store) => publishMetaForStore(db, store).is_published)
-      .map((store) => ({
-        slug: store.slug,
-        business_name: store.business_name,
-        published_at: withPublishFields(db, store).published_at ?? null,
-      }));
+      .map((store) => {
+        const storefront = publishedStorefrontForStore(db, store.id);
+        return {
+          slug: store.slug,
+          business_name: store.business_name,
+          published_at: withPublishFields(db, store).published_at ?? null,
+          logo_url: store.logo_url ?? null,
+          banner_url: storefront?.media?.hero_image_url ?? null,
+          brand_color: store.brand_color ?? "#0E7C66",
+          industry: store.industry ?? "other",
+          description:
+            store.description ||
+            storefront?.hero?.subheadline ||
+            storefront?.seo?.description ||
+            null,
+        };
+      });
   },
 
   async getPublicStorefront(slug: string): Promise<PublicStorefront> {

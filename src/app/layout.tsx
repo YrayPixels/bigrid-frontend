@@ -1,13 +1,15 @@
 import type { Metadata } from "next";
 import { Toaster } from "@/components/ui/sonner";
 import { ConfirmDialogProvider } from "@/components/ui/confirm-dialog";
+import { JsonLd } from "@/lib/seo/json-ld";
+import { organizationSchema, softwareApplicationSchema, websiteSchema } from "@/lib/seo/schema";
 import { SITE_URL } from "@/lib/site-seo";
 import { Providers } from "./providers";
 import "./globals.css";
 
-const SITE_TITLE = "Bizgrid — AI storefronts for sellers";
+const SITE_TITLE = "AI Website Builder for African Businesses | Bizgrid";
 const SITE_DESCRIPTION =
-  "Describe your shop and get a live storefront. Bizgrid helps sellers build with AI, take payments, manage orders, and grow with marketing tools.";
+  "Describe your shop and get a live storefront. Bizgrid helps African sellers build with AI, take Paystack payments, manage orders, and grow on WhatsApp.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -65,6 +67,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body>
+        <JsonLd data={organizationSchema()} />
+        <JsonLd data={websiteSchema()} />
+        <JsonLd data={softwareApplicationSchema()} />
         <Providers>
           <ConfirmDialogProvider>
             {children}

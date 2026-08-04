@@ -25,3 +25,4 @@ Server-only secrets (`OPENAI_API_KEY`, `UNSPLASH_ACCESS_KEY`, etc.) must **not**
 - `pnpm lint` — ESLint
 
 See `HARDENING_PLAN.md` for the security and quality roadmap.
+See `SEO_90_DAY_PLAN.md` for the 90-day SEO growth plan (technical, content, programmatic).
