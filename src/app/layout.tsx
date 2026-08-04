@@ -46,7 +46,9 @@ export const metadata: Metadata = {
     siteName: "Bizgrid",
     images: [
       {
-        url: "/bizgridlogo.png",
+        url: "/facebook-og.png",
+        width: 1536,
+        height: 1024,
         alt: "Bizgrid",
       },
     ],
@@ -55,7 +57,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: SITE_TITLE,
     description: SITE_DESCRIPTION,
-    images: ["/bizgridlogo.png"],
+    images: ["/twitter-og.png"],
   },
   icons: {
     icon: "/favicon.png",
