@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { BizgridLogo } from "@/components/bizgrid-logo";
 import { LandingPreviewPrompt } from "@/components/marketing/landing-preview-prompt";
+import { PLATFORM_FAQS } from "@/lib/seo/platform-faqs";
 
 const FEATURES = [
   {
@@ -72,9 +73,12 @@ export function LandingPage() {
             <a href="#platform" className="transition-colors hover:text-ink">
               Platform
             </a>
-            <a href="#showcase" className="transition-colors hover:text-ink">
-              Examples
-            </a>
+            <Link href="/industries" className="transition-colors hover:text-ink">
+              Industries
+            </Link>
+            <Link href="/academy" className="transition-colors hover:text-ink">
+              Academy
+            </Link>
             <a href="#pricing" className="transition-colors hover:text-ink">
               Pricing
             </a>
@@ -236,6 +240,26 @@ export function LandingPage() {
             ))}
           </div>
         </section>
+
+        <section id="faq" className="mx-auto max-w-6xl border-t border-border px-6 py-24">
+          <div className="mb-10 max-w-2xl">
+            <h2 className="font-display text-4xl font-bold tracking-tight md:text-5xl">Questions sellers ask</h2>
+            <p className="mt-4 text-lg text-ink-soft">
+              Straight answers about pricing, Paystack, WhatsApp, and launching without code.
+            </p>
+          </div>
+          <div className="mx-auto grid max-w-3xl gap-3">
+            {PLATFORM_FAQS.map((faq) => (
+              <details
+                key={faq.question}
+                className="rounded-2xl border border-border bg-canvas-raised p-5"
+              >
+                <summary className="cursor-pointer font-medium">{faq.question}</summary>
+                <p className="mt-3 text-sm leading-relaxed text-ink-soft">{faq.answer}</p>
+              </details>
+            ))}
+          </div>
+        </section>
       </main>
 
       <footer className="border-t border-border bg-canvas-raised px-6 py-12">
@@ -246,24 +270,77 @@ export function LandingPage() {
               AI storefronts for sellers who want to open shop online — without the agency bill.
             </p>
           </div>
-          <div className="grid grid-cols-2 gap-16">
+          <div className="grid grid-cols-2 gap-12 sm:grid-cols-4 sm:gap-10">
             <div className="space-y-3">
               <span className="font-mono text-[10px] text-ink-soft uppercase">Product</span>
               <ul className="space-y-2 text-sm">
                 <li>
-                  <a href="#platform" className="transition-colors hover:text-primary">
-                    Features
-                  </a>
+                  <Link href="/solutions/ai-website-builder" className="transition-colors hover:text-primary">
+                    AI website builder
+                  </Link>
                 </li>
                 <li>
-                  <a href="#showcase" className="transition-colors hover:text-primary">
-                    Examples
-                  </a>
+                  <Link href="/solutions/whatsapp-commerce" className="transition-colors hover:text-primary">
+                    WhatsApp commerce
+                  </Link>
                 </li>
                 <li>
                   <a href="#pricing" className="transition-colors hover:text-primary">
                     Pricing
                   </a>
+                </li>
+                <li>
+                  <Link href="/stores" className="transition-colors hover:text-primary">
+                    Stores
+                  </Link>
+                </li>
+              </ul>
+            </div>
+            <div className="space-y-3">
+              <span className="font-mono text-[10px] text-ink-soft uppercase">Industries</span>
+              <ul className="space-y-2 text-sm">
+                <li>
+                  <Link href="/industries" className="transition-colors hover:text-primary">
+                    All industries
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/industries/furniture" className="transition-colors hover:text-primary">
+                    Furniture
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/industries/pharmacies" className="transition-colors hover:text-primary">
+                    Pharmacies
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/industries/beauty-brands" className="transition-colors hover:text-primary">
+                    Cosmetics & Beauty
+                  </Link>
+                </li>
+              </ul>
+            </div>
+            <div className="space-y-3">
+              <span className="font-mono text-[10px] text-ink-soft uppercase">Learn</span>
+              <ul className="space-y-2 text-sm">
+                <li>
+                  <Link href="/academy" className="transition-colors hover:text-primary">
+                    AI Business Academy
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/compare/bizgrid-vs-shopify" className="transition-colors hover:text-primary">
+                    Bizgrid vs Shopify
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/solutions/shopify-alternative-africa"
+                    className="transition-colors hover:text-primary"
+                  >
+                    Shopify alternative
+                  </Link>
                 </li>
               </ul>
             </div>

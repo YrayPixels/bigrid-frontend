@@ -2,6 +2,7 @@ import type { MetadataRoute } from "next";
 import { headers } from "next/headers";
 import { parseStoreSlugFromHost } from "@/lib/store-host";
 import { storefrontApi } from "@/lib/api/storefront";
+import { allMarketingSeoPaths } from "@/lib/seo/pages";
 import {
   getSitemapBaseUrl,
   getStorefrontBaseUrl,
@@ -31,11 +32,30 @@ async function buildPlatformSitemap(host: string | null): Promise<MetadataRoute.
   const baseUrl = getSitemapBaseUrl(host);
   const now = new Date();
 
-  const entries: MetadataRoute.Sitemap = PLATFORM_PUBLIC_PATHS.map((path) => ({
+  const staticPaths = new Set<string>([
+    ...PLATFORM_PUBLIC_PATHS,
+    ...allMarketingSeoPaths(),
+  ]);
+
+  const entries: MetadataRoute.Sitemap = [...staticPaths].map((path) => ({
     url: toAbsoluteUrl(baseUrl, path),
     lastModified: now,
-    changeFrequency: path === "/" ? "weekly" : path === "/stores" ? "daily" : "monthly",
-    priority: path === "/" ? 1 : path === "/stores" ? 0.8 : 0.6,
+    changeFrequency:
+      path === "/"
+        ? "weekly"
+        : path === "/stores" || path.startsWith("/discover/")
+          ? "daily"
+          : path.startsWith("/academy") || path.startsWith("/solutions")
+            ? "weekly"
+            : "monthly",
+    priority:
+      path === "/"
+        ? 1
+        : path === "/stores" || path.startsWith("/solutions/")
+          ? 0.8
+          : path.startsWith("/academy") || path.startsWith("/industries/")
+            ? 0.7
+            : 0.6,
   }));
 
   // Path-based storefront URLs stay on the platform host and help Google discover shops.

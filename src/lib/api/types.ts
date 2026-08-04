@@ -684,6 +684,11 @@ export type PublishedStorefrontIndexEntry = {
   slug: string;
   business_name: string;
   published_at: string | null;
+  logo_url?: string | null;
+  banner_url?: string | null;
+  brand_color?: string | null;
+  industry?: Industry | string | null;
+  description?: string | null;
 };
 
 export type StoreOrderStatus =
