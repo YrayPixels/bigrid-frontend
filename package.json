@@ -4,10 +4,13 @@
   "type": "module",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "node scripts/stamp-pwa-build.mjs && next build && node scripts/stamp-pwa-build.mjs --reset-if-local",
     "start": "next start",
     "lint": "eslint .",
+    "hooks:install": "git config core.hooksPath .githooks",
+    "prepare": "git config core.hooksPath .githooks",
     "bump:pwa": "node scripts/bump-pwa-version.mjs",
+    "stamp:pwa": "node scripts/stamp-pwa-build.mjs",
     "build:wc-snapshot": "NODE_OPTIONS='--max-old-space-size=12288' node scripts/build-wc-snapshot.mjs"
   },
   "dependencies": {
