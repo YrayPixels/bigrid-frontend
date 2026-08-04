@@ -1,10 +1,12 @@
 /* Bizgrid Sell offline shell
  *
- * VERSION must stay in sync with src/lib/pos-offline/pwa-version.ts
- * On pushes to main, CI bumps the patch via scripts/bump-pwa-version.mjs.
+ * VERSION is a human-readable cache family (synced with pwa-version.ts).
+ * BUILD_ID is stamped at build time via scripts/stamp-pwa-build.mjs so every
+ * deploy changes this file and browsers detect a new service worker.
  */
 const VERSION = "1.0.0";
-const CACHE = `bizgrid-sell-${VERSION}`;
+const BUILD_ID = "dev";
+const CACHE = `bizgrid-sell-${VERSION}-${BUILD_ID}`;
 const PRECACHE = ["/sell", "/sell/checkout", "/sell/sales", "/manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
@@ -20,7 +22,8 @@ self.addEventListener("install", (event) => {
           }
         }),
       );
-      // Stay in waiting until the client asks to activate (or first install).
+      // Activate as soon as installed so deploys roll out without a tap.
+      await self.skipWaiting();
     })(),
   );
 });

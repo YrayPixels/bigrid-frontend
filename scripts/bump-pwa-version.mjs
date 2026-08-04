@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
  * Bump Bizgrid Sell PWA patch version in both version sources.
+ * Used by the pre-push git hook (.githooks/pre-push) when pushing to main.
  * Usage: node scripts/bump-pwa-version.mjs
  */
 import { readFileSync, writeFileSync } from "node:fs";
@@ -37,6 +38,3 @@ if (!swSource.includes(`const VERSION = "${prev}"`)) {
 writeFileSync(swFile, swSource.replace(`const VERSION = "${prev}"`, `const VERSION = "${next}"`));
 
 console.log(`Bumped PWA version ${prev} → ${next}`);
-if (process.env.GITHUB_OUTPUT) {
-  writeFileSync(process.env.GITHUB_OUTPUT, `version=${next}\n`, { flag: "a" });
-}
