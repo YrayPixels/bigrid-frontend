@@ -20,7 +20,7 @@ import {
   dismissLaunchChecklist,
   getLaunchChecklistProgress,
   isLaunchChecklistSnoozed,
-  shouldRemindLaunchChecklist,
+  shouldShowLaunchChecklist,
 } from "@/lib/launch-checklist";
 import { cn } from "@/lib/utils";
 
@@ -154,14 +154,14 @@ export function LaunchChecklistReminder() {
   );
 
   const evaluateReminder = useCallback(() => {
-    if (!store?.id || progress.essentialsComplete) {
+    if (!store?.id || progress.isComplete) {
       setOpen(false);
       setBannerVisible(false);
       return;
     }
 
     const context = { store, metrics: dashboardQuery.data?.metrics };
-    const shouldOpen = shouldRemindLaunchChecklist(store.id, context);
+    const shouldOpen = shouldShowLaunchChecklist(store.id, context);
     const snoozed = isLaunchChecklistSnoozed(store.id, context);
 
     setOpen(shouldOpen);
@@ -169,7 +169,7 @@ export function LaunchChecklistReminder() {
     if (!shouldOpen && !snoozed) {
       setBannerVisible(true);
     }
-  }, [store, dashboardQuery.data?.metrics, progress.essentialsComplete]);
+  }, [store, dashboardQuery.data?.metrics, progress.isComplete]);
 
   useEffect(() => {
     evaluateReminder();
@@ -182,7 +182,7 @@ export function LaunchChecklistReminder() {
     setOpen(false);
   }, [store?.id]);
 
-  if (!store || progress.essentialsComplete) return null;
+  if (!store || progress.isComplete) return null;
 
   const remaining = progress.incompleteSteps.length;
 

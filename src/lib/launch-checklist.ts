@@ -132,14 +132,6 @@ export function isLaunchChecklistStepComplete(
   }
 }
 
-const ESSENTIAL_LAUNCH_STEP_IDS: LaunchChecklistStepId[] = ["store_info", "products", "publish"];
-
-export function areLaunchEssentialsComplete(context: LaunchChecklistContext): boolean {
-  return ESSENTIAL_LAUNCH_STEP_IDS.every((stepId) =>
-    isLaunchChecklistStepComplete(stepId, context),
-  );
-}
-
 export function getLaunchChecklistProgress(context: LaunchChecklistContext) {
   const steps = LAUNCH_CHECKLIST_STEPS.map((step) => ({
     ...step,
@@ -155,19 +147,7 @@ export function getLaunchChecklistProgress(context: LaunchChecklistContext) {
     totalCount: steps.length,
     incompleteSteps,
     isComplete: incompleteSteps.length === 0,
-    essentialsComplete: areLaunchEssentialsComplete(context),
   };
-}
-
-export function shouldRemindLaunchChecklist(
-  storeId: string,
-  context: LaunchChecklistContext,
-  now = Date.now(),
-): boolean {
-  const progress = getLaunchChecklistProgress(context);
-  if (progress.essentialsComplete) return false;
-
-  return shouldShowLaunchChecklist(storeId, context, now);
 }
 
 export function shouldShowLaunchChecklist(
@@ -197,7 +177,7 @@ export function isLaunchChecklistSnoozed(
   now = Date.now(),
 ): boolean {
   const progress = getLaunchChecklistProgress(context);
-  if (progress.essentialsComplete || progress.isComplete) return false;
+  if (progress.isComplete) return false;
 
   return !shouldShowLaunchChecklist(storeId, context, now);
 }

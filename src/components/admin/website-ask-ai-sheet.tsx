@@ -92,8 +92,11 @@ export function WebsiteAskAiSheet({ open, onOpenChange, storeId, draft }: Websit
         },
       });
       merchantInvalidators.storefront(queryClient);
-      merchantInvalidators.products(queryClient);
     }
+    // Catalog tool calls (add/update/delete/archive product, categories) don't always
+    // touch the storefront snapshot, so invalidate the live catalog unconditionally.
+    merchantInvalidators.products(queryClient);
+    merchantInvalidators.categories(queryClient);
   };
 
   const handleSessionResponse = async (

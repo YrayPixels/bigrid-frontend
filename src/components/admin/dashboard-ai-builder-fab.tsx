@@ -6,20 +6,22 @@ import { Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { BuilderChatPanel } from "@/components/admin/builder/builder-chat-panel";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import {
   merchantCache,
   merchantInvalidators,
   useBuilderSessionOrStart,
   useStorefrontTemplates,
 } from "@/hooks/use-merchant-queries";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api/client";
+import { cn } from "@/lib/utils";
 import {
   applyBuilderBrandColor,
   applyBuilderLogo,
@@ -43,6 +45,7 @@ export function DashboardAiBuilderFab({
 }) {
   const queryClient = useQueryClient();
   const { user, refresh } = useAuth();
+  const isMobile = useIsMobile();
 
   const templatesQuery = useStorefrontTemplates({ enabled: open });
   const sessionQuery = useBuilderSessionOrStart({ enabled: open && !!user });
@@ -57,8 +60,11 @@ export function DashboardAiBuilderFab({
     merchantCache.setBuilderSession(queryClient, data);
     if (data.storefront ?? data.session?.storefront_snapshot) {
       merchantInvalidators.storefront(queryClient);
-      merchantInvalidators.products(queryClient);
     }
+    // Catalog tool calls (add/update/delete/archive product, categories) don't always
+    // touch the storefront snapshot, so invalidate the live catalog unconditionally.
+    merchantInvalidators.products(queryClient);
+    merchantInvalidators.categories(queryClient);
     if (data.session?.store) {
       await refresh();
       merchantInvalidators.store(queryClient);
@@ -167,25 +173,32 @@ export function DashboardAiBuilderFab({
         <Sparkles className="h-6 w-6" />
       </button>
 
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-h-[calc(100vh-3rem)] max-w-2xl overflow-hidden p-0">
-          <DialogHeader className="sr-only">
-            <DialogTitle>Ask AI</DialogTitle>
-            <DialogDescription>Chat with AI about your website without leaving the dashboard.</DialogDescription>
-          </DialogHeader>
+      <Sheet open={open} onOpenChange={onOpenChange}>
+        <SheetContent
+          side={isMobile ? "bottom" : "right"}
+          className={cn(
+            "flex flex-col gap-0 overflow-hidden p-0",
+            isMobile ? "h-[85vh] max-h-[85vh] rounded-t-2xl" : "w-full sm:max-w-md",
+          )}
+        >
+          <SheetHeader className="shrink-0 border-b border-border px-5 py-4 pr-12 text-left">
+            <SheetTitle>Ask AI</SheetTitle>
+            <SheetDescription>Chat with AI about your website without leaving the dashboard.</SheetDescription>
+          </SheetHeader>
 
           {sessionQuery.isLoading || !session ? (
-            <div className="grid min-h-[560px] place-items-center rounded-2xl bg-card">
+            <div className="grid min-h-[480px] flex-1 place-items-center">
               <Loader2 className="h-6 w-6 animate-spin text-primary" />
             </div>
           ) : (
-            <div className="h-[min(720px,calc(100vh-3rem))]">
+            <div className="min-h-0 flex-1">
               <BuilderChatPanel
                 session={session as BuilderSession}
                 sending={chatBusy}
                 generating={sendMessage.isPending && !!session.storefront_snapshot}
                 templateOptions={templateOptions}
                 selectingTemplate={selectTemplate.isPending}
+                embedded
                 pendingUserMessage={pendingUserMessage}
                 streamingAssistantMessage={streamingAssistantMessage}
                 onSendMessage={(message) => sendMessage.mutate(message)}
@@ -199,8 +212,8 @@ export function DashboardAiBuilderFab({
               />
             </div>
           )}
-        </DialogContent>
-      </Dialog>
+        </SheetContent>
+      </Sheet>
     </>
   );
 }
