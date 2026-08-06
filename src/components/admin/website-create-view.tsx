@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Sparkles } from "lucide-react";
+import { Loader2, MessageSquare, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { BuilderChatPanel } from "@/components/admin/builder/builder-chat-panel";
@@ -11,6 +11,7 @@ import { BuilderPreviewPanel } from "@/components/admin/builder/builder-preview-
 import { BuilderProgress } from "@/components/admin/builder/builder-progress";
 import { BuilderThinkingLogSheet } from "@/components/admin/builder/builder-thinking-log-sheet";
 import { BuilderOnboardingHandoff } from "@/components/admin/builder/builder-onboarding-handoff";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api/client";
 import {
@@ -50,6 +51,23 @@ type WebsiteCreateViewProps = {
   onDraftChanged?: () => void;
 };
 
+// Matches the `xl` breakpoint where the chat/preview split-view kicks in.
+const DESKTOP_SPLIT_QUERY = "(min-width: 1280px)";
+
+function useIsDesktopSplit() {
+  const [isDesktopSplit, setIsDesktopSplit] = useState(false);
+
+  useEffect(() => {
+    const mql = window.matchMedia(DESKTOP_SPLIT_QUERY);
+    const update = () => setIsDesktopSplit(mql.matches);
+    update();
+    mql.addEventListener("change", update);
+    return () => mql.removeEventListener("change", update);
+  }, []);
+
+  return isDesktopSplit;
+}
+
 export function WebsiteCreateView({ onDraftChanged }: WebsiteCreateViewProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -60,7 +78,9 @@ export function WebsiteCreateView({ onDraftChanged }: WebsiteCreateViewProps) {
   const [thinkingLogOpen, setThinkingLogOpen] = useState(false);
   const [pendingUserMessage, setPendingUserMessage] = useState("");
   const [streamingAssistantMessage, setStreamingAssistantMessage] = useState("");
+  const [mobileChatOpen, setMobileChatOpen] = useState(false);
   const thinkingRunRef = useRef<AgentThinkingLogEntry[]>([]);
+  const isDesktopSplit = useIsDesktopSplit();
 
   const templatesQuery = useStorefrontTemplates();
   const sessionQuery = useBuilderSessionOrStart({ enabled: !!user });
@@ -345,10 +365,51 @@ export function WebsiteCreateView({ onDraftChanged }: WebsiteCreateViewProps) {
       ) ?? localStorefront)
       : localStorefront;
 
+  const chatPanel = (
+    <BuilderChatPanel
+      session={session as BuilderSession}
+      sending={chatBusy}
+      generating={sendMessage.isPending && !localStorefront}
+      clearing={clearChat.isPending}
+      thinkingEntries={thinkingEntries}
+      thinkingStreaming={thinkingStreaming}
+      hasThinkingHistory={hasThinkingHistory}
+      templateOptions={templateOptions}
+      selectingTemplate={selectTemplate.isPending}
+      onOpenThinkingLog={() => setThinkingLogOpen(true)}
+      onSendMessage={(message) => sendMessage.mutate(message)}
+      onApplyColor={(color, label) => applyColor.mutate({ color, label })}
+      onUploadMedia={(target, file) => uploadMedia.mutate({ target, file })}
+      onUploadLogo={(file) => uploadLogo.mutate(file)}
+      onRemoveLogo={() => removeLogo.mutate()}
+      managingLogo={uploadLogo.isPending || removeLogo.isPending}
+      onApplyImage={(target, url, label) => applyImage.mutate({ target, url, label })}
+      onSelectTemplate={(templateId) => selectTemplate.mutate(templateId)}
+      onClearChat={() => clearChat.mutate()}
+      pendingUserMessage={pendingUserMessage}
+      streamingAssistantMessage={streamingAssistantMessage}
+    />
+  );
+
   return (
-    <div className="flex h-[calc(100vh-3.5rem)] flex-col overflow-hidden px-6 py-8">
-      <div className="mb-6 shrink-0 space-y-4">
-        <div className="flex flex-wrap items-start justify-between gap-4">
+    <div className="flex min-h-[calc(100vh-3.5rem)] flex-col px-4 pb-24 pt-4 sm:px-6 sm:py-8 xl:h-[calc(100vh-3.5rem)] xl:overflow-hidden xl:pb-8">
+      <div className="mb-4 shrink-0 space-y-3 xl:mb-6 xl:space-y-4">
+        {/* Compact header on mobile/tablet — the full split-view intro doesn't apply once chat moves to a bottom sheet. */}
+        <div className="flex items-center justify-between gap-3 xl:hidden">
+          <h1 className="truncate font-display text-lg font-bold tracking-tight">
+            {session.store?.business_name ?? BUILDER_PAGE.title}
+          </h1>
+          {localStorefront ? (
+            <Link
+              href="/admin/website"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/5 px-3 py-1.5 text-xs font-medium text-ink hover:border-primary"
+            >
+              Open editor
+            </Link>
+          ) : null}
+        </div>
+
+        <div className="hidden flex-wrap items-start justify-between gap-4 xl:flex">
           <div>
             <p className="text-xs font-medium uppercase tracking-wide text-ink-soft">{BUILDER_PAGE.eyebrow}</p>
             <h1 className="mt-1 font-display text-3xl font-bold tracking-tight">{BUILDER_PAGE.title}</h1>
@@ -373,7 +434,7 @@ export function WebsiteCreateView({ onDraftChanged }: WebsiteCreateViewProps) {
             ) : null}
           </div>
         </div>
-        <BuilderProgress status={session.status} />
+        <BuilderProgress status={session.status} className="hidden xl:flex" />
         <Suspense fallback={null}>
           <BuilderOnboardingHandoff
             storeName={session.store?.business_name ?? session.business_profile?.business_name}
@@ -388,42 +449,48 @@ export function WebsiteCreateView({ onDraftChanged }: WebsiteCreateViewProps) {
         </Suspense>
       </div>
 
-      <div className="grid min-h-0 flex-1 gap-6 xl:grid-cols-[minmax(0,420px)_1fr]">
-        <BuilderChatPanel
-          session={session as BuilderSession}
-          sending={chatBusy}
-          generating={sendMessage.isPending && !localStorefront}
-          clearing={clearChat.isPending}
-          thinkingEntries={thinkingEntries}
-          thinkingStreaming={thinkingStreaming}
-          hasThinkingHistory={hasThinkingHistory}
-          templateOptions={templateOptions}
-          selectingTemplate={selectTemplate.isPending}
-          onOpenThinkingLog={() => setThinkingLogOpen(true)}
-          onSendMessage={(message) => sendMessage.mutate(message)}
-          onApplyColor={(color, label) => applyColor.mutate({ color, label })}
-          onUploadMedia={(target, file) => uploadMedia.mutate({ target, file })}
-          onUploadLogo={(file) => uploadLogo.mutate(file)}
-          onRemoveLogo={() => removeLogo.mutate()}
-          managingLogo={uploadLogo.isPending || removeLogo.isPending}
-          onApplyImage={(target, url, label) => applyImage.mutate({ target, url, label })}
-          onSelectTemplate={(templateId) => selectTemplate.mutate(templateId)}
-          onClearChat={() => clearChat.mutate()}
-          pendingUserMessage={pendingUserMessage}
-          streamingAssistantMessage={streamingAssistantMessage}
-        />
-        <BuilderPreviewPanel
-          store={previewStore}
-          storefront={previewStorefront}
-          publish={publishState}
-          publishing={publishStorefront.isPending}
-          onPublish={() => publishStorefront.mutate()}
-          generating={sendMessage.isPending || selectTemplate.isPending}
-          thinkingStreaming={thinkingStreaming}
-          hasThinkingHistory={hasThinkingHistory}
-          onOpenThinkingLog={() => setThinkingLogOpen(true)}
-        />
+      <div className="flex min-h-0 flex-1 flex-col xl:grid xl:grid-cols-[minmax(0,420px)_1fr] xl:gap-6">
+        {isDesktopSplit ? (
+          <div className="flex h-full min-h-0 flex-col">{chatPanel}</div>
+        ) : null}
+        <div className="flex min-h-[420px] flex-1 flex-col xl:h-full xl:min-h-0">
+          <BuilderPreviewPanel
+            store={previewStore}
+            storefront={previewStorefront}
+            publish={publishState}
+            publishing={publishStorefront.isPending}
+            onPublish={() => publishStorefront.mutate()}
+            generating={sendMessage.isPending || selectTemplate.isPending}
+            thinkingStreaming={thinkingStreaming}
+            hasThinkingHistory={hasThinkingHistory}
+            onOpenThinkingLog={() => setThinkingLogOpen(true)}
+          />
+        </div>
       </div>
+
+      {!isDesktopSplit ? (
+        <>
+          <button
+            type="button"
+            onClick={() => setMobileChatOpen(true)}
+            className="fixed inset-x-4 bottom-4 z-40 inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground shadow-elevated xl:hidden"
+          >
+            {chatBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageSquare className="h-4 w-4" />}
+            {chatBusy ? "AI is working…" : "Chat with AI"}
+          </button>
+          <Sheet open={mobileChatOpen} onOpenChange={setMobileChatOpen}>
+            <SheetContent
+              side="bottom"
+              className="flex h-[88vh] flex-col gap-0 overflow-hidden rounded-t-2xl p-0 pt-10 xl:hidden"
+            >
+              <SheetHeader className="sr-only">
+                <SheetTitle>Chat with AI</SheetTitle>
+              </SheetHeader>
+              <div className="flex min-h-0 flex-1 flex-col">{chatPanel}</div>
+            </SheetContent>
+          </Sheet>
+        </>
+      ) : null}
 
       <BuilderThinkingLogSheet
         open={thinkingLogOpen}

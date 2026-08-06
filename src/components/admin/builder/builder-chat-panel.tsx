@@ -38,6 +38,7 @@ import type { FileDiffSummary, WorkbenchEditCheckpoint } from "@/lib/bolt/workbe
 import { BUILDER_CHAT_HEADER } from "@/lib/storefront-builder/copy";
 import { getLatestSuggestedActions } from "@/lib/storefront-builder/suggested-actions";
 import { useBuilderRealtime } from "@/lib/storefront-builder/realtime-context";
+import { isThinkingLogEnabled } from "@/lib/features";
 import { cn } from "@/lib/utils";
 import type { AgentThinkingLogEntry } from "@/lib/storefront-builder/agents/types";
 import { toast } from "sonner";
@@ -346,7 +347,7 @@ export function BuilderChatPanel({
               </div>
               <p className="mt-1 text-sm text-ink-soft">{headerSubtitle}</p>
             </div>
-            {hasThinkingHistory || thinkingStreaming ? (
+            {isThinkingLogEnabled() && (hasThinkingHistory || thinkingStreaming) ? (
               <button
                 type="button"
                 onClick={() => onOpenThinkingLog?.()}

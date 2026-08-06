@@ -123,7 +123,7 @@ export default function AdminOnboardingPage() {
     );
   }
 
-  if (!user) {
+  if (!user || user.has_store) {
     return null;
   }
 

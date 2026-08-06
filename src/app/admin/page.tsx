@@ -76,7 +76,7 @@ export default function AdminDashboardPage() {
   const store = storeQuery.data;
 
   useEffect(() => {
-    if (storeQuery.isFetched && !storeQuery.data && user) {
+    if (storeQuery.isFetched && !storeQuery.data && user && !user.has_store) {
       router.replace("/admin/onboarding");
     }
   }, [storeQuery.isFetched, storeQuery.data, user, router]);

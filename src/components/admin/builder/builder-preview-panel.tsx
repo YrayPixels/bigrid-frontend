@@ -8,7 +8,7 @@ import {
 } from "@/components/admin/publish-storefront-button";
 import { StorefrontPreview } from "@/components/storefront/storefront-preview";
 import type { Store, StorefrontContent, StorefrontPublishState } from "@/lib/api/types";
-import { isCodeWorkbenchEnabled } from "@/lib/features";
+import { isCodeWorkbenchEnabled, isThinkingLogEnabled } from "@/lib/features";
 import { getStorefrontUrl } from "@/lib/store-host";
 
 export function BuilderPreviewPanel({
@@ -137,7 +137,7 @@ function PreviewHeader({
         </h3>
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        {hasThinkingHistory ? (
+        {isThinkingLogEnabled() && hasThinkingHistory ? (
           <button
             type="button"
             onClick={() => onOpenThinkingLog?.()}

@@ -2,6 +2,7 @@
 
 import { Check } from "lucide-react";
 import type { BuilderSessionStatus } from "@/lib/api/types";
+import { cn } from "@/lib/utils";
 
 const STEPS: { id: BuilderSessionStatus | "start"; label: string }[] = [
   { id: "collecting_requirements", label: "Your business" },
@@ -17,11 +18,17 @@ function stepIndex(status: BuilderSessionStatus): number {
   return 3;
 }
 
-export function BuilderProgress({ status }: { status: BuilderSessionStatus }) {
+export function BuilderProgress({
+  status,
+  className,
+}: {
+  status: BuilderSessionStatus;
+  className?: string;
+}) {
   const active = stepIndex(status);
 
   return (
-    <ol className="flex flex-wrap items-center gap-3 text-sm">
+    <ol className={cn("flex flex-wrap items-center gap-3 text-sm", className)}>
       {STEPS.map((step, index) => (
         <li key={step.id} className="flex items-center gap-3">
           <span
