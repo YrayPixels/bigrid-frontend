@@ -32,6 +32,9 @@ self.addEventListener("message", (event) => {
   if (event.data && event.data.type === "SKIP_WAITING") {
     self.skipWaiting();
   }
+  if (event.data && event.data.type === "GET_VERSION") {
+    event.source?.postMessage({ type: "VERSION", version: VERSION, buildId: BUILD_ID });
+  }
 });
 
 self.addEventListener("activate", (event) => {

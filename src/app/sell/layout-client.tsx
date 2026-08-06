@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
-import { History, LogOut, ShoppingBag } from "lucide-react";
+import { History, LogOut, Settings, ShoppingBag } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { getToken } from "@/lib/api/client";
 import { SellProviders } from "@/components/sell/sell-providers";
@@ -144,6 +144,16 @@ function SellShellInner({ children }: { children: ReactNode }) {
               >
                 <Link href="/sell" aria-label="Sell">
                   <ShoppingBag className="size-5" />
+                </Link>
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                asChild
+                className={pathname === "/sell/settings" ? "bg-zinc-100" : ""}
+              >
+                <Link href="/sell/settings" aria-label="Settings">
+                  <Settings className="size-5" />
                 </Link>
               </Button>
               <Button
