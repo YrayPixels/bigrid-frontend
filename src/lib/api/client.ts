@@ -56,6 +56,13 @@ import type {
   PublishTikTokVideoInput,
   UpdateMessagingSettingsInput,
   SocialPost,
+  SocialPostStatus,
+  CreateSocialPostInput,
+  UpdateSocialPostInput,
+  AdAccount,
+  AdCampaign,
+  MarketingPerformance,
+  SaveAdCampaignInput,
   User,
 } from "./types";
 
@@ -1034,9 +1041,170 @@ export const api = {
     });
   },
 
-  async listMarketingPosts(): Promise<{ posts: SocialPost[] }> {
+  async listMarketingPosts(params?: {
+    status?: SocialPostStatus;
+    limit?: number;
+  }): Promise<{ posts: SocialPost[] }> {
     requireToken();
-    return http<{ posts: SocialPost[] }>(`${STOREHAUSE_API_PREFIX}/marketing/posts`);
+    const query = new URLSearchParams();
+    if (params?.status) query.set("status", params.status);
+    if (params?.limit) query.set("limit", String(params.limit));
+    const suffix = query.toString() ? `?${query.toString()}` : "";
+    return http<{ posts: SocialPost[] }>(`${STOREHAUSE_API_PREFIX}/marketing/posts${suffix}`);
+  },
+
+  async listScheduledPosts(): Promise<{ posts: SocialPost[] }> {
+    requireToken();
+    return http<{ posts: SocialPost[] }>(`${STOREHAUSE_API_PREFIX}/marketing/posts/scheduled`);
+  },
+
+  async getMarketingPerformance(windowDays?: number): Promise<MarketingPerformance> {
+    requireToken();
+    const suffix = windowDays ? `?window_days=${windowDays}` : "";
+    return http<MarketingPerformance>(`${STOREHAUSE_API_PREFIX}/marketing/performance${suffix}`);
+  },
+
+  async createMarketingPost(input: CreateSocialPostInput): Promise<{ message: string; post: SocialPost }> {
+    requireToken();
+    return http<{ message: string; post: SocialPost }>(`${STOREHAUSE_API_PREFIX}/marketing/posts`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  },
+
+  async updateMarketingPost(
+    postId: string,
+    input: UpdateSocialPostInput,
+  ): Promise<{ message: string; post: SocialPost }> {
+    requireToken();
+    return http<{ message: string; post: SocialPost }>(
+      `${STOREHAUSE_API_PREFIX}/marketing/posts/${encodeURIComponent(postId)}`,
+      { method: "PATCH", body: JSON.stringify(input) },
+    );
+  },
+
+  async deleteMarketingPost(postId: string): Promise<{ message: string }> {
+    requireToken();
+    return http<{ message: string }>(
+      `${STOREHAUSE_API_PREFIX}/marketing/posts/${encodeURIComponent(postId)}`,
+      { method: "DELETE" },
+    );
+  },
+
+  async publishMarketingPost(
+    postId: string,
+  ): Promise<MarketingStatus & { message: string; post: SocialPost; external_url: string | null }> {
+    requireToken();
+    return http<MarketingStatus & { message: string; post: SocialPost; external_url: string | null }>(
+      `${STOREHAUSE_API_PREFIX}/marketing/posts/${encodeURIComponent(postId)}/publish`,
+      { method: "POST" },
+    );
+  },
+
+  async scheduleMarketingPost(
+    postId: string,
+    scheduledFor: string,
+  ): Promise<{ message: string; post: SocialPost }> {
+    requireToken();
+    return http<{ message: string; post: SocialPost }>(
+      `${STOREHAUSE_API_PREFIX}/marketing/posts/${encodeURIComponent(postId)}/schedule`,
+      { method: "POST", body: JSON.stringify({ scheduled_for: scheduledFor }) },
+    );
+  },
+
+  async unscheduleMarketingPost(postId: string): Promise<{ message: string; post: SocialPost }> {
+    requireToken();
+    return http<{ message: string; post: SocialPost }>(
+      `${STOREHAUSE_API_PREFIX}/marketing/posts/${encodeURIComponent(postId)}/unschedule`,
+      { method: "POST" },
+    );
+  },
+
+  async connectInstagramMarketing(): Promise<MarketingStatus & { message: string }> {
+    requireToken();
+    return http<MarketingStatus & { message: string }>(
+      `${STOREHAUSE_API_PREFIX}/marketing/instagram/connect`,
+      { method: "POST" },
+    );
+  },
+
+  async disconnectInstagramMarketing(): Promise<MarketingStatus & { message: string }> {
+    requireToken();
+    return http<MarketingStatus & { message: string }>(
+      `${STOREHAUSE_API_PREFIX}/marketing/instagram/disconnect`,
+      { method: "DELETE" },
+    );
+  },
+
+  async listAdAccounts(): Promise<{ accounts: AdAccount[] }> {
+    requireToken();
+    return http<{ accounts: AdAccount[] }>(`${STOREHAUSE_API_PREFIX}/marketing/ads/accounts`);
+  },
+
+  async selectAdAccount(adAccountId: string): Promise<MarketingStatus & { message: string }> {
+    requireToken();
+    return http<MarketingStatus & { message: string }>(`${STOREHAUSE_API_PREFIX}/marketing/ads/account`, {
+      method: "POST",
+      body: JSON.stringify({ ad_account_id: adAccountId }),
+    });
+  },
+
+  async disconnectAdAccount(): Promise<MarketingStatus & { message: string }> {
+    requireToken();
+    return http<MarketingStatus & { message: string }>(`${STOREHAUSE_API_PREFIX}/marketing/ads/account`, {
+      method: "DELETE",
+    });
+  },
+
+  async listAdCampaigns(): Promise<{ campaigns: AdCampaign[] }> {
+    requireToken();
+    return http<{ campaigns: AdCampaign[] }>(`${STOREHAUSE_API_PREFIX}/marketing/ads/campaigns`);
+  },
+
+  async createAdCampaign(input: SaveAdCampaignInput): Promise<{ message: string; campaign: AdCampaign }> {
+    requireToken();
+    return http<{ message: string; campaign: AdCampaign }>(
+      `${STOREHAUSE_API_PREFIX}/marketing/ads/campaigns`,
+      { method: "POST", body: JSON.stringify(input) },
+    );
+  },
+
+  async updateAdCampaign(
+    campaignId: string,
+    input: Partial<SaveAdCampaignInput>,
+  ): Promise<{ message: string; campaign: AdCampaign }> {
+    requireToken();
+    return http<{ message: string; campaign: AdCampaign }>(
+      `${STOREHAUSE_API_PREFIX}/marketing/ads/campaigns/${encodeURIComponent(campaignId)}`,
+      { method: "PATCH", body: JSON.stringify(input) },
+    );
+  },
+
+  async launchAdCampaign(campaignId: string): Promise<{ message: string; campaign: AdCampaign }> {
+    requireToken();
+    return http<{ message: string; campaign: AdCampaign }>(
+      `${STOREHAUSE_API_PREFIX}/marketing/ads/campaigns/${encodeURIComponent(campaignId)}/launch`,
+      { method: "POST" },
+    );
+  },
+
+  async setAdCampaignState(
+    campaignId: string,
+    active: boolean,
+  ): Promise<{ message: string; campaign: AdCampaign }> {
+    requireToken();
+    return http<{ message: string; campaign: AdCampaign }>(
+      `${STOREHAUSE_API_PREFIX}/marketing/ads/campaigns/${encodeURIComponent(campaignId)}/state`,
+      { method: "POST", body: JSON.stringify({ active }) },
+    );
+  },
+
+  async archiveAdCampaign(campaignId: string): Promise<{ message: string }> {
+    requireToken();
+    return http<{ message: string }>(
+      `${STOREHAUSE_API_PREFIX}/marketing/ads/campaigns/${encodeURIComponent(campaignId)}`,
+      { method: "DELETE" },
+    );
   },
 
   async connectWhatsAppMarketing(input: ConnectWhatsAppInput): Promise<MarketingStatus & { message: string }> {

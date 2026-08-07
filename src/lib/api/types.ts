@@ -1019,18 +1019,41 @@ export type UpdateStorePaymentSettingsInput = {
   payout_account_number?: string;
 };
 
-export type SocialPostStatus = "draft" | "publishing" | "published" | "failed";
+export type SocialPostStatus =
+  | "draft"
+  | "scheduled"
+  | "publishing"
+  | "published"
+  | "failed";
+
+export type SocialPostInsights = {
+  permalink_url?: string | null;
+  reach?: number | null;
+  clicks?: number | null;
+  reactions?: number | null;
+  comments?: number | null;
+  shares?: number | null;
+  saved?: number | null;
+};
 
 export type SocialPost = {
   id: string;
   provider: string;
-  post_type?: "text" | "video" | string;
+  post_type?: "text" | "image" | "video" | string;
   status: SocialPostStatus;
   message: string;
   link_url: string | null;
+  image_url?: string | null;
   video_url?: string | null;
   external_post_id: string | null;
+  external_url?: string | null;
   publish_id?: string | null;
+  scheduled_for?: string | null;
+  approved_at?: string | null;
+  insights?: SocialPostInsights | null;
+  insights_synced_at?: string | null;
+  attempts?: number;
+  editable?: boolean;
   error_message: string | null;
   published_at: string | null;
   created_at: string | null;
@@ -1041,6 +1064,139 @@ export type FacebookPageConnection = {
   provider: string;
   page_id: string;
   name: string;
+  status?: string;
+  token_expires_at?: string | null;
+  expiring_soon?: boolean;
+  instagram_connected?: boolean;
+};
+
+export type SocialConnectionWarning = {
+  connection_id: string;
+  provider: string;
+  account_name: string | null;
+  status: "expiring" | "invalid" | string;
+  expires_at: string | null;
+  message: string;
+};
+
+export type AdCampaignObjective =
+  | "OUTCOME_TRAFFIC"
+  | "OUTCOME_AWARENESS"
+  | "OUTCOME_ENGAGEMENT";
+
+export type AdCampaignStatus =
+  | "draft"
+  | "publishing"
+  | "paused"
+  | "active"
+  | "failed"
+  | "archived";
+
+export type AdCampaignCreative = {
+  message: string;
+  headline?: string;
+  description?: string;
+  link_url: string;
+  image_url?: string;
+  call_to_action?: string;
+};
+
+export type AdCampaignTargeting = {
+  countries?: string[];
+  cities?: unknown[];
+  age_min?: number;
+  age_max?: number;
+  genders?: number[];
+  interests?: unknown[];
+};
+
+export type AdCampaignMetrics = {
+  impressions?: number;
+  reach?: number;
+  clicks?: number;
+  spend?: number;
+  ctr?: number;
+  cpc?: number;
+};
+
+export type AdCampaign = {
+  id: string;
+  name: string;
+  objective: AdCampaignObjective | string;
+  status: AdCampaignStatus;
+  daily_budget_minor: number;
+  currency: string;
+  start_at: string | null;
+  end_at: string | null;
+  targeting: AdCampaignTargeting | null;
+  creative: AdCampaignCreative | null;
+  metrics: AdCampaignMetrics | null;
+  metrics_synced_at: string | null;
+  external_campaign_id: string | null;
+  launched: boolean;
+  error_message: string | null;
+  created_at: string | null;
+};
+
+export type AdAccount = {
+  id: string;
+  account_id: string;
+  name: string;
+  currency: string;
+  active: boolean;
+};
+
+export type MarketingPerformance = {
+  window_days: number;
+  totals: {
+    posts: number;
+    reach: number;
+    engagement: number;
+    clicks: number;
+  };
+  by_channel: Array<{
+    provider: string;
+    posts: number;
+    reach: number;
+    engagement: number;
+  }>;
+  top_posts: SocialPost[];
+  ads: {
+    spend: number;
+    impressions: number;
+    clicks: number;
+    active_campaigns: number;
+    currency: string | null;
+  };
+  last_synced_at: string | null;
+  awaiting_first_sync: boolean;
+};
+
+export type CreateSocialPostInput = {
+  provider: "facebook" | "instagram" | "tiktok_creator";
+  message: string;
+  link_url?: string;
+  image_url?: string;
+  video_url?: string;
+  social_connection_id?: number;
+};
+
+export type UpdateSocialPostInput = {
+  message?: string;
+  link_url?: string | null;
+  image_url?: string | null;
+  video_url?: string | null;
+  social_connection_id?: number | null;
+};
+
+export type SaveAdCampaignInput = {
+  name: string;
+  objective?: AdCampaignObjective;
+  daily_budget_minor: number;
+  start_at?: string | null;
+  end_at?: string | null;
+  targeting?: AdCampaignTargeting;
+  creative: AdCampaignCreative;
 };
 
 export type MarketingStatus = {
@@ -1048,6 +1204,18 @@ export type MarketingStatus = {
     configured: boolean;
     connected: boolean;
     pages: FacebookPageConnection[];
+  };
+  instagram: {
+    configured: boolean;
+    connected: boolean;
+    username: string | null;
+    account_id: string | null;
+    linked_page: string | null;
+    capabilities: {
+      image_required: boolean;
+      max_caption_length: number;
+      video_supported: boolean;
+    };
   };
   whatsapp: {
     configured: boolean;
@@ -1086,7 +1254,21 @@ export type MarketingStatus = {
       source_methods: string[];
     };
   };
+  ads: {
+    configured: boolean;
+    connected: boolean;
+    account_name: string | null;
+    account_id: string | null;
+    currency: string | null;
+    capabilities: {
+      objectives: Array<{ value: string; label: string }>;
+      min_daily_budget_minor: number;
+      max_daily_budget_minor: number;
+    };
+  };
+  connection_warnings: SocialConnectionWarning[];
   recent_posts: SocialPost[];
+  scheduled_posts: SocialPost[];
   recent_conversations: CustomerConversationSummary[];
 };
 
@@ -1129,6 +1311,7 @@ export type MarketingChatResponse = {
   tool_calls: Array<{ name: string; arguments: Record<string, unknown> }>;
   tool_results: Array<Record<string, unknown>>;
   post: SocialPost | null;
+  campaign: AdCampaign | null;
   status: MarketingStatus;
 };
 

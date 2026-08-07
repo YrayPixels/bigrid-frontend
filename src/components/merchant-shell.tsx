@@ -15,6 +15,7 @@ import {
   ShoppingCart,
   Sparkles,
   Store,
+  TrendingUp,
   Users,
   UserPlus,
   type LucideIcon,
@@ -85,7 +86,12 @@ const navGroups: NavGroup[] = [
   },
   {
     label: "Growth",
-    items: [{ href: "/admin/marketing", label: "Marketing", icon: Megaphone }],
+    items: [
+      // Exact, otherwise every /admin/marketing/* sub-page would light this up
+      // alongside its own entry.
+      { href: "/admin/marketing", label: "Marketing", icon: Megaphone, exact: true },
+      { href: "/admin/marketing/performance", label: "Performance", icon: TrendingUp },
+    ],
   },
 ];
 

@@ -4,22 +4,39 @@ import Link from "next/link";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Facebook, Loader2, Megaphone, MessageCircle, Send, Unlink, Video } from "lucide-react";
+import {
+  AlertTriangle,
+  CalendarClock,
+  Facebook,
+  Instagram,
+  Loader2,
+  Megaphone,
+  MessageCircle,
+  Send,
+  Unlink,
+  Video,
+} from "lucide-react";
 import { toast } from "sonner";
 import {
   merchantCache,
   merchantInvalidators,
+  useMarketingPosts,
   useMarketingStatus,
   useStoreMe,
 } from "@/hooks/use-merchant-queries";
 import { api } from "@/lib/api/client";
 import type { SocialPost } from "@/lib/api/types";
+import { AdCampaignsPanel } from "@/components/marketing/ad-campaigns-panel";
+import { PerformancePanel } from "@/components/marketing/performance-panel";
+import { PostComposer } from "@/components/marketing/post-composer";
+import { SocialPostCard } from "@/components/marketing/social-post-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 
 type ChatMessage = {
@@ -27,19 +44,13 @@ type ChatMessage = {
   content: string;
 };
 
-function postStatusBadge(status: SocialPost["status"]) {
-  if (status === "published") return <Badge className="bg-emerald-600">Published</Badge>;
-  if (status === "failed") return <Badge variant="destructive">Failed</Badge>;
-  if (status === "publishing") return <Badge variant="secondary">Publishing</Badge>;
-  return <Badge variant="outline">Draft</Badge>;
-}
-
 export default function AdminMarketingPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const [input, setInput] = useState("");
+  const [tab, setTab] = useState("assistant");
   const [whatsappForm, setWhatsappForm] = useState({
     phone_number_id: "",
     display_phone_number: "",
@@ -58,7 +69,7 @@ export default function AdminMarketingPage() {
     {
       role: "assistant",
       content:
-        "I can help you draft social posts and publish to your connected Facebook Page. Tell me what you want to promote — a product, sale, or new arrival.",
+        "Tell me what you want to promote — a product, a sale, or a new arrival — and I'll draft it for you. Everything I write lands in Content for you to review before it goes anywhere.",
     },
   ]);
 
@@ -113,6 +124,24 @@ export default function AdminMarketingPage() {
     mutationFn: () => api.disconnectFacebookMarketing(),
     onSuccess: (data) => {
       toast.success("Facebook disconnected.");
+      merchantCache.setMarketingStatus(queryClient, data);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const connectInstagram = useMutation({
+    mutationFn: () => api.connectInstagramMarketing(),
+    onSuccess: (data) => {
+      toast.success(data.message);
+      merchantCache.setMarketingStatus(queryClient, data);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const disconnectInstagram = useMutation({
+    mutationFn: () => api.disconnectInstagramMarketing(),
+    onSuccess: (data) => {
+      toast.success("Instagram disconnected.");
       merchantCache.setMarketingStatus(queryClient, data);
     },
     onError: (error: Error) => toast.error(error.message),
@@ -206,26 +235,132 @@ export default function AdminMarketingPage() {
       ]);
       setInput("");
       merchantCache.setMarketingStatus(queryClient, response.status);
+
+      // Drafting is only half the job — point the merchant at the review step
+      // so a new draft never sits unnoticed.
+      if (response.post) {
+        toast.success("Draft ready to review", {
+          action: { label: "Review", onClick: () => setTab("content") },
+        });
+      }
+      if (response.campaign) {
+        toast.success("Ad campaign drafted", {
+          action: { label: "Review", onClick: () => setTab("ads") },
+        });
+      }
     },
     onError: (error: Error) => toast.error(error.message),
   });
 
-  const facebook = statusQuery.data?.facebook;
-  const whatsapp = statusQuery.data?.whatsapp;
-  const tiktok = statusQuery.data?.tiktok;
-  const tiktokContent = statusQuery.data?.tiktok_content;
-  const recentPosts = statusQuery.data?.recent_posts ?? [];
-  const recentConversations = statusQuery.data?.recent_conversations ?? [];
+  const publishPost = useMutation({
+    mutationFn: (postId: string) => api.publishMarketingPost(postId),
+    onSuccess: (data) => {
+      toast.success(data.message);
+      merchantCache.setMarketingStatus(queryClient, data);
+      void merchantInvalidators.marketing(queryClient);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const schedulePost = useMutation({
+    mutationFn: ({ postId, scheduledFor }: { postId: string; scheduledFor: string }) =>
+      api.scheduleMarketingPost(postId, scheduledFor),
+    onSuccess: (data) => {
+      toast.success(data.message);
+      void merchantInvalidators.marketing(queryClient);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const unschedulePost = useMutation({
+    mutationFn: (postId: string) => api.unscheduleMarketingPost(postId),
+    onSuccess: (data) => {
+      toast.success(data.message);
+      void merchantInvalidators.marketing(queryClient);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const savePost = useMutation({
+    mutationFn: ({
+      postId,
+      values,
+    }: {
+      postId: string;
+      values: { message: string; link_url: string; image_url: string; video_url: string };
+    }) =>
+      api.updateMarketingPost(postId, {
+        message: values.message,
+        link_url: values.link_url || null,
+        image_url: values.image_url || null,
+        video_url: values.video_url || null,
+      }),
+    onSuccess: (data) => {
+      toast.success(data.message);
+      void merchantInvalidators.marketing(queryClient);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const deletePost = useMutation({
+    mutationFn: (postId: string) => api.deleteMarketingPost(postId),
+    onSuccess: (data) => {
+      toast.success(data.message);
+      void merchantInvalidators.marketing(queryClient);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const status = statusQuery.data;
+  const facebook = status?.facebook;
+  const instagram = status?.instagram;
+  const whatsapp = status?.whatsapp;
+  const tiktok = status?.tiktok;
+  const tiktokContent = status?.tiktok_content;
+  const recentConversations = status?.recent_conversations ?? [];
+  const warnings = status?.connection_warnings ?? [];
   const loading = storeQuery.isLoading || statusQuery.isLoading;
+
+  // Each list is queried on its own status. Slicing one capped "recent posts"
+  // array client-side meant a merchant with a pile of drafts saw an empty
+  // Published section even with plenty of published posts.
+  const enabled = Boolean(storeQuery.data);
+  const draftsQuery = useMarketingPosts("draft", { enabled });
+  const failedQuery = useMarketingPosts("failed", { enabled });
+  const publishedQuery = useMarketingPosts("published", { enabled });
+
+  const drafts = useMemo(
+    () => [...(draftsQuery.data?.posts ?? []), ...(failedQuery.data?.posts ?? [])],
+    [draftsQuery.data?.posts, failedQuery.data?.posts],
+  );
+  const scheduled = status?.scheduled_posts ?? [];
+  const published = publishedQuery.data?.posts ?? [];
 
   const suggestedPrompts = useMemo(
     () => [
       "Draft a post announcing our latest products",
-      "Write a weekend promo post with a link to our store",
-      facebook?.connected ? "Publish a short post about free delivery this week" : "Help me plan my first Facebook campaign",
+      "Plan a week of posts for my store",
+      instagram?.connected
+        ? "Write an Instagram post for my best seller"
+        : "Write a weekend promo post with a link to our store",
     ],
-    [facebook?.connected],
+    [instagram?.connected],
   );
+
+  const postBusy =
+    publishPost.isPending || schedulePost.isPending || savePost.isPending || deletePost.isPending;
+
+  const postHandlers = {
+    onPublish: (postId: string) => publishPost.mutate(postId),
+    onSchedule: (postId: string, scheduledFor: string) => schedulePost.mutate({ postId, scheduledFor }),
+    onUnschedule: (postId: string) => unschedulePost.mutate(postId),
+    onSave: (
+      postId: string,
+      values: { message: string; link_url: string; image_url: string; video_url: string },
+    ) => savePost.mutate({ postId, values }),
+    onDelete: (postId: string) => deletePost.mutate(postId),
+    busy: postBusy,
+  };
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -243,461 +378,604 @@ export default function AdminMarketingPage() {
   }
 
   return (
-    <div className="flex w-full flex-col gap-4 px-4 py-4 lg:h-[calc(100vh-3.5rem)] lg:min-h-0 lg:overflow-hidden lg:px-6 lg:py-5">
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
+    <div className="flex w-full flex-col gap-4 px-4 py-4 lg:px-6 lg:py-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <Megaphone className="h-5 w-5 text-primary" />
-            <h1 className="font-display text-2xl font-bold text-ink">Marketing Agent</h1>
+            <h1 className="font-display text-2xl font-bold text-ink">Marketing</h1>
           </div>
           <p className="text-sm text-ink-soft">
-            Draft campaigns, publish to Facebook and TikTok, and let AI reply to customer WhatsApp and TikTok messages.
+            Draft with AI, review and schedule your posts, run paid ads, and let AI reply to customer
+            messages.
           </p>
         </div>
         <Link
           href="/admin/marketing/recovery"
           className="inline-flex shrink-0 text-sm font-medium text-primary hover:underline"
         >
-          Recover abandoned carts & checkouts
+          Recover abandoned carts &amp; checkouts
         </Link>
       </div>
 
-      <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_380px] lg:overflow-hidden">
-        <Card className="flex min-h-[420px] flex-col overflow-hidden lg:min-h-0">
-          <CardHeader className="border-b border-border/60">
-            <CardTitle>Campaign assistant</CardTitle>
-            <CardDescription>Ask for post ideas, drafts, or publish to Facebook and TikTok.</CardDescription>
-          </CardHeader>
-          <CardContent className="flex min-h-0 flex-1 flex-col gap-4 p-4">
-            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
-              {messages.map((message, index) => (
-                <div
-                  key={`${message.role}-${index}`}
-                  className={`max-w-[90%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
-                    message.role === "assistant"
-                      ? "bg-muted text-ink"
-                      : "ml-auto bg-primary text-primary-foreground"
-                  }`}
-                >
-                  {message.content}
-                </div>
-              ))}
-              {chatMutation.isPending ? (
-                <div className="inline-flex items-center gap-2 rounded-2xl bg-muted px-4 py-3 text-sm text-ink-soft">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Marketing agent is thinking…
-                </div>
-              ) : null}
-              <div ref={messagesEndRef} />
+      {warnings.length > 0 ? (
+        <div className="space-y-2">
+          {warnings.map((warning) => (
+            <div
+              key={warning.connection_id}
+              className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-ink"
+            >
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+              <div className="space-y-1">
+                <p>
+                  <span className="font-medium">{warning.account_name ?? warning.provider}</span>{" "}
+                  {warning.message}
+                </p>
+                {warning.provider === "facebook" || warning.provider === "instagram" ? (
+                  <button
+                    type="button"
+                    className="text-xs font-medium text-primary hover:underline"
+                    onClick={() => connectFacebook.mutate()}
+                  >
+                    Reconnect now
+                  </button>
+                ) : null}
+              </div>
             </div>
+          ))}
+        </div>
+      ) : null}
 
-            <div className="flex flex-wrap gap-2">
-              {suggestedPrompts.map((prompt) => (
-                <button
-                  key={prompt}
-                  type="button"
-                  onClick={() => setInput(prompt)}
-                  className="rounded-full border border-border px-3 py-1.5 text-left text-xs text-ink-soft transition-colors hover:bg-muted hover:text-ink"
-                >
-                  {prompt}
-                </button>
-              ))}
-            </div>
+      <Tabs value={tab} onValueChange={setTab} className="w-full">
+        <TabsList>
+          <TabsTrigger value="assistant">Assistant</TabsTrigger>
+          <TabsTrigger value="content">
+            Content
+            {drafts.length > 0 ? (
+              <Badge variant="secondary" className="ml-1.5 px-1.5 py-0 text-[10px]">
+                {drafts.length}
+              </Badge>
+            ) : null}
+          </TabsTrigger>
+          <TabsTrigger value="performance">Performance</TabsTrigger>
+          <TabsTrigger value="ads">Ads</TabsTrigger>
+          <TabsTrigger value="channels">Channels</TabsTrigger>
+        </TabsList>
 
-            <form onSubmit={handleSubmit} className="flex gap-2">
-              <Textarea
-                value={input}
-                onChange={(event) => setInput(event.target.value)}
-                placeholder="Ask the marketing agent to draft or publish a post…"
-                rows={3}
-                className="min-h-[88px] resize-none"
-              />
-              <Button type="submit" disabled={!input.trim() || chatMutation.isPending} className="self-end">
-                <Send className="h-4 w-4" />
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
+        <TabsContent value="assistant" className="mt-4">
+          <Card className="flex min-h-[520px] flex-col overflow-hidden">
+            <CardHeader className="border-b border-border/60">
+              <CardTitle>Campaign assistant</CardTitle>
+              <CardDescription>
+                Ask for post ideas, a content plan, or an ad. Everything is saved as a draft for you to
+                review.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex min-h-0 flex-1 flex-col gap-4 p-4">
+              <div className="min-h-[260px] flex-1 space-y-4 overflow-y-auto pr-1">
+                {messages.map((message, index) => (
+                  <div
+                    key={`${message.role}-${index}`}
+                    className={`max-w-[90%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
+                      message.role === "assistant"
+                        ? "bg-muted text-ink"
+                        : "ml-auto bg-primary text-primary-foreground"
+                    }`}
+                  >
+                    {message.content}
+                  </div>
+                ))}
+                {chatMutation.isPending ? (
+                  <div className="inline-flex items-center gap-2 rounded-2xl bg-muted px-4 py-3 text-sm text-ink-soft">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Marketing agent is thinking…
+                  </div>
+                ) : null}
+                <div ref={messagesEndRef} />
+              </div>
 
-        <div className="min-h-0 space-y-4 overflow-y-auto pr-1 lg:max-h-full">
+              <div className="flex flex-wrap gap-2">
+                {suggestedPrompts.map((prompt) => (
+                  <button
+                    key={prompt}
+                    type="button"
+                    onClick={() => setInput(prompt)}
+                    className="rounded-full border border-border px-3 py-1.5 text-left text-xs text-ink-soft transition-colors hover:bg-muted hover:text-ink"
+                  >
+                    {prompt}
+                  </button>
+                ))}
+              </div>
+
+              <form onSubmit={handleSubmit} className="flex gap-2">
+                <Textarea
+                  value={input}
+                  onChange={(event) => setInput(event.target.value)}
+                  placeholder="Ask the marketing agent to draft a post or campaign…"
+                  rows={3}
+                  className="min-h-[88px] resize-none"
+                />
+                <Button type="submit" disabled={!input.trim() || chatMutation.isPending} className="self-end">
+                  <Send className="h-4 w-4" />
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="content" className="mt-4 space-y-4">
+          {status ? <PostComposer status={status} /> : null}
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Waiting for review</CardTitle>
+              <CardDescription>
+                Drafts the assistant wrote for you. Nothing is posted until you publish or schedule it.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {drafts.length === 0 ? (
+                <p className="text-sm text-ink-soft">
+                  No drafts right now. Ask the assistant for a post and it will show up here.
+                </p>
+              ) : (
+                drafts.map((post: SocialPost) => (
+                  <SocialPostCard key={post.id} post={post} {...postHandlers} />
+                ))
+              )}
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Facebook className="h-4 w-4" />
-                Facebook Pages
+                <CalendarClock className="h-4 w-4" />
+                Scheduled
               </CardTitle>
-              <CardDescription>Connect a Page you manage to publish posts from Bizgrid.</CardDescription>
+              <CardDescription>Posts queued to go out automatically.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              {!facebook?.configured ? (
-                <p className="text-sm text-ink-soft">
-                  Facebook posting is not configured on this platform yet. Contact support to enable it.
-                </p>
-              ) : facebook.connected ? (
-                <>
-                  <div className="space-y-2">
-                    {facebook.pages.map((page) => (
-                      <div key={page.id} className="rounded-lg border border-border px-3 py-2">
-                        <div className="text-sm font-medium text-ink">{page.name}</div>
-                        <div className="text-xs text-ink-soft">Page ID {page.page_id}</div>
-                      </div>
-                    ))}
-                  </div>
+            <CardContent className="space-y-3">
+              {scheduled.length === 0 ? (
+                <p className="text-sm text-ink-soft">Nothing scheduled yet.</p>
+              ) : (
+                scheduled.map((post: SocialPost) => (
+                  <SocialPostCard key={post.id} post={post} {...postHandlers} />
+                ))
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Published</CardTitle>
+              <CardDescription>How your recent posts performed.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {published.length === 0 ? (
+                <p className="text-sm text-ink-soft">Nothing published yet.</p>
+              ) : (
+                published.map((post: SocialPost) => (
+                  <SocialPostCard key={post.id} post={post} {...postHandlers} />
+                ))
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="performance" className="mt-4">
+          <PerformancePanel />
+        </TabsContent>
+
+        <TabsContent value="ads" className="mt-4">
+          {status ? <AdCampaignsPanel status={status} /> : null}
+        </TabsContent>
+
+        <TabsContent value="channels" className="mt-4">
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Facebook className="h-4 w-4" />
+                  Facebook Pages
+                </CardTitle>
+                <CardDescription>Connect a Page you manage to publish posts from Bizgrid.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {!facebook?.configured ? (
+                  <p className="text-sm text-ink-soft">
+                    Facebook posting is not configured on this platform yet. Contact support to enable it.
+                  </p>
+                ) : facebook.connected ? (
+                  <>
+                    <div className="space-y-2">
+                      {facebook.pages.map((page) => (
+                        <div key={page.id} className="rounded-lg border border-border px-3 py-2">
+                          <div className="text-sm font-medium text-ink">{page.name}</div>
+                          <div className="text-xs text-ink-soft">Page ID {page.page_id}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <Button
+                      variant="outline"
+                      onClick={() => disconnectFacebook.mutate()}
+                      disabled={disconnectFacebook.isPending}
+                      className="w-full"
+                    >
+                      {disconnectFacebook.isPending ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Unlink className="mr-2 h-4 w-4" />
+                      )}
+                      Disconnect Facebook
+                    </Button>
+                  </>
+                ) : (
                   <Button
-                    variant="outline"
-                    onClick={() => disconnectFacebook.mutate()}
-                    disabled={disconnectFacebook.isPending}
+                    onClick={() => connectFacebook.mutate()}
+                    disabled={connectFacebook.isPending}
                     className="w-full"
                   >
-                    {disconnectFacebook.isPending ? (
+                    {connectFacebook.isPending ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     ) : (
-                      <Unlink className="mr-2 h-4 w-4" />
+                      <Facebook className="mr-2 h-4 w-4" />
                     )}
-                    Disconnect Facebook
+                    Connect Facebook Page
                   </Button>
-                </>
-              ) : (
-                <Button
-                  onClick={() => connectFacebook.mutate()}
-                  disabled={connectFacebook.isPending}
-                  className="w-full"
-                >
-                  {connectFacebook.isPending ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Facebook className="mr-2 h-4 w-4" />
-                  )}
-                  Connect Facebook Page
-                </Button>
-              )}
-            </CardContent>
-          </Card>
+                )}
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <MessageCircle className="h-4 w-4" />
-                WhatsApp AI replies
-              </CardTitle>
-              <CardDescription>
-                When customers message your business number, AI can answer product questions and share your storefront link.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {whatsapp?.connected ? (
-                <>
-                  <div className="rounded-lg border border-border px-3 py-2">
-                    <div className="text-sm font-medium text-ink">{whatsapp.display_phone_number}</div>
-                    <div className="text-xs text-ink-soft">Phone number ID {whatsapp.phone_number_id}</div>
-                  </div>
-                  <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
-                    <div>
-                      <div className="text-sm font-medium text-ink">AI auto-reply</div>
-                      <div className="text-xs text-ink-soft">Uses your WhatsApp message units</div>
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Instagram className="h-4 w-4" />
+                  Instagram
+                </CardTitle>
+                <CardDescription>
+                  Publish to the Instagram Business account linked to your Facebook Page.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {!instagram?.configured ? (
+                  <p className="text-sm text-ink-soft">
+                    Instagram publishing is not enabled on this platform yet.
+                  </p>
+                ) : instagram.connected ? (
+                  <>
+                    <div className="rounded-lg border border-border px-3 py-2">
+                      <div className="text-sm font-medium text-ink">@{instagram.username}</div>
+                      <div className="text-xs text-ink-soft">
+                        Linked to {instagram.linked_page ?? "your Facebook Page"}
+                      </div>
                     </div>
-                    <Switch
-                      checked={whatsapp.auto_reply_enabled}
-                      onCheckedChange={(checked) =>
-                        updateMessagingSettings.mutate({ whatsapp_auto_reply_enabled: checked })
-                      }
-                    />
-                  </div>
-                  <p className="text-xs text-ink-soft">Webhook: {whatsapp.webhook_url}</p>
-                  <Button
-                    variant="outline"
-                    onClick={() => disconnectWhatsApp.mutate()}
-                    disabled={disconnectWhatsApp.isPending}
-                    className="w-full"
-                  >
-                    Disconnect WhatsApp
-                  </Button>
-                </>
-              ) : (
-                <div className="space-y-3">
-                  <Field label="Phone number ID">
-                    <Input
-                      value={whatsappForm.phone_number_id}
-                      onChange={(event) =>
-                        setWhatsappForm((prev) => ({ ...prev, phone_number_id: event.target.value }))
-                      }
-                      placeholder="From Meta WhatsApp settings"
-                    />
-                  </Field>
-                  <Field label="Display phone number">
-                    <Input
-                      value={whatsappForm.display_phone_number}
-                      onChange={(event) =>
-                        setWhatsappForm((prev) => ({ ...prev, display_phone_number: event.target.value }))
-                      }
-                      placeholder="+234..."
-                    />
-                  </Field>
-                  <Field label="Access token">
-                    <Input
-                      type="password"
-                      value={whatsappForm.access_token}
-                      onChange={(event) =>
-                        setWhatsappForm((prev) => ({ ...prev, access_token: event.target.value }))
-                      }
-                      placeholder="Permanent token from Meta"
-                    />
-                  </Field>
-                  <Button
-                    onClick={() => connectWhatsApp.mutate()}
-                    disabled={connectWhatsApp.isPending}
-                    className="w-full"
-                  >
-                    Connect WhatsApp
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                    <p className="text-xs text-ink-soft">Instagram posts always need an image.</p>
+                    <Button
+                      variant="outline"
+                      onClick={() => disconnectInstagram.mutate()}
+                      disabled={disconnectInstagram.isPending}
+                      className="w-full"
+                    >
+                      Disconnect Instagram
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    {!facebook?.connected ? (
+                      <p className="text-sm text-ink-soft">
+                        Connect a Facebook Page first — Instagram publishing runs through the linked Page.
+                      </p>
+                    ) : null}
+                    <Button
+                      onClick={() => connectInstagram.mutate()}
+                      disabled={connectInstagram.isPending || !facebook?.connected}
+                      className="w-full"
+                    >
+                      {connectInstagram.isPending ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Instagram className="mr-2 h-4 w-4" />
+                      )}
+                      Connect Instagram
+                    </Button>
+                  </>
+                )}
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>TikTok DMs</CardTitle>
-              <CardDescription>
-                TikTok only allows replies after a customer messages you first — no outbound marketing or comment-to-DM.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-ink">
-                Inbound-only · 48-hour reply window · Not available in US, UK, EEA, or Switzerland
-              </div>
-              {tiktok?.connected ? (
-                <>
-                  <div className="rounded-lg border border-border px-3 py-2">
-                    <div className="text-sm font-medium text-ink">{tiktok.account_name}</div>
-                    <div className="text-xs text-ink-soft">Business ID {tiktok.business_account_id}</div>
-                  </div>
-                  <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
-                    <div>
-                      <div className="text-sm font-medium text-ink">AI auto-reply</div>
-                      <div className="text-xs text-ink-soft">Replies to inbound TikTok DMs only</div>
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <MessageCircle className="h-4 w-4" />
+                  WhatsApp AI replies
+                </CardTitle>
+                <CardDescription>
+                  When customers message your business number, AI can answer product questions and share
+                  your storefront link.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {whatsapp?.connected ? (
+                  <>
+                    <div className="rounded-lg border border-border px-3 py-2">
+                      <div className="text-sm font-medium text-ink">{whatsapp.display_phone_number}</div>
+                      <div className="text-xs text-ink-soft">
+                        Phone number ID {whatsapp.phone_number_id}
+                      </div>
                     </div>
-                    <Switch
-                      checked={tiktok.auto_reply_enabled}
-                      onCheckedChange={(checked) =>
-                        updateMessagingSettings.mutate({ tiktok_auto_reply_enabled: checked })
-                      }
-                    />
-                  </div>
-                  <p className="text-xs text-ink-soft">Webhook: {tiktok.webhook_url}</p>
-                  <Button
-                    variant="outline"
-                    onClick={() => disconnectTikTok.mutate()}
-                    disabled={disconnectTikTok.isPending}
-                    className="w-full"
-                  >
-                    Disconnect TikTok
-                  </Button>
-                </>
-              ) : (
-                <div className="space-y-3">
-                  <Field label="Business account ID">
-                    <Input
-                      value={tiktokForm.business_account_id}
-                      onChange={(event) =>
-                        setTiktokForm((prev) => ({ ...prev, business_account_id: event.target.value }))
-                      }
-                    />
-                  </Field>
-                  <Field label="Account name">
-                    <Input
-                      value={tiktokForm.account_name}
-                      onChange={(event) =>
-                        setTiktokForm((prev) => ({ ...prev, account_name: event.target.value }))
-                      }
-                    />
-                  </Field>
-                  <Field label="Access token">
-                    <Input
-                      type="password"
-                      value={tiktokForm.access_token}
-                      onChange={(event) =>
-                        setTiktokForm((prev) => ({ ...prev, access_token: event.target.value }))
-                      }
-                    />
-                  </Field>
-                  <Button
-                    onClick={() => connectTikTok.mutate()}
-                    disabled={connectTikTok.isPending || !tiktok?.configured}
-                    className="w-full"
-                  >
-                    Connect TikTok Business
-                  </Button>
-                  {!tiktok?.configured ? (
-                    <p className="text-xs text-ink-soft">TikTok app credentials are not configured on this platform yet.</p>
-                  ) : null}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Video className="h-4 w-4" />
-                TikTok video posting
-              </CardTitle>
-              <CardDescription>
-                Connect your TikTok creator account to publish videos from Bizgrid. Videos must be hosted on a verified URL prefix.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-ink">
-                Until TikTok app audit passes, posts may publish as private (visible only to you).
-              </div>
-              {!tiktokContent?.configured ? (
-                <p className="text-sm text-ink-soft">
-                  TikTok Content Posting is not configured on this platform yet.
-                </p>
-              ) : tiktokContent.connected ? (
-                <>
-                  <div className="rounded-lg border border-border px-3 py-2">
-                    <div className="text-sm font-medium text-ink">
-                      {tiktokContent.creator_username || "TikTok Creator"}
-                    </div>
-                    <div className="text-xs text-ink-soft">Open ID {tiktokContent.open_id}</div>
-                  </div>
-                  <div className="space-y-3">
-                    <Field label="Public video URL">
-                      <Input
-                        value={tiktokVideoForm.video_url}
-                        onChange={(event) =>
-                          setTiktokVideoForm((prev) => ({ ...prev, video_url: event.target.value }))
+                    <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
+                      <div>
+                        <div className="text-sm font-medium text-ink">AI auto-reply</div>
+                        <div className="text-xs text-ink-soft">Uses your WhatsApp message units</div>
+                      </div>
+                      <Switch
+                        checked={whatsapp.auto_reply_enabled}
+                        onCheckedChange={(checked) =>
+                          updateMessagingSettings.mutate({ whatsapp_auto_reply_enabled: checked })
                         }
-                        placeholder="https://your-cdn.com/videos/promo.mp4"
+                      />
+                    </div>
+                    <p className="text-xs text-ink-soft">Webhook: {whatsapp.webhook_url}</p>
+                    <Button
+                      variant="outline"
+                      onClick={() => disconnectWhatsApp.mutate()}
+                      disabled={disconnectWhatsApp.isPending}
+                      className="w-full"
+                    >
+                      Disconnect WhatsApp
+                    </Button>
+                  </>
+                ) : (
+                  <div className="space-y-3">
+                    <Field label="Phone number ID">
+                      <Input
+                        value={whatsappForm.phone_number_id}
+                        onChange={(event) =>
+                          setWhatsappForm((prev) => ({ ...prev, phone_number_id: event.target.value }))
+                        }
+                        placeholder="From Meta WhatsApp settings"
                       />
                     </Field>
-                    <Field label="Caption">
-                      <Textarea
-                        value={tiktokVideoForm.caption}
+                    <Field label="Display phone number">
+                      <Input
+                        value={whatsappForm.display_phone_number}
                         onChange={(event) =>
-                          setTiktokVideoForm((prev) => ({ ...prev, caption: event.target.value }))
+                          setWhatsappForm((prev) => ({ ...prev, display_phone_number: event.target.value }))
                         }
-                        rows={3}
-                        placeholder="Caption for your TikTok video…"
+                        placeholder="+234..."
+                      />
+                    </Field>
+                    <Field label="Access token">
+                      <Input
+                        type="password"
+                        value={whatsappForm.access_token}
+                        onChange={(event) =>
+                          setWhatsappForm((prev) => ({ ...prev, access_token: event.target.value }))
+                        }
+                        placeholder="Permanent token from Meta"
                       />
                     </Field>
                     <Button
-                      onClick={() => publishTikTokVideo.mutate()}
-                      disabled={
-                        publishTikTokVideo.isPending ||
-                        !tiktokVideoForm.video_url.trim() ||
-                        !tiktokVideoForm.caption.trim()
-                      }
+                      onClick={() => connectWhatsApp.mutate()}
+                      disabled={connectWhatsApp.isPending}
                       className="w-full"
                     >
-                      {publishTikTokVideo.isPending ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
-                        <Video className="mr-2 h-4 w-4" />
-                      )}
-                      Publish to TikTok
+                      Connect WhatsApp
                     </Button>
                   </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>TikTok DMs</CardTitle>
+                <CardDescription>
+                  TikTok only allows replies after a customer messages you first — no outbound marketing or
+                  comment-to-DM.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-ink">
+                  Inbound-only · 48-hour reply window · Not available in US, UK, EEA, or Switzerland
+                </div>
+                {tiktok?.connected ? (
+                  <>
+                    <div className="rounded-lg border border-border px-3 py-2">
+                      <div className="text-sm font-medium text-ink">{tiktok.account_name}</div>
+                      <div className="text-xs text-ink-soft">Business ID {tiktok.business_account_id}</div>
+                    </div>
+                    <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
+                      <div>
+                        <div className="text-sm font-medium text-ink">AI auto-reply</div>
+                        <div className="text-xs text-ink-soft">Replies to inbound TikTok DMs only</div>
+                      </div>
+                      <Switch
+                        checked={tiktok.auto_reply_enabled}
+                        onCheckedChange={(checked) =>
+                          updateMessagingSettings.mutate({ tiktok_auto_reply_enabled: checked })
+                        }
+                      />
+                    </div>
+                    <p className="text-xs text-ink-soft">Webhook: {tiktok.webhook_url}</p>
+                    <Button
+                      variant="outline"
+                      onClick={() => disconnectTikTok.mutate()}
+                      disabled={disconnectTikTok.isPending}
+                      className="w-full"
+                    >
+                      Disconnect TikTok
+                    </Button>
+                  </>
+                ) : (
+                  <div className="space-y-3">
+                    <Field label="Business account ID">
+                      <Input
+                        value={tiktokForm.business_account_id}
+                        onChange={(event) =>
+                          setTiktokForm((prev) => ({ ...prev, business_account_id: event.target.value }))
+                        }
+                      />
+                    </Field>
+                    <Field label="Account name">
+                      <Input
+                        value={tiktokForm.account_name}
+                        onChange={(event) =>
+                          setTiktokForm((prev) => ({ ...prev, account_name: event.target.value }))
+                        }
+                      />
+                    </Field>
+                    <Field label="Access token">
+                      <Input
+                        type="password"
+                        value={tiktokForm.access_token}
+                        onChange={(event) =>
+                          setTiktokForm((prev) => ({ ...prev, access_token: event.target.value }))
+                        }
+                      />
+                    </Field>
+                    <Button
+                      onClick={() => connectTikTok.mutate()}
+                      disabled={connectTikTok.isPending || !tiktok?.configured}
+                      className="w-full"
+                    >
+                      Connect TikTok Business
+                    </Button>
+                    {!tiktok?.configured ? (
+                      <p className="text-xs text-ink-soft">
+                        TikTok app credentials are not configured on this platform yet.
+                      </p>
+                    ) : null}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Video className="h-4 w-4" />
+                  TikTok video posting
+                </CardTitle>
+                <CardDescription>
+                  Connect your TikTok creator account to publish videos from Bizgrid. Videos must be hosted
+                  on a verified URL prefix.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-ink">
+                  Until TikTok app audit passes, posts may publish as private (visible only to you).
+                </div>
+                {!tiktokContent?.configured ? (
+                  <p className="text-sm text-ink-soft">
+                    TikTok Content Posting is not configured on this platform yet.
+                  </p>
+                ) : tiktokContent.connected ? (
+                  <>
+                    <div className="rounded-lg border border-border px-3 py-2">
+                      <div className="text-sm font-medium text-ink">
+                        {tiktokContent.creator_username || "TikTok Creator"}
+                      </div>
+                      <div className="text-xs text-ink-soft">Open ID {tiktokContent.open_id}</div>
+                    </div>
+                    <div className="space-y-3">
+                      <Field label="Public video URL">
+                        <Input
+                          value={tiktokVideoForm.video_url}
+                          onChange={(event) =>
+                            setTiktokVideoForm((prev) => ({ ...prev, video_url: event.target.value }))
+                          }
+                          placeholder="https://your-cdn.com/videos/promo.mp4"
+                        />
+                      </Field>
+                      <Field label="Caption">
+                        <Textarea
+                          value={tiktokVideoForm.caption}
+                          onChange={(event) =>
+                            setTiktokVideoForm((prev) => ({ ...prev, caption: event.target.value }))
+                          }
+                          rows={3}
+                          placeholder="Caption for your TikTok video…"
+                        />
+                      </Field>
+                      <Button
+                        onClick={() => publishTikTokVideo.mutate()}
+                        disabled={
+                          publishTikTokVideo.isPending ||
+                          !tiktokVideoForm.video_url.trim() ||
+                          !tiktokVideoForm.caption.trim()
+                        }
+                        className="w-full"
+                      >
+                        {publishTikTokVideo.isPending ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <Video className="mr-2 h-4 w-4" />
+                        )}
+                        Publish to TikTok
+                      </Button>
+                    </div>
+                    <Button
+                      variant="outline"
+                      onClick={() => disconnectTikTokCreator.mutate()}
+                      disabled={disconnectTikTokCreator.isPending}
+                      className="w-full"
+                    >
+                      Disconnect TikTok creator
+                    </Button>
+                  </>
+                ) : (
                   <Button
-                    variant="outline"
-                    onClick={() => disconnectTikTokCreator.mutate()}
-                    disabled={disconnectTikTokCreator.isPending}
+                    onClick={() => connectTikTokCreator.mutate()}
+                    disabled={connectTikTokCreator.isPending}
                     className="w-full"
                   >
-                    Disconnect TikTok creator
+                    {connectTikTokCreator.isPending ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Video className="mr-2 h-4 w-4" />
+                    )}
+                    Connect TikTok creator account
                   </Button>
-                </>
-              ) : (
-                <Button
-                  onClick={() => connectTikTokCreator.mutate()}
-                  disabled={connectTikTokCreator.isPending}
-                  className="w-full"
-                >
-                  {connectTikTokCreator.isPending ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Video className="mr-2 h-4 w-4" />
-                  )}
-                  Connect TikTok creator account
-                </Button>
-              )}
-            </CardContent>
-          </Card>
+                )}
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Customer conversations</CardTitle>
-              <CardDescription>Recent WhatsApp and TikTok chats handled by the commerce agent.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {recentConversations.length === 0 ? (
-                <p className="text-sm text-ink-soft">No customer messages yet.</p>
-              ) : (
-                recentConversations.map((conversation) => (
-                  <div key={conversation.id} className="space-y-1 rounded-lg border border-border p-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <Badge variant="outline">{conversation.channel}</Badge>
-                      <span className="text-xs text-ink-soft">
-                        {conversation.last_message_at
-                          ? new Date(conversation.last_message_at).toLocaleString()
-                          : ""}
-                      </span>
-                    </div>
-                    <div className="text-sm font-medium text-ink">
-                      {conversation.external_user_name || conversation.external_user_id}
-                    </div>
-                    {conversation.latest_message ? (
-                      <p className="text-sm text-ink-soft">{conversation.latest_message}</p>
-                    ) : null}
-                  </div>
-                ))
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Recent posts</CardTitle>
-              <CardDescription>Drafts and published posts from the marketing agent.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {recentPosts.length === 0 ? (
-                <p className="text-sm text-ink-soft">No posts yet. Ask the agent to draft your first campaign.</p>
-              ) : (
-                recentPosts.map((post) => (
-                  <div key={post.id} className="space-y-2 rounded-lg border border-border p-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        {postStatusBadge(post.status)}
-                        {post.post_type === "video" ? (
-                          <Badge variant="outline">Video · {post.provider}</Badge>
-                        ) : (
-                          <Badge variant="outline">{post.provider}</Badge>
-                        )}
-                      </div>
-                      <span className="text-xs text-ink-soft">
-                        {post.published_at
-                          ? new Date(post.published_at).toLocaleString()
-                          : post.created_at
-                            ? new Date(post.created_at).toLocaleString()
+            <Card>
+              <CardHeader>
+                <CardTitle>Customer conversations</CardTitle>
+                <CardDescription>
+                  Recent WhatsApp and TikTok chats handled by the commerce agent.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {recentConversations.length === 0 ? (
+                  <p className="text-sm text-ink-soft">No customer messages yet.</p>
+                ) : (
+                  recentConversations.map((conversation) => (
+                    <div key={conversation.id} className="space-y-1 rounded-lg border border-border p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <Badge variant="outline">{conversation.channel}</Badge>
+                        <span className="text-xs text-ink-soft">
+                          {conversation.last_message_at
+                            ? new Date(conversation.last_message_at).toLocaleString()
                             : ""}
-                      </span>
+                        </span>
+                      </div>
+                      <div className="text-sm font-medium text-ink">
+                        {conversation.external_user_name || conversation.external_user_id}
+                      </div>
+                      {conversation.latest_message ? (
+                        <p className="text-sm text-ink-soft">{conversation.latest_message}</p>
+                      ) : null}
                     </div>
-                    <p className="text-sm text-ink">{post.message}</p>
-                    {post.video_url ? (
-                      <p className="truncate text-xs text-ink-soft">{post.video_url}</p>
-                    ) : null}
-                    {post.error_message ? (
-                      <p className="text-xs text-destructive">{post.error_message}</p>
-                    ) : null}
-                  </div>
-                ))
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

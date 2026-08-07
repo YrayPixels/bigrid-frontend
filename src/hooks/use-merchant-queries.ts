@@ -9,9 +9,14 @@ import { api } from "@/lib/api/client";
 import { storefrontApi } from "@/lib/api/storefront";
 import type {
   AbandonedRecoveryResponse,
+  AdAccount,
+  AdCampaign,
   BillingSubscriptionResponse,
   BuilderSessionResponse,
+  MarketingPerformance,
   MarketingStatus,
+  SocialPost,
+  SocialPostStatus,
   MerchantDashboardOverview,
   Store,
   StoreCategory,
@@ -220,6 +225,47 @@ export function useMarketingStatus(
   return useQuery({
     queryKey: merchantKeys.marketing.status(),
     queryFn: () => api.getMarketingStatus(),
+    ...options,
+  });
+}
+
+export function useMarketingPosts(
+  status?: SocialPostStatus,
+  options?: Omit<UseQueryOptions<{ posts: SocialPost[] }, Error>, "queryKey" | "queryFn">,
+) {
+  return useQuery({
+    queryKey: merchantKeys.marketing.posts(status),
+    queryFn: () => api.listMarketingPosts({ status, limit: 50 }),
+    ...options,
+  });
+}
+
+export function useMarketingPerformance(
+  options?: Omit<UseQueryOptions<MarketingPerformance, Error>, "queryKey" | "queryFn">,
+) {
+  return useQuery({
+    queryKey: merchantKeys.marketing.performance(),
+    queryFn: () => api.getMarketingPerformance(),
+    ...options,
+  });
+}
+
+export function useAdCampaigns(
+  options?: Omit<UseQueryOptions<{ campaigns: AdCampaign[] }, Error>, "queryKey" | "queryFn">,
+) {
+  return useQuery({
+    queryKey: merchantKeys.marketing.campaigns(),
+    queryFn: () => api.listAdCampaigns(),
+    ...options,
+  });
+}
+
+export function useAdAccounts(
+  options?: Omit<UseQueryOptions<{ accounts: AdAccount[] }, Error>, "queryKey" | "queryFn">,
+) {
+  return useQuery({
+    queryKey: merchantKeys.marketing.adAccounts(),
+    queryFn: () => api.listAdAccounts(),
     ...options,
   });
 }
