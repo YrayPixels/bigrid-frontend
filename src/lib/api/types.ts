@@ -239,7 +239,7 @@ export type UpdateStoreInput = {
   return_policy?: string | null;
 };
 
-export type SubscriptionPlanId = "starter" | "growth" | "scale";
+export type SubscriptionPlanId = "free" | "starter" | "growth" | "scale";
 
 export type SubscriptionLimit = {
   label: string;
@@ -282,6 +282,9 @@ export type MerchantSubscription = {
   plan: SubscriptionPlanId;
   plan_name: string;
   price_label: string | null;
+  is_free?: boolean;
+  /** Per-order service fee charged on this plan, e.g. 2.5 for 2.5%. */
+  transaction_fee_percent?: number;
   status: string;
   renews_at: string | null;
   limits: SubscriptionLimit[];
@@ -294,9 +297,12 @@ export type BillingPlanOption = {
   id: SubscriptionPlanId;
   name: string;
   price_label: string;
+  price_monthly_ngn?: number;
   description: string;
   features: string[];
   limits: SubscriptionLimit[];
+  transaction_fee_percent?: number;
+  is_free?: boolean;
   available: boolean;
 };
 
@@ -642,6 +648,9 @@ export type PublicStorefront = {
       free_shipping_min_subtotal?: number | null;
       is_default?: boolean;
     }>;
+    /** Platform service fee added to the shopper's total, e.g. 2.5 for 2.5%. */
+    service_fee_percent?: number;
+    service_fee_label?: string | null;
   };
 };
 
@@ -745,6 +754,11 @@ export type StoreOrder = {
   subtotal: number;
   discount_amount?: number;
   discount_label?: string | null;
+  /** Platform service fee the shopper paid on top of the merchant's amount. */
+  platform_fee_amount?: number;
+  platform_fee_percent?: number;
+  /** What the merchant is owed at settlement: total_amount less platform_fee_amount. */
+  merchant_amount?: number;
   total_amount: number;
   items: StoreOrderItem[];
   notes: string | null;

@@ -68,7 +68,13 @@ export function CheckoutPageView() {
     ],
   );
   const deliveryFee = shippingQuote.deliveryFee;
-  const payableTotal = merchandiseSubtotal + deliveryFee;
+  // Platform service fee charged on stores whose merchant is on the free plan.
+  // Mirrors the server calculation in PlatformFeeService; the server total wins.
+  const serviceFeePercent = Number(checkout?.service_fee_percent ?? 0);
+  const serviceFeeBase = merchandiseSubtotal + deliveryFee;
+  const serviceFee =
+    serviceFeePercent > 0 ? Math.round(serviceFeeBase * serviceFeePercent) / 100 : 0;
+  const payableTotal = serviceFeeBase + serviceFee;
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const submitLabel = paymentsEnabled
@@ -574,6 +580,12 @@ export function CheckoutPageView() {
                   ) : null}
                 </div>
               </div>
+              {serviceFee > 0 ? (
+                <div className="flex items-center justify-between">
+                  <span>Service fee ({serviceFeePercent}%)</span>
+                  <strong>{formatMoney(serviceFee, currency)}</strong>
+                </div>
+              ) : null}
               <div className="flex items-center justify-between text-base">
                 <span>Total</span>
                 <strong>{formatMoney(payableTotal, currency)}</strong>
@@ -775,6 +787,12 @@ export function CheckoutPageView() {
               ) : null}
             </div>
           </div>
+          {serviceFee > 0 ? (
+            <div className="mt-3 flex items-center justify-between gap-4 text-sm">
+              <span>Service fee ({serviceFeePercent}%)</span>
+              <span>{formatMoney(serviceFee)}</span>
+            </div>
+          ) : null}
           <div
             className={`mt-6 flex items-center justify-between border-t ${theme.borderColor} pt-4 font-semibold`}
           >

@@ -24,24 +24,37 @@ const FEATURES = [
 
 const PLANS = [
   {
+    name: "Free",
+    price: "₦0",
+    priceNote: "forever",
+    description: "Start selling today. Pay nothing monthly.",
+    features: [
+      "2.5% service fee per online order",
+      "Unlimited processing & customers",
+      "1 storefront",
+      "Online card payments only",
+    ],
+    highlighted: false,
+  },
+  {
     name: "Starter",
     price: "₦5,000",
     description: "Launch your first storefront and start selling.",
-    features: ["1 storefront", "Up to ₦1M monthly processing", "Up to 500 customers", "SMS & WhatsApp units included"],
+    features: ["No service fee on orders", "1 storefront", "Up to ₦1M monthly processing", "SMS & WhatsApp units included"],
     highlighted: false,
   },
   {
     name: "Growth",
     price: "₦15,000",
     description: "For brands selling more and needing a custom domain.",
-    features: ["Up to 3 storefronts", "Up to ₦10M monthly processing", "1 custom domain", "Higher SMS & WhatsApp limits"],
+    features: ["No service fee on orders", "Up to 3 storefronts", "Up to ₦10M monthly processing", "1 custom domain"],
     highlighted: true,
   },
   {
     name: "Scale",
     price: "₦30,000",
     description: "Higher volume, more stores, and room to expand.",
-    features: ["Up to 10 storefronts", "Up to ₦50M monthly processing", "Up to 5 custom domains", "Unlimited customers"],
+    features: ["No service fee on orders", "Up to 10 storefronts", "Up to ₦50M monthly processing", "Up to 5 custom domains"],
     highlighted: false,
   },
 ] as const;
@@ -188,12 +201,14 @@ export function LandingPage() {
 
         <section id="pricing" className="mx-auto max-w-6xl border-t border-border px-6 py-24">
           <div className="mb-14 max-w-2xl">
-            <h2 className="font-display text-4xl font-bold tracking-tight md:text-5xl">Simple monthly plans</h2>
+            <h2 className="font-display text-4xl font-bold tracking-tight md:text-5xl">Start free, pay as you grow</h2>
             <p className="mt-4 text-lg text-ink-soft">
-              Start free while we&apos;re in MVP. Upgrade when you need more volume or a custom domain.
+              Free forever with a 2.5% service fee added at checkout and paid by your customer. Move
+              to a monthly plan to drop the fee and unlock custom domains, in-person sales, and more
+              storefronts.
             </p>
           </div>
-          <div className="grid gap-6 md:grid-cols-3">
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
             {PLANS.map((plan) => (
               <div
                 key={plan.name}
@@ -212,7 +227,9 @@ export function LandingPage() {
                 </div>
                 <p className="mt-4 font-display text-3xl font-bold tracking-tight">
                   {plan.price}
-                  <span className="text-sm font-medium text-ink-soft">/mo</span>
+                  <span className="text-sm font-medium text-ink-soft">
+                    {"priceNote" in plan ? ` ${plan.priceNote}` : "/mo"}
+                  </span>
                 </p>
                 <p className="mt-2 text-sm text-ink-soft">{plan.description}</p>
                 <ul className="mt-6 flex-1 space-y-2 text-sm text-ink-soft">

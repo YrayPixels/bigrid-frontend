@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { api } from "@/lib/api/client";
 import {
@@ -28,9 +28,12 @@ export function PayoutDetailsCard() {
   const [accountName, setAccountName] = useState("");
   const [bankName, setBankName] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
+  const dirty = useRef(false);
 
+  // Seed the form from the server, but never overwrite edits the merchant is
+  // still typing — a background refetch would otherwise wipe the form.
   useEffect(() => {
-    if (!data) return;
+    if (!data || dirty.current) return;
     setAccountName(data.payout_account_name ?? "");
     setBankName(data.payout_bank_name ?? "");
     setAccountNumber(data.payout_account_number ?? "");
@@ -48,14 +51,18 @@ export function PayoutDetailsCard() {
       });
     },
     onSuccess: (payments) => {
+      dirty.current = false;
       merchantCache.setPaymentSettings(queryClient, payments);
       merchantInvalidators.store(queryClient);
+      merchantInvalidators.paymentSettings(queryClient);
       toast.success("Payout details saved");
     },
     onError: (error: Error) => {
       toast.error(error.message || "Could not save payout details");
     },
   });
+
+  const missingFields = !accountName.trim() || !bankName.trim() || !accountNumber.trim();
 
   return (
     <Card className="shadow-soft">
@@ -105,7 +112,10 @@ export function PayoutDetailsCard() {
               id="payout-account-name"
               placeholder="Business or owner name"
               value={accountName}
-              onChange={(e) => setAccountName(e.target.value)}
+              onChange={(e) => {
+                dirty.current = true;
+                setAccountName(e.target.value);
+              }}
               disabled={isLoading || !emailVerified}
             />
           </div>
@@ -115,7 +125,10 @@ export function PayoutDetailsCard() {
               id="payout-bank-name"
               placeholder="e.g. Access Bank"
               value={bankName}
-              onChange={(e) => setBankName(e.target.value)}
+              onChange={(e) => {
+                dirty.current = true;
+                setBankName(e.target.value);
+              }}
               disabled={isLoading || !emailVerified}
             />
           </div>
@@ -125,26 +138,31 @@ export function PayoutDetailsCard() {
               id="payout-account-number"
               inputMode="numeric"
               placeholder="0123456789"
+              maxLength={20}
               value={accountNumber}
-              onChange={(e) => setAccountNumber(e.target.value)}
+              onChange={(e) => {
+                dirty.current = true;
+                setAccountNumber(e.target.value.replace(/\D/g, ""));
+              }}
               disabled={isLoading || !emailVerified}
             />
           </div>
         </div>
 
-        <Button
-          disabled={
-            saveMutation.isPending ||
-            !emailVerified ||
-            !accountName.trim() ||
-            !bankName.trim() ||
-            !accountNumber.trim()
-          }
-          onClick={() => saveMutation.mutate()}
-        >
-          <Save className="mr-2 h-4 w-4" />
-          {saveMutation.isPending ? "Saving..." : "Save payout details"}
-        </Button>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
+            disabled={saveMutation.isPending || !emailVerified || missingFields}
+            onClick={() => saveMutation.mutate()}
+          >
+            <Save className="mr-2 h-4 w-4" />
+            {saveMutation.isPending ? "Saving..." : "Save payout details"}
+          </Button>
+          {emailVerified && missingFields ? (
+            <span className="text-sm text-ink-soft">
+              Fill in all three fields to save your payout account.
+            </span>
+          ) : null}
+        </div>
       </CardContent>
     </Card>
   );

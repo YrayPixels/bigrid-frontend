@@ -213,8 +213,9 @@ export default function PlanSettingsPage() {
           </div>
           {subscription ? (
             <Badge variant="secondary">
-              {formatSubscriptionStatus(subscription.status)} · renews{" "}
-              {formatRenewalDate(subscription.renews_at)}
+              {subscription.is_free
+                ? `${subscription.plan_name} · no monthly bill`
+                : `${formatSubscriptionStatus(subscription.status)} · renews ${formatRenewalDate(subscription.renews_at)}`}
             </Badge>
           ) : null}
         </div>
@@ -231,6 +232,19 @@ export default function PlanSettingsPage() {
             <Button variant="outline" size="sm" className="mt-3" onClick={() => billingQuery.refetch()}>
               Retry
             </Button>
+          </div>
+        ) : null}
+
+        {subscription?.is_free && (subscription.transaction_fee_percent ?? 0) > 0 ? (
+          <div className="rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 text-sm">
+            <p className="font-medium">
+              You&apos;re on {subscription.plan_name} — no monthly fee.
+            </p>
+            <p className="mt-1 text-ink-soft">
+              A {subscription.transaction_fee_percent}% service fee is added to each order at
+              checkout and paid by your customer, so your payout is unaffected. In-person and cash
+              payments need a paid plan. Upgrade to remove the fee entirely.
+            </p>
           </div>
         ) : null}
 
@@ -327,8 +341,15 @@ export default function PlanSettingsPage() {
                     </div>
                     <p className="mt-5 font-display text-2xl font-bold">
                       {plan.price_label}
-                      <span className="text-sm font-medium text-ink-soft">/mo</span>
+                      {plan.is_free ? null : (
+                        <span className="text-sm font-medium text-ink-soft">/mo</span>
+                      )}
                     </p>
+                    {(plan.transaction_fee_percent ?? 0) > 0 ? (
+                      <p className="mt-1 text-xs text-ink-soft">
+                        + {plan.transaction_fee_percent}% per online order, paid by your customer
+                      </p>
+                    ) : null}
                     <ul className="mt-4 space-y-2 text-sm text-ink-soft">
                       {plan.features.map((feature) => (
                         <li key={feature} className="flex items-center gap-2">
@@ -349,9 +370,11 @@ export default function PlanSettingsPage() {
                       {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                       {isActive
                         ? "Current plan"
-                        : plan.available
-                          ? "Switch to plan"
-                          : "Unavailable"}
+                        : !plan.available
+                          ? "Unavailable"
+                          : plan.is_free
+                            ? "Downgrade to free"
+                            : "Switch to plan"}
                     </Button>
                   </div>
                 );

@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import {
-  Banknote,
   BellRing,
   CheckCircle2,
   CreditCard,
@@ -316,72 +315,31 @@ export default function AdminSettingsPage() {
               <Card className="shadow-soft">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <Banknote className="h-5 w-5 text-primary" />
-                    Payout options
+                    <ShieldCheck className="h-5 w-5 text-primary" />
+                    Settlement and verification
                   </CardTitle>
                   <CardDescription>
-                    Set how completed orders are settled to your business account.
+                    How Bizgrid settles completed orders to the bank account above.
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <Field label="Account holder name">
-                      <Input defaultValue={store.business_name} />
-                    </Field>
-                    <Field label="Bank name">
-                      <Input placeholder="e.g. Access Bank" />
-                    </Field>
-                    <Field label="Account number">
-                      <Input inputMode="numeric" placeholder="0123456789" />
-                    </Field>
-                    <Field label="Settlement schedule">
-                      <select className="h-10 w-full rounded-md border border-input bg-transparent px-3 text-sm">
-                        <option>Daily settlement</option>
-                        <option>Twice weekly</option>
-                        <option>Weekly settlement</option>
-                      </select>
-                    </Field>
-                    <Field label="Payout currency">
-                      <select className="h-10 w-full rounded-md border border-input bg-transparent px-3 text-sm">
-                        <option>NGN - Nigerian Naira</option>
-                        <option>USD - US Dollar</option>
-                      </select>
-                    </Field>
-                    <Field label="Minimum payout amount">
-                      <Input defaultValue="5000" inputMode="numeric" />
-                    </Field>
-                    <div className="md:col-span-2">
-                      <Field label="Settlement notes">
-                        <Textarea placeholder="Add internal payout instructions or finance contact details." />
-                      </Field>
-                    </div>
-                    <div className="md:col-span-2">
-                      <Button>
-                        <Save className="mr-2 h-4 w-4" />
-                        Save payout method
-                      </Button>
-                    </div>
+                <CardContent className="grid gap-4 xl:grid-cols-2">
+                  <div className="rounded-2xl border border-border bg-background p-5">
+                    <h3 className="font-display text-lg font-bold">Verification checklist</h3>
+                    <ul className="mt-4 space-y-3 text-sm text-ink-soft">
+                      {payoutChecklist.map((item) => (
+                        <li key={item} className="flex gap-2">
+                          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                          {item}
+                        </li>
+                      ))}
+                    </ul>
                   </div>
-                  <div className="space-y-4">
-                    <div className="rounded-2xl border border-border bg-background p-5">
-                      <div className="flex items-center gap-3">
-                        <ShieldCheck className="h-5 w-5 text-primary" />
-                        <h3 className="font-display text-lg font-bold">Verification checklist</h3>
-                      </div>
-                      <ul className="mt-4 space-y-3 text-sm text-ink-soft">
-                        {payoutChecklist.map((item) => (
-                          <li key={item} className="flex gap-2">
-                            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                            {item}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                    <ToggleRow
-                      title="Hold payouts during disputes"
-                      description="Automatically pause affected order settlements until support review is complete."
-                      checked
-                    />
+                  <div className="rounded-2xl border border-border bg-background p-5">
+                    <h3 className="font-display text-lg font-bold">Disputed orders</h3>
+                    <p className="mt-4 text-sm text-ink-soft">
+                      Settlement for an order under dispute is paused automatically until support
+                      review is complete. The rest of your payouts continue on schedule.
+                    </p>
                   </div>
                 </CardContent>
               </Card>
