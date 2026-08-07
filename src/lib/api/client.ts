@@ -61,7 +61,9 @@ import type {
   UpdateSocialPostInput,
   AdAccount,
   AdCampaign,
+  MarketingAudience,
   MarketingPerformance,
+  BestTimeToPost,
   SaveAdCampaignInput,
   User,
 } from "./types";
@@ -1056,6 +1058,25 @@ export const api = {
   async listScheduledPosts(): Promise<{ posts: SocialPost[] }> {
     requireToken();
     return http<{ posts: SocialPost[] }>(`${STOREHAUSE_API_PREFIX}/marketing/posts/scheduled`);
+  },
+
+  async getMarketingAudience(): Promise<MarketingAudience> {
+    requireToken();
+    return http<MarketingAudience>(`${STOREHAUSE_API_PREFIX}/marketing/audience`);
+  },
+
+  async refreshMarketingAudience(): Promise<MarketingAudience & { message: string }> {
+    requireToken();
+    return http<MarketingAudience & { message: string }>(
+      `${STOREHAUSE_API_PREFIX}/marketing/audience/refresh`,
+      { method: "POST" },
+    );
+  },
+
+  async getBestTimeToPost(provider?: string): Promise<BestTimeToPost> {
+    requireToken();
+    const suffix = provider ? `?provider=${encodeURIComponent(provider)}` : "";
+    return http<BestTimeToPost>(`${STOREHAUSE_API_PREFIX}/marketing/best-time${suffix}`);
   },
 
   async getMarketingPerformance(windowDays?: number): Promise<MarketingPerformance> {

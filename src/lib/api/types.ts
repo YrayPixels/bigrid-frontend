@@ -1052,6 +1052,7 @@ export type SocialPost = {
   approved_at?: string | null;
   insights?: SocialPostInsights | null;
   insights_synced_at?: string | null;
+  sentiment?: PostSentiment | null;
   attempts?: number;
   editable?: boolean;
   error_message: string | null;
@@ -1146,14 +1147,79 @@ export type AdAccount = {
   active: boolean;
 };
 
+export type MarketingTotals = {
+  posts: number;
+  reach: number;
+  engagement: number;
+  clicks: number;
+};
+
+export type PostSentiment = {
+  label: "positive" | "neutral" | "negative" | null;
+  score: number | null;
+  summary: string;
+  sample_size: number;
+};
+
+export type AudienceAgeBucket = {
+  bucket: string;
+  male: number;
+  female: number;
+  total: number;
+};
+
+export type AudienceCountry = {
+  code: string;
+  name: string;
+  count: number;
+  share: number;
+};
+
+export type MarketingAudience = {
+  available: boolean;
+  suppressed_reason: string | null;
+  total_audience: number;
+  top_age_bucket: string | null;
+  age_gender: AudienceAgeBucket[];
+  countries: AudienceCountry[];
+  top_country: AudienceCountry | null;
+  captured_at: string | null;
+  channels: string[];
+};
+
+export type PostingWindow = {
+  label: string;
+  posts: number;
+  engagement: number;
+  reach: number;
+  avg_engagement: number;
+  avg_reach: number;
+  peak_hour: number;
+  intensity: number;
+  intent: "high" | "medium" | "low";
+};
+
+export type BestTimeToPost = {
+  confident: boolean;
+  sample_size: number;
+  min_sample: number;
+  reason: string | null;
+  windows: PostingWindow[];
+  best_window: PostingWindow | null;
+  best_hour: number | null;
+};
+
 export type MarketingPerformance = {
   window_days: number;
-  totals: {
-    posts: number;
-    reach: number;
-    engagement: number;
-    clicks: number;
+  totals: MarketingTotals;
+  previous_totals: MarketingTotals;
+  deltas: {
+    posts: number | null;
+    reach: number | null;
+    engagement: number | null;
+    clicks: number | null;
   };
+  has_comparison: boolean;
   by_channel: Array<{
     provider: string;
     posts: number;

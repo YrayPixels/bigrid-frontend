@@ -34,7 +34,11 @@ export const merchantKeys = {
     status: () => [...merchantKeys.marketing.all, "status"] as const,
     posts: (status?: string) => [...merchantKeys.marketing.all, "posts", status ?? "all"] as const,
     campaigns: () => [...merchantKeys.marketing.all, "campaigns"] as const,
-    performance: () => [...merchantKeys.marketing.all, "performance"] as const,
+    performance: (windowDays?: number) =>
+      [...merchantKeys.marketing.all, "performance", windowDays ?? 90] as const,
+    audience: () => [...merchantKeys.marketing.all, "audience"] as const,
+    bestTime: (provider?: string) =>
+      [...merchantKeys.marketing.all, "best-time", provider ?? "all"] as const,
     adAccounts: () => [...merchantKeys.marketing.all, "ad-accounts"] as const,
     abandoned: (page: number) => ["marketing-abandoned", page] as const,
   },

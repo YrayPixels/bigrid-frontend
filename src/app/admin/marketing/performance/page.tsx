@@ -1,51 +1,23 @@
 "use client";
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { Loader2, TrendingUp } from "lucide-react";
-import { useStoreMe } from "@/hooks/use-merchant-queries";
-import { PerformancePanel } from "@/components/marketing/performance-panel";
+import { useRouter } from "next/navigation";
+import { Loader2 } from "lucide-react";
 
-export default function MarketingPerformancePage() {
+/**
+ * Performance moved onto the marketing landing page when that became the KPI
+ * dashboard. Kept as a redirect so existing links and bookmarks still work.
+ */
+export default function MarketingPerformanceRedirect() {
   const router = useRouter();
-  const storeQuery = useStoreMe();
 
   useEffect(() => {
-    if (storeQuery.isFetched && !storeQuery.data) {
-      router.replace("/admin/onboarding");
-    }
-  }, [router, storeQuery.data, storeQuery.isFetched]);
-
-  if (storeQuery.isLoading) {
-    return (
-      <div className="flex h-[calc(100vh-3.5rem)] items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-primary" />
-      </div>
-    );
-  }
+    router.replace("/admin/marketing");
+  }, [router]);
 
   return (
-    <div className="flex w-full flex-col gap-4 px-4 py-4 lg:px-6 lg:py-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <TrendingUp className="h-5 w-5 text-primary" />
-            <h1 className="font-display text-2xl font-bold text-ink">Marketing performance</h1>
-          </div>
-          <p className="text-sm text-ink-soft">
-            How your posts and ads are actually doing across every connected channel.
-          </p>
-        </div>
-        <Link
-          href="/admin/marketing"
-          className="inline-flex shrink-0 text-sm font-medium text-primary hover:underline"
-        >
-          Back to marketing
-        </Link>
-      </div>
-
-      <PerformancePanel />
+    <div className="flex h-[calc(100vh-3.5rem)] items-center justify-center">
+      <Loader2 className="h-6 w-6 animate-spin text-primary" />
     </div>
   );
 }

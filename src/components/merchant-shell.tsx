@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  FileText,
   FolderTree,
   ChevronFirst,
   ChevronLast,
@@ -13,6 +14,7 @@ import {
   Percent,
   ShoppingBag,
   ShoppingCart,
+  Share2,
   Sparkles,
   Store,
   TrendingUp,
@@ -90,7 +92,10 @@ const navGroups: NavGroup[] = [
       // Exact, otherwise every /admin/marketing/* sub-page would light this up
       // alongside its own entry.
       { href: "/admin/marketing", label: "Marketing", icon: Megaphone, exact: true },
-      { href: "/admin/marketing/performance", label: "Performance", icon: TrendingUp },
+      { href: "/admin/marketing/assistant", label: "Assistant", icon: Sparkles },
+      { href: "/admin/marketing/content", label: "Posts", icon: FileText },
+      { href: "/admin/marketing/ads", label: "Ads", icon: TrendingUp },
+      { href: "/admin/marketing/channels", label: "Channels", icon: Share2 },
     ],
   },
 ];

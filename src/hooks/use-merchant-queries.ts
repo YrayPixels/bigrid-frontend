@@ -13,6 +13,8 @@ import type {
   AdCampaign,
   BillingSubscriptionResponse,
   BuilderSessionResponse,
+  BestTimeToPost,
+  MarketingAudience,
   MarketingPerformance,
   MarketingStatus,
   SocialPost,
@@ -241,11 +243,33 @@ export function useMarketingPosts(
 }
 
 export function useMarketingPerformance(
+  windowDays?: number,
   options?: Omit<UseQueryOptions<MarketingPerformance, Error>, "queryKey" | "queryFn">,
 ) {
   return useQuery({
-    queryKey: merchantKeys.marketing.performance(),
-    queryFn: () => api.getMarketingPerformance(),
+    queryKey: merchantKeys.marketing.performance(windowDays),
+    queryFn: () => api.getMarketingPerformance(windowDays),
+    ...options,
+  });
+}
+
+export function useMarketingAudience(
+  options?: Omit<UseQueryOptions<MarketingAudience, Error>, "queryKey" | "queryFn">,
+) {
+  return useQuery({
+    queryKey: merchantKeys.marketing.audience(),
+    queryFn: () => api.getMarketingAudience(),
+    ...options,
+  });
+}
+
+export function useBestTimeToPost(
+  provider?: string,
+  options?: Omit<UseQueryOptions<BestTimeToPost, Error>, "queryKey" | "queryFn">,
+) {
+  return useQuery({
+    queryKey: merchantKeys.marketing.bestTime(provider),
+    queryFn: () => api.getBestTimeToPost(provider),
     ...options,
   });
 }
