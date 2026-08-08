@@ -983,6 +983,11 @@ export type CreateStoreOrderInput = {
   notes?: string;
   callback_url?: string;
   session_token?: string;
+  visit_session_id?: string;
+  utm_source?: string;
+  utm_medium?: string;
+  utm_campaign?: string;
+  utm_content?: string;
   items: {
     product_id: string;
     quantity: number;
@@ -1118,6 +1123,8 @@ export type AdCampaignMetrics = {
   spend?: number;
   ctr?: number;
   cpc?: number;
+  purchases?: number;
+  purchase_value?: number | null;
 };
 
 export type AdCampaign = {
@@ -1227,10 +1234,32 @@ export type MarketingPerformance = {
     engagement: number;
   }>;
   top_posts: SocialPost[];
+  outcomes: {
+    attributed_revenue: number;
+    attributed_orders: number;
+    recovered_revenue: number;
+    recovered_orders: number;
+    currency: string;
+    by_content: Array<{
+      utm_content: string;
+      revenue: number;
+      orders: number;
+      label: string;
+    }>;
+  };
+  by_content: Array<{
+    utm_content: string;
+    revenue: number;
+    orders: number;
+    label: string;
+  }>;
   ads: {
     spend: number;
     impressions: number;
     clicks: number;
+    purchases: number;
+    purchase_value: number | null;
+    roas: number | null;
     active_campaigns: number;
     currency: string | null;
   };

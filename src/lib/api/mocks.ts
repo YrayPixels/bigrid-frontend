@@ -1231,7 +1231,15 @@ export const mockApi = {
 
   async recordVisit(
     slug: string,
-    body: { session_id?: string; path?: string; referrer?: string },
+    body: {
+      session_id?: string;
+      path?: string;
+      referrer?: string;
+      utm_source?: string;
+      utm_medium?: string;
+      utm_campaign?: string;
+      utm_content?: string;
+    },
   ): Promise<{ message: string }> {
     const db = load();
     const store = Object.values(db.stores).find((entry) => entry.slug === slug);

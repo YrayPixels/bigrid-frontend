@@ -16,6 +16,10 @@ import { PlacesAutocompleteInput } from "@/components/places/places-autocomplete
 import { isGooglePlacesEnabled, type ParsedPlace } from "@/lib/places/parse-place";
 import { PageContainer } from "@/components/storefront/theme/page-container";
 import { useStorefrontTheme } from "@/lib/storefront/theme-context";
+import {
+  getOrCreateVisitSessionId,
+  readMarketingAttribution,
+} from "@/lib/storefront/marketing-attribution";
 import { beautyTemplateImages } from "@/lib/storefront/beauty-defaults";
 import { cosmeticsTemplateImages } from "@/lib/storefront/cosmetics-defaults";
 import { minimalisticTemplateImages } from "@/lib/storefront/minimalistic-defaults";
@@ -179,6 +183,7 @@ export function CheckoutPageView() {
     const form = new FormData(event.currentTarget);
 
     try {
+      const attribution = readMarketingAttribution();
       const result = await storefrontApi.placeOrder(store.slug, {
         customer: {
           first_name: String(form.get("first_name") ?? ""),
@@ -192,6 +197,8 @@ export function CheckoutPageView() {
         delivery_method: deliveryMethod,
         notes: String(form.get("notes") ?? ""),
         session_token: sessionToken || undefined,
+        visit_session_id: getOrCreateVisitSessionId() || undefined,
+        ...attribution,
         items: lines.map((line) => ({
           product_id: line.product.id,
           quantity: line.quantity,

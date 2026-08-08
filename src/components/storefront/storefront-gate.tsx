@@ -6,6 +6,10 @@ import { StoreShell } from "@/components/storefront/store-shell";
 import { storefrontApi } from "@/lib/api/storefront";
 import { CartProvider } from "@/lib/storefront/cart-context";
 import { CartRefreshEffect } from "@/lib/storefront/cart-refresh-effect";
+import {
+  captureMarketingAttributionFromUrl,
+  getOrCreateVisitSessionId,
+} from "@/lib/storefront/marketing-attribution";
 import { StorefrontProvider } from "@/lib/storefront/store-context";
 import { StorefrontThemeProvider } from "@/lib/storefront/theme-context";
 import { getStorefrontTheme, resolveStorefrontTemplate } from "@/lib/storefront/template";
@@ -23,12 +27,8 @@ export function StorefrontGate({
   useEffect(() => {
     if (!data || typeof window === "undefined") return;
 
-    const key = "storehaus_visit_session";
-    let sessionId = window.sessionStorage.getItem(key);
-    if (!sessionId) {
-      sessionId = crypto.randomUUID();
-      window.sessionStorage.setItem(key, sessionId);
-    }
+    const sessionId = getOrCreateVisitSessionId();
+    const attribution = captureMarketingAttributionFromUrl();
 
     const sentKey = `storehaus_visit_sent:${slug}:${window.location.pathname}`;
     if (window.sessionStorage.getItem(sentKey) === "1") return;
@@ -38,6 +38,7 @@ export function StorefrontGate({
       session_id: sessionId,
       path: window.location.pathname,
       referrer: document.referrer || undefined,
+      ...attribution,
     });
   }, [data, slug]);
 

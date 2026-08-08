@@ -153,7 +153,18 @@ export const storefrontApi = {
     return res.order;
   },
 
-  async recordVisit(slug: string, body: { session_id?: string; path?: string; referrer?: string }) {
+  async recordVisit(
+    slug: string,
+    body: {
+      session_id?: string;
+      path?: string;
+      referrer?: string;
+      utm_source?: string;
+      utm_medium?: string;
+      utm_campaign?: string;
+      utm_content?: string;
+    },
+  ) {
     if (USE_MOCKS) return mockApi.recordVisit(slug, body);
     return publicWrite<{ message: string }>(
       `${STOREHAUSE_API_PREFIX}/public/storefronts/${slug}/visits`,

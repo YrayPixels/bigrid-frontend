@@ -18,6 +18,24 @@ export const SERIES = {
   magnitude: "var(--viz-magnitude)",
 } as const;
 
+/** Concentric country rings — earthy teals/ambers that sit with brand primary. */
+export const COUNTRY_RING = [
+  "#5b8c5a",
+  "#c47a3a",
+  "#8b6914",
+  "#2f6f6a",
+  "#a36b4f",
+  "#6b7c8a",
+] as const;
+
+/** Soft elevated surface used by the KPI reference layout. */
+export function kpiSurfaceClassName(className?: string) {
+  return cn(
+    "rounded-2xl border border-border/70 bg-canvas-raised shadow-[0_1px_2px_rgb(0_0_0/0.04),0_8px_24px_rgb(0_0_0/0.04)]",
+    className,
+  );
+}
+
 /** Scoped tokens; dark values are selected for the dark surface, not flipped. */
 export function VizTokens() {
   return (
@@ -105,10 +123,10 @@ export function StatTile({
   hint?: string;
 }) {
   return (
-    <div className="rounded-xl border border-border bg-canvas-raised p-4">
+    <div className="min-w-0 px-1 py-1">
       <div className="text-xs font-medium text-ink-soft">{label}</div>
-      <div className="mt-1.5 flex items-baseline gap-2">
-        <span className="font-display text-2xl font-bold text-ink">{value}</span>
+      <div className="mt-1.5 flex flex-wrap items-baseline gap-2">
+        <span className="font-display text-2xl font-bold tracking-tight text-ink">{value}</span>
         {delta !== undefined ? <DeltaBadge value={delta} /> : null}
       </div>
       {hint ? <div className="mt-0.5 text-xs text-ink-soft">{hint}</div> : null}
@@ -130,16 +148,16 @@ export function PanelHeading({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       <div className="flex items-start justify-between gap-3">
-        <h3 className="text-base font-semibold text-ink">{title}</h3>
+        <h3 className="text-sm font-semibold text-ink">{title}</h3>
         {action}
       </div>
       {hero ? (
         <div className="flex flex-wrap items-center gap-2">
-          <span className="font-display text-3xl font-bold text-ink">{hero}</span>
+          <span className="font-display text-3xl font-bold tracking-tight text-ink">{hero}</span>
           {delta !== undefined ? <DeltaBadge value={delta} /> : null}
-          {caption ? <span className="text-sm text-ink-soft">{caption}</span> : null}
+          {caption ? <span className="text-xs text-ink-soft">{caption}</span> : null}
         </div>
       ) : null}
     </div>

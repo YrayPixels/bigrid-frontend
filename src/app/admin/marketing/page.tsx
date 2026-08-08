@@ -20,26 +20,22 @@ import { Button } from "@/components/ui/button";
 const QUICK_LINKS = [
   {
     href: "/admin/marketing/assistant",
-    label: "Campaign assistant",
-    description: "Draft posts and ads with AI",
+    label: "Assistant",
     icon: Sparkles,
   },
   {
     href: "/admin/marketing/content",
     label: "Posts",
-    description: "Review, schedule and publish",
     icon: FileText,
   },
   {
     href: "/admin/marketing/ads",
-    label: "Paid ads",
-    description: "Reach beyond your followers",
+    label: "Ads",
     icon: Megaphone,
   },
   {
     href: "/admin/marketing/channels",
     label: "Channels",
-    description: "Connect your accounts",
     icon: Share2,
   },
 ];
@@ -93,15 +89,22 @@ export default function AdminMarketingPage() {
             <h1 className="font-display text-2xl font-bold text-ink">Marketing</h1>
           </div>
           <p className="text-sm text-ink-soft">
-            How your marketing is performing, and everything you need to keep it moving.
+            Performance, posts, and the tools to grow your store.
           </p>
         </div>
-        <Link
-          href="/admin/marketing/recovery"
-          className="inline-flex shrink-0 text-sm font-medium text-primary hover:underline"
-        >
-          Recover abandoned carts &amp; checkouts
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          {QUICK_LINKS.map((link) => (
+            <Button key={link.href} size="sm" variant="outline" className="h-9 rounded-full" asChild>
+              <Link href={link.href}>
+                <link.icon className="mr-1.5 h-3.5 w-3.5" />
+                {link.label}
+              </Link>
+            </Button>
+          ))}
+          <Button size="sm" variant="ghost" className="h-9 rounded-full text-primary" asChild>
+            <Link href="/admin/marketing/recovery">Abandoned carts</Link>
+          </Button>
+        </div>
       </div>
 
       {warnings.length > 0 ? (
@@ -109,7 +112,7 @@ export default function AdminMarketingPage() {
           {warnings.map((warning) => (
             <div
               key={warning.connection_id}
-              className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-ink"
+              className="flex items-start gap-2 rounded-2xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-ink"
             >
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
               <div className="space-y-1">
@@ -125,20 +128,6 @@ export default function AdminMarketingPage() {
           ))}
         </div>
       ) : null}
-
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {QUICK_LINKS.map((link) => (
-          <Link
-            key={link.href}
-            href={link.href}
-            className="group rounded-xl border border-border bg-canvas-raised p-4 transition-colors hover:border-primary/40 hover:bg-muted/40"
-          >
-            <link.icon className="h-4 w-4 text-primary" />
-            <div className="mt-2 text-sm font-medium text-ink">{link.label}</div>
-            <div className="text-xs text-ink-soft">{link.description}</div>
-          </Link>
-        ))}
-      </div>
 
       <MarketingDashboard />
     </div>

@@ -4,7 +4,6 @@ import { useState } from "react";
 import { Clock, Loader2 } from "lucide-react";
 import { useBestTimeToPost } from "@/hooks/use-merchant-queries";
 import type { PostingWindow } from "@/lib/api/types";
-import { Card, CardContent } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -12,58 +11,54 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { EmptyPanelNote, PanelHeading, formatCompact } from "@/components/marketing/viz-primitives";
+import {
+  EmptyPanelNote,
+  formatCompact,
+  kpiSurfaceClassName,
+} from "@/components/marketing/viz-primitives";
 
 function formatHour(hour: number): string {
-  const suffix = hour < 12 ? "am" : "pm";
+  const suffix = hour < 12 ? "AM" : "PM";
   const display = hour % 12 === 0 ? 12 : hour % 12;
 
-  return `${display}${suffix}`;
+  return `${display}:00 ${suffix}`;
 }
 
-/**
- * Intent is a state, not a series, so it uses reserved status colours and
- * always ships with its written label beside the bar.
- */
-function WindowRow({ window: postingWindow }: { window: PostingWindow }) {
-  const tone =
-    postingWindow.intent === "high"
-      ? "bg-emerald-500"
-      : postingWindow.intent === "medium"
-        ? "bg-amber-500"
-        : "bg-slate-400";
-
+function SessionColumn({
+  window: postingWindow,
+  index,
+}: {
+  window: PostingWindow;
+  index: number;
+}) {
   const label =
     postingWindow.intent === "high"
-      ? "High intent"
+      ? "High intentions"
       : postingWindow.intent === "medium"
-        ? "Medium intent"
-        : "Low intent";
+        ? "Medium intentions"
+        : "Low intentions";
+
+  const tone =
+    postingWindow.intent === "high"
+      ? "text-emerald-600 dark:text-emerald-400"
+      : postingWindow.intent === "medium"
+        ? "text-amber-600 dark:text-amber-400"
+        : "text-ink-soft";
 
   return (
-    <div className="space-y-1.5">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <div className="flex items-baseline gap-2">
-          <span className="text-sm font-medium text-ink">{postingWindow.label}</span>
-          <span className="text-xs text-ink-soft">peaks {formatHour(postingWindow.peak_hour)}</span>
-        </div>
-        <div className="flex items-center gap-2 text-xs text-ink-soft">
-          <span>{label}</span>
-          <span className="tabular-nums">
-            {formatCompact(postingWindow.avg_engagement)} avg
-          </span>
-        </div>
-      </div>
-      <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-        <div
-          className={`h-full rounded-full ${tone}`}
-          style={{ width: `${Math.max(postingWindow.intensity, 2)}%` }}
-        />
-      </div>
-      <div className="text-[11px] text-ink-soft">
+    <div className="min-w-0 space-y-1.5 border-border/60 sm:border-l sm:pl-5 sm:first:border-l-0 sm:first:pl-0">
+      <p className="text-xs text-ink-soft">Session {index + 1}</p>
+      <p className={`text-sm font-semibold ${tone}`}>{label}</p>
+      <p className="font-display text-2xl font-bold tabular-nums tracking-tight text-ink">
+        {formatCompact(postingWindow.avg_engagement)}
+      </p>
+      <p className="text-xs text-ink-soft">
+        avg engagement · peaks {formatHour(postingWindow.peak_hour)}
+      </p>
+      <p className="text-xs tabular-nums text-ink-soft">
         {postingWindow.posts} post{postingWindow.posts === 1 ? "" : "s"} ·{" "}
-        {formatCompact(postingWindow.avg_reach)} avg reach
-      </div>
+        {formatCompact(postingWindow.avg_reach)} reach
+      </p>
     </div>
   );
 }
@@ -73,34 +68,56 @@ export function BestTimePanel() {
   const query = useBestTimeToPost(provider === "all" ? undefined : provider);
   const data = query.data;
 
+  const sessions = (data?.windows ?? [])
+    .slice()
+    .sort((a, b) => {
+      const rank = { high: 0, medium: 1, low: 2 } as const;
+      return rank[a.intent] - rank[b.intent];
+    })
+    .slice(0, 3);
+
+  const peakLabel =
+    data?.confident && data.best_window
+      ? formatHour(data.best_window.peak_hour)
+      : null;
+
   return (
-    <Card>
-      <CardContent className="space-y-4 p-5">
-        <PanelHeading
-          title="Best time to post"
-          hero={
-            data?.confident && data.best_window
-              ? `${data.best_window.label}, ${formatHour(data.best_window.peak_hour)}`
-              : undefined
-          }
-          caption={data?.confident ? "When your audience engages most" : undefined}
-          action={
-            <Select value={provider} onValueChange={setProvider}>
-              <SelectTrigger className="h-8 w-[140px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All channels</SelectItem>
-                <SelectItem value="facebook">Facebook</SelectItem>
-                <SelectItem value="instagram">Instagram</SelectItem>
-                <SelectItem value="tiktok_creator">TikTok</SelectItem>
-              </SelectContent>
-            </Select>
-          }
-        />
+    <div className={kpiSurfaceClassName("relative overflow-hidden p-5 sm:p-6")}>
+      {peakLabel ? (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-y-0 right-4 hidden items-center text-[4.5rem] font-bold tracking-tight text-ink/[0.04] sm:flex lg:text-[6rem]"
+        >
+          {peakLabel}
+        </div>
+      ) : null}
+
+      <div className="relative space-y-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="space-y-1">
+            <h3 className="text-base font-semibold text-ink">Best time to post suggestion</h3>
+            <p className="text-sm text-ink-soft">
+              {data?.confident && data.best_window
+                ? `Lead with ${data.best_window.label.toLowerCase()} — when your audience engages most.`
+                : "When your audience actually shows up."}
+            </p>
+          </div>
+
+          <Select value={provider} onValueChange={setProvider}>
+            <SelectTrigger className="h-9 w-[160px] rounded-full bg-muted/40">
+              <SelectValue placeholder="Select social media" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All channels</SelectItem>
+              <SelectItem value="facebook">Facebook</SelectItem>
+              <SelectItem value="instagram">Instagram</SelectItem>
+              <SelectItem value="tiktok_creator">TikTok</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
         {query.isLoading ? (
-          <div className="flex items-center gap-2 py-6 text-sm text-ink-soft">
+          <div className="flex items-center gap-2 py-8 text-sm text-ink-soft">
             <Loader2 className="h-4 w-4 animate-spin" /> Working out your best windows…
           </div>
         ) : !data?.confident ? (
@@ -114,17 +131,20 @@ export function BestTimePanel() {
             </div>
           </EmptyPanelNote>
         ) : (
-          <div className="space-y-4">
-            {data.windows.map((window) => (
-              <WindowRow key={window.label} window={window} />
+          <div className="grid gap-5 sm:grid-cols-3">
+            {sessions.map((window, index) => (
+              <SessionColumn key={window.label} window={window} index={index} />
             ))}
-            <p className="text-xs text-ink-soft">
-              Based on {data.sample_size} published posts. Averaged per post, so a window does not
-              win just because you post in it more often.
-            </p>
           </div>
         )}
-      </CardContent>
-    </Card>
+
+        {data?.confident ? (
+          <p className="text-xs text-ink-soft">
+            Based on {data.sample_size} published posts. Averaged per post, so a window does not win
+            just because you post in it more often.
+          </p>
+        ) : null}
+      </div>
+    </div>
   );
 }
