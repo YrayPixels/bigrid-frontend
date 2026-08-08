@@ -19,6 +19,7 @@ const faqItemSchema = z.object({
 const blockPropsSchema: Record<StorefrontBlockType, z.ZodType<Record<string, unknown>>> = {
   hero: z.object({
     eyebrow: z.string().optional(),
+    announcement: z.string().optional(),
     headline: z.string().min(1),
     subheadline: z.string().min(1),
     cta_label: z.string().min(1),
@@ -34,6 +35,11 @@ const blockPropsSchema: Record<StorefrontBlockType, z.ZodType<Record<string, unk
     body: z.string().min(1),
     image_url: z.string().nullable().optional(),
     badges: z.array(statItemSchema).max(6).optional(),
+    cta_label: z.string().optional(),
+    meta_left: z.string().optional(),
+    meta_right: z.string().optional(),
+    footer_left: z.string().optional(),
+    footer_right: z.string().optional(),
   }),
   feature_grid: z.object({
     title: z.string().min(1),
@@ -51,6 +57,7 @@ const blockPropsSchema: Record<StorefrontBlockType, z.ZodType<Record<string, unk
   }),
   product_grid: z.object({
     title: z.string().optional(),
+    subtitle: z.string().optional(),
     limit: z.number().int().min(1).max(12).optional(),
   }),
   category_showcase: z.object({

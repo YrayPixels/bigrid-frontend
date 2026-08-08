@@ -5,6 +5,7 @@ import {
   profileToStore,
   resolveSelectedTemplateId,
   synthesizeStorefront,
+  applyFashionCategoryShowcaseCopy,
 } from "@/lib/storefront-builder/local-ai";
 import { attachBoltTemplateToStorefront } from "@/lib/storefront/bolt-template-storefront";
 import { hydrateStorefrontCategoryShowcases } from "@/lib/storefront/blocks/category-showcase-utils";
@@ -74,10 +75,14 @@ export class GenerationTools {
 
           const ensured = ensureMerchantHomepageProducts(ctx.storefront, selected);
           ctx.storefront = ensured.storefront;
+          ctx.storefront = applyFashionCategoryShowcaseCopy(ctx.storefront, store);
 
           const categories = await api.getCategories().catch(() => []);
           if (categories.length) {
-            ctx.storefront = hydrateStorefrontCategoryShowcases(ctx.storefront, categories).storefront;
+            ctx.storefront = hydrateStorefrontCategoryShowcases(ctx.storefront, categories, {
+              products: ctx.storefront.products,
+              replaceStockImages: true,
+            }).storefront;
           }
 
           const imageIntent =
@@ -157,6 +162,12 @@ export class GenerationTools {
 
           ctx.profile = rebuilt.business_profile;
           ctx.storefront = rebuilt.storefront;
+          if (ctx.session.store) {
+            ctx.storefront = applyFashionCategoryShowcaseCopy(ctx.storefront, {
+              business_name: ctx.session.store.business_name,
+              industry: ctx.session.store.industry,
+            });
+          }
           ctx.selectedTemplateId = rebuilt.selected_template_id;
           ctx.status = rebuilt.status;
 

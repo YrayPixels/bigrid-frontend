@@ -153,6 +153,9 @@ export function buildDefaultHomeBlocks(
       type: "hero",
       props: {
         eyebrow: storefront.hero.eyebrow ?? null,
+        ...(templateId === "fashion_lookbook"
+          ? { announcement: "Free shipping on orders over 100" }
+          : {}),
         headline: storefront.hero.headline,
         subheadline: storefront.hero.subheadline,
         cta_label: storefront.hero.cta_label,
@@ -238,21 +241,51 @@ export function buildDefaultHomeBlocks(
       id: "featured-products",
       type: "product_grid",
       props: {
-        title: templateId === "beauty" ? "Best sellers" : "Featured products",
+        title:
+          templateId === "beauty"
+            ? "Best sellers"
+            : templateId === "fashion_lookbook"
+              ? "Our Best Sellers"
+              : "Featured products",
+        ...(templateId === "fashion_lookbook"
+          ? { subtitle: "Customer favourites, always in style." }
+          : {}),
         limit: productLimitForTemplate(templateId),
-      },
-    },
-    {
-      id: "home-faq",
-      type: "faq",
-      props: {
-        title: storefront.pages?.faq?.title ?? "Frequently asked questions",
-        items: storefront.pages?.faq?.items ?? [],
       },
     },
   );
 
+  if (templateId === "fashion_lookbook") {
+    blocks.push(fashionAboutSpotlightBlock(storefront));
+  }
+
+  blocks.push({
+    id: "home-faq",
+    type: "faq",
+    props: {
+      title: storefront.pages?.faq?.title ?? "Frequently asked questions",
+      items: storefront.pages?.faq?.items ?? [],
+    },
+  });
+
   return blocks;
+}
+
+function fashionAboutSpotlightBlock(storefront: StorefrontContent): StorefrontBlock {
+  return {
+    id: "about-spotlight",
+    type: "rich_text",
+    props: {
+      title: storefront.about.title || "Designs modern essentials that blend comfort, simplicity, and timeless style.",
+      body: storefront.about.body,
+      image_url: storefront.media?.about_image_url ?? null,
+      cta_label: "Learn more",
+      meta_left: "About",
+      meta_right: "Since 2026",
+      footer_left: "Made with love",
+      footer_right: "For every body",
+    },
+  };
 }
 
 function ensureCategoryShowcaseBlock(
@@ -277,6 +310,59 @@ function ensureCategoryShowcaseBlock(
   return [categoryBlock, ...blocks];
 }
 
+function ensureFashionAboutSpotlightBlock(
+  blocks: StorefrontBlock[],
+  storefront: StorefrontContent,
+): StorefrontBlock[] {
+  if (storefront.template?.id !== "fashion_lookbook") return blocks;
+  if (blocks.some((block) => block.id === "about-spotlight")) return blocks;
+
+  const aboutBlock = fashionAboutSpotlightBlock(storefront);
+  const featuredIndex = blocks.findIndex((block) => block.id === "featured-products");
+  if (featuredIndex >= 0) {
+    return [...blocks.slice(0, featuredIndex + 1), aboutBlock, ...blocks.slice(featuredIndex + 1)];
+  }
+
+  const faqIndex = blocks.findIndex((block) => block.id === "home-faq");
+  if (faqIndex >= 0) {
+    return [...blocks.slice(0, faqIndex), aboutBlock, ...blocks.slice(faqIndex)];
+  }
+
+  return [...blocks, aboutBlock];
+}
+
+function ensureFashionHeroAnnouncement(blocks: StorefrontBlock[]): StorefrontBlock[] {
+  return blocks.map((block) => {
+    if (block.id !== "hero-main" || block.type !== "hero") return block;
+    if (typeof block.props.announcement === "string" && block.props.announcement.trim()) {
+      return block;
+    }
+    return {
+      ...block,
+      props: {
+        ...block.props,
+        announcement: "Free shipping on orders over 100",
+      },
+    };
+  });
+}
+
+function ensureFashionFeaturedSubtitle(blocks: StorefrontBlock[]): StorefrontBlock[] {
+  return blocks.map((block) => {
+    if (block.id !== "featured-products" || block.type !== "product_grid") return block;
+    if (typeof block.props.subtitle === "string" && block.props.subtitle.trim()) {
+      return block;
+    }
+    return {
+      ...block,
+      props: {
+        ...block.props,
+        subtitle: "Customer favourites, always in style.",
+      },
+    };
+  });
+}
+
 function homeBlocksMatchTemplate(
   blocks: StorefrontBlock[],
   templateId: StorefrontTemplateId,
@@ -299,7 +385,13 @@ export function migrateHomeBlocks(storefront: StorefrontContent): StorefrontBloc
 
   if (existing?.length && homeBlocksMatchTemplate(existing, templateId)) {
     if (templateId === "fashion_lookbook" || templateId === "beauty") {
-      return ensureCategoryShowcaseBlock(existing, storefront);
+      let next = ensureCategoryShowcaseBlock(existing, storefront);
+      if (templateId === "fashion_lookbook") {
+        next = ensureFashionAboutSpotlightBlock(next, storefront);
+        next = ensureFashionHeroAnnouncement(next);
+        next = ensureFashionFeaturedSubtitle(next);
+      }
+      return next;
     }
     return existing;
   }

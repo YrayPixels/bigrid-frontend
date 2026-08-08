@@ -68,6 +68,8 @@ export type StorefrontBlockOperation =
 
 export type HeroBlockProps = {
   eyebrow?: string;
+  /** Optional top-of-site promo strip (Fashion shell). */
+  announcement?: string;
   headline: string;
   subheadline: string;
   cta_label: string;
@@ -85,6 +87,13 @@ export type RichTextBlockProps = {
   body: string;
   image_url?: string | null;
   badges?: { value: string; label: string }[];
+  /** Optional about-panel CTA (e.g. Fashion “Learn more”). */
+  cta_label?: string;
+  /** Optional chrome labels for lookbook-style about panels. */
+  meta_left?: string;
+  meta_right?: string;
+  footer_left?: string;
+  footer_right?: string;
 };
 
 export type FeatureGridBlockProps = {
@@ -108,6 +117,7 @@ export type CtaBannerBlockProps = {
 
 export type ProductGridBlockProps = {
   title?: string;
+  subtitle?: string;
   limit?: number;
 };
 

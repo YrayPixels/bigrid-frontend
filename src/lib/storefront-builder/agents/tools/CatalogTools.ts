@@ -11,6 +11,7 @@ import {
 } from "@/lib/storefront/blocks/category-showcase-utils";
 import type { CategoryShowcaseItem } from "@/lib/storefront/blocks/types";
 import { applyCategoryShowcaseImagesOnly } from "@/lib/storefront-builder/image-sourcing";
+import { applyFashionCategoryShowcaseCopy } from "@/lib/storefront-builder/local-ai";
 import type { WebsiteBuilderToolDef } from "../types";
 import {
   asNumber,
@@ -547,7 +548,11 @@ export class CatalogTools {
           }
 
           if (!items.length && categories.length) {
-            items = hydrateShowcaseItemsFromCategories([], categories, { limit: 8 });
+            items = hydrateShowcaseItemsFromCategories([], categories, {
+              limit: 8,
+              products: ctx.storefront.products,
+              replaceStockImages: true,
+            });
           }
 
           if (!items.length) {
@@ -589,8 +594,14 @@ export class CatalogTools {
           }
 
           let storefront = result.storefront;
+          if (ctx.session.store) {
+            storefront = applyFashionCategoryShowcaseCopy(storefront, ctx.session.store);
+          }
           if (categories.length) {
-            storefront = hydrateStorefrontCategoryShowcases(storefront, categories).storefront;
+            storefront = hydrateStorefrontCategoryShowcases(storefront, categories, {
+              products: storefront.products,
+              replaceStockImages: true,
+            }).storefront;
           }
 
           const images = await applyCategoryShowcaseImagesOnly(

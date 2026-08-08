@@ -12,6 +12,7 @@ export const PROMPT_INDEXED_STOREFRONT_PATHS = [
   "home_testimonials[N].author",
   "navigation[N].label",
   "pages.home.blocks.hero-main.props.eyebrow",
+  "pages.home.blocks.hero-main.props.announcement",
   "pages.home.blocks.serum-promo.props.title",
   "pages.home.blocks.serum-promo.props.body",
   "pages.home.blocks.serum-promo.props.bullets[N]",
@@ -69,6 +70,12 @@ export const PROMPT_INDEXED_STOREFRONT_PATHS = [
   "pages.home.blocks.new-arrivals.props.title",
   "pages.home.blocks.bestsellers.props.title",
   "pages.home.blocks.featured-products.props.title",
+  "pages.home.blocks.featured-products.props.subtitle",
+  "pages.home.blocks.about-spotlight.props.cta_label",
+  "pages.home.blocks.about-spotlight.props.meta_left",
+  "pages.home.blocks.about-spotlight.props.meta_right",
+  "pages.home.blocks.about-spotlight.props.footer_left",
+  "pages.home.blocks.about-spotlight.props.footer_right",
   "pages.home.blocks.newsletter.props.title",
   "pages.home.blocks.newsletter.props.body",
   "pages.home.blocks.newsletter.props.cta_label",
@@ -204,12 +211,18 @@ export function storefrontPathLabel(path: string): string {
       "serum-promo": "serum promo",
       "trust-features": "why choose us",
       "category-showcase": "category showcase",
+      "featured-products": "product section",
+      "about-spotlight": "about spotlight",
     };
     const section = blockLabels[homeBlockProp[1]] ?? "homepage section";
     const prop = homeBlockProp[2].replace(/\.\d+/g, "");
     if (prop === "eyebrow") return `${section} eyebrow`;
+    if (prop === "announcement") return "header announcement";
     if (prop === "title") return `${section} title`;
+    if (prop === "subtitle") return `${section} subtitle`;
     if (prop === "body") return `${section} copy`;
+    if (prop === "meta_left" || prop === "meta_right") return `${section} label`;
+    if (prop === "footer_left" || prop === "footer_right") return `${section} footer note`;
     if (prop.startsWith("bullets")) return `${section} bullet`;
     if (prop.startsWith("items")) return `${section} feature`;
     if (prop === "cta_label") return `${section} button`;

@@ -21,7 +21,7 @@ import {
   resolveUnsplashPhotoUrl,
   searchUnsplashPhotos,
 } from "@/lib/storefront-builder/unsplash-client";
-import { resolveCategoryShowcaseProps, showcaseItemsMissingImages } from "@/lib/storefront/blocks/category-showcase-utils";
+import { resolveCategoryShowcaseProps, showcaseItemsMissingImages, isStockCategoryShowcaseImage, pickProductImageForCategory } from "@/lib/storefront/blocks/category-showcase-utils";
 import { ensureMerchantHomepageProducts } from "@/lib/storefront/product-plugs";
 import type { ImageReplaceScope } from "@/lib/storefront-builder/section-scope";
 import { describeImageScope } from "@/lib/storefront-builder/section-scope";
@@ -754,6 +754,7 @@ export async function applyCategoryShowcaseImagesOnly(
   const homeBlocks = migrateHomeBlocks(next);
   const changedPaths: string[] = [];
   const searchTerms: string[] = [];
+  const products = next.products ?? [];
 
   const updatedBlocks = [];
   for (const block of homeBlocks) {
@@ -763,10 +764,22 @@ export async function applyCategoryShowcaseImagesOnly(
     }
 
     const currentItems = resolveCategoryShowcaseProps(next, block.id).items;
-    const missingIndexes = showcaseItemsMissingImages(currentItems);
     const items = [...currentItems];
 
-    // Prefer per-tile Unsplash queries from the collection label when images are missing.
+    // 1) Prefer a real product photo from each linked category.
+    for (let index = 0; index < items.length; index += 1) {
+      const item = items[index];
+      const fromProduct = pickProductImageForCategory(products, item.category_id);
+      if (!fromProduct) continue;
+      const current = item.image_url?.trim() || "";
+      if (current === fromProduct) continue;
+      if (current && !isStockCategoryShowcaseImage(current)) continue;
+      items[index] = { ...item, image_url: fromProduct };
+      changedPaths.push(`pages.home.blocks.${block.id}.props.items.${index}.image_url`);
+    }
+
+    // 2) Fill remaining gaps (empty or leftover template stock) from Unsplash.
+    const missingIndexes = showcaseItemsMissingImages(items, { treatStockAsMissing: true });
     for (const index of missingIndexes) {
       const label = items[index]?.label?.trim() || intent || context.description || "product collection";
       searchTerms.push(label);
@@ -781,8 +794,8 @@ export async function applyCategoryShowcaseImagesOnly(
       }
     }
 
-    // AI already chose category_showcase scope — fill gaps, or refresh all when every tile already has a photo.
-    if (!missingIndexes.length) {
+    // 3) Explicit refresh: every tile already had a custom photo — replace from Unsplash.
+    if (!missingIndexes.length && !changedPaths.some((path) => path.includes(`.${block.id}.`))) {
       const queries = currentItems.map(
         (item) => item.label?.trim() || intent || context.description || "product collection",
       );

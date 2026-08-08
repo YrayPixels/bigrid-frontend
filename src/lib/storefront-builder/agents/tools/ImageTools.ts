@@ -338,7 +338,10 @@ export class ImageTools {
           if (scope === "category_showcase" || scope === "full_site") {
             const categories = await api.getCategories().catch(() => []);
             if (categories.length) {
-              storefront = hydrateStorefrontCategoryShowcases(storefront, categories).storefront;
+              storefront = hydrateStorefrontCategoryShowcases(storefront, categories, {
+                products: storefront.products,
+                replaceStockImages: true,
+              }).storefront;
             }
           }
 

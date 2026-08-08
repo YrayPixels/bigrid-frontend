@@ -220,7 +220,7 @@ export const BUILDER_EDITOR_HOME_SECTIONS =
   '- about-spotlight: title, body, badges — or about.title / about.body / value_props.0.title / value_props.0.body\n' +
   '- serum-promo / modern-form / perfect-match / extensions-kit / newsletter: title, body, bullets[], cta_label, image_url — or pages.home.blocks.{id}.props.*\n' +
   '- trust-features / difference / reviews: title, body, image_url, items[{title,body}] — or pages.home.blocks.{id}.props.*\n' +
-  '- category-showcase / collections / rooms / choose-style: title, eyebrow, layout, items[{label,image_url,category_id,cta_label}] — also called "Essentials" or "Shop the Essentials"\n' +
+  '- category-showcase / collections / rooms / choose-style: title, eyebrow, layout, items[{label,image_url,category_id,cta_label}] — also called "Essentials" or "Shop the Essentials". For Fashion, always set brand-fitting title + eyebrow (not clothing stock like "Minimal. Comfortable. Timeless." when the store sells something else).\n' +
   '- product_grid (featured-products / bestsellers / new-arrivals): title — product photos come from storefront.products, not theme stock\n' +
   "- testimonials: home_testimonials_title, home_testimonials_intro, home_testimonials.0.quote, home_testimonials.0.author\n" +
   "- homepage FAQ preview: pages.faq.title and pages.faq.items.0.question / answer\n" +

@@ -10,6 +10,8 @@ import { useStorefrontTheme } from "@/lib/storefront/theme-context";
 import { StorefrontFaqSection } from "@/components/storefront/pages/storefront-faq-section";
 import { STOREFRONT_FOOTER_LINKS, STOREFRONT_NAV_ITEMS } from "@/lib/storefront/template";
 import { StorefrontLink } from "@/components/storefront/theme/storefront-link";
+import { EditableText } from "@/components/storefront/theme/editable-text";
+import { getHomeBlockProps, homeBlockPath } from "@/lib/storefront/home-block-content";
 import { getStorefrontUrl } from "@/lib/store-host";
 import { cn } from "@/lib/utils";
 
@@ -20,6 +22,9 @@ export function FashionShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const showProductsFaq = /\/products\/?$/.test(pathname);
+  const announcement =
+    getHomeBlockProps<{ announcement?: string }>(storefront, "hero-main").announcement ||
+    "Free shipping on orders over 100";
 
   return (
     <div className={`${theme.pageBg} min-h-screen ${theme.pageText}`}>
@@ -31,7 +36,13 @@ export function FashionShell({ children }: { children: React.ReactNode }) {
           className="px-4 py-1.5 text-center text-[10px] font-semibold uppercase tracking-[0.12em]"
           style={{ backgroundColor: theme.palette.primary, color: theme.palette.background }}
         >
-          Free shipping on orders over 100
+          <EditableText
+            path={homeBlockPath("hero-main", "announcement")}
+            value={announcement}
+            as="span"
+            className="text-inherit"
+            placeholder="Announcement"
+          />
         </div>
         <div className="grid min-h-14 grid-cols-[1fr_auto_1fr] items-center gap-4 px-4 sm:px-6">
           <div className="flex items-center gap-5">

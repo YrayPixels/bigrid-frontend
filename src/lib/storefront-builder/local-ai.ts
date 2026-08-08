@@ -756,6 +756,10 @@ export function synthesizeStorefront(
     return applyTemplatePreset(synthesized, templateId, store.brand_color);
   }
 
+  if (templateId === "fashion_lookbook") {
+    return applyFashionCategoryShowcaseCopy(synthesized, store);
+  }
+
   return synthesized;
 }
 
@@ -1337,6 +1341,94 @@ function resolveTemplateId(
   if (store.industry === "beauty_and_skincare") return "cosmetics";
   if (store.industry === "fashion_and_apparel") return "fashion_lookbook";
   return "minimalistic";
+}
+
+function categoryShowcaseCopyForStore(name: string, industry: Industry): { title: string; eyebrow: string } {
+  switch (industry) {
+    case "electronics":
+      return {
+        eyebrow: "Powerful. Reliable. Everyday ready.",
+        title: "Shop by device",
+      };
+    case "fashion_and_apparel":
+      return {
+        eyebrow: "Minimal. Comfortable. Timeless.",
+        title: "Shop the Essentials",
+      };
+    case "beauty_and_skincare":
+      return {
+        eyebrow: "Clean. Calm. Effective.",
+        title: "Shop the collection",
+      };
+    case "food_and_beverage":
+      return {
+        eyebrow: "Fresh. Flavorful. Ready to share.",
+        title: "Shop the menu",
+      };
+    case "home_and_living":
+      return {
+        eyebrow: "Warm. Considered. Made for living.",
+        title: "Shop the home",
+      };
+    case "services":
+      return {
+        eyebrow: "Simple. Clear. Ready when you are.",
+        title: "Explore services",
+      };
+    default:
+      return {
+        eyebrow: `Curated for ${name}`,
+        title: "Shop by category",
+      };
+  }
+}
+
+/** Fashion Essentials section copy should match the merchant brand, not clothing stock defaults. */
+export function applyFashionCategoryShowcaseCopy(
+  storefront: StorefrontContent,
+  store: Pick<Store, "business_name" | "industry">,
+): StorefrontContent {
+  if (storefront.template?.id !== "fashion_lookbook") return storefront;
+
+  const next = structuredClone(storefront);
+  const ensured = ensureHomeBlocksOnStorefront(next);
+  const copy = categoryShowcaseCopyForStore(store.business_name, store.industry);
+  const blocks = (ensured.pages?.home?.blocks ?? []).map((block) => {
+    if (block.type !== "category_showcase" && block.id !== "category-showcase") return block;
+
+    const currentTitle = typeof block.props.title === "string" ? block.props.title.trim() : "";
+    const currentEyebrow = typeof block.props.eyebrow === "string" ? block.props.eyebrow.trim() : "";
+    const isFashionStockCopy =
+      (!currentTitle || currentTitle === "Shop the Essentials") &&
+      (!currentEyebrow || currentEyebrow === "Minimal. Comfortable. Timeless.");
+
+    // Keep merchant/AI refinements; replace unmodified Fashion clothing stock.
+    if (!isFashionStockCopy && currentTitle && currentEyebrow) return block;
+
+    return {
+      ...block,
+      props: {
+        ...block.props,
+        title: isFashionStockCopy || !currentTitle ? copy.title : currentTitle,
+        eyebrow: isFashionStockCopy || !currentEyebrow ? copy.eyebrow : currentEyebrow,
+      },
+    };
+  });
+
+  ensured.pages = { ...ensured.pages, home: { blocks } };
+  ensured.edit_metadata = {
+    ...ensured.edit_metadata,
+    ai_generated_paths: [
+      ...(ensured.edit_metadata?.ai_generated_paths ?? []),
+      "pages.home.blocks.category-showcase.props.title",
+      "pages.home.blocks.category-showcase.props.eyebrow",
+    ],
+    user_edited_paths: ensured.edit_metadata?.user_edited_paths ?? [],
+    last_generation_prompt: ensured.edit_metadata?.last_generation_prompt ?? "frontend_ai_agent",
+    last_generated_at: ensured.edit_metadata?.last_generated_at ?? new Date().toISOString(),
+  };
+
+  return ensured;
 }
 
 function heroForStore(name: string, industry: Industry, desc: string) {

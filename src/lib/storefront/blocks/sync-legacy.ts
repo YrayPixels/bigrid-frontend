@@ -134,15 +134,19 @@ export function syncHomeBlocksFromLegacyFields(storefront: StorefrontContent): v
     }
 
     if (block.type === "rich_text") {
-      block.props = {
+      const nextProps: Record<string, unknown> = {
         ...block.props,
         title: storefront.about.title,
         body: storefront.about.body,
-        badges: (storefront.value_props ?? []).slice(0, 3).map((item) => ({
+      };
+      // Preserve cosmetics-style badge rows; don't invent them for Fashion about chrome.
+      if (Array.isArray(block.props.badges)) {
+        nextProps.badges = (storefront.value_props ?? []).slice(0, 3).map((item) => ({
           value: item.title,
           label: item.body,
-        })),
-      };
+        }));
+      }
+      block.props = nextProps;
       continue;
     }
 

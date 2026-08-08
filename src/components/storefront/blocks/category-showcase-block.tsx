@@ -3,18 +3,24 @@
 import Link from "next/link";
 import type { CSSProperties } from "react";
 import { ArrowRight } from "lucide-react";
-import type { StoreCategory, StorefrontContent } from "@/lib/api/types";
+import type { StoreCategory, StorefrontContent, StoreProduct } from "@/lib/api/types";
 import { EditableImage } from "@/components/storefront/theme/editable-image";
 import { EditableText } from "@/components/storefront/theme/editable-text";
 import { StorefrontLink } from "@/components/storefront/theme/storefront-link";
 import {
   categoryShowcaseItemHref,
   hydrateShowcaseItemsFromCategories,
+  resolveCategoryShowcaseItemImage,
   resolveCategoryShowcaseItemLabel,
   resolveCategoryShowcaseProps,
 } from "@/lib/storefront/blocks/category-showcase-utils";
 import type { CategoryShowcaseItem } from "@/lib/storefront/blocks/types";
 import { useStorefrontTheme } from "@/lib/storefront/theme-context";
+
+type ShowcaseMediaProps = {
+  products?: StoreProduct[];
+  preferProductImages?: boolean;
+};
 
 function ShowcaseImage({
   item,
@@ -23,6 +29,9 @@ function ShowcaseImage({
   alt,
   className = "",
   imgClassName = "",
+  products,
+  categories,
+  preferProductImages,
 }: {
   item: CategoryShowcaseItem;
   index: number;
@@ -30,8 +39,17 @@ function ShowcaseImage({
   alt: string;
   className?: string;
   imgClassName?: string;
+  products?: StoreProduct[];
+  categories?: StoreCategory[];
+  preferProductImages?: boolean;
 }) {
-  const imageUrl = item.image_url ?? "";
+  const imageUrl =
+    resolveCategoryShowcaseItemImage(item, {
+      products,
+      categories,
+      preferProductImages,
+      allowStockFallback: !preferProductImages,
+    }) ?? "";
 
   return (
     <EditableImage
@@ -49,12 +67,14 @@ function EditorialGridItem({
   index,
   blockId,
   categories,
+  products,
+  preferProductImages,
 }: {
   item: CategoryShowcaseItem;
   index: number;
   blockId: string;
   categories?: StoreCategory[];
-}) {
+} & ShowcaseMediaProps) {
   const { theme, mode } = useStorefrontTheme();
   const label = resolveCategoryShowcaseItemLabel(item, categories);
   const href = categoryShowcaseItemHref(item);
@@ -69,6 +89,9 @@ function EditorialGridItem({
           alt={`${label} category`}
           className="h-full w-full"
           imgClassName="object-center transition duration-500 group-hover:scale-105"
+          products={products}
+          categories={categories}
+          preferProductImages={preferProductImages}
         />
       </div>
       <div
@@ -105,12 +128,14 @@ function StyleTileItem({
   index,
   blockId,
   categories,
+  products,
+  preferProductImages,
 }: {
   item: CategoryShowcaseItem;
   index: number;
   blockId: string;
   categories?: StoreCategory[];
-}) {
+} & ShowcaseMediaProps) {
   const { theme } = useStorefrontTheme();
   const label = resolveCategoryShowcaseItemLabel(item, categories);
   const href = categoryShowcaseItemHref(item);
@@ -130,6 +155,9 @@ function StyleTileItem({
         alt={label}
         className="h-full w-full"
         imgClassName="object-cover transition duration-500 group-hover:scale-105"
+        products={products}
+        categories={categories}
+        preferProductImages={preferProductImages}
       />
       <div className="absolute inset-0" style={{ backgroundColor: `${theme.palette.text}1a` }} />
       {featured ? (
@@ -177,12 +205,14 @@ function CompactGridItem({
   index,
   blockId,
   categories,
+  products,
+  preferProductImages,
 }: {
   item: CategoryShowcaseItem;
   index: number;
   blockId: string;
   categories?: StoreCategory[];
-}) {
+} & ShowcaseMediaProps) {
   const { theme } = useStorefrontTheme();
   const label = resolveCategoryShowcaseItemLabel(item, categories);
   const href = categoryShowcaseItemHref(item);
@@ -201,6 +231,9 @@ function CompactGridItem({
           alt={label}
           className="h-full w-full"
           imgClassName="object-cover transition duration-500 group-hover:scale-105"
+          products={products}
+          categories={categories}
+          preferProductImages={preferProductImages}
         />
       </div>
       <div className="px-4 py-3 text-center">
@@ -218,21 +251,43 @@ function CompactGridItem({
 export function CategoryShowcaseBlock({
   storefront,
   categories,
+  products,
   blockId = "category-showcase",
+  preferProductImages = false,
+  hideWhenNoCategories = false,
 }: {
   storefront: StorefrontContent;
   categories?: StoreCategory[];
+  products?: StoreProduct[];
   blockId?: string;
+  preferProductImages?: boolean;
+  hideWhenNoCategories?: boolean;
 }) {
   const { theme } = useStorefrontTheme();
   const props = resolveCategoryShowcaseProps(storefront, blockId);
   const layout = props.layout ?? "editorial_grid";
+
+  if (hideWhenNoCategories && !categories?.length) {
+    return null;
+  }
+
   const items =
     categories?.length
       ? hydrateShowcaseItemsFromCategories(props.items, categories, {
           limit: Math.max(props.items.length, 4),
+          products: preferProductImages ? products ?? storefront.products : products,
+          replaceStockImages: preferProductImages,
         })
       : props.items;
+
+  if (!items.length) {
+    return null;
+  }
+
+  const mediaProps: ShowcaseMediaProps = {
+    products: preferProductImages ? products ?? storefront.products : products,
+    preferProductImages,
+  };
 
   if (layout === "style_tiles") {
     return (
@@ -256,6 +311,7 @@ export function CategoryShowcaseBlock({
                 index={index}
                 blockId={blockId}
                 categories={categories}
+                {...mediaProps}
               />
             ))}
           </div>
@@ -282,6 +338,7 @@ export function CategoryShowcaseBlock({
                 index={index}
                 blockId={blockId}
                 categories={categories}
+                {...mediaProps}
               />
             ))}
           </div>
@@ -295,21 +352,21 @@ export function CategoryShowcaseBlock({
       className="px-4 py-16 text-center sm:px-6 lg:py-20"
       style={{ backgroundColor: theme.palette.background }}
     >
-      {props.eyebrow ? (
-        <EditableText
-          path={`pages.home.blocks.${blockId}.props.eyebrow`}
-          value={props.eyebrow}
-          as="p"
-          className="text-[11px] font-medium tracking-[0.18em]"
-          style={{ color: theme.palette.muted }}
-        />
-      ) : null}
+      <EditableText
+        path={`pages.home.blocks.${blockId}.props.eyebrow`}
+        value={props.eyebrow || ""}
+        as="p"
+        className="text-[11px] font-medium tracking-[0.18em]"
+        style={{ color: theme.palette.muted }}
+        placeholder="Section eyebrow"
+      />
       <EditableText
         path={`pages.home.blocks.${blockId}.props.title`}
         value={props.title}
         as="h2"
         className="mt-3 text-4xl font-bold tracking-[-0.04em]"
         style={{ fontFamily: "var(--font-editorial)" } as CSSProperties}
+        placeholder="Section title"
       />
       <div className="mx-auto mt-10 grid max-w-7xl gap-6 sm:grid-cols-2 lg:grid-cols-4">
         {items.map((item, index) => (
@@ -319,6 +376,7 @@ export function CategoryShowcaseBlock({
             index={index}
             blockId={blockId}
             categories={categories}
+            {...mediaProps}
           />
         ))}
       </div>
