@@ -29,16 +29,6 @@ import { fashionTemplateImages } from "@/lib/storefront/fashion-defaults";
 import { useCatalogPagination } from "@/lib/storefront/use-catalog-pagination";
 import { cn } from "@/lib/utils";
 
-const fashionColorOptions = [
-  { label: "Brown", value: "brown", className: "bg-[#9a6a55]" },
-  { label: "White", value: "white", className: "bg-white" },
-  { label: "Green", value: "green", className: "bg-[#3f6f5a]" },
-  { label: "Blue", value: "blue", className: "bg-[#7aa9ba]" },
-  { label: "Black", value: "black", className: "bg-[#1d1d1d]" },
-];
-
-const fashionSizeOptions = ["S", "M", "L", "XL", "XXL", "XXXL"];
-
 function MinimalisticCategoryFilterList({
   categories,
   selectedCategoryId,
@@ -116,23 +106,6 @@ function MinimalisticCategoryFilterList({
   );
 }
 
-function productSearchText(product: StoreProduct) {
-  return [
-    product.name,
-    product.description,
-    product.category,
-    ...(product.variants ?? []).flatMap((variant) => [
-      variant.name,
-      ...variant.options.map((option) =>
-        typeof option === "string" ? option : option.value,
-      ),
-    ]),
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-}
-
 function FashionCheckbox({
   checked,
   label,
@@ -165,6 +138,94 @@ function FashionCheckbox({
       </span>
       {label}
     </button>
+  );
+}
+
+function FashionFilterPanel({
+  categories,
+  selectedCategoryId,
+  onSelectCategory,
+  minPrice,
+  maxPrice,
+  priceLimit,
+  onPriceLimitChange,
+  currency,
+}: {
+  categories: StoreCategory[];
+  selectedCategoryId: string | null;
+  onSelectCategory: (categoryId: string | null) => void;
+  minPrice: number;
+  maxPrice: number;
+  priceLimit: number;
+  onPriceLimitChange: (value: number) => void;
+  currency: string;
+}) {
+  const { theme } = useStorefrontTheme();
+
+  return (
+    <div className="space-y-10">
+      <div>
+        <h3 className="mb-5 text-base font-extrabold">Category</h3>
+        <div className="grid gap-3">
+          <FashionCheckbox
+            label="All products"
+            checked={!selectedCategoryId}
+            onClick={() => onSelectCategory(null)}
+          />
+          {categories.length ? (
+            buildStorefrontCategoryTree(categories).map(({ category, children }) => (
+              <div key={category.id} className="grid gap-2">
+                <FashionCheckbox
+                  label={categoryLabel(category)}
+                  checked={selectedCategoryId === category.id}
+                  onClick={() =>
+                    onSelectCategory(selectedCategoryId === category.id ? null : category.id)
+                  }
+                />
+                {children.length ? (
+                  <div
+                    className="ml-4 grid gap-2 border-l pl-3"
+                    style={{ borderColor: theme.palette.border }}
+                  >
+                    {children.map((child) => (
+                      <FashionCheckbox
+                        key={child.id}
+                        label={categoryLabel(child)}
+                        checked={selectedCategoryId === child.id}
+                        onClick={() =>
+                          onSelectCategory(selectedCategoryId === child.id ? null : child.id)
+                        }
+                      />
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ))
+          ) : (
+            <p className="text-[13px]" style={{ color: theme.palette.muted }}>
+              No categories yet.
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div>
+        <h3 className="mb-4 text-base font-extrabold">Price</h3>
+        <div className="text-[13px]" style={{ color: theme.palette.muted }}>
+          {formatMoney(minPrice, currency)} - {formatMoney(priceLimit || maxPrice, currency)}
+        </div>
+        <input
+          type="range"
+          min={minPrice}
+          max={maxPrice || 1}
+          value={priceLimit || maxPrice}
+          onChange={(event) => onPriceLimitChange(Number(event.target.value))}
+          className="mt-4 h-1 w-full"
+          style={{ accentColor: theme.palette.primary }}
+          disabled={maxPrice <= 0}
+        />
+      </div>
+    </div>
   );
 }
 
@@ -245,8 +306,6 @@ function FashionProductsPage({
 }) {
   const { theme, mode } = useStorefrontTheme();
   const [selectedCategoryId, setSelectedCategoryId] = useCategoryFilter(categories);
-  const [selectedColor, setSelectedColor] = useState<string | null>(null);
-  const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [priceLimit, setPriceLimit] = useState(0);
   const [sortBy, setSortBy] = useState<"newest" | "price-low" | "price-high">("newest");
 
@@ -256,6 +315,7 @@ function FashionProductsPage({
     () => (productPrices.length ? Math.min(...productPrices) : 0),
     [productPrices],
   );
+  const currency = products[0]?.currency ?? "NGN";
 
   useEffect(() => {
     setPriceLimit((currentLimit) => {
@@ -266,24 +326,22 @@ function FashionProductsPage({
 
   const filteredProducts = useMemo(() => {
     const next = products.filter((product) => {
-      const text = productSearchText(product);
       const matchesCategory = productMatchesCategoryFilter(
         product,
         selectedCategoryId,
         categories,
       );
-      const matchesColor = !selectedColor || text.includes(selectedColor);
-      const matchesSize = !selectedSize || text.includes(selectedSize.toLowerCase());
-      return matchesCategory && matchesColor && matchesSize && product.price <= priceLimit;
+      const matchesPrice = !priceLimit || product.price <= priceLimit;
+      return matchesCategory && matchesPrice;
     });
 
     return sortCatalogProducts(next, sortBy, products);
-  }, [categories, priceLimit, products, selectedCategoryId, selectedColor, selectedSize, sortBy]);
+  }, [categories, priceLimit, products, selectedCategoryId, sortBy]);
 
   const pagination = useCatalogPagination(
     filteredProducts,
     12,
-    `${selectedCategoryId ?? "all"}-${selectedColor ?? ""}-${selectedSize ?? ""}-${priceLimit}-${sortBy}`,
+    `${selectedCategoryId ?? "all"}-${priceLimit}-${sortBy}`,
   );
 
   const selectedCategoryName = selectedCategoryId
@@ -299,22 +357,10 @@ function FashionProductsPage({
           clear: () => setSelectedCategoryId(null),
         }
       : null,
-    selectedColor
-      ? {
-          key: "color",
-          label:
-            fashionColorOptions.find((color) => color.value === selectedColor)?.label ??
-            selectedColor,
-          clear: () => setSelectedColor(null),
-        }
-      : null,
-    selectedSize
-      ? { key: "size", label: selectedSize, clear: () => setSelectedSize(null) }
-      : null,
     maxPrice > 0 && priceLimit < maxPrice
       ? {
           key: "price",
-          label: `Price: ${formatMoney(minPrice, products[0]?.currency ?? "NGN")} - ${formatMoney(priceLimit, products[0]?.currency ?? "NGN")}`,
+          label: `Price: ${formatMoney(minPrice, currency)} - ${formatMoney(priceLimit, currency)}`,
           clear: () => setPriceLimit(maxPrice),
         }
       : null,
@@ -322,10 +368,21 @@ function FashionProductsPage({
 
   function clearFilters() {
     setSelectedCategoryId(null);
-    setSelectedColor(null);
-    setSelectedSize(null);
     setPriceLimit(maxPrice);
   }
+
+  const filterPanel = (
+    <FashionFilterPanel
+      categories={categories}
+      selectedCategoryId={selectedCategoryId}
+      onSelectCategory={setSelectedCategoryId}
+      minPrice={minPrice}
+      maxPrice={maxPrice}
+      priceLimit={priceLimit}
+      onPriceLimitChange={setPriceLimit}
+      currency={currency}
+    />
+  );
 
   return (
     <div style={{ backgroundColor: theme.palette.background, color: theme.palette.text }}>
@@ -352,140 +409,26 @@ function FashionProductsPage({
         </div>
       </section>
 
-      <section className="mx-auto grid max-w-7xl gap-8 px-4 py-12 sm:px-6 lg:grid-cols-[270px_1fr] lg:py-16">
-        <aside className="lg:border-r lg:pr-8" style={{ borderColor: theme.palette.border }}>
+      <section className="mx-auto grid max-w-7xl gap-8 px-4 py-12 sm:px-6 lg:grid-cols-[270px_minmax(0,1fr)] lg:py-16">
+        <aside className="min-w-0 lg:border-r lg:pr-8" style={{ borderColor: theme.palette.border }}>
+          {/* Desktop filters — always visible (closed <details> + lg:hidden summary hid the sidebar). */}
+          <div className="hidden lg:block">
+            <h2 className="mb-8 text-sm font-extrabold">Filter Options</h2>
+            {filterPanel}
+          </div>
+
+          {/* Mobile / tablet filters */}
           <details
-            className="rounded-2xl border p-5 lg:sticky lg:top-24 lg:rounded-none lg:border-0 lg:p-0"
+            className="border p-5 lg:hidden"
             style={{ borderColor: theme.palette.border }}
           >
-            <summary className="cursor-pointer list-none text-sm font-extrabold lg:hidden">
+            <summary className="cursor-pointer list-none text-sm font-extrabold">
               Filters
+              <span className="ml-2 text-xs font-medium" style={{ color: theme.palette.muted }}>
+                ({activeFilters.length ? activeFilters.length : "none"} active)
+              </span>
             </summary>
-            <div className="mt-6 space-y-10 lg:mt-0">
-              <h2 className="hidden text-sm font-extrabold lg:block">Filter Options</h2>
-
-              <div>
-                <h3 className="mb-5 text-base font-extrabold">Category</h3>
-                {categories.length ? (
-                  <div className="grid gap-3">
-                    {buildStorefrontCategoryTree(categories).map(({ category, children }) => (
-                      <div key={category.id} className="grid gap-2">
-                        <FashionCheckbox
-                          label={categoryLabel(category)}
-                          checked={selectedCategoryId === category.id}
-                          onClick={() =>
-                            setSelectedCategoryId(
-                              selectedCategoryId === category.id ? null : category.id,
-                            )
-                          }
-                        />
-                        {children.length ? (
-                          <div className="ml-4 grid gap-2 border-l pl-3" style={{ borderColor: theme.palette.border }}>
-                            {children.map((child) => (
-                              <FashionCheckbox
-                                key={child.id}
-                                label={categoryLabel(child)}
-                                checked={selectedCategoryId === child.id}
-                                onClick={() =>
-                                  setSelectedCategoryId(
-                                    selectedCategoryId === child.id ? null : child.id,
-                                  )
-                                }
-                              />
-                            ))}
-                          </div>
-                        ) : null}
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-[13px]" style={{ color: theme.palette.muted }}>
-                    No categories yet.
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <h3 className="mb-4 text-base font-extrabold">Price</h3>
-                <div className="text-[13px]" style={{ color: theme.palette.muted }}>
-                  {formatMoney(minPrice, products[0]?.currency ?? "NGN")} -{" "}
-                  {formatMoney(priceLimit || maxPrice, products[0]?.currency ?? "NGN")}
-                </div>
-                <input
-                  type="range"
-                  min={minPrice}
-                  max={maxPrice}
-                  value={priceLimit || maxPrice}
-                  onChange={(event) => setPriceLimit(Number(event.target.value))}
-                  className="mt-4 h-1 w-full accent-[#55220b]"
-                />
-              </div>
-
-              <div>
-                <h3 className="mb-5 text-base font-extrabold">Color</h3>
-                <div className="grid grid-cols-2 gap-x-5 gap-y-4">
-                  {fashionColorOptions.map((color) => (
-                    <button
-                      key={color.value}
-                      type="button"
-                      onClick={() =>
-                        setSelectedColor(selectedColor === color.value ? null : color.value)
-                      }
-                      className="flex items-center gap-2 text-[13px]"
-                    >
-                      <span
-                        className={cn(
-                          "grid h-6 w-6 place-items-center rounded-full border border-[#68b697] bg-white",
-                          selectedColor === color.value && "ring-2 ring-[#b16b68] ring-offset-2",
-                        )}
-                      >
-                        <span
-                          className={cn(
-                            "h-4 w-4 rounded-full border border-black/10",
-                            color.className,
-                          )}
-                        />
-                      </span>
-                      {color.label}
-                    </button>
-                  ))}
-                  <button
-                    type="button"
-                    className="flex items-center gap-2 text-[13px]"
-                    onClick={() => setSelectedColor(null)}
-                  >
-                    <span className="grid h-6 w-6 place-items-center rounded-full bg-[#123d33] text-base leading-none text-white">
-                      +
-                    </span>
-                    More
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <h3 className="mb-5 text-base font-extrabold">Size</h3>
-                <div className="flex flex-wrap gap-3">
-                  {fashionSizeOptions.map((size) => (
-                    <button
-                      key={size}
-                      type="button"
-                      onClick={() => setSelectedSize(selectedSize === size ? null : size)}
-                      className="flex items-center gap-2 text-[12px]"
-                    >
-                      <span
-                        className={cn(
-                          "grid h-4 w-4 place-items-center border border-black/10 bg-white text-[10px] text-white",
-                          selectedSize === size && "border-[#55220b] bg-[#55220b]",
-                        )}
-                      >
-                        {selectedSize === size ? "✓" : ""}
-                      </span>
-                      {size}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
+            <div className="mt-6">{filterPanel}</div>
           </details>
         </aside>
 
