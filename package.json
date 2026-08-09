@@ -89,6 +89,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",
+    "@next/eslint-plugin-next": "^15.5.0",
     "@tailwindcss/postcss": "^4.2.1",
     "@types/google.maps": "^3.65.3",
     "@types/node": "^22.16.5",

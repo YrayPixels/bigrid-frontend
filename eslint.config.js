@@ -1,10 +1,13 @@
 import js from "@eslint/js";
+import nextPlugin from "@next/eslint-plugin-next";
 import globals from "globals";
 import reactHooks from "eslint-plugin-react-hooks";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
   { ignores: ["dist", ".next", "node_modules", "next-env.d.ts"] },
+  // Apply globally so Next can detect the plugin when resolving eslint.config.js
+  nextPlugin.flatConfig.recommended,
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ["**/*.{ts,tsx}"],
