@@ -172,6 +172,9 @@ export function CheckoutPageView() {
     setSubmitting(true);
     const form = new FormData(event.currentTarget);
 
+    const dealieToken = typeof window !== "undefined" ? window.sessionStorage.getItem("dealie_token") : null;
+    const dealieProductId = typeof window !== "undefined" ? window.sessionStorage.getItem("dealie_product_id") : null;
+
     try {
       const result = await storefrontApi.placeOrder(store.slug, {
         customer: {
@@ -186,12 +189,26 @@ export function CheckoutPageView() {
         delivery_method: deliveryMethod,
         notes: String(form.get("notes") ?? ""),
         session_token: sessionToken || undefined,
-        items: lines.map((line) => ({
-          product_id: line.product.id,
-          quantity: line.quantity,
-          selected_options: line.selectedOptions,
-        })),
+        items: lines.map((line) => {
+          const isDealieDeal = Boolean(
+            dealieToken && dealieProductId && String(line.product.id) === String(dealieProductId),
+          );
+          return {
+            product_id: line.product.id,
+            quantity: line.quantity,
+            selected_options: line.selectedOptions,
+            ...(isDealieDeal ? { dealie_token: dealieToken } : {}),
+          };
+        }),
       });
+
+      const clearDealieSession = () => {
+        if (typeof window !== "undefined") {
+          window.sessionStorage.removeItem("dealie_token");
+          window.sessionStorage.removeItem("dealie_agreed_price");
+          window.sessionStorage.removeItem("dealie_product_id");
+        }
+      };
 
       if (result.payment?.provider === "paystack") {
         await openPaystackCheckout({
@@ -204,6 +221,7 @@ export function CheckoutPageView() {
             try {
               await storefrontApi.verifyPayment(store.slug, reference);
               window.sessionStorage.setItem("storehaus_last_order", result.order.order_number);
+              clearDealieSession();
               clear();
               router.push(
                 `/checkout/success?order=${encodeURIComponent(result.order.order_number)}&email=${encodeURIComponent(result.order.customer_email)}&paid=1`,
@@ -223,6 +241,7 @@ export function CheckoutPageView() {
       }
 
       window.sessionStorage.setItem("storehaus_last_order", result.order.order_number);
+      clearDealieSession();
       clear();
       router.push(
         `/checkout/success?order=${encodeURIComponent(result.order.order_number)}&email=${encodeURIComponent(result.order.customer_email)}`,

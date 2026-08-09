@@ -82,7 +82,7 @@ export default function AdminDashboardPage() {
   }, [storeQuery.isFetched, storeQuery.data, user, router]);
 
   const dashboardQuery = useMerchantDashboard({
-    enabled: !!user && (user.has_store || !!store),
+    enabled: !!user && (Boolean(user?.has_store) || !!store),
     locationId,
   });
 

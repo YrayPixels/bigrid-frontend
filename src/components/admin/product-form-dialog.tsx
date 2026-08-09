@@ -54,6 +54,7 @@ type ProductForm = {
   description: string;
   price: string;
   sale_price: string;
+  floor_price: string;
   currency: string;
   images: string[];
   sku: string;
@@ -124,6 +125,7 @@ type FormErrors = {
   name?: string;
   price?: string;
   sale_price?: string;
+  floor_price?: string;
 };
 
 const MAX_PRODUCT_IMAGES = 12;
@@ -145,6 +147,7 @@ const blankForm: ProductForm = {
   description: "",
   price: "",
   sale_price: "",
+  floor_price: "",
   currency: STORE_CURRENCY,
   images: [],
   sku: "",
@@ -237,6 +240,7 @@ function formFromProduct(product?: StoreProduct): ProductForm {
     description: product.description,
     price: String(product.price),
     sale_price: product.sale_price != null ? String(product.sale_price) : "",
+    floor_price: product.floor_price != null ? String(product.floor_price) : "",
     currency: STORE_CURRENCY,
     images: normalizeProductImages(product.images, product.image_url),
     sku: product.sku ?? "",
@@ -261,6 +265,7 @@ function productFromForm(form: ProductForm, existing?: StoreProduct): StoreProdu
   const slug = slugify(form.slug || name);
   const price = Number(form.price);
   const salePrice = form.sale_price.trim() ? Number(form.sale_price) : undefined;
+  const floorPrice = form.floor_price.trim() ? Number(form.floor_price) : undefined;
   const stock = form.stock_quantity.trim() ? Number(form.stock_quantity) : undefined;
   const variants = form.variants
     .map((variant) => ({
@@ -280,6 +285,7 @@ function productFromForm(form: ProductForm, existing?: StoreProduct): StoreProdu
     description: form.description.trim(),
     price: Number.isFinite(price) ? price : 0,
     sale_price: Number.isFinite(salePrice) ? salePrice : null,
+    floor_price: Number.isFinite(floorPrice) ? floorPrice : null,
     currency: STORE_CURRENCY,
     image_url: images[0] ?? null,
     images: images.length ? images : null,
@@ -307,6 +313,15 @@ function validateForm(form: ProductForm): FormErrors {
       errors.sale_price = "Enter a valid sale price.";
     } else if (Number.isFinite(price) && sale >= price) {
       errors.sale_price = "Sale price should be less than the regular price.";
+    }
+  }
+  if (form.floor_price.trim()) {
+    const floor = Number(form.floor_price);
+    const price = Number(form.price);
+    if (!Number.isFinite(floor) || floor < 0) {
+      errors.floor_price = "Enter a valid floor price.";
+    } else if (Number.isFinite(price) && floor > price) {
+      errors.floor_price = "Floor price cannot exceed regular price.";
     }
   }
   return errors;
@@ -502,6 +517,12 @@ export function ProductFormDialog({
     if (!form.sale_price.trim() || !Number.isFinite(sale)) return null;
     return formatMoneyDetailed(sale, STORE_CURRENCY);
   }, [form.sale_price]);
+
+  const floorPreview = useMemo(() => {
+    const floor = Number(form.floor_price);
+    if (!form.floor_price.trim() || !Number.isFinite(floor)) return null;
+    return formatMoneyDetailed(floor, STORE_CURRENCY);
+  }, [form.floor_price]);
 
   const descriptionLength = form.description.length;
   const descriptionHint =
@@ -1367,7 +1388,7 @@ export function ProductFormDialog({
                   title="Pricing & inventory"
                   description="Prices are in Nigerian Naira (NGN)."
                 >
-                  <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                     <label className="block space-y-2">
                       <FieldLabel required hint={pricePreview ?? undefined}>
                         Price (NGN)
@@ -1379,11 +1400,12 @@ export function ProductFormDialog({
                         value={form.price}
                         onChange={(event) => {
                           setForm((current) => ({ ...current, price: event.target.value }));
-                          if (errors.price || errors.sale_price) {
+                          if (errors.price || errors.sale_price || errors.floor_price) {
                             setErrors((current) => ({
                               ...current,
                               price: undefined,
                               sale_price: undefined,
+                              floor_price: undefined,
                             }));
                           }
                         }}
@@ -1415,6 +1437,28 @@ export function ProductFormDialog({
                       />
                       {errors.sale_price ? (
                         <p className="text-xs text-destructive">{errors.sale_price}</p>
+                      ) : null}
+                    </label>
+                    <label className="block space-y-2">
+                      <FieldLabel optional hint={floorPreview ?? undefined}>
+                        Bargain floor price (Dealie AI)
+                      </FieldLabel>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="any"
+                        value={form.floor_price}
+                        onChange={(event) => {
+                          setForm((current) => ({ ...current, floor_price: event.target.value }));
+                          if (errors.floor_price) {
+                            setErrors((current) => ({ ...current, floor_price: undefined }));
+                          }
+                        }}
+                        placeholder="Min AI bargain price"
+                        aria-invalid={Boolean(errors.floor_price)}
+                      />
+                      {errors.floor_price ? (
+                        <p className="text-xs text-destructive">{errors.floor_price}</p>
                       ) : null}
                     </label>
                     <label className="block space-y-2">

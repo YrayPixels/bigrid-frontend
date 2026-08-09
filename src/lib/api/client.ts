@@ -57,6 +57,9 @@ import type {
   UpdateMessagingSettingsInput,
   SocialPost,
   User,
+  VendorChatSessionSummary,
+  LiveChatSessionDetail,
+  DealieChatMode,
 } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ?? "";
@@ -162,15 +165,21 @@ function apiErrorMessage(data: unknown, fallback = "Request failed"): string {
 
 async function http<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = getToken();
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(init.headers ?? {}),
-    },
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      ...init,
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(init.headers ?? {}),
+      },
+    });
+  } catch (err) {
+    console.error(`[API Network Error] ${path}:`, err);
+    throw new ApiError(0, "Network connection error. Please ensure the backend server is running.");
+  }
   if (res.status === 204) return undefined as T;
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
@@ -185,14 +194,20 @@ async function http<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 async function httpForm<T>(path: string, body: FormData): Promise<T> {
   const token = getToken();
-  const res = await fetch(`${API_BASE}${path}`, {
-    method: "POST",
-    headers: {
-      Accept: "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body,
+    });
+  } catch (err) {
+    console.error(`[API Network Error] ${path}:`, err);
+    throw new ApiError(0, "Network connection error. Please ensure the backend server is running.");
+  }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     if (res.status === 401) {
@@ -559,6 +574,17 @@ export const api = {
       body: JSON.stringify(body),
     });
     return res.store;
+  },
+
+  async syncDealieCatalog(): Promise<{ message: string; synced?: number }> {
+    const token = requireToken();
+    if (USE_MOCKS) {
+      return { message: "Catalog synced to Dealie AI successfully.", synced: 1 };
+    }
+    return http<{ message: string; synced?: number }>(
+      `${STOREHAUSE_API_PREFIX}/storehause/dealie/sync`,
+      { method: "POST" },
+    );
   },
 
   async getStoreDomains(): Promise<StoreDomainsResponse> {
@@ -1281,6 +1307,210 @@ export const api = {
       },
     );
     return res.staff;
+  },
+
+  async getDealieChatSettings(): Promise<{
+    vendor_id: number;
+    chat_mode: DealieChatMode;
+    chat_mode_config: {
+      auto_approve_discount_percent?: number;
+      offline_fallback_mode?: "full_ai" | "leave_message";
+      sound_alerts?: boolean;
+      email_alerts?: boolean;
+    };
+  }> {
+    const dealieApiUrl = process.env.NEXT_PUBLIC_DEALIE_API_URL || "http://localhost:8000";
+    const token = getToken();
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    try {
+      const res = await fetch(`${dealieApiUrl}/api/v1/chat/vendor/settings`, { headers });
+      if (!res.ok) throw new ApiError(res.status, "Failed to load chat settings");
+      return res.json();
+    } catch (err) {
+      if (err instanceof ApiError) throw err;
+      console.warn("Dealie API get settings unreachable, using defaults:", err);
+      return {
+        vendor_id: 1,
+        chat_mode: "full_ai",
+        chat_mode_config: {
+          auto_approve_discount_percent: 5.0,
+          offline_fallback_mode: "full_ai",
+          sound_alerts: true,
+          email_alerts: true,
+        },
+      };
+    }
+  },
+
+  async updateDealieChatSettings(body: {
+    chat_mode: DealieChatMode;
+    chat_mode_config?: Record<string, unknown>;
+  }): Promise<{ status: string; chat_mode: DealieChatMode; chat_mode_config: unknown }> {
+    const dealieApiUrl = process.env.NEXT_PUBLIC_DEALIE_API_URL || "http://localhost:8000";
+    const token = getToken();
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    try {
+      const res = await fetch(`${dealieApiUrl}/api/v1/chat/vendor/settings`, {
+        method: "PUT",
+        headers,
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new ApiError(res.status, "Failed to update chat settings");
+      return res.json();
+    } catch (err) {
+      if (err instanceof ApiError) throw err;
+      console.warn("Dealie API update settings unreachable:", err);
+      return { status: "local_saved", chat_mode: body.chat_mode, chat_mode_config: body.chat_mode_config || {} };
+    }
+  },
+
+  async getDealieSessions(): Promise<VendorChatSessionSummary[]> {
+    const dealieApiUrl = process.env.NEXT_PUBLIC_DEALIE_API_URL || "http://localhost:8000";
+    const token = getToken();
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    try {
+      const res = await fetch(`${dealieApiUrl}/api/v1/chat/vendor/sessions`, { headers });
+      if (!res.ok) return [];
+      const data = await res.json();
+      return data.sessions || [];
+    } catch (err) {
+      console.warn("Dealie API sessions fetch skipped or unreachable:", err);
+      return [];
+    }
+  },
+
+  async getDealieSessionDetail(sessionId: string): Promise<LiveChatSessionDetail | null> {
+    const dealieApiUrl = process.env.NEXT_PUBLIC_DEALIE_API_URL || "http://localhost:8000";
+    const token = getToken();
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    try {
+      const res = await fetch(`${dealieApiUrl}/api/v1/chat/vendor/sessions/${encodeURIComponent(sessionId)}`, { headers });
+      if (!res.ok) return null;
+      return res.json();
+    } catch (err) {
+      console.warn("Dealie API session detail fetch skipped or unreachable:", err);
+      return null;
+    }
+  },
+
+  async sendDealieVendorReply(body: {
+    sessionId: string;
+    userId: string;
+    message: string;
+    productId?: number | null;
+  }): Promise<{ status: string; message: string }> {
+    const dealieApiUrl = process.env.NEXT_PUBLIC_DEALIE_API_URL || "http://localhost:8000";
+    const token = getToken();
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    try {
+      const res = await fetch(`${dealieApiUrl}/api/v1/chat/vendor/reply`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          session_id: body.sessionId,
+          user_id: body.userId,
+          message: body.message,
+          product_id: body.productId,
+        }),
+      });
+      if (!res.ok) throw new ApiError(res.status, "Could not deliver reply to buyer");
+      return res.json();
+    } catch (err) {
+      if (err instanceof ApiError) throw err;
+      throw new ApiError(500, "Dealie service unreachable. Please ensure Dealie server is running.");
+    }
+  },
+
+  async approveDealieDraft(body: {
+    sessionId: string;
+    userId: string;
+    action: "approve" | "edit" | "reject";
+    editedMessage?: string | null;
+    overridePrice?: number | null;
+  }): Promise<{ status: string; message?: string; deal_token?: string; agreed_price?: number }> {
+    const dealieApiUrl = process.env.NEXT_PUBLIC_DEALIE_API_URL || "http://localhost:8000";
+    const token = getToken();
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    try {
+      const res = await fetch(`${dealieApiUrl}/api/v1/chat/vendor/approve-draft`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          session_id: body.sessionId,
+          user_id: body.userId,
+          action: body.action,
+          edited_message: body.editedMessage,
+          override_price: body.overridePrice,
+        }),
+      });
+      if (!res.ok) throw new ApiError(res.status, "Failed to approve draft");
+      return res.json();
+    } catch (err) {
+      if (err instanceof ApiError) throw err;
+      throw new ApiError(500, "Dealie service unreachable. Please ensure Dealie server is running.");
+    }
+  },
+
+  async issueDealieManualDeal(body: {
+    sessionId: string;
+    userId: string;
+    productId: number;
+    agreedPrice: number;
+  }): Promise<{ status: string; deal_token: string; agreed_price: number }> {
+    const dealieApiUrl = process.env.NEXT_PUBLIC_DEALIE_API_URL || "http://localhost:8000";
+    const token = getToken();
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    try {
+      const res = await fetch(`${dealieApiUrl}/api/v1/chat/vendor/issue-deal`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          session_id: body.sessionId,
+          user_id: body.userId,
+          product_id: body.productId,
+          agreed_price: body.agreedPrice,
+        }),
+      });
+      if (!res.ok) throw new ApiError(res.status, "Failed to issue deal token");
+      return res.json();
+    } catch (err) {
+      if (err instanceof ApiError) throw err;
+      throw new ApiError(500, "Dealie service unreachable. Please ensure Dealie server is running.");
+    }
+  },
+
+  async toggleDealieTakeover(body: {
+    sessionId: string;
+    userId: string;
+    takeover: boolean;
+  }): Promise<{ status: string; is_human_takeover: boolean }> {
+    const dealieApiUrl = process.env.NEXT_PUBLIC_DEALIE_API_URL || "http://localhost:8000";
+    const token = getToken();
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    try {
+      const res = await fetch(`${dealieApiUrl}/api/v1/chat/vendor/takeover`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          session_id: body.sessionId,
+          user_id: body.userId,
+          takeover: body.takeover,
+        }),
+      });
+      if (!res.ok) throw new ApiError(res.status, "Failed to toggle takeover");
+      return res.json();
+    } catch (err) {
+      if (err instanceof ApiError) throw err;
+      throw new ApiError(500, "Dealie service unreachable. Please ensure Dealie server is running.");
+    }
   },
 };
 

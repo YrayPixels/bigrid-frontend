@@ -7,7 +7,7 @@ import { Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api/client";
-import { isEmailVerified } from "@/lib/api/types";
+import { isEmailVerified, postAuthPath } from "@/lib/api/types";
 import {
   AuthShell,
   AuthSubmitButton,
@@ -42,7 +42,7 @@ function SignupForm() {
         router.replace("/verify-email");
         return;
       }
-      router.replace(user.has_store ? "/admin" : "/admin/onboarding");
+      router.replace(postAuthPath(user));
     }
   }, [user, loading, router]);
 

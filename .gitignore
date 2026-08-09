@@ -41,3 +41,5 @@ bolt-templates/**/.git
 .env
 
 .pnpm-store
+*.tsbuildinfo
+

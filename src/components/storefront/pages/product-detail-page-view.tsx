@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState, type CSSProperties } from "react";
 import { ChevronDown, Minus, Plane, Plus } from "lucide-react";
 import type { StoreProduct } from "@/lib/api/types";
+import { BargainButton } from "@/components/storefront/bargain-button";
 import { ProductReviewsModule } from "@/components/storefront/product-reviews-module";
 import { RelatedProductsSection } from "@/components/storefront/related-products-section";
 import { ProductVariantSelector } from "@/components/storefront/product-variant-selector";
@@ -241,7 +242,7 @@ function FashionProductDetail({ product }: { product: StoreProduct }) {
             </button>
           </div>
 
-          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <div className="mt-3 grid gap-3 sm:grid-cols-3">
             <button
               type="button"
               onClick={buyNow}
@@ -264,6 +265,7 @@ function FashionProductDetail({ product }: { product: StoreProduct }) {
             >
               Add to cart
             </button>
+            <BargainButton product={product} />
           </div>
 
           {perks.length ? (
@@ -805,6 +807,7 @@ function DefaultProductDetail({ product }: { product: StoreProduct }) {
             >
               Buy now
             </button>
+            <BargainButton product={product} />
           </div>
         </div>
       </div>
