@@ -34,8 +34,22 @@ export default function LoginPage() {
     try {
       const { user: nextUser } = await api.login({ email, password, remember });
       setUser(nextUser);
-      toast.success(`Welcome back, ${nextUser.name.split(" ")[0]}!`);
-      redirectAfterAuth(nextUser);
+      if (nextUser?.has_store && nextUser?.can_access_admin !== false) {
+        await Promise.all([
+          queryClient.prefetchQuery({
+            queryKey: merchantKeys.store.me(),
+            queryFn: () => api.getMyStore(),
+            staleTime: 5 * 60 * 1000,
+          }),
+          queryClient.prefetchQuery({
+            queryKey: merchantKeys.dashboard("all"),
+            queryFn: () => api.getDashboardOverview("all"),
+            staleTime: 60 * 1000,
+          }),
+        ]);
+      }
+      toast.success(`Welcome back${nextUser?.name ? `, ${nextUser.name.split(" ")[0]}` : ""}!`);
+      router.replace(postAuthPath(nextUser));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Login failed");
       setSubmitting(false);

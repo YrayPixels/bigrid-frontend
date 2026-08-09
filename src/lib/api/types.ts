@@ -31,7 +31,8 @@ export type User = {
   redirect?: string;
 };
 
-export function postAuthPath(user: User): string {
+export function postAuthPath(user: User | null | undefined): string {
+  if (!user) return "/login";
   if (user.redirect) return user.redirect;
   if (user.role === "cashier" || (user.can_sell && !user.can_access_admin)) {
     return "/sell";
@@ -137,6 +138,16 @@ export type Store = {
   shipping?: StoreShippingSettings;
   features?: StoreFeatures;
   store_perks?: string[];
+  dealie_enabled?: boolean;
+  dealie_vendor_id?: number | string | null;
+  dealie_persona_id?: number | string | null;
+  dealie_chat_mode?: "full_ai" | "ai_assisted" | "human_only";
+  dealie_chat_config?: {
+    auto_approve_discount_percent?: number;
+    offline_fallback_mode?: "full_ai" | "leave_message";
+    sound_alerts?: boolean;
+    email_alerts?: boolean;
+  };
 };
 
 export type StoreDomainVerification = {
@@ -302,6 +313,94 @@ export type UpdateStoreInput = {
   fulfilment_promise?: string | null;
   shipping_policy?: string | null;
   return_policy?: string | null;
+  dealie_enabled?: boolean;
+  dealie_vendor_id?: number | string | null;
+  dealie_persona_id?: number | string | null;
+  dealie_chat_mode?: "full_ai" | "ai_assisted" | "human_only";
+  dealie_chat_config?: {
+    auto_approve_discount_percent?: number;
+    offline_fallback_mode?: "full_ai" | "leave_message";
+    sound_alerts?: boolean;
+    email_alerts?: boolean;
+  };
+};
+
+export type DealieChatMode = "full_ai" | "ai_assisted" | "human_only";
+
+export type VendorChatSessionSummary = {
+  session_id: string;
+  user_id: string;
+  vendor_id: number;
+  channel?: string;
+  channel_user_id?: string;
+  channel_user_name?: string;
+  channel_metadata?: Record<string, unknown>;
+  handler_type: "ai" | "vendor" | "pending_approval";
+  is_human_takeover: boolean;
+  unread_vendor_count: number;
+  active_product?: {
+    id: number;
+    name: string;
+    sku?: string;
+    ceiling_price: number;
+    floor_price: number;
+    image_url?: string;
+  } | null;
+  last_message?: string | null;
+  last_message_at?: string | null;
+  last_offer_price?: number | null;
+  deal_status?: string;
+  has_pending_draft: boolean;
+  pending_draft?: {
+    text: string;
+    suggested_price?: number;
+    product_name?: string;
+    is_deal?: boolean;
+    created_at?: string;
+  } | null;
+};
+
+export type LiveChatSessionDetail = {
+  session_id: string;
+  user_id: string;
+  vendor_id: number;
+  channel?: string;
+  channel_user_id?: string;
+  channel_user_name?: string;
+  channel_metadata?: Record<string, unknown>;
+  chat_mode: DealieChatMode;
+  handler_type: string;
+  is_human_takeover: boolean;
+  active_product?: {
+    id: number;
+    name: string;
+    sku?: string;
+    ceiling_price: number;
+    floor_price: number;
+    image_url?: string;
+  } | null;
+  messages: Array<{
+    id?: number;
+    sender: string;
+    sender_type: "user" | "assistant_ai" | "vendor_human" | "system";
+    message: string;
+    approval_status: "published" | "pending_approval" | "rejected";
+    draft_suggested_price?: number | null;
+    created_at?: string | null;
+  }>;
+  pending_draft?: {
+    text: string;
+    suggested_price?: number;
+    product_name?: string;
+    is_deal?: boolean;
+  } | null;
+  copilot?: {
+    recommended_counter_price: number;
+    floor_price: number;
+    ceiling_price: number;
+    max_discount_margin_percent: number;
+    recommended_message: string;
+  } | null;
   virtual_try_on_enabled?: boolean;
 };
 
@@ -438,6 +537,7 @@ export type StoreProduct = {
   description: string;
   price: number;
   sale_price?: number | null;
+  floor_price?: number | null;
   effective_price?: number;
   compare_at_price?: number | null;
   discount_label?: string | null;
@@ -814,6 +914,7 @@ export type PublicStorefront = {
   store: Store;
   storefront: StorefrontContent;
   generation_id: string | null;
+  products?: StoreProduct[];
   categories?: StoreCategory[];
   discounts?: StoreDiscount[];
   checkout?: {
@@ -1208,6 +1309,7 @@ export type CreateStoreOrderInput = {
     product_id: string;
     quantity: number;
     selected_options?: Record<string, string>;
+    dealie_token?: string | null;
   }[];
 };
 

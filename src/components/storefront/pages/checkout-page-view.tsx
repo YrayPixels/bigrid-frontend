@@ -184,6 +184,9 @@ export function CheckoutPageView() {
     setSubmitting(true);
     const form = new FormData(event.currentTarget);
 
+    const dealieToken = typeof window !== "undefined" ? window.sessionStorage.getItem("dealie_token") : null;
+    const dealieProductId = typeof window !== "undefined" ? window.sessionStorage.getItem("dealie_product_id") : null;
+
     try {
       const attribution = readMarketingAttribution();
       const result = await storefrontApi.placeOrder(store.slug, {
@@ -201,12 +204,26 @@ export function CheckoutPageView() {
         session_token: sessionToken || undefined,
         visit_session_id: getOrCreateVisitSessionId() || undefined,
         ...attribution,
-        items: lines.map((line) => ({
-          product_id: line.product.id,
-          quantity: line.quantity,
-          selected_options: line.selectedOptions,
-        })),
+        items: lines.map((line) => {
+          const isDealieDeal = Boolean(
+            dealieToken && dealieProductId && String(line.product.id) === String(dealieProductId),
+          );
+          return {
+            product_id: line.product.id,
+            quantity: line.quantity,
+            selected_options: line.selectedOptions,
+            ...(isDealieDeal ? { dealie_token: dealieToken } : {}),
+          };
+        }),
       });
+
+      const clearDealieSession = () => {
+        if (typeof window !== "undefined") {
+          window.sessionStorage.removeItem("dealie_token");
+          window.sessionStorage.removeItem("dealie_agreed_price");
+          window.sessionStorage.removeItem("dealie_product_id");
+        }
+      };
 
       if (result.payment?.provider === "paystack") {
         await openPaystackCheckout({
@@ -219,6 +236,7 @@ export function CheckoutPageView() {
             try {
               await storefrontApi.verifyPayment(store.slug, reference);
               window.sessionStorage.setItem("storehaus_last_order", result.order.order_number);
+              clearDealieSession();
               clear();
               clearOutfitPreview(store.id);
               router.push(
@@ -239,6 +257,7 @@ export function CheckoutPageView() {
       }
 
       window.sessionStorage.setItem("storehaus_last_order", result.order.order_number);
+      clearDealieSession();
       clear();
       clearOutfitPreview(store.id);
       router.push(
