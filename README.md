@@ -140,6 +140,43 @@ pnpm dev
 Admin UI: **http://localhost:5173**  
 Log in with the seeded `STOREHAUSE_ADMIN_EMAIL` / `STOREHAUSE_ADMIN_PASSWORD` from the backend `.env`.
 
+## Organizer demo (no signup)
+
+One-click access for judges: open **`/demo`** on the merchant app (e.g. `https://your-domain/demo` or `http://localhost:3000/demo`).
+
+That route signs you into a seeded **Glow Rituals** merchant with a published storefront, sample products, and sample orders — no account creation.
+
+### Enable on the backend
+
+In `storehausebackend/.env`:
+
+```env
+STOREHAUSE_DEMO_LOGIN=true
+STOREHAUSE_DEMO_EMAIL=demo@bizgrid.shop
+# optional: STOREHAUSE_DEMO_PASSWORD=...
+```
+
+Seed (or re-seed to reset shared demo data):
+
+```bash
+cd storehausebackend
+php artisan db:seed --class=DemoMerchantSeeder
+# or full seed when STOREHAUSE_DEMO_LOGIN=true:
+# php artisan db:seed
+```
+
+### Enable the login CTA (optional)
+
+In this repo’s `.env`:
+
+```env
+NEXT_PUBLIC_ENABLE_DEMO_LOGIN=true
+```
+
+Public storefront for the demo shop: `/s/glow-rituals-demo`
+
+> Note: the demo account is **shared**. Treat edits as ephemeral; re-run `DemoMerchantSeeder` to reset.
+
 ## Environment variables (this repo)
 
 Copy from [`.env.example`](./.env.example).
@@ -149,10 +186,19 @@ Copy from [`.env.example`](./.env.example).
 | `NEXT_PUBLIC_API_BASE_URL` | Yes (real API) | Laravel API root including `/api`, e.g. `http://localhost:8000/api` |
 | `NEXT_PUBLIC_STORE_PLATFORM_DOMAIN` | Yes (subdomain routing) | e.g. `localhost` or `bizgrid.shop` |
 | `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` | No | Places autocomplete for zones / checkout |
+| `NEXT_PUBLIC_ENABLE_DEMO_LOGIN` | No | Shows “Enter the demo” on `/login` when `true` |
 | `NEXT_PUBLIC_USE_MOCKS` | No | Set `true` for frontend-only UI exploration (no backend). Do **not** use for judging the full product. |
 | `OPENAI_API_KEY` / `DEEPSEEK_API_KEY` | No (this repo) | Server-only; prefer configuring AI on the **backend**. Never prefix secrets with `NEXT_PUBLIC_`. |
 
 ## Demo walkthrough
+
+### Fast path (recommended for judges)
+
+1. Open **`/demo`** — you land in the merchant dashboard as the sample Glow Rituals merchant.
+2. Explore **Products**, **Orders**, and **Website / Builder**.
+3. Open the live storefront at **`/s/glow-rituals-demo`** (browse, cart, checkout).
+
+### Full signup path
 
 1. Open http://localhost:3000 and register a merchant (or log in).
 2. Complete email verification if prompted (local mail may use your SMTP settings; set `MAIL_*` in backend `.env` or use a provider).
@@ -195,6 +241,7 @@ All routes are prefixed with `/api`. Highlights:
 
 - `POST /storehause/auth/register` — Register
 - `POST /storehause/auth/login` — Login
+- `POST /storehause/auth/demo-login` — One-click demo merchant (requires `STOREHAUSE_DEMO_LOGIN`)
 - `GET /storehause/public/storefronts/{slug}` — Public storefront
 - `POST /storehause/public/storefronts/{slug}/orders` — Place order
 - Authenticated routes: dashboard, stores, products, AI builder, orders
@@ -211,6 +258,7 @@ All routes are prefixed with `/api`. Highlights:
 |-------|----------------|
 | Frontend calls fail / CORS | Backend running on `:8000`; `NEXT_PUBLIC_API_BASE_URL` includes `/api` |
 | AI generation errors | `OPENAI_API_KEY` (or DeepSeek) set on **backend**; queue worker running if jobs are queued |
+| Demo login disabled / 404 | Backend `STOREHAUSE_DEMO_LOGIN=true` and `DemoMerchantSeeder` has run |
 | Admin seeder fails | `STOREHAUSE_ADMIN_PASSWORD` must be set and must not be the blocked default |
 | Empty UI with no API | Unset `NEXT_PUBLIC_USE_MOCKS` and point at a live API |
 

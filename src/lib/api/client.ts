@@ -242,6 +242,22 @@ export const api = {
     return res;
   },
 
+  async demoLogin(): Promise<AuthResponse> {
+    if (USE_MOCKS) {
+      return mockApi.login({
+        email: "demo@bizgrid.shop",
+        password: "demo",
+        remember: true,
+      });
+    }
+    const res = await http<AuthResponse>(`${STOREHAUSE_API_PREFIX}/auth/demo-login`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+    setToken(res.token);
+    return res;
+  },
+
   async requestPasswordReset(body: { email: string }): Promise<{ message: string }> {
     if (USE_MOCKS) return mockApi.requestPasswordReset(body);
     return http<{ message: string }>(`${STOREHAUSE_API_PREFIX}/auth/request-password-reset`, {
