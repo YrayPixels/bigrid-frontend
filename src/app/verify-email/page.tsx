@@ -7,7 +7,7 @@ import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api/client";
-import { isEmailVerified, type User } from "@/lib/api/types";
+import { isEmailVerified, postAuthPath, type User } from "@/lib/api/types";
 import { AuthShell, AuthSubmitButton, Field } from "@/components/auth-shell";
 
 export default function VerifyEmailPage() {
@@ -34,7 +34,7 @@ export default function VerifyEmailPage() {
   function finishVerified(nextUser: User, message = "Email verified") {
     setUser(nextUser);
     toast.success(message);
-    router.replace(nextUser.has_store ? "/admin" : "/admin/onboarding");
+    router.replace(postAuthPath(nextUser));
   }
 
   async function handleSubmit(event: FormEvent) {
