@@ -156,7 +156,16 @@ STOREHAUSE_DEMO_EMAIL=demo@bizgrid.shop
 # optional: STOREHAUSE_DEMO_PASSWORD=...
 ```
 
-Seed (or re-seed to reset shared demo data):
+Seed (or re-seed to reset shared demo data).
+
+**cPanel / production** (same pattern as migrate — uses `DEPLOY_KEY`):
+
+```bash
+curl -X POST "https://YOUR-API-DOMAIN/maintenance/cache-clear?key=YOUR_DEPLOY_KEY"
+curl -X POST "https://YOUR-API-DOMAIN/maintenance/seed-demo?key=YOUR_DEPLOY_KEY"
+```
+
+**Local**:
 
 ```bash
 cd storehausebackend
