@@ -9,6 +9,7 @@ import type {
   StoreProductReview,
   StoreProductReviewInput,
   StoreProductReviewsResponse,
+  TryOnSession,
 } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ?? "";
@@ -57,6 +58,19 @@ async function publicWrite<T>(path: string, body: unknown): Promise<T> {
       Accept: "application/json",
     },
     body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new StorefrontApiError(res.status, data?.message ?? "Request failed");
+  }
+  return data as T;
+}
+
+async function publicForm<T>(path: string, form: FormData): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: "POST",
+    headers: { Accept: "application/json" },
+    body: form,
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
@@ -212,6 +226,75 @@ export const storefrontApi = {
     return publicWrite<{ message: string; review: StoreProductReview }>(
       `${STOREHAUSE_API_PREFIX}/public/storefronts/${slug}/products/${productId}/reviews`,
       body,
+    );
+  },
+
+  async createTryOnSession(
+    slug: string,
+    body: {
+      product_id: string;
+      gender?: "female" | "male";
+      style?: string;
+      garment_category?: string;
+      src_image_url?: string;
+      src_image?: File;
+    },
+  ): Promise<{ session: TryOnSession }> {
+    if (USE_MOCKS) {
+      return {
+        session: {
+          id: "mock-tryon",
+          product_id: body.product_id,
+          mode: body.garment_category ? "clothes" : "bag",
+          status: "processing",
+          result_url: null,
+          error_code: null,
+          error_message: null,
+        },
+      };
+    }
+
+    if (body.src_image) {
+      const form = new FormData();
+      form.append("product_id", body.product_id);
+      if (body.gender) form.append("gender", body.gender);
+      if (body.style) form.append("style", body.style);
+      if (body.garment_category) form.append("garment_category", body.garment_category);
+      form.append("src_image", body.src_image);
+      return publicForm<{ session: TryOnSession }>(
+        `${STOREHAUSE_API_PREFIX}/public/storefronts/${slug}/try-on/sessions`,
+        form,
+      );
+    }
+
+    return publicWrite<{ session: TryOnSession }>(
+      `${STOREHAUSE_API_PREFIX}/public/storefronts/${slug}/try-on/sessions`,
+      {
+        product_id: body.product_id,
+        gender: body.gender,
+        style: body.style,
+        garment_category: body.garment_category,
+        src_image_url: body.src_image_url,
+      },
+    );
+  },
+
+  async getTryOnSession(slug: string, sessionId: string): Promise<{ session: TryOnSession }> {
+    if (USE_MOCKS) {
+      return {
+        session: {
+          id: sessionId,
+          product_id: "mock",
+          mode: "bag",
+          status: "success",
+          result_url: null,
+          error_code: null,
+          error_message: null,
+        },
+      };
+    }
+    return publicHttpFresh<{ session: TryOnSession }>(
+      `${STOREHAUSE_API_PREFIX}/public/storefronts/${slug}/try-on/sessions/${sessionId}`,
     );
   },
 

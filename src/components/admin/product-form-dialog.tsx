@@ -36,6 +36,15 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { generateProductDescriptionCopy } from "@/lib/storefront-builder/product-description";
@@ -64,6 +73,12 @@ type ProductForm = {
   status: "active" | "draft" | "archived";
   variants: { name: string; options: VariantOptionForm[] }[];
   perks: string[];
+  try_on_enabled: boolean;
+  try_on_mode: "bag" | "clothes";
+  try_on_bag_gender: "female" | "male" | "ask";
+  try_on_bag_style: string;
+  try_on_garment_category: string;
+  try_on_ref_image_url: string;
 };
 
 type StoreVariantOption = NonNullable<StoreProduct["variants"]>[number]["options"][number];
@@ -139,6 +154,23 @@ const PERK_SUGGESTIONS = [
   "Authentic / original",
 ] as const;
 
+const BAG_STYLE_OPTIONS = [
+  { value: "random", label: "Surprise me" },
+  { value: "style_parisian_chic", label: "Parisian chic" },
+  { value: "style_urban_chic", label: "Urban chic" },
+  { value: "style_mediterranean_chic", label: "Mediterranean chic" },
+  { value: "style_art_deco_style", label: "Art deco" },
+] as const;
+
+const GARMENT_CATEGORY_OPTIONS = [
+  { value: "auto", label: "Auto" },
+  { value: "full_body", label: "Full body / dress" },
+  { value: "upper_body", label: "Upper body" },
+  { value: "lower_body", label: "Lower body" },
+  { value: "outerwear", label: "Outerwear" },
+  { value: "shoes", label: "Shoes" },
+] as const;
+
 const blankForm: ProductForm = {
   name: "",
   slug: "",
@@ -155,6 +187,12 @@ const blankForm: ProductForm = {
   status: "active",
   variants: [],
   perks: [],
+  try_on_enabled: false,
+  try_on_mode: "bag",
+  try_on_bag_gender: "ask",
+  try_on_bag_style: "random",
+  try_on_garment_category: "auto",
+  try_on_ref_image_url: "",
 };
 
 function slugify(value: string) {
@@ -253,6 +291,16 @@ function formFromProduct(product?: StoreProduct): ProductForm {
         }))
       : [],
     perks: product.perks?.length ? [...product.perks] : [],
+    try_on_enabled: Boolean(product.try_on?.enabled),
+    try_on_mode: product.try_on?.mode === "clothes" ? "clothes" : "bag",
+    try_on_bag_gender:
+      product.try_on?.bag_gender_default === "female" ||
+      product.try_on?.bag_gender_default === "male"
+        ? product.try_on.bag_gender_default
+        : "ask",
+    try_on_bag_style: product.try_on?.bag_style ?? "random",
+    try_on_garment_category: product.try_on?.garment_category ?? "auto",
+    try_on_ref_image_url: product.try_on?.ref_image_url ?? "",
   };
 }
 
@@ -272,6 +320,7 @@ function productFromForm(form: ProductForm, existing?: StoreProduct): StoreProdu
     .filter((variant) => variant.name && variant.options.length);
   const perks = form.perks.map((perk) => perk.trim()).filter(Boolean);
   const images = normalizeProductImages(form.images);
+  const refImage = form.try_on_ref_image_url.trim();
 
   return {
     id: existing?.id ?? form.id ?? uid(),
@@ -291,6 +340,21 @@ function productFromForm(form: ProductForm, existing?: StoreProduct): StoreProdu
     status: form.status,
     variants: variants.length ? variants : undefined,
     perks: perks.length ? perks : undefined,
+    try_on: {
+      enabled: form.try_on_enabled,
+      mode: form.try_on_mode,
+      bag_gender_default: form.try_on_bag_gender,
+      bag_style: form.try_on_bag_style || "random",
+      ref_image_url: refImage || null,
+      garment_category:
+        form.try_on_garment_category === "full_body" ||
+        form.try_on_garment_category === "upper_body" ||
+        form.try_on_garment_category === "lower_body" ||
+        form.try_on_garment_category === "outerwear" ||
+        form.try_on_garment_category === "shoes"
+          ? form.try_on_garment_category
+          : "auto",
+    },
   };
 }
 
@@ -1758,6 +1822,143 @@ export function ProductFormDialog({
                     <Plus className="h-4 w-4" />
                     Add custom perk
                   </Button>
+                </FormSection>
+
+                <FormSection
+                  title="Virtual try-on"
+                  description="Let shoppers see this product on themselves. Store try-on must also be enabled in Settings → Operations."
+                  defaultOpen={form.try_on_enabled}
+                >
+                  <div className="flex items-start justify-between gap-4 rounded-xl border border-border bg-background p-4">
+                    <div>
+                      <p className="text-sm font-semibold">Enable try-on for this product</p>
+                      <p className="mt-1 text-sm text-ink-soft">
+                        Shows Try it on on the product page when the store feature is on.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={form.try_on_enabled}
+                      onCheckedChange={(checked) =>
+                        setForm((current) => ({ ...current, try_on_enabled: checked }))
+                      }
+                      aria-label="Enable try-on for this product"
+                    />
+                  </div>
+
+                  {form.try_on_enabled ? (
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label>Mode</Label>
+                        <Select
+                          value={form.try_on_mode}
+                          onValueChange={(value) =>
+                            setForm((current) => ({
+                              ...current,
+                              try_on_mode: value === "clothes" ? "clothes" : "bag",
+                            }))
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="bag">Bag</SelectItem>
+                            <SelectItem value="clothes">Clothes / dress</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {form.try_on_mode === "bag" ? (
+                        <>
+                          <div className="space-y-2">
+                            <Label>Default gender</Label>
+                            <Select
+                              value={form.try_on_bag_gender}
+                              onValueChange={(value) =>
+                                setForm((current) => ({
+                                  ...current,
+                                  try_on_bag_gender:
+                                    value === "female" || value === "male" ? value : "ask",
+                                }))
+                              }
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="ask">Ask shopper</SelectItem>
+                                <SelectItem value="female">Female</SelectItem>
+                                <SelectItem value="male">Male</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2 sm:col-span-2">
+                            <Label>Default style</Label>
+                            <Select
+                              value={form.try_on_bag_style}
+                              onValueChange={(value) =>
+                                setForm((current) => ({ ...current, try_on_bag_style: value }))
+                              }
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {BAG_STYLE_OPTIONS.map((option) => (
+                                  <SelectItem key={option.value} value={option.value}>
+                                    {option.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="space-y-2">
+                          <Label>Garment category</Label>
+                          <Select
+                            value={form.try_on_garment_category}
+                            onValueChange={(value) =>
+                              setForm((current) => ({
+                                ...current,
+                                try_on_garment_category: value,
+                              }))
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {GARMENT_CATEGORY_OPTIONS.map((option) => (
+                                <SelectItem key={option.value} value={option.value}>
+                                  {option.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+
+                      <div className="space-y-2 sm:col-span-2">
+                        <Label>Reference image URL (optional)</Label>
+                        <Input
+                          value={form.try_on_ref_image_url}
+                          onChange={(event) =>
+                            setForm((current) => ({
+                              ...current,
+                              try_on_ref_image_url: event.target.value,
+                            }))
+                          }
+                          placeholder="Defaults to product cover image"
+                        />
+                        <p className="text-xs text-ink-soft">
+                          {form.try_on_mode === "clothes"
+                            ? "Use a front-facing single garment shot (or worn outfit that fully covers the apply area)."
+                            : "Use a clean front-facing product shot. Single bag, well lit."}
+                        </p>
+                      </div>
+                    </div>
+                  ) : null}
                 </FormSection>
               </div>
 

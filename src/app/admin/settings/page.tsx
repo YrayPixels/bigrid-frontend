@@ -15,6 +15,7 @@ import {
   ReceiptText,
   Save,
   ShieldCheck,
+  Sparkles,
   Store,
   Truck,
   Wallet,
@@ -160,6 +161,7 @@ export default function AdminSettingsPage() {
     shipping_policy: null,
     return_policy: null,
   });
+  const [tryOnEnabled, setTryOnEnabled] = useState(false);
 
   useEffect(() => {
     if (!storeQuery.data?.notifications) return;
@@ -170,6 +172,10 @@ export default function AdminSettingsPage() {
     if (!storeQuery.data?.shipping) return;
     setShippingForm(storeQuery.data.shipping);
   }, [storeQuery.data?.shipping]);
+
+  useEffect(() => {
+    setTryOnEnabled(Boolean(storeQuery.data?.features?.virtual_try_on?.enabled));
+  }, [storeQuery.data?.features?.virtual_try_on?.enabled]);
 
   const saveNotifications = useMutation({
     mutationFn: () => api.updateMyStore(notificationForm),
@@ -199,6 +205,21 @@ export default function AdminSettingsPage() {
         setShippingForm(store.shipping);
       }
       toast.success("Fulfilment settings saved.");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const saveTryOn = useMutation({
+    mutationFn: (enabled: boolean) =>
+      api.updateMyStore({ virtual_try_on_enabled: enabled }),
+    onSuccess: (store) => {
+      merchantCache.setStoreMe(queryClient, store);
+      setTryOnEnabled(Boolean(store.features?.virtual_try_on?.enabled));
+      toast.success(
+        store.features?.virtual_try_on?.enabled
+          ? "Virtual try-on enabled. Turn it on per product next."
+          : "Virtual try-on disabled.",
+      );
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -407,6 +428,35 @@ export default function AdminSettingsPage() {
                     )}
                     Save fulfilment settings
                   </Button>
+                </CardContent>
+              </Card>
+
+              <Card className="shadow-soft">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Sparkles className="h-5 w-5 text-primary" />
+                    Virtual try-on
+                  </CardTitle>
+                  <CardDescription>
+                    Let shoppers preview bags and clothes on themselves from the product page.
+                    Enable per product after turning this on.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <ToggleRow
+                    title="Enable virtual try-on"
+                    description="Shows a Try it on action on eligible product pages."
+                    checked={tryOnEnabled}
+                    disabled={saveTryOn.isPending}
+                    onCheckedChange={(checked) => {
+                      setTryOnEnabled(checked);
+                      saveTryOn.mutate(checked);
+                    }}
+                  />
+                  <p className="text-sm text-ink-soft">
+                    Shopper photos are used only to create the preview. Turn try-on on for
+                    individual products in your catalog.
+                  </p>
                 </CardContent>
               </Card>
 
