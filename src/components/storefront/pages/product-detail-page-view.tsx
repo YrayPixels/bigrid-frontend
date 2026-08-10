@@ -18,6 +18,7 @@ import { resolveProductGalleryImages } from "@/lib/storefront/product-gallery";
 import { useProductPurchase } from "@/lib/storefront/use-product-purchase";
 import { PageContainer } from "@/components/storefront/theme/page-container";
 import { PrimaryButton } from "@/components/storefront/theme/primary-button";
+import { ProductTryOnCta } from "@/components/storefront/try-on/product-try-on-cta";
 import { StorefrontFaqSection } from "@/components/storefront/pages/storefront-faq-section";
 import { useStorefrontTheme } from "@/lib/storefront/theme-context";
 import { cn } from "@/lib/utils";
@@ -241,29 +242,41 @@ function FashionProductDetail({ product }: { product: StoreProduct }) {
             </button>
           </div>
 
-          <div className="mt-3 grid gap-3 sm:grid-cols-2">
-            <button
-              type="button"
-              onClick={buyNow}
-              disabled={outOfStock}
-              className="px-6 py-3 text-xs font-semibold uppercase tracking-[0.08em] transition disabled:cursor-not-allowed disabled:opacity-50"
-              style={{ backgroundColor: theme.palette.primary, color: theme.palette.background }}
-            >
-              Buy now
-            </button>
-            <button
-              type="button"
-              onClick={() => addToCart()}
-              disabled={outOfStock}
-              className="border px-6 py-3 text-xs font-semibold uppercase tracking-[0.08em] transition disabled:cursor-not-allowed disabled:opacity-50"
-              style={{
-                backgroundColor: theme.palette.surface,
-                borderColor: theme.palette.primary,
-                color: theme.palette.primary,
+          <div className="mt-3 grid gap-3">
+            <ProductTryOnCta
+              product={product}
+              onAddToCart={() => addToCart()}
+              onBuyNow={buyNow}
+              buttonClassName="w-full px-6 py-3 text-xs font-semibold uppercase tracking-[0.08em] transition"
+              buttonStyle={{
+                backgroundColor: theme.palette.text,
+                color: theme.palette.background,
               }}
-            >
-              Add to cart
-            </button>
+            />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={buyNow}
+                disabled={outOfStock}
+                className="px-6 py-3 text-xs font-semibold uppercase tracking-[0.08em] transition disabled:cursor-not-allowed disabled:opacity-50"
+                style={{ backgroundColor: theme.palette.primary, color: theme.palette.background }}
+              >
+                Buy now
+              </button>
+              <button
+                type="button"
+                onClick={() => addToCart()}
+                disabled={outOfStock}
+                className="border px-6 py-3 text-xs font-semibold uppercase tracking-[0.08em] transition disabled:cursor-not-allowed disabled:opacity-50"
+                style={{
+                  backgroundColor: theme.palette.surface,
+                  borderColor: theme.palette.primary,
+                  color: theme.palette.primary,
+                }}
+              >
+                Add to cart
+              </button>
+            </div>
           </div>
 
           {perks.length ? (
@@ -447,29 +460,41 @@ function MinimalisticProductDetail({ product }: { product: StoreProduct }) {
             </button>
           </div>
 
-          <div className="mt-5 grid gap-3 sm:grid-cols-2">
-            <button
-              type="button"
-              onClick={buyNow}
-              disabled={outOfStock}
-              className="rounded-full px-6 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50"
-              style={{ backgroundColor: theme.palette.primary, color: theme.palette.background }}
-            >
-              Buy now
-            </button>
-            <button
-              type="button"
-              onClick={() => addToCart()}
-              disabled={outOfStock}
-              className="rounded-full border px-6 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50"
-              style={{
-                backgroundColor: theme.palette.surface,
-                borderColor: theme.palette.border,
-                color: theme.palette.primary,
+          <div className="mt-5 grid gap-3">
+            <ProductTryOnCta
+              product={product}
+              onAddToCart={() => addToCart()}
+              onBuyNow={buyNow}
+              buttonClassName="w-full rounded-full px-6 py-3 text-sm font-semibold transition"
+              buttonStyle={{
+                backgroundColor: theme.palette.text,
+                color: theme.palette.background,
               }}
-            >
-              Add to cart
-            </button>
+            />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={buyNow}
+                disabled={outOfStock}
+                className="rounded-full px-6 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50"
+                style={{ backgroundColor: theme.palette.primary, color: theme.palette.background }}
+              >
+                Buy now
+              </button>
+              <button
+                type="button"
+                onClick={() => addToCart()}
+                disabled={outOfStock}
+                className="rounded-full border px-6 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50"
+                style={{
+                  backgroundColor: theme.palette.surface,
+                  borderColor: theme.palette.border,
+                  color: theme.palette.primary,
+                }}
+              >
+                Add to cart
+              </button>
+            </div>
           </div>
 
           {perks.length ? (
@@ -624,6 +649,16 @@ function BeautyProductDetail({ product }: { product: StoreProduct }) {
           ) : null}
 
           <div className="mt-8 flex flex-wrap items-center gap-3">
+            <ProductTryOnCta
+              product={product}
+              onAddToCart={() => addToCart()}
+              onBuyNow={buyNow}
+              buttonClassName="rounded-full px-8 py-3 text-sm font-semibold"
+              buttonStyle={{
+                backgroundColor: theme.palette.text,
+                color: theme.palette.background,
+              }}
+            />
             <div className="flex items-center rounded-full border" style={{ borderColor: theme.palette.border }}>
               <button type="button" className="grid h-11 w-11 place-items-center" onClick={() => setQuantity((current) => Math.max(1, current - 1))} disabled={outOfStock}>
                 <Minus className="h-4 w-4" />
@@ -793,6 +828,16 @@ function DefaultProductDetail({ product }: { product: StoreProduct }) {
             </div>
           ) : null}
           <div className="mt-8 flex flex-wrap gap-3">
+            <ProductTryOnCta
+              product={product}
+              onAddToCart={() => addToCart()}
+              onBuyNow={buyNow}
+              buttonClassName="rounded-full px-6 py-3 text-sm font-semibold"
+              buttonStyle={{
+                backgroundColor: theme.palette.text,
+                color: theme.palette.background,
+              }}
+            />
             <PrimaryButton disabled={outOfStock} onClick={() => addToCart()}>
               Add to cart
             </PrimaryButton>

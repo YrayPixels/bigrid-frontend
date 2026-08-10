@@ -129,6 +129,7 @@ export type Store = {
   has_payment_method?: boolean;
   notifications?: StoreNotificationSettings;
   shipping?: StoreShippingSettings;
+  features?: StoreFeatures;
   store_perks?: string[];
 };
 
@@ -177,6 +178,42 @@ export type StoreShippingSettings = {
   fulfilment_promise: string | null;
   shipping_policy?: string | null;
   return_policy?: string | null;
+};
+
+export type ProductTryOnConfig = {
+  enabled: boolean;
+  mode: "bag" | "clothes";
+  ref_image_url?: string | null;
+  bag_gender_default?: "female" | "male" | "ask";
+  bag_style?: string;
+  garment_category?:
+    | "auto"
+    | "full_body"
+    | "upper_body"
+    | "lower_body"
+    | "outerwear"
+    | "shoes";
+};
+
+export type StoreFeatures = {
+  virtual_try_on?: {
+    enabled: boolean;
+  };
+};
+
+export type TryOnSession = {
+  id: string;
+  product_id: string;
+  mode: "bag" | "clothes";
+  status: "pending" | "processing" | "success" | "error" | string;
+  result_url: string | null;
+  error_code: string | null;
+  error_message: string | null;
+  gender?: string | null;
+  style?: string | null;
+  garment_category?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 };
 
 export type StorefrontPublishState = {
@@ -241,6 +278,7 @@ export type UpdateStoreInput = {
   fulfilment_promise?: string | null;
   shipping_policy?: string | null;
   return_policy?: string | null;
+  virtual_try_on_enabled?: boolean;
 };
 
 export type SubscriptionPlanId = "starter" | "growth" | "scale";
@@ -404,6 +442,7 @@ export type StoreProduct = {
     >;
   }>;
   perks?: string[];
+  try_on?: ProductTryOnConfig | null;
 };
 
 export type StoreCategory = {
