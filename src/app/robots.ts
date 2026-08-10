@@ -9,8 +9,9 @@ export default async function robots(): Promise<MetadataRoute.Robots> {
   const host = headersList.get("host");
   const slug = parseStoreSlugFromHost(host);
   const baseUrl = getSitemapBaseUrl(host);
-  const platformSitemap = `${baseUrl}/sitemap.xml`;
+  const hostSitemap = `${baseUrl}/sitemap.xml`;
 
+  // Storefront host: advertise this shop's subdomain sitemap only.
   if (slug) {
     return {
       rules: {
@@ -18,12 +19,13 @@ export default async function robots(): Promise<MetadataRoute.Robots> {
         allow: "/",
         disallow: ["/cart", "/checkout", "/checkout/success"],
       },
-      sitemap: platformSitemap,
+      sitemap: hostSitemap,
     };
   }
 
-  // robots.txt may reference sitemaps on other hosts; platform sitemap cannot.
-  const sitemaps = [platformSitemap];
+  // Platform host: www sitemap + each published store's subdomain sitemap.
+  // (Platform sitemap must stay same-host; store URLs are discovered via these refs.)
+  const sitemaps = [hostSitemap];
   try {
     const published = await storefrontApi.listPublished();
     for (const store of published) {

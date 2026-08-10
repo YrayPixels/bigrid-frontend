@@ -28,7 +28,9 @@ function parseLastModified(value: string | null | undefined): Date | undefined {
 }
 
 async function buildPlatformSitemap(host: string | null): Promise<MetadataRoute.Sitemap> {
-  // Only same-host URLs are allowed here. Merchant subdomains are advertised via robots.txt.
+  // Same-host marketing URLs only. Merchant storefronts live on
+  // https://{slug}.bizgrid.shop and are advertised via robots.txt sitemap refs —
+  // do not list /s/{slug} here (non-canonical duplicates under www).
   const baseUrl = getSitemapBaseUrl(host);
   const now = new Date();
 
@@ -37,7 +39,7 @@ async function buildPlatformSitemap(host: string | null): Promise<MetadataRoute.
     ...allMarketingSeoPaths(),
   ]);
 
-  const entries: MetadataRoute.Sitemap = [...staticPaths].map((path) => ({
+  return [...staticPaths].map((path) => ({
     url: toAbsoluteUrl(baseUrl, path),
     lastModified: now,
     changeFrequency:
@@ -57,25 +59,6 @@ async function buildPlatformSitemap(host: string | null): Promise<MetadataRoute.
             ? 0.7
             : 0.6,
   }));
-
-  // Path-based storefront URLs stay on the platform host and help Google discover shops.
-  // Canonical tags on /s/[slug] point at the preferred subdomain URL when available.
-  try {
-    const published = await storefrontApi.listPublished();
-    for (const store of published) {
-      if (!store.slug) continue;
-      entries.push({
-        url: toAbsoluteUrl(baseUrl, `/s/${store.slug}`),
-        lastModified: parseLastModified(store.published_at) ?? now,
-        changeFrequency: "weekly",
-        priority: 0.7,
-      });
-    }
-  } catch {
-    // Platform pages only if the index endpoint is unavailable.
-  }
-
-  return entries;
 }
 
 async function buildStorefrontSitemap(slug: string): Promise<MetadataRoute.Sitemap> {

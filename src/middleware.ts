@@ -2,10 +2,40 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { isCodeWorkbenchEnabled } from "@/lib/features";
 import {
+  getStorefrontUrl,
   isPlatformRootHost,
   parseStoreSlugFromHost,
   resolveCustomDomainSlug,
+  STORE_PLATFORM_DOMAIN,
 } from "@/lib/store-host";
+
+function supportsSubdomainStorefronts(): boolean {
+  return !STORE_PLATFORM_DOMAIN.endsWith(".vercel.app");
+}
+
+/** Canonicalize legacy path storefront URLs to https://{slug}.bizgrid.shop/... */
+function redirectPathStorefrontToSubdomain(request: NextRequest): NextResponse | null {
+  const { pathname, search } = request.nextUrl;
+  if (!pathname.startsWith("/s/")) return null;
+
+  const host = request.headers.get("host");
+  if (!isPlatformRootHost(host) || !supportsSubdomainStorefronts()) {
+    return null;
+  }
+
+  const remainder = pathname.slice("/s/".length);
+  const slash = remainder.indexOf("/");
+  const slug = slash === -1 ? remainder : remainder.slice(0, slash);
+  const suffix = slash === -1 ? "" : remainder.slice(slash);
+
+  if (!slug || parseStoreSlugFromHost(`${slug}.${STORE_PLATFORM_DOMAIN}`) !== slug) {
+    return null;
+  }
+
+  // Prefer getStorefrontUrl for localhost vs production host choice.
+  const base = getStorefrontUrl(slug).replace(/\/$/, "");
+  return NextResponse.redirect(`${base}${suffix}${search}`, 308);
+}
 
 function applyWebContainerIsolation(res: NextResponse) {
   // WebContainer needs SharedArrayBuffer, which requires crossOriginIsolated.
@@ -26,9 +56,14 @@ function isWorkbenchPath(pathname: string): boolean {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  if (pathname.startsWith("/s/")) {
+    const redirect = redirectPathStorefrontToSubdomain(request);
+    if (redirect) return redirect;
+    return NextResponse.next();
+  }
+
   if (
     pathname.startsWith("/_next") ||
-    pathname.startsWith("/s/") ||
     pathname.startsWith("/api") ||
     pathname.includes(".")
   ) {
