@@ -213,12 +213,39 @@
   }
 }
 
+@keyframes mood-pulse {
+  0%,
+  100% {
+    transform: scale(1.08) translateY(0);
+    box-shadow:
+      0 0 0 0 var(--mood-ring-soft),
+      0 18px 40px -14px var(--mood-ring);
+  }
+  50% {
+    transform: scale(1.14) translateY(-6px);
+    box-shadow:
+      0 0 0 10px transparent,
+      0 28px 56px -12px var(--mood-ring);
+  }
+}
+
 .animate-reveal {
   animation: reveal-up 0.8s var(--ease-out-expo) both;
 }
 
 .animate-line {
   animation: line-draw 1.2s var(--ease-out-expo) both;
+}
+
+.animate-mood-pulse {
+  animation: mood-pulse 1.8s ease-in-out infinite;
+  will-change: transform, box-shadow;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-mood-pulse {
+    animation: none;
+  }
 }
 
 @layer utilities {
