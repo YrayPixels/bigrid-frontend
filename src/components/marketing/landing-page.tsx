@@ -1,7 +1,15 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
+import { useState } from "react";
 import { BizgridLogo } from "@/components/bizgrid-logo";
-import { LandingPreviewPrompt } from "@/components/marketing/landing-preview-prompt";
+import { LandingNav } from "@/components/marketing/landing-nav";
+import {
+  LANDING_MOODS,
+  LandingPreviewPrompt,
+  type LandingMood,
+} from "@/components/marketing/landing-preview-prompt";
 import { PLATFORM_FAQS } from "@/lib/seo/platform-faqs";
 
 const FEATURES = [
@@ -80,75 +88,27 @@ const SHOWCASE_SHOPS = [
 ] as const;
 
 export function LandingPage() {
+  const [mood, setMood] = useState<LandingMood | null>(null);
+
   return (
-    <div className="min-h-screen bg-canvas text-ink font-sans selection:bg-primary/20">
-      <nav className="sticky top-0 z-50 flex items-center justify-between border-b border-border bg-canvas/80 px-6 py-4 backdrop-blur-md">
-        <div className="flex items-center gap-8">
-          <Link href="/" className="flex items-center">
-            <BizgridLogo size={36} showWordmark wordmarkClassName="text-2xl font-bold tracking-tight" />
-          </Link>
-          <div className="hidden gap-6 text-sm font-medium text-ink-soft md:flex">
-            <a href="#platform" className="transition-colors hover:text-ink">
-              Platform
-            </a>
-            <Link href="/industries" className="transition-colors hover:text-ink">
-              Industries
-            </Link>
-            <Link href="/academy" className="transition-colors hover:text-ink">
-              Academy
-            </Link>
-            <a href="#pricing" className="transition-colors hover:text-ink">
-              Pricing
-            </a>
-          </div>
-        </div>
-        <div className="flex items-center gap-4">
-          <Link href="/login" className="px-4 py-2 text-sm font-medium text-ink-soft transition-colors hover:text-ink">
-            Log in
-          </Link>
-          <Link
-            href="/signup"
-            className="rounded-full bg-primary px-5 py-2 text-sm font-medium text-primary-foreground shadow-soft transition hover:opacity-90"
-          >
-            Start trial
-          </Link>
-        </div>
-      </nav>
+    <div className="relative min-h-screen bg-canvas text-ink font-sans selection:bg-primary/20">
+      {LANDING_MOODS.map((item) => (
+        <div
+          key={item.id}
+          aria-hidden
+          className="pointer-events-none fixed inset-0 z-0 transition-opacity duration-500 ease-out"
+          style={{
+            opacity: mood?.id === item.id ? 1 : 0,
+            background: `radial-gradient(ellipse 100% 80% at 50% 0%, ${item.wash} 0%, transparent 62%), radial-gradient(ellipse 80% 60% at 85% 85%, ${item.accent} 0%, transparent 55%), ${item.base}`,
+          }}
+        />
+      ))}
 
-      <main>
-        <section className="relative overflow-hidden">
-          <div className="pointer-events-none absolute inset-0 bg-gradient-mesh opacity-50" />
-          <div className="relative mx-auto max-w-6xl px-6 pt-20 pb-12 text-center">
-            <h1 className="animate-reveal font-display mb-8 text-6xl leading-[0.95] font-bold tracking-tight text-balance md:text-8xl">
-              Describe your shop.
-              <br />
-              <span className="bg-gradient-hero bg-clip-text text-transparent">Get a live storefront.</span>
-            </h1>
-            <p className="animate-reveal mx-auto mb-10 max-w-xl text-lg text-pretty text-ink-soft [animation-delay:100ms]">
-              Bizgrid helps sellers open an online store with AI — then take payments, manage orders, and grow
-              with marketing tools built in.
-            </p>
-            <div className="animate-reveal flex flex-col items-center justify-center gap-4 [animation-delay:200ms] sm:flex-row">
-              <a
-                href="#try-preview"
-                className="w-full rounded-full bg-primary px-8 py-4 text-lg font-semibold text-primary-foreground shadow-soft transition-all hover:opacity-90 hover:shadow-glow sm:w-auto"
-              >
-                Build your store
-              </a>
-              <a
-                href="#showcase"
-                className="w-full rounded-full border border-border bg-card/60 px-8 py-4 text-lg font-medium backdrop-blur-sm transition-all hover:bg-muted sm:w-auto"
-              >
-                See examples
-              </a>
-            </div>
-            <p className="animate-reveal mt-5 text-sm text-ink-soft [animation-delay:300ms]">
-              14-day free trial on every plan — start the chat below, preview first, no card required.
-            </p>
-          </div>
-        </section>
+      <LandingNav mood={mood} />
 
-        <LandingPreviewPrompt />
+      <div className="relative z-10 pt-[4.5rem]">
+        <main>
+          <LandingPreviewPrompt mood={mood} onMoodChange={setMood} />
 
         <section id="platform" className="mx-auto max-w-6xl border-t border-border px-6 py-24">
           <div className="mb-14 max-w-2xl">
@@ -390,6 +350,7 @@ export function LandingPage() {
           <span>© {new Date().getFullYear()} Bizgrid</span>
         </div>
       </footer>
+      </div>
     </div>
   );
 }
