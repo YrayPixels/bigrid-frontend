@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Star } from "lucide-react";
 import { toast } from "sonner";
 import type { Store, StorefrontContent, StoreProduct } from "@/lib/api/types";
+import { EditableHeroMedia } from "@/components/storefront/theme/editable-hero-media";
 import { EditableImage } from "@/components/storefront/theme/editable-image";
 import { EditableText } from "@/components/storefront/theme/editable-text";
 import { StorefrontLink } from "@/components/storefront/theme/storefront-link";
@@ -117,6 +118,7 @@ export function BeautyHome({
     8,
   );
   const heroImageUrl = storefront.media?.hero_image_url ?? beautyTemplateImages.hero;
+  const heroVideoUrl = storefront.media?.hero_video_url ?? null;
 
   const perfectMatch = getHomeBlockProps<{
     title?: string;
@@ -149,22 +151,32 @@ export function BeautyHome({
 
   return (
     <div style={{ backgroundColor: theme.palette.background, color: theme.palette.text }}>
-      <section
-        className="relative overflow-hidden px-4 pb-0 pt-10 sm:px-6 lg:pt-16"
-        style={{ backgroundColor: theme.palette.accent }}
-      >
-        <div className="mx-auto grid max-w-7xl items-end gap-6 lg:grid-cols-[0.9fr_1.1fr]">
-          <div className="relative z-10 pb-12 lg:pb-24">
+      <section className="relative isolate min-h-[min(72vh,40rem)] overflow-hidden px-4 pb-16 pt-12 sm:min-h-[min(82vh,48rem)] sm:px-6 sm:pb-20 sm:pt-16 lg:pt-20">
+        <EditableHeroMedia
+          imagePath="media.hero_image_url"
+          videoPath="media.hero_video_url"
+          imageSrc={heroImageUrl}
+          videoSrc={heroVideoUrl}
+          alt={`${store.business_name} hair campaign`}
+          className="absolute inset-0 -z-10"
+          mediaClassName="object-cover object-top"
+        />
+        <div
+          className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-r from-black/70 via-black/45 to-black/25"
+          aria-hidden
+        />
+        <div className="relative z-10 mx-auto flex min-h-[min(56vh,32rem)] max-w-7xl items-end sm:min-h-[min(66vh,40rem)]">
+          <div className="max-w-xl pb-4 text-white lg:pb-8">
             <EditableText
               path="hero.headline"
               value={storefront.hero.headline}
               as="h1"
-              className="max-w-xl text-[2.25rem] font-semibold leading-[0.95] tracking-[-0.05em] sm:text-6xl sm:leading-[0.9] sm:tracking-[-0.06em] lg:text-7xl"
-              style={{ color: theme.palette.text, fontFamily: "var(--font-editorial)" }}
+              className="max-w-xl text-[2.25rem] font-semibold leading-[0.95] tracking-[-0.05em] text-white sm:text-6xl sm:leading-[0.9] sm:tracking-[-0.06em] lg:text-7xl"
+              style={{ fontFamily: "var(--font-editorial)" }}
             />
             <div
-              className="-mt-1 ml-16 rotate-[-8deg] text-4xl leading-none sm:ml-28 sm:-mt-2 sm:text-7xl"
-              style={{ color: theme.palette.surface, fontFamily: "var(--font-script)" }}
+              className="-mt-1 ml-16 rotate-[-8deg] text-4xl leading-none text-white/90 sm:ml-28 sm:-mt-2 sm:text-7xl"
+              style={{ fontFamily: "var(--font-script)" }}
             >
               truly
             </div>
@@ -172,8 +184,7 @@ export function BeautyHome({
               path="hero.subheadline"
               value={storefront.hero.subheadline}
               as="p"
-              className="mt-5 max-w-[260px] text-[11px] leading-5"
-              style={{ color: theme.palette.text }}
+              className="mt-5 max-w-[280px] text-[11px] leading-5 text-white/85"
               multiline
             />
             <StorefrontLink
@@ -183,16 +194,6 @@ export function BeautyHome({
             >
               <EditableText path="hero.cta_label" value={storefront.hero.cta_label} as="span" />
             </StorefrontLink>
-          </div>
-
-          <div className="relative min-h-[520px]">
-            <EditableImage
-              path="media.hero_image_url"
-              src={heroImageUrl}
-              alt={`${store.business_name} hair campaign`}
-              className="absolute bottom-0 left-1/2 h-[560px] w-[82%] -translate-x-1/2 overflow-hidden"
-              imgClassName="object-cover object-top"
-            />
           </div>
         </div>
       </section>

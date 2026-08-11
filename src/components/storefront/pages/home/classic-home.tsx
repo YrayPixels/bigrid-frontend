@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import type { Store, StorefrontContent } from "@/lib/api/types";
-import { EditableImage } from "@/components/storefront/theme/editable-image";
+import { EditableHeroMedia } from "@/components/storefront/theme/editable-hero-media";
 import { EditableText } from "@/components/storefront/theme/editable-text";
 import { StorefrontLink } from "@/components/storefront/theme/storefront-link";
 import { StorefrontFaqSection } from "@/components/storefront/pages/storefront-faq-section";
@@ -26,6 +26,8 @@ export function ClassicHome({
   const isEditorial = variant === "editorial";
   const isBoldGrid = variant === "bold_grid";
   const heroImageUrl = storefront.media?.hero_image_url;
+  const heroVideoUrl = storefront.media?.hero_video_url ?? null;
+  const hasHeroMedia = Boolean(heroImageUrl || heroVideoUrl);
   const featuredGrid = getHomeBlockProps<{ title?: string }>(storefront, "featured-products");
   const productSectionTitle =
     featuredGrid.title || (isEditorial ? "The collection" : "Featured products");
@@ -48,22 +50,24 @@ export function ClassicHome({
           isEditorial ? "text-center" : ""
         }`}
         style={{
-          background: heroImageUrl
+          background: hasHeroMedia
             ? undefined
             : isBoldGrid
               ? `linear-gradient(135deg, ${theme.palette.primary}24 0%, ${theme.palette.primary}08 52%, transparent 52%)`
               : `linear-gradient(135deg, ${theme.palette.primary}18, ${theme.palette.primary}05)`,
         }}
       >
-        {heroImageUrl || mode === "edit" ? (
+        {hasHeroMedia || mode === "edit" ? (
           <>
-            <EditableImage
-              path="media.hero_image_url"
-              src={heroImageUrl}
+            <EditableHeroMedia
+              imagePath="media.hero_image_url"
+              videoPath="media.hero_video_url"
+              imageSrc={heroImageUrl}
+              videoSrc={heroVideoUrl}
               alt={`${store.business_name} hero`}
               className="absolute inset-0 h-full w-full"
             />
-            {heroImageUrl ? <div className="absolute inset-0 bg-background/85" /> : null}
+            {hasHeroMedia ? <div className="absolute inset-0 bg-background/85" /> : null}
           </>
         ) : null}
         <div className={`relative w-full ${isEditorial ? "grid place-items-center" : ""}`}>

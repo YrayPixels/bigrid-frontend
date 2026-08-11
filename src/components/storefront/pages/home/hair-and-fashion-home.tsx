@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Search, ShoppingBag, User } from "lucide-react";
 import type { Store, StorefrontContent, StoreProduct } from "@/lib/api/types";
+import { EditableHeroMedia } from "@/components/storefront/theme/editable-hero-media";
 import { EditableImage } from "@/components/storefront/theme/editable-image";
 import { EditableText } from "@/components/storefront/theme/editable-text";
 import { StorefrontLink } from "@/components/storefront/theme/storefront-link";
@@ -131,10 +132,20 @@ export function HairAndFashionHome({
 
   return (
     <main className="bg-white text-[#1a1410]">
-      <section
-        className="relative overflow-hidden"
-        style={{ background: "linear-gradient(180deg,#f8d0c4 0%,#f6c9bd 60%,#f2b8ab 100%)" }}
-      >
+      <section className="relative isolate overflow-hidden bg-[#f8d0c4]">
+        <EditableHeroMedia
+          imagePath="media.hero_image_url"
+          videoPath="media.hero_video_url"
+          imageSrc={storefront.media?.hero_image_url ?? hairFashionTemplateImages.hero}
+          videoSrc={storefront.media?.hero_video_url ?? null}
+          alt="Model with voluminous natural curly hair"
+          className="absolute inset-0 -z-10"
+          mediaClassName="object-cover object-center"
+        />
+        <div
+          className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-r from-[#f8d0c4]/92 via-[#f6c9bd]/55 to-black/25"
+          aria-hidden
+        />
         <header className="absolute inset-x-0 top-0 z-20">
           <div className="mx-auto grid max-w-[1400px] grid-cols-3 items-center px-6 py-6 lg:px-10">
             <nav className="hidden items-center gap-8 text-[0.72rem] font-medium uppercase tracking-[0.28em] text-[#1a1410] lg:flex">
@@ -189,11 +200,11 @@ export function HairAndFashionHome({
           </div>
         </header>
 
-        <div className="relative mx-auto grid min-h-[560px] max-w-[1400px] items-end gap-6 px-4 pb-12 pt-28 sm:min-h-[720px] sm:gap-8 sm:px-6 sm:pb-16 sm:pt-40 lg:min-h-[820px] lg:grid-cols-2 lg:px-10 lg:pb-24 lg:pt-44">
-          <div className="relative z-10 max-w-lg">
+        <div className="relative z-10 mx-auto flex min-h-[560px] max-w-[1400px] items-end px-4 pb-12 pt-28 sm:min-h-[720px] sm:px-6 sm:pb-16 sm:pt-40 lg:min-h-[820px] lg:px-10 lg:pb-24 lg:pt-44">
+          <div className="relative max-w-lg">
             <h1 className="font-[family-name:var(--font-editorial)] text-[2.5rem] leading-[1.02] text-[#1a1410] sm:text-6xl sm:leading-[0.95] lg:text-7xl xl:text-8xl">
               <EditableText path="hero.headline" value={storefront.hero.headline} as="span" />
-              <span className="mt-2 block pl-2 font-[family-name:var(--font-script)] text-[2.5rem] leading-none text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.08)] sm:pl-4 sm:text-6xl lg:text-7xl xl:text-8xl">
+              <span className="mt-2 block pl-2 font-[family-name:var(--font-script)] text-[2.5rem] leading-none text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.18)] sm:pl-4 sm:text-6xl lg:text-7xl xl:text-8xl">
                 naturally.
               </span>
             </h1>
@@ -201,7 +212,7 @@ export function HairAndFashionHome({
               path="hero.subheadline"
               value={storefront.hero.subheadline}
               as="p"
-              className="mt-8 max-w-sm text-sm leading-relaxed text-[#1a1410]/80 lg:text-base"
+              className="mt-8 max-w-sm text-sm leading-relaxed text-[#1a1410]/85 lg:text-base"
             />
             <StorefrontLink
               href="/products"
@@ -209,15 +220,6 @@ export function HairAndFashionHome({
             >
               <EditableText path="hero.cta_label" value={storefront.hero.cta_label} as="span" />
             </StorefrontLink>
-          </div>
-          <div className="relative flex items-end justify-center lg:absolute lg:inset-y-0 lg:right-0 lg:w-[58%]">
-            <EditableImage
-              path="media.hero_image_url"
-              src={storefront.media?.hero_image_url ?? hairFashionTemplateImages.hero}
-              alt="Model with voluminous natural curly hair"
-              className="flex h-full max-h-[820px] w-auto items-end justify-center"
-              imgClassName="h-full w-auto max-h-[820px] object-contain object-bottom"
-            />
           </div>
         </div>
       </section>

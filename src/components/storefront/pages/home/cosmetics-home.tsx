@@ -1,7 +1,9 @@
 "use client";
 
 import { Leaf, Plus, ShieldCheck, Sparkles } from "lucide-react";
+import type { CSSProperties } from "react";
 import type { Store, StorefrontColorPalette, StorefrontContent } from "@/lib/api/types";
+import { EditableHeroMedia } from "@/components/storefront/theme/editable-hero-media";
 import { EditableImage } from "@/components/storefront/theme/editable-image";
 import { EditableText } from "@/components/storefront/theme/editable-text";
 import { StorefrontLink } from "@/components/storefront/theme/storefront-link";
@@ -144,7 +146,6 @@ export function CosmeticsHome({
 }) {
   const { theme } = useStorefrontTheme();
   const headline = storefront.hero.headline || store.business_name;
-  const accentBackground = `${theme.palette.accent}66`;
 
   const heroBlock = blockProps(storefront, "hero-main");
   const promoBlock = blockProps(storefront, "serum-promo");
@@ -186,6 +187,7 @@ export function CosmeticsHome({
     storefront.media?.hero_image_url ??
     (typeof heroBlock.image_url === "string" ? heroBlock.image_url : null) ??
     cosmeticsTemplateImages.hero;
+  const heroVideo = storefront.media?.hero_video_url ?? null;
 
   const aboutImage =
     storefront.media?.about_image_url ??
@@ -206,13 +208,27 @@ export function CosmeticsHome({
     <div style={{ backgroundColor: theme.palette.background, color: theme.palette.text }}>
       <section className="px-4 pb-8 pt-6 sm:px-6">
         <div className="mx-auto max-w-7xl overflow-hidden" style={{ backgroundColor: theme.palette.background }}>
-          <div className="relative min-h-[620px] overflow-hidden px-6 py-16 sm:px-12 lg:px-16">
-            <div
-              className="absolute right-0 top-0 h-[410px] w-[48%] rounded-bl-[16rem]"
-              style={{ backgroundColor: accentBackground }}
+          <div className="relative isolate min-h-[620px] overflow-hidden px-6 py-16 sm:px-12 lg:px-16">
+            <EditableHeroMedia
+              imagePath="media.hero_image_url"
+              videoPath="media.hero_video_url"
+              imageSrc={heroImage}
+              videoSrc={heroVideo}
+              alt={`${store.business_name} campaign`}
+              className="absolute inset-0 -z-10"
+              mediaClassName="object-cover object-center"
             />
-            <div className="grid min-h-[520px] items-center gap-8 lg:grid-cols-[0.9fr_1.1fr]">
-              <div className="relative z-10">
+            <div
+              className="pointer-events-none absolute inset-0 -z-10"
+              style={
+                {
+                  background: `linear-gradient(90deg, ${theme.palette.background}f0 0%, ${theme.palette.background}99 42%, ${theme.palette.background}33 70%, transparent 100%)`,
+                } as CSSProperties
+              }
+              aria-hidden
+            />
+            <div className="relative z-10 flex min-h-[520px] items-center">
+              <div className="max-w-xl">
                 <EditableText
                   path="pages.home.blocks.hero-main.props.eyebrow"
                   value={String(heroBlock.eyebrow ?? "Discover the Nature with")}
@@ -242,9 +258,6 @@ export function CosmeticsHome({
                 >
                   <EditableText path="hero.cta_label" value={storefront.hero.cta_label} as="span" />
                 </StorefrontLink>
-              </div>
-              <div className="relative z-10">
-                <ProductPack src={heroImage} imagePath="media.hero_image_url" />
               </div>
             </div>
           </div>

@@ -6,6 +6,7 @@ import {
   Star,
 } from "lucide-react";
 import type { Store, StorefrontContent, StoreProduct } from "@/lib/api/types";
+import { EditableHeroMedia } from "@/components/storefront/theme/editable-hero-media";
 import { EditableImage } from "@/components/storefront/theme/editable-image";
 import { EditableText } from "@/components/storefront/theme/editable-text";
 import { StorefrontLink } from "@/components/storefront/theme/storefront-link";
@@ -157,12 +158,14 @@ export function FurnitureHardwareHome({
 
       <main>
         <section className="relative mx-3 mt-3 min-h-[560px] overflow-hidden rounded-3xl bg-[#e8dfd0] md:mx-6 md:min-h-[640px]">
-          <EditableImage
-            path="media.hero_image_url"
-            src={storefront.media?.hero_image_url ?? furnitureHardwareTemplateImages.hero}
+          <EditableHeroMedia
+            imagePath="media.hero_image_url"
+            videoPath="media.hero_video_url"
+            imageSrc={storefront.media?.hero_image_url ?? furnitureHardwareTemplateImages.hero}
+            videoSrc={storefront.media?.hero_video_url ?? null}
             alt="Modern elegant wingback chair"
             className="absolute inset-0 h-full w-full"
-            imgClassName="object-cover"
+            mediaClassName="object-cover"
           />
           <div className="absolute inset-0 bg-gradient-to-r from-[#f7f3eb]/60 via-[#f7f3eb]/10 to-transparent" />
           <div className="relative grid min-h-[560px] gap-6 p-6 md:min-h-[640px] md:grid-cols-2 md:p-14 lg:p-20">
