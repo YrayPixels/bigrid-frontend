@@ -172,6 +172,22 @@ export const storefrontApi = {
     );
   },
 
+  async recordPlatformVisit(body: {
+    session_id?: string;
+    path?: string;
+    referrer?: string;
+    utm_source?: string;
+    utm_medium?: string;
+    utm_campaign?: string;
+    utm_content?: string;
+  }) {
+    if (USE_MOCKS) return { message: "Visit recorded." };
+    return publicWrite<{ message: string; success?: boolean }>(
+      `${STOREHAUSE_API_PREFIX}/public/platform/visits`,
+      body,
+    );
+  },
+
   async submitContact(slug: string, body: StoreContactInquiryInput): Promise<{ message: string }> {
     if (USE_MOCKS) return mockApi.submitContact(slug, body);
     return publicWrite<{ message: string }>(
