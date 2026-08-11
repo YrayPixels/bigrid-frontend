@@ -242,7 +242,7 @@ export const COMPARISON_PAGES: SeoPageContent[] = [
       {
         question: "Is Wix cheaper than Bizgrid?",
         answer:
-          "Compare plans plus payment fees for your country. Bizgrid’s free MVP lowers risk for first-time sellers. Wix ecommerce plans add cost when you enable store features.",
+          "Compare plans plus payment fees for your country. Bizgrid’s free trial lowers risk for first-time sellers. Wix ecommerce plans add cost when you enable store features.",
       },
       {
         question: "Can Wix handle WhatsApp selling?",

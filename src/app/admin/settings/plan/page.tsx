@@ -212,10 +212,12 @@ export default function PlanSettingsPage() {
             </CardDescription>
           </div>
           {subscription ? (
-            <Badge variant="secondary">
-              {subscription.status === "trialing"
-                ? `${subscription.plan_name} trial · ends ${formatRenewalDate(subscription.renews_at)}`
-                : `${formatSubscriptionStatus(subscription.status)} · renews ${formatRenewalDate(subscription.renews_at)}`}
+            <Badge variant={subscription.trial_expired ? "destructive" : "secondary"}>
+              {subscription.trial_expired
+                ? `${subscription.plan_name} trial ended`
+                : subscription.is_local_trial || subscription.status === "trialing"
+                  ? `${subscription.plan_name} trial · ends ${formatRenewalDate(subscription.trial_ends_at ?? subscription.renews_at)}`
+                  : `${formatSubscriptionStatus(subscription.status)} · renews ${formatRenewalDate(subscription.renews_at)}`}
             </Badge>
           ) : null}
         </div>
@@ -235,13 +237,28 @@ export default function PlanSettingsPage() {
           </div>
         ) : null}
 
-        {(subscription?.transaction_fee_percent ?? 0) > 0 ? (
+        {subscription?.trial_expired ? (
+          <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm">
+            <p className="font-medium text-destructive">Your free trial has ended.</p>
+            <p className="mt-1 text-ink-soft">
+              Subscribe to a plan to publish again and restore your live storefront. Billing is handled
+              by Dodo — choosing a plan starts your paid subscription immediately.
+            </p>
+          </div>
+        ) : subscription?.is_local_trial ? (
           <div className="rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 text-sm">
             <p className="font-medium">
-              {subscription?.status === "trialing"
-                ? `You're on a ${subscription.plan_name} trial.`
-                : `You're on ${subscription?.plan_name}.`}
+              {subscription.trial_days ?? 14}-day free trial — no card required yet.
             </p>
+            <p className="mt-1 text-ink-soft">
+              Trial ends {formatRenewalDate(subscription.trial_ends_at ?? subscription.renews_at)}. After
+              that, subscribe to keep your storefront live. A {subscription.transaction_fee_percent ?? 2.5}%
+              service fee applies to online orders on every plan.
+            </p>
+          </div>
+        ) : (subscription?.transaction_fee_percent ?? 0) > 0 ? (
+          <div className="rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 text-sm">
+            <p className="font-medium">You&apos;re on {subscription?.plan_name}.</p>
             <p className="mt-1 text-ink-soft">
               A {subscription?.transaction_fee_percent}% service fee is added to each online order at
               checkout and paid by your customer, so your payout is unaffected.

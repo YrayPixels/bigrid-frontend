@@ -306,7 +306,22 @@ export function WebsiteCreateView({ onDraftChanged }: WebsiteCreateViewProps) {
       merchantInvalidators.storefront(queryClient);
       toast.success(data.message);
     },
-    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not publish storefront"),
+    onError: (error) => {
+      const message = error instanceof Error ? error.message : "Could not publish storefront";
+      const code = error && typeof error === "object" && "code" in error ? String(error.code) : null;
+      if (code === "trial_expired" || code === "subscription_required") {
+        toast.error(message, {
+          action: {
+            label: "View plans",
+            onClick: () => {
+              window.location.href = "/admin/settings/plan";
+            },
+          },
+        });
+        return;
+      }
+      toast.error(message);
+    },
   });
 
   if (loading || !user || sessionQuery.isLoading) {

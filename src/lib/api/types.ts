@@ -123,6 +123,10 @@ export type Store = {
   payout_account_number?: string | null;
   subscription_plan?: string | null;
   subscription_status?: string | null;
+  subscription_renews_at?: string | null;
+  trial_active?: boolean;
+  trial_expired?: boolean;
+  has_payment_method?: boolean;
   notifications?: StoreNotificationSettings;
   shipping?: StoreShippingSettings;
   store_perks?: string[];
@@ -287,6 +291,10 @@ export type MerchantSubscription = {
   trial_days?: number;
   status: string;
   renews_at: string | null;
+  trial_ends_at?: string | null;
+  is_local_trial?: boolean;
+  trial_expired?: boolean;
+  can_access_live_storefront?: boolean;
   limits: SubscriptionLimit[];
   usage?: MerchantSubscriptionUsage;
   has_payment_method: boolean;

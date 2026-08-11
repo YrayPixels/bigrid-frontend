@@ -61,7 +61,7 @@ export const LAUNCH_CHECKLIST_STEPS: LaunchChecklistStep[] = [
   {
     id: "subscription",
     title: "Review your subscription plan",
-    description: "You're on a Starter trial. Upgrade anytime for higher limits and growth tools.",
+    description: "14-day free trial — subscribe via Plan & billing when you're ready to stay live.",
     href: "/admin/settings/plan",
     icon: CreditCard,
     autoComplete: true,
@@ -124,8 +124,10 @@ export function isLaunchChecklistStepComplete(
     case "payouts":
       return Boolean(store.payouts_configured);
     case "subscription": {
+      if (store.trial_expired) return false;
+      if (store.has_payment_method) return true;
       const status = store.subscription_status ?? "trialing";
-      return status === "trialing" || status === "trial" || status === "active";
+      return status === "trialing" || status === "trial" || status === "active" || status === "on_hold";
     }
     default:
       return false;

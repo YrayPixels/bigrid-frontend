@@ -497,7 +497,22 @@ function WebsiteRefineView({ store }: { store: Store }) {
       });
       toast.success(data.message);
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "Could not publish storefront"),
+    onError: (err) => {
+      const message = err instanceof Error ? err.message : "Could not publish storefront";
+      const code = err && typeof err === "object" && "code" in err ? String(err.code) : null;
+      if (code === "trial_expired" || code === "subscription_required") {
+        toast.error(message, {
+          action: {
+            label: "View plans",
+            onClick: () => {
+              window.location.href = "/admin/settings/plan";
+            },
+          },
+        });
+        return;
+      }
+      toast.error(message);
+    },
   });
 
   const generationPending = generate.isPending;

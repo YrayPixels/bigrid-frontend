@@ -30,7 +30,7 @@ export const ACADEMY_GUIDES: SeoPageContent[] = [
         body: p(
           "Global “start an ecommerce brand” playbooks assume desktop browsers, credit cards, and cold email. Nigerian buyers discover products on Instagram or TikTok, ask follow-up questions in WhatsApp, and expect to pay with methods Paystack already supports. Your systems should match that path.",
           "That means your owned storefront matters more than a pretty logo. When corporate gift buyers, diaspora relatives, or neighbourhood customers compare options, a clean product page with honest photos and a naira price beats a chaotic chat history. See our deeper take on [WhatsApp commerce](/solutions/whatsapp-commerce) if chat already drives most of your volume.",
-          "You also do not need to wait for perfect CAC registration, a designer, or a warehouse. Many sellers begin with products they can source locally, a free MVP storefront, and disciplined fulfilment — then formalise as revenue grows.",
+          "You also do not need to wait for perfect CAC registration, a designer, or a warehouse. Many sellers begin with products they can source locally, a free-trial storefront, and disciplined fulfilment — then formalise as revenue grows.",
         ),
       },
       {

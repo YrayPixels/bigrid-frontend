@@ -144,10 +144,12 @@ export function onAuthLogout(listener: () => void): () => void {
 
 class ApiError extends Error {
   status: number;
+  code?: string;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, code?: string) {
     super(message);
     this.status = status;
+    this.code = code;
   }
 }
 
@@ -169,6 +171,12 @@ function apiErrorMessage(data: unknown, fallback = "Request failed"): string {
     : fallback;
 }
 
+function apiErrorCode(data: unknown): string | undefined {
+  if (!data || typeof data !== "object") return undefined;
+  const code = (data as { code?: unknown }).code;
+  return typeof code === "string" && code.trim() ? code : undefined;
+}
+
 async function http<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = getToken();
   const res = await fetch(`${API_BASE}${path}`, {
@@ -187,7 +195,7 @@ async function http<T>(path: string, init: RequestInit = {}): Promise<T> {
       setToken(null);
       emitLogoutEvent();
     }
-    throw new ApiError(res.status, apiErrorMessage(data));
+    throw new ApiError(res.status, apiErrorMessage(data), apiErrorCode(data));
   }
   return data as T;
 }
@@ -208,7 +216,7 @@ async function httpForm<T>(path: string, body: FormData): Promise<T> {
       setToken(null);
       emitLogoutEvent();
     }
-    throw new ApiError(res.status, apiErrorMessage(data));
+    throw new ApiError(res.status, apiErrorMessage(data), apiErrorCode(data));
   }
   return data as T;
 }
