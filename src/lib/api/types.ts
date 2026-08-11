@@ -212,6 +212,7 @@ export type TryOnSession = {
   gender?: string | null;
   style?: string | null;
   garment_category?: string | null;
+  stub?: boolean;
   created_at?: string | null;
   updated_at?: string | null;
 };

@@ -109,9 +109,17 @@ export function fileToDataUrl(file: File): Promise<string> {
   });
 }
 
-export function photoTipForMode(mode: TryOnMode): string {
+export function photoTipForMode(mode: TryOnMode, garmentCategory?: GarmentCategory | string | null): string {
   if (mode === "clothes") {
-    return "Upload a standing full-body photo, face visible, facing forward.";
+    if (
+      garmentCategory === "full_body" ||
+      garmentCategory === "lower_body" ||
+      garmentCategory === "shoes" ||
+      garmentCategory === "auto"
+    ) {
+      return "Upload a standing full-body photo (head to feet), face visible, facing forward. A close-up selfie will only generate from the chest up.";
+    }
+    return "Upload a standing photo with shoulders and upper body clear, face visible, facing forward.";
   }
   return "Upload a clear selfie showing your face and upper body.";
 }

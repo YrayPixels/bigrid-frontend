@@ -16,12 +16,20 @@ import {
   type GarmentCategory,
 } from "@/lib/storefront/try-on";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Sheet,
   SheetContent,
   SheetDescription,
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 
 const BAG_STYLES = [
@@ -53,6 +61,7 @@ export function FittingSheet({
   onAddToCart,
   onBuyNow,
 }: FittingSheetProps) {
+  const isMobile = useIsMobile();
   const { store } = useStorefront();
   const { theme } = useStorefrontTheme();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -215,90 +224,110 @@ export function FittingSheet({
     }
   }
 
-  return (
-    <Sheet
-      open={open}
-      onOpenChange={(next) => {
-        if (!next) stopPolling();
-        onOpenChange(next);
-      }}
-    >
-      <SheetContent
-        side="bottom"
-        className="mx-auto flex max-h-[92vh] w-full max-w-lg flex-col overflow-y-auto rounded-t-2xl border-border bg-background p-5 sm:max-w-xl"
-        style={{ color: theme.palette.text }}
-      >
-        <SheetHeader className="pr-8 text-left">
-          <SheetTitle>Try it on</SheetTitle>
-          <SheetDescription>
-            See {product.name} on you. Your photo is used only to create this preview.
-          </SheetDescription>
-        </SheetHeader>
+  function handleOpenChange(next: boolean) {
+    if (!next) stopPolling();
+    onOpenChange(next);
+  }
 
-        <div className="mt-5 space-y-5">
-          {step === "photo" || step === "options" ? (
-            <>
-              <div
-                className="flex aspect-[3/4] max-h-72 items-center justify-center overflow-hidden rounded-xl border"
-                style={{ borderColor: theme.palette.border, backgroundColor: theme.palette.surface }}
-              >
-                {previewUrl ? (
-                  <img src={previewUrl} alt="Your look" className="h-full w-full object-cover" />
-                ) : (
-                  <div className="px-6 text-center text-sm" style={{ color: theme.palette.muted }}>
-                    {photoTipForMode(mode)}
+  const body = (
+    <>
+      {step === "photo" || step === "options" ? (
+        <>
+          <div
+            className="flex aspect-[3/4] max-h-72 items-center justify-center overflow-hidden rounded-xl border"
+            style={{ borderColor: theme.palette.border, backgroundColor: theme.palette.surface }}
+          >
+            {previewUrl ? (
+              <img src={previewUrl} alt="Your look" className="h-full w-full object-cover" />
+            ) : (
+              <div className="px-6 text-center text-sm" style={{ color: theme.palette.muted }}>
+                    {photoTipForMode(mode, isClothes ? garmentCategory : null)}
                   </div>
                 )}
               </div>
 
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/jpeg,image/png,image/webp,image/heic"
-                className="hidden"
-                onChange={(event) => void handleFile(event.target.files?.[0] ?? null)}
-              />
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/heic"
+            className="hidden"
+            onChange={(event) => void handleFile(event.target.files?.[0] ?? null)}
+          />
 
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold"
-                  style={{ backgroundColor: theme.palette.primary, color: theme.palette.background }}
-                >
-                  <Upload className="h-4 w-4" />
-                  {previewUrl ? "Change photo" : "Upload photo"}
-                </button>
-                {savedLook ? (
-                  <button
-                    type="button"
-                    onClick={useSavedLook}
-                    className="rounded-full border px-4 py-2.5 text-sm font-semibold"
-                    style={{ borderColor: theme.palette.border, color: theme.palette.text }}
-                  >
-                    Use my saved look
-                  </button>
-                ) : null}
-              </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold"
+              style={{ backgroundColor: theme.palette.primary, color: theme.palette.background }}
+            >
+              <Upload className="h-4 w-4" />
+              {previewUrl ? "Change photo" : "Upload photo"}
+            </button>
+            {savedLook ? (
+              <button
+                type="button"
+                onClick={useSavedLook}
+                className="rounded-full border px-4 py-2.5 text-sm font-semibold"
+                style={{ borderColor: theme.palette.border, color: theme.palette.text }}
+              >
+                Use my saved look
+              </button>
+            ) : null}
+          </div>
 
-              {step === "options" && previewUrl ? (
-                <div className="space-y-4">
+          {step === "options" && previewUrl ? (
+            <div className="space-y-4">
                   {isClothes ? (
                     <div>
                       <p className="mb-2 text-sm font-semibold">Garment type</p>
+                      <p className="mb-2 text-xs" style={{ color: theme.palette.muted }}>
+                        This describes the product — not the height of your photo. For dresses,
+                        upload a full-body shot to see the whole look.
+                      </p>
                       <div className="flex flex-wrap gap-2">
                         {GARMENT_CATEGORY_OPTIONS.map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => setGarmentCategory(option.value)}
+                        className={cn(
+                          "rounded-full border px-3 py-1.5 text-xs font-medium",
+                          garmentCategory === option.value && "ring-2 ring-offset-1",
+                        )}
+                        style={{
+                          borderColor: theme.palette.border,
+                          ...(garmentCategory === option.value
+                            ? {
+                                backgroundColor: theme.palette.primary,
+                                color: theme.palette.background,
+                              }
+                            : {}),
+                        }}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {askGender ? (
+                    <div>
+                      <p className="mb-2 text-sm font-semibold">Gender</p>
+                      <div className="flex gap-2">
+                        {(["female", "male"] as const).map((value) => (
                           <button
-                            key={option.value}
+                            key={value}
                             type="button"
-                            onClick={() => setGarmentCategory(option.value)}
+                            onClick={() => setGender(value)}
                             className={cn(
-                              "rounded-full border px-3 py-1.5 text-xs font-medium",
-                              garmentCategory === option.value && "ring-2 ring-offset-1",
+                              "rounded-full border px-4 py-2 text-sm font-medium capitalize",
+                              gender === value && "ring-2 ring-offset-2",
                             )}
                             style={{
                               borderColor: theme.palette.border,
-                              ...(garmentCategory === option.value
+                              ...(gender === value
                                 ? {
                                     backgroundColor: theme.palette.primary,
                                     color: theme.palette.background,
@@ -306,183 +335,190 @@ export function FittingSheet({
                                 : {}),
                             }}
                           >
-                            {option.label}
+                            {value}
                           </button>
                         ))}
                       </div>
                     </div>
-                  ) : (
-                    <>
-                      {askGender ? (
-                        <div>
-                          <p className="mb-2 text-sm font-semibold">Gender</p>
-                          <div className="flex gap-2">
-                            {(["female", "male"] as const).map((value) => (
-                              <button
-                                key={value}
-                                type="button"
-                                onClick={() => setGender(value)}
-                                className={cn(
-                                  "rounded-full border px-4 py-2 text-sm font-medium capitalize",
-                                  gender === value && "ring-2 ring-offset-2",
-                                )}
-                                style={{
-                                  borderColor: theme.palette.border,
-                                  ...(gender === value
-                                    ? {
-                                        backgroundColor: theme.palette.primary,
-                                        color: theme.palette.background,
-                                      }
-                                    : {}),
-                                }}
-                              >
-                                {value}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      ) : null}
+                  ) : null}
 
-                      <div>
-                        <p className="mb-2 text-sm font-semibold">Style</p>
-                        <div className="flex flex-wrap gap-2">
-                          {BAG_STYLES.map((option) => (
-                            <button
-                              key={option.value}
-                              type="button"
-                              onClick={() => setStyle(option.value)}
-                              className={cn(
-                                "rounded-full border px-3 py-1.5 text-xs font-medium",
-                                style === option.value && "ring-2 ring-offset-1",
-                              )}
-                              style={{
-                                borderColor: theme.palette.border,
-                                ...(style === option.value
-                                  ? {
-                                      backgroundColor: theme.palette.primary,
-                                      color: theme.palette.background,
-                                    }
-                                  : {}),
-                              }}
-                            >
-                              {option.label}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </>
-                  )}
+                  <div>
+                    <p className="mb-2 text-sm font-semibold">Style</p>
+                    <div className="flex flex-wrap gap-2">
+                      {BAG_STYLES.map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => setStyle(option.value)}
+                          className={cn(
+                            "rounded-full border px-3 py-1.5 text-xs font-medium",
+                            style === option.value && "ring-2 ring-offset-1",
+                          )}
+                          style={{
+                            borderColor: theme.palette.border,
+                            ...(style === option.value
+                              ? {
+                                  backgroundColor: theme.palette.primary,
+                                  color: theme.palette.background,
+                                }
+                              : {}),
+                          }}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
 
-                  <button
-                    type="button"
-                    disabled={submitting}
-                    onClick={() => void startTryOn()}
-                    className="w-full rounded-full px-6 py-3 text-sm font-semibold disabled:opacity-50"
-                    style={{
-                      backgroundColor: theme.palette.primary,
-                      color: theme.palette.background,
-                    }}
-                  >
-                    Create my look
-                  </button>
-                </div>
-              ) : null}
-            </>
-          ) : null}
-
-          {step === "generating" ? (
-            <div className="flex flex-col items-center gap-4 py-10 text-center">
-              <Loader2 className="h-8 w-8 animate-spin" style={{ color: theme.palette.primary }} />
-              <div>
-                <p className="font-semibold">Creating your look…</p>
-                <p className="mt-1 text-sm" style={{ color: theme.palette.muted }}>
-                  Usually under a minute.
-                </p>
-              </div>
-              {product.image_url ? (
-                <img
-                  src={product.image_url}
-                  alt=""
-                  className="h-20 w-20 rounded-lg object-cover opacity-80"
-                />
-              ) : null}
-            </div>
-          ) : null}
-
-          {step === "result" && session?.result_url ? (
-            <div className="space-y-4">
-              <div
-                className="overflow-hidden rounded-xl border"
-                style={{ borderColor: theme.palette.border }}
-              >
-                <img
-                  src={session.result_url}
-                  alt={`${product.name} try-on preview`}
-                  className="w-full object-cover"
-                />
-              </div>
-              <p className="text-xs" style={{ color: theme.palette.muted }}>
-                AI preview — color and fit may vary.
-              </p>
-              <div className="grid gap-2 sm:grid-cols-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    onAddToCart();
-                    onOpenChange(false);
-                  }}
-                  className="rounded-full px-6 py-3 text-sm font-semibold"
-                  style={{
-                    backgroundColor: theme.palette.primary,
-                    color: theme.palette.background,
-                  }}
-                >
-                  Add to cart
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onBuyNow();
-                    onOpenChange(false);
-                  }}
-                  className="rounded-full border px-6 py-3 text-sm font-semibold"
-                  style={{ borderColor: theme.palette.primary, color: theme.palette.primary }}
-                >
-                  Buy now
-                </button>
-              </div>
               <button
                 type="button"
-                onClick={() => setStep("photo")}
-                className="w-full text-sm font-medium underline-offset-2 hover:underline"
-                style={{ color: theme.palette.muted }}
-              >
-                Try again
-              </button>
-            </div>
-          ) : null}
-
-          {step === "error" ? (
-            <div className="space-y-4 py-6 text-center">
-              <p className="text-sm font-medium">{errorMessage}</p>
-              <button
-                type="button"
-                onClick={() => {
-                  setErrorMessage(null);
-                  setStep(previewUrl ? "options" : "photo");
-                }}
-                className="rounded-full px-6 py-3 text-sm font-semibold"
+                disabled={submitting}
+                onClick={() => void startTryOn()}
+                className="w-full rounded-full px-6 py-3 text-sm font-semibold disabled:opacity-50"
                 style={{
                   backgroundColor: theme.palette.primary,
                   color: theme.palette.background,
                 }}
               >
-                Try again
+                Create my look
               </button>
             </div>
           ) : null}
+        </>
+      ) : null}
+
+      {step === "generating" ? (
+        <div className="flex flex-col items-center gap-4 py-10 text-center">
+          <Loader2 className="h-8 w-8 animate-spin" style={{ color: theme.palette.primary }} />
+          <div>
+            <p className="font-semibold">Creating your look…</p>
+            <p className="mt-1 text-sm" style={{ color: theme.palette.muted }}>
+              Usually under a minute.
+            </p>
+          </div>
+          {product.image_url ? (
+            <img
+              src={product.image_url}
+              alt=""
+              className="h-20 w-20 rounded-lg object-cover opacity-80"
+            />
+          ) : null}
         </div>
-      </SheetContent>
-    </Sheet>
+      ) : null}
+
+      {step === "result" && session?.result_url ? (
+        <div className="space-y-4">
+          <div
+            className="overflow-hidden rounded-xl border"
+            style={{ borderColor: theme.palette.border }}
+          >
+            <img
+              src={session.result_url}
+              alt={`${product.name} try-on preview`}
+              className="w-full object-cover"
+            />
+          </div>
+              <p className="text-xs" style={{ color: theme.palette.muted }}>
+                {session.stub
+                  ? "Demo preview (stub mode) — turn off PERFECTCORP_STUB to use live AI."
+                  : "AI preview — color and fit may vary."}
+              </p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={() => {
+                onAddToCart();
+                onOpenChange(false);
+              }}
+              className="rounded-full px-6 py-3 text-sm font-semibold"
+              style={{
+                backgroundColor: theme.palette.primary,
+                color: theme.palette.background,
+              }}
+            >
+              Add to cart
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                onBuyNow();
+                onOpenChange(false);
+              }}
+              className="rounded-full border px-6 py-3 text-sm font-semibold"
+              style={{ borderColor: theme.palette.primary, color: theme.palette.primary }}
+            >
+              Buy now
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={() => setStep("photo")}
+            className="w-full text-sm font-medium underline-offset-2 hover:underline"
+            style={{ color: theme.palette.muted }}
+          >
+            Try again
+          </button>
+        </div>
+      ) : null}
+
+      {step === "error" ? (
+        <div className="space-y-4 py-6 text-center">
+          <p className="text-sm font-medium">{errorMessage}</p>
+          <button
+            type="button"
+            onClick={() => {
+              setErrorMessage(null);
+              setStep(previewUrl ? "options" : "photo");
+            }}
+            className="rounded-full px-6 py-3 text-sm font-semibold"
+            style={{
+              backgroundColor: theme.palette.primary,
+              color: theme.palette.background,
+            }}
+          >
+            Try again
+          </button>
+        </div>
+      ) : null}
+    </>
+  );
+
+  if (isMobile) {
+    return (
+      <Sheet open={open} onOpenChange={handleOpenChange}>
+        <SheetContent
+          side="bottom"
+          className="mx-auto flex max-h-[92vh] w-full max-w-lg flex-col overflow-y-auto rounded-t-2xl border-border bg-background p-5"
+          style={{ color: theme.palette.text }}
+        >
+          <SheetHeader className="pr-8 text-left">
+            <SheetTitle>Try it on</SheetTitle>
+            <SheetDescription>
+              See {product.name} on you. Your photo is used only to create this preview.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="mt-5 space-y-5">{body}</div>
+        </SheetContent>
+      </Sheet>
+    );
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent
+        className="flex max-h-[90vh] w-full max-w-md flex-col overflow-y-auto rounded-2xl border-border bg-background p-6 sm:max-w-lg"
+        style={{ color: theme.palette.text }}
+      >
+        <DialogHeader className="pr-8 text-left">
+          <DialogTitle>Try it on</DialogTitle>
+          <DialogDescription>
+            See {product.name} on you. Your photo is used only to create this preview.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="mt-1 space-y-5">{body}</div>
+      </DialogContent>
+    </Dialog>
   );
 }
