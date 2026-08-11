@@ -72,7 +72,7 @@ export function CheckoutPageView() {
     ],
   );
   const deliveryFee = shippingQuote.deliveryFee;
-  // Platform service fee charged on stores whose merchant is on the free plan.
+  // Platform service fee charged on online orders for every plan.
   // Mirrors the server calculation in PlatformFeeService; the server total wins.
   const serviceFeePercent = Number(checkout?.service_fee_percent ?? 0);
   const serviceFeeBase = merchandiseSubtotal + deliveryFee;

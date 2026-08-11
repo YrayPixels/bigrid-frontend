@@ -77,7 +77,7 @@ function SignupForm() {
           ? previewShopName
             ? `Create an account to manage ${previewShopName} and keep building.`
             : "Create an account to save your preview and manage your store."
-          : "Free during the MVP — no card required."
+          : "14-day free trial — no card required."
       }
       footer={
         <p className="text-center text-xs leading-relaxed text-ink-soft">

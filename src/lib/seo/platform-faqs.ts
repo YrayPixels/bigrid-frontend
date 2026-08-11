@@ -5,7 +5,7 @@ export const PLATFORM_FAQS: FaqItem[] = [
   {
     question: "Is Bizgrid free?",
     answer:
-      "Yes. Bizgrid is free during the MVP so you can build, preview, and publish a storefront without a card. Paid plans unlock higher processing volume, more storefronts, and custom domains when you are ready.",
+      "Every plan includes a 14-day free trial so you can build, preview, and publish without a card. After the trial, Starter, Growth, and Scale subscriptions apply, and a 2.5% service fee is added to online orders at checkout.",
   },
   {
     question: "Can I use Paystack with Bizgrid?",

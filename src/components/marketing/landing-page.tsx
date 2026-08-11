@@ -24,37 +24,42 @@ const FEATURES = [
 
 const PLANS = [
   {
-    name: "Free",
-    price: "₦0",
-    priceNote: "forever",
-    description: "Start selling today. Pay nothing monthly.",
-    features: [
-      "2.5% service fee per online order",
-      "Unlimited processing & customers",
-      "1 storefront",
-      "Online card payments only",
-    ],
-    highlighted: false,
-  },
-  {
     name: "Starter",
     price: "₦5,000",
     description: "Launch your first storefront and start selling.",
-    features: ["No service fee on orders", "1 storefront", "Unlimited payment processing", "SMS & WhatsApp units included"],
+    features: [
+      "14-day free trial",
+      "2.5% service fee per online order",
+      "1 storefront",
+      "Unlimited payment processing",
+      "SMS & WhatsApp units included",
+    ],
     highlighted: false,
   },
   {
     name: "Growth",
     price: "₦15,000",
     description: "For brands selling more and needing a custom domain.",
-    features: ["No service fee on orders", "Up to 3 storefronts", "Unlimited payment processing", "1 custom domain"],
+    features: [
+      "14-day free trial",
+      "2.5% service fee per online order",
+      "Up to 3 storefronts",
+      "Unlimited payment processing",
+      "1 custom domain",
+    ],
     highlighted: true,
   },
   {
     name: "Scale",
     price: "₦30,000",
     description: "Higher volume, more stores, and room to expand.",
-    features: ["No service fee on orders", "Up to 10 storefronts", "Unlimited payment processing", "Up to 5 custom domains"],
+    features: [
+      "14-day free trial",
+      "2.5% service fee per online order",
+      "Up to 10 storefronts",
+      "Unlimited payment processing",
+      "Up to 5 custom domains",
+    ],
     highlighted: false,
   },
 ] as const;
@@ -105,7 +110,7 @@ export function LandingPage() {
             href="/signup"
             className="rounded-full bg-primary px-5 py-2 text-sm font-medium text-primary-foreground shadow-soft transition hover:opacity-90"
           >
-            Start free
+            Start trial
           </Link>
         </div>
       </nav>
@@ -138,7 +143,7 @@ export function LandingPage() {
               </a>
             </div>
             <p className="animate-reveal mt-5 text-sm text-ink-soft [animation-delay:300ms]">
-              Free during the MVP — start the chat below, preview first, no card required.
+              14-day free trial on every plan — start the chat below, preview first, no card required.
             </p>
           </div>
         </section>
@@ -201,14 +206,14 @@ export function LandingPage() {
 
         <section id="pricing" className="mx-auto max-w-6xl border-t border-border px-6 py-24">
           <div className="mb-14 max-w-2xl">
-            <h2 className="font-display text-4xl font-bold tracking-tight md:text-5xl">Start free, pay as you grow</h2>
+            <h2 className="font-display text-4xl font-bold tracking-tight md:text-5xl">Simple pricing, 14-day trial</h2>
             <p className="mt-4 text-lg text-ink-soft">
-              Free forever with a 2.5% service fee added at checkout and paid by your customer. Move
-              to a monthly plan to drop the fee and unlock custom domains, in-person sales, and more
-              storefronts.
+              Every plan includes a 14-day free trial. A 2.5% service fee is added to online orders
+              at checkout and paid by your customer. Upgrade for more storefronts, custom domains,
+              and messaging units.
             </p>
           </div>
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {PLANS.map((plan) => (
               <div
                 key={plan.name}
@@ -227,9 +232,7 @@ export function LandingPage() {
                 </div>
                 <p className="mt-4 font-display text-3xl font-bold tracking-tight">
                   {plan.price}
-                  <span className="text-sm font-medium text-ink-soft">
-                    {"priceNote" in plan ? ` ${plan.priceNote}` : "/mo"}
-                  </span>
+                  <span className="text-sm font-medium text-ink-soft">/mo</span>
                 </p>
                 <p className="mt-2 text-sm text-ink-soft">{plan.description}</p>
                 <ul className="mt-6 flex-1 space-y-2 text-sm text-ink-soft">
@@ -251,7 +254,7 @@ export function LandingPage() {
                       : "border border-border bg-card hover:bg-muted")
                   }
                 >
-                  Start free
+                  Start 14-day trial
                 </Link>
               </div>
             ))}

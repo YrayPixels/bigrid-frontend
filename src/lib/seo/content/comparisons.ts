@@ -28,7 +28,7 @@ export const COMPARISON_PAGES: SeoPageContent[] = [
       {
         heading: "Quick summary",
         body: p(
-          "Bizgrid is an AI-powered commerce platform built for African sellers: chat-to-storefront generation, Paystack-native checkout, WhatsApp-friendly workflows, and SME-focused pricing with free MVP access.",
+          "Bizgrid is an AI-powered commerce platform built for African sellers: chat-to-storefront generation, Paystack-native checkout, WhatsApp-friendly workflows, and SME-focused pricing with a 14-day free trial.",
           "Shopify is a mature global ecommerce platform with a massive app store, extensive themes, strong international tooling, and deep customisation — often the default for agencies and brands selling across many countries.",
           "Neither is universally “better.” Bizgrid optimises for fast local launch. Shopify optimises for extensibility at global scale. If you are still defining requirements, skim [best website builder in Africa](/academy/best-website-builder-in-africa) first.",
         ),
@@ -52,7 +52,7 @@ export const COMPARISON_PAGES: SeoPageContent[] = [
       {
         heading: "Pricing philosophy",
         body: p(
-          "Bizgrid offers free MVP access so you can build and publish before committing budget — start with a [free online store](/solutions/free-online-store). Paid plans — Starter, Growth, Scale — unlock higher volume, multiple storefronts, and custom domains as you grow.",
+          "Bizgrid offers a 14-day free trial so you can build and publish before committing budget — start with a [free online store trial](/solutions/free-online-store). Paid plans — Starter, Growth, Scale — unlock higher volume, multiple storefronts, and custom domains as you grow. A 2.5% service fee applies to online orders on every plan.",
           "Shopify publishes global plan tiers plus transaction fees when not using Shopify Payments. App subscriptions, premium themes, and agency maintenance add to real monthly cost — often before a lean African SME hits consistent sales.",
           "Compare total cost of ownership: platform fee + apps + payment fees + any developer time. The winner is the stack you will actually launch on.",
         ),
@@ -108,7 +108,7 @@ export const COMPARISON_PAGES: SeoPageContent[] = [
         body: p(
           "Moving from Shopify to Bizgrid: export product data, recreate your catalog in Bizgrid (AI setup speeds this), reconnect Paystack, publish, and redirect your bio links. Complex theme customisations do not migrate — focus on products, trust, and checkout.",
           "Moving from Bizgrid to Shopify: export product and order history as your business scales internationally. Plan for theme build, app selection, and gateway setup.",
-          "Starting fresh: try Bizgrid free during MVP if local launch speed matters. Trial Shopify if an agency already scoped a Shopify build for you.",
+          "Starting fresh: try Bizgrid’s 14-day free trial if local launch speed matters. Trial Shopify if an agency already scoped a Shopify build for you.",
         ),
       },
     ],

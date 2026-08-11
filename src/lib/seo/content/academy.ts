@@ -192,7 +192,7 @@ export const ACADEMY_GUIDES: SeoPageContent[] = [
         heading: "Total cost, not headline price",
         body: p(
           "Shopify: plan + apps + themes + payment fees + possible developer time. Those line items add up quietly, especially for SMEs.",
-          "Bizgrid: free MVP then Starter/Growth/Scale as you grow; integrated features reduce early app spend. Start on the [free online store](/solutions/free-online-store) path if you are still validating.",
+          "Bizgrid: 14-day free trial then Starter/Growth/Scale as you grow; integrated features reduce early app spend. Start on the [free online store](/solutions/free-online-store) path if you are still validating.",
           "A “cheaper” platform you never launch is infinitely expensive. Model year-one cost with fees, fulfilment, and your time — not marketing stickers.",
         ),
       },
@@ -326,7 +326,7 @@ export const ACADEMY_GUIDES: SeoPageContent[] = [
       {
         heading: "How Bizgrid scores on these criteria",
         body: p(
-          "Bizgrid is Paystack-native, AI chat-to-storefront, WhatsApp-oriented, free during MVP, and oriented toward African industry and city discovery pages — restaurants, fashion, beauty, and more.",
+          "Bizgrid is Paystack-native, AI chat-to-storefront, WhatsApp-oriented, with a 14-day free trial, and oriented toward African industry and city discovery pages — restaurants, fashion, beauty, and more.",
           "It is built as a [website builder for Africa](/solutions/website-builder-for-africa) and for [Nigeria](/solutions/website-builder-for-nigeria) specifically, not as a global template with a checkbox later.",
           "It is not the right tool for every enterprise multi-country operation with deep custom ERP needs. Compare honestly with Shopify when you need a huge app ecosystem. For SME day-one outcomes — first prepaid order this week — it is designed to win.",
         ),

@@ -109,9 +109,9 @@ export function softwareApplicationSchema() {
       "AI website builder and ecommerce platform for African businesses with Paystack payments and WhatsApp commerce.",
     offers: {
       "@type": "Offer",
-      price: "0",
+      price: "5000",
       priceCurrency: "NGN",
-      description: "Free during MVP",
+      description: "Starter plan from NGN 5,000/month with a 14-day free trial",
     },
   };
 }

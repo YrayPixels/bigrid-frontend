@@ -213,8 +213,8 @@ export default function PlanSettingsPage() {
           </div>
           {subscription ? (
             <Badge variant="secondary">
-              {subscription.is_free
-                ? `${subscription.plan_name} · no monthly bill`
+              {subscription.status === "trialing"
+                ? `${subscription.plan_name} trial · ends ${formatRenewalDate(subscription.renews_at)}`
                 : `${formatSubscriptionStatus(subscription.status)} · renews ${formatRenewalDate(subscription.renews_at)}`}
             </Badge>
           ) : null}
@@ -235,15 +235,16 @@ export default function PlanSettingsPage() {
           </div>
         ) : null}
 
-        {subscription?.is_free && (subscription.transaction_fee_percent ?? 0) > 0 ? (
+        {(subscription?.transaction_fee_percent ?? 0) > 0 ? (
           <div className="rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 text-sm">
             <p className="font-medium">
-              You&apos;re on {subscription.plan_name} — no monthly fee.
+              {subscription?.status === "trialing"
+                ? `You're on a ${subscription.plan_name} trial.`
+                : `You're on ${subscription?.plan_name}.`}
             </p>
             <p className="mt-1 text-ink-soft">
-              A {subscription.transaction_fee_percent}% service fee is added to each order at
-              checkout and paid by your customer, so your payout is unaffected. In-person and cash
-              payments need a paid plan. Upgrade to remove the fee entirely.
+              A {subscription?.transaction_fee_percent}% service fee is added to each online order at
+              checkout and paid by your customer, so your payout is unaffected.
             </p>
           </div>
         ) : null}
@@ -337,17 +338,22 @@ export default function PlanSettingsPage() {
                         <h3 className="font-display text-lg font-bold">{plan.name}</h3>
                         <p className="mt-1 text-sm text-ink-soft">{plan.description}</p>
                       </div>
-                      {isActive ? <Badge>Active</Badge> : null}
+                      {isActive ? (
+                        <Badge>{subscription?.status === "trialing" ? "Trial" : "Active"}</Badge>
+                      ) : null}
                     </div>
                     <p className="mt-5 font-display text-2xl font-bold">
                       {plan.price_label}
-                      {plan.is_free ? null : (
-                        <span className="text-sm font-medium text-ink-soft">/mo</span>
-                      )}
+                      <span className="text-sm font-medium text-ink-soft">/mo</span>
                     </p>
                     {(plan.transaction_fee_percent ?? 0) > 0 ? (
                       <p className="mt-1 text-xs text-ink-soft">
                         + {plan.transaction_fee_percent}% per online order, paid by your customer
+                      </p>
+                    ) : null}
+                    {(plan.trial_days ?? 0) > 0 ? (
+                      <p className="mt-1 text-xs text-ink-soft">
+                        Includes a {plan.trial_days}-day free trial
                       </p>
                     ) : null}
                     <ul className="mt-4 space-y-2 text-sm text-ink-soft">
@@ -372,9 +378,7 @@ export default function PlanSettingsPage() {
                         ? "Current plan"
                         : !plan.available
                           ? "Unavailable"
-                          : plan.is_free
-                            ? "Downgrade to free"
-                            : "Switch to plan"}
+                          : "Switch to plan"}
                     </Button>
                   </div>
                 );

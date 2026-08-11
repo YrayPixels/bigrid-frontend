@@ -53,7 +53,7 @@ export const INTENT_PAGES: SeoPageContent[] = [
         body: p(
           "Fashion sellers, beauty brands, restaurants, electronics shops, bakeries, furniture stores, grocery retailers, and service businesses that need a serious online presence without Shopify-level complexity.",
           "If you want a free-to-start AI website builder that understands African selling habits — Paystack first, WhatsApp friendly, naira and local currency pricing — Bizgrid is built for you.",
-          "Start with MVP access, validate demand, then upgrade when you need custom domains, higher processing volume, or multiple storefronts.",
+          "Start with a 14-day free trial, validate demand, then continue on Starter, Growth, or Scale when you need custom domains, more messaging units, or multiple storefronts.",
         ),
       },
       {
@@ -168,33 +168,33 @@ export const INTENT_PAGES: SeoPageContent[] = [
   {
     slug: "free-online-store",
     title: "Free Online Store",
-    metaTitle: "Free Online Store Builder | Bizgrid",
+    metaTitle: "Free Online Store Trial | Bizgrid",
     metaDescription:
-      "Start a free online store during Bizgrid MVP. Preview with AI, publish products, and accept Paystack payments when you are ready to sell.",
-    h1: "Start a Free Online Store with Bizgrid",
+      "Start an online store with Bizgrid’s 14-day free trial. Preview with AI, publish products, and accept Paystack payments when you are ready to sell.",
+    h1: "Start an Online Store with a Free Trial",
     intro:
-      "Build and preview your shop free during MVP — no card required. Publish and take orders when you are ready, then upgrade as volume grows.",
+      "Every plan includes a 14-day free trial — no card required. Build, preview, and publish, then continue on Starter, Growth, or Scale as you grow.",
     sections: [
       {
-        heading: "Free does not have to mean toy store",
+        heading: "Try first, commit when you are ready",
         body: p(
-          "During MVP you can start the chat, generate a storefront, add products, and explore the full product without paying upfront. That lets you validate your offer before committing budget.",
-          "Free access is not a dead-end demo. When you enable Paystack, you can take live orders on a published store — real commerce infrastructure, not a watermark-limited preview.",
-          "Paid plans unlock higher processing volume, more storefronts, and custom domains when growth justifies the spend.",
+          "During your trial you can start the chat, generate a storefront, add products, and explore the full product without paying upfront. That lets you validate your offer before committing budget.",
+          "Trial access is not a dead-end demo. When you enable Paystack, you can take live orders on a published store — real commerce infrastructure, not a watermark-limited preview.",
+          "A 2.5% service fee applies to online orders on every plan, paid by your customer at checkout. Higher plans unlock more storefronts and custom domains when growth justifies the spend.",
         ),
       },
       {
-        heading: "What you can do on the free path",
+        heading: "What you can do during the trial",
         body: p(
           "Describe your shop and review the AI-generated storefront. Add products with photos and prices. Publish pages for About, Contact, and FAQ.",
-          "Connect WhatsApp and social channels so your free store becomes the link you send instead of endless chat screenshots.",
+          "Connect WhatsApp and social channels so your store becomes the link you send instead of endless chat screenshots.",
           "Use the dashboard to see orders and learn what customers buy before you invest in ads or a custom domain.",
         ),
       },
       {
-        heading: "Why start free before you scale",
+        heading: "Why trial before you scale",
         body: p(
-          "Many Nigerian and African sellers test demand on Instagram first. A free storefront is the bridge between informal DMs and prepaid orders.",
+          "Many Nigerian and African sellers test demand on Instagram first. A trial storefront is the bridge between informal DMs and prepaid orders.",
           "You learn which products convert, what delivery questions repeat, and whether customers will pay online — data that should drive spending on ads or upgrades.",
           "Avoid paying for enterprise ecommerce before your first ten orders. Launch lean, fulfil reliably, then scale tools with revenue.",
         ),
@@ -202,15 +202,15 @@ export const INTENT_PAGES: SeoPageContent[] = [
       {
         heading: "When to upgrade",
         body: p(
-          "Upgrade when order volume approaches plan limits, when you want yourbrand.com instead of a subdomain, or when you run multiple storefronts.",
-          "Growth and Scale plans add custom domains, higher processing headroom, and features aimed at shops that have proven product-market fit.",
-          "The free path is designed to get you to first sales — not to trap you without a path forward.",
+          "Upgrade when order volume grows, when you want yourbrand.com instead of a subdomain, or when you run multiple storefronts.",
+          "Growth and Scale plans add custom domains, higher messaging allowances, and features aimed at shops that have proven product-market fit.",
+          "The trial is designed to get you to first sales — not to trap you without a path forward.",
         ),
       },
       {
         heading: "A realistic launch checklist",
         body: p(
-          "1) Sign up free. 2) Describe your business in chat. 3) Add five to fifteen products with honest photos. 4) Write three FAQ answers — delivery, returns, payment. 5) Publish and share on WhatsApp.",
+          "1) Start your trial. 2) Describe your business in chat. 3) Add five to fifteen products with honest photos. 4) Write three FAQ answers — delivery, returns, payment. 5) Publish and share on WhatsApp.",
           "Do not wait for perfect branding. Customers care more about clear prices and trustworthy checkout than animated hero sections.",
           "Revisit design after your first paid orders — real feedback beats guessing in isolation.",
         ),
@@ -220,12 +220,12 @@ export const INTENT_PAGES: SeoPageContent[] = [
       {
         question: "Is Bizgrid really free to start?",
         answer:
-          "Yes during MVP. You can build, preview, and publish without a card. Paid plans apply when you need higher limits, multiple stores, or custom domains.",
+          "Yes — every plan includes a 14-day free trial. You can build, preview, and publish without a card. After the trial, choose Starter, Growth, or Scale.",
       },
       {
-        question: "Can I accept payments on the free plan?",
+        question: "Can I accept payments during the trial?",
         answer:
-          "You can enable Paystack checkout on your published store. Payment processing follows Paystack's own fees and settlement rules.",
+          "You can enable Paystack checkout on your published store. A 2.5% platform service fee is added to online orders, and Paystack’s own fees and settlement rules still apply.",
       },
       ...PLATFORM_FAQS.slice(0, 3),
     ],
@@ -235,7 +235,7 @@ export const INTENT_PAGES: SeoPageContent[] = [
       "/signup",
       "/#pricing",
     ],
-    ctaLabel: "Start free",
+    ctaLabel: "Start free trial",
   },
   {
     slug: "website-builder-for-nigeria",
@@ -369,7 +369,7 @@ export const INTENT_PAGES: SeoPageContent[] = [
       {
         heading: "Start lean, scale with revenue",
         body: p(
-          "Free MVP access lets you validate before heavy spend. Upgrade for custom domains and higher volume when orders justify it.",
+          "Free trial access lets you validate before heavy spend. Upgrade for custom domains and higher volume when orders justify it.",
           "The playbook is consistent: describe your shop, publish a catalog, share on WhatsApp, fulfil reliably, then invest in ads and branding.",
           "African SMEs do not need Silicon Valley complexity on day one. They need a trustworthy link that takes payment this week.",
         ),
@@ -464,7 +464,7 @@ export const INTENT_PAGES: SeoPageContent[] = [
       {
         heading: "Pricing philosophy for African SMEs",
         body: p(
-          "Bizgrid offers free MVP access and plans sized for growing African SMEs — Starter, Growth, and Scale as volume increases. Start on a [free online store](/solutions/free-online-store) while you validate.",
+          "Bizgrid offers a 14-day free trial and plans sized for growing African SMEs — Starter, Growth, and Scale as volume increases. Start on a [free online store trial](/solutions/free-online-store) while you validate.",
           "Shopify’s global pricing plus apps, premium themes, and payment fees can add up before your first consistent sales month. Evaluate total cost — not headline plan price alone.",
           "The cheaper platform is the one you actually launch and sell on, not the one with the longest unused feature checklist.",
         ),
@@ -755,7 +755,7 @@ export const INTENT_PAGES: SeoPageContent[] = [
       {
         question: "Is Bizgrid overkill for a very small shop?",
         answer:
-          "If you take more than a few orders a week on WhatsApp, a proper storefront usually saves time. Free MVP access lets you test without commitment.",
+          "If you take more than a few orders a week on WhatsApp, a proper storefront usually saves time. The free trial lets you test without commitment.",
       },
       {
         question: "Can I grow into custom domains later?",

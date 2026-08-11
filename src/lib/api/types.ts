@@ -239,7 +239,7 @@ export type UpdateStoreInput = {
   return_policy?: string | null;
 };
 
-export type SubscriptionPlanId = "free" | "starter" | "growth" | "scale";
+export type SubscriptionPlanId = "starter" | "growth" | "scale";
 
 export type SubscriptionLimit = {
   label: string;
@@ -282,9 +282,9 @@ export type MerchantSubscription = {
   plan: SubscriptionPlanId;
   plan_name: string;
   price_label: string | null;
-  is_free?: boolean;
   /** Per-order service fee charged on this plan, e.g. 2.5 for 2.5%. */
   transaction_fee_percent?: number;
+  trial_days?: number;
   status: string;
   renews_at: string | null;
   limits: SubscriptionLimit[];
@@ -302,7 +302,7 @@ export type BillingPlanOption = {
   features: string[];
   limits: SubscriptionLimit[];
   transaction_fee_percent?: number;
-  is_free?: boolean;
+  trial_days?: number;
   available: boolean;
 };
 

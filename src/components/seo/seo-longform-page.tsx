@@ -107,7 +107,7 @@ export function SeoLongformPage({
   takeaways,
   conclusion,
   readTimeMinutes,
-  ctaLabel = "Start free",
+  ctaLabel = "Start free trial",
 }: {
   path: string;
   breadcrumb: { name: string; path: string }[];
