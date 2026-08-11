@@ -6,6 +6,7 @@ import { StoreShell } from "@/components/storefront/store-shell";
 import { storefrontApi } from "@/lib/api/storefront";
 import { CartProvider } from "@/lib/storefront/cart-context";
 import { CartRefreshEffect } from "@/lib/storefront/cart-refresh-effect";
+import { CustomerAuthProvider } from "@/lib/storefront/customer-auth";
 import {
   captureMarketingAttributionFromUrl,
   getOrCreateVisitSessionId,
@@ -61,12 +62,14 @@ export function StorefrontGate({
 
   return (
     <StorefrontProvider value={data}>
-      <StorefrontThemeProvider theme={theme} mode="live">
-        <CartProvider storeId={data.store.id}>
-          <CartRefreshEffect />
-          <StoreShell>{children}</StoreShell>
-        </CartProvider>
-      </StorefrontThemeProvider>
+      <CustomerAuthProvider storeSlug={data.store.slug}>
+        <StorefrontThemeProvider theme={theme} mode="live">
+          <CartProvider storeId={data.store.id}>
+            <CartRefreshEffect />
+            <StoreShell>{children}</StoreShell>
+          </CartProvider>
+        </StorefrontThemeProvider>
+      </CustomerAuthProvider>
     </StorefrontProvider>
   );
 }
