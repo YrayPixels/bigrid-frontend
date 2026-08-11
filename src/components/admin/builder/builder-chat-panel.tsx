@@ -12,6 +12,7 @@ import {
   Sparkles,
   Square,
   Trash2,
+  X,
 } from "lucide-react";
 import { formatProductsForAi, parseProductFile } from "@/lib/product-parser";
 import type {
@@ -21,6 +22,7 @@ import type {
   StorefrontTemplateId,
   StorefrontTemplateOption,
 } from "@/lib/api/types";
+import { formatMerchantImageRefs } from "@/lib/storefront-builder/merchant-image";
 import { BuilderMessageWidgets } from "@/components/admin/builder/builder-message-widgets";
 import { BuilderLogoManager } from "@/components/admin/builder/builder-logo-manager";
 import { BuilderSuggestedActions } from "@/components/admin/builder/builder-suggested-actions";
@@ -43,6 +45,21 @@ import { cn } from "@/lib/utils";
 import type { AgentThinkingLogEntry } from "@/lib/storefront-builder/agents/types";
 import { toast } from "sonner";
 
+type PendingChatAttachment = {
+  id: string;
+  url: string;
+  name: string;
+};
+
+function intentHintForMediaTarget(target: BuilderMediaTarget | null): string {
+  if (target === "media.hero_image_url") return "Use this for my homepage header";
+  if (target === "media.about_image_url") return "Use this for my about section";
+  if (target === "media.hero_video_url") return "Use this for my homepage header video";
+  return "";
+}
+
+const MAX_CHAT_ATTACHMENTS = 6;
+
 export function BuilderChatPanel({
   session,
   sending,
@@ -58,7 +75,7 @@ export function BuilderChatPanel({
   onOpenThinkingLog,
   onSendMessage,
   onApplyColor,
-  onUploadMedia,
+  onUploadMedia: _onUploadMedia,
   onUploadLogo,
   onRemoveLogo,
   managingLogo = false,
@@ -91,7 +108,7 @@ export function BuilderChatPanel({
   onOpenThinkingLog?: () => void;
   onSendMessage: (message: string) => void;
   onApplyColor: (color: string, label: string) => void;
-  onUploadMedia: (target: BuilderMediaTarget, file: File) => void;
+  onUploadMedia?: (target: BuilderMediaTarget, file: File) => void;
   onUploadLogo?: (file: File) => void;
   onRemoveLogo?: () => void;
   managingLogo?: boolean;
@@ -127,13 +144,15 @@ export function BuilderChatPanel({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const productFileRef = useRef<HTMLInputElement>(null);
   const composerInputRef = useRef<HTMLTextAreaElement>(null);
-  const [uploadTarget, setUploadTarget] = useState<BuilderMediaTarget>("media.hero_image_url");
+  const [attachIntentTarget, setAttachIntentTarget] = useState<BuilderMediaTarget | null>(null);
+  const [pendingAttachments, setPendingAttachments] = useState<PendingChatAttachment[]>([]);
+  const [attaching, setAttaching] = useState(false);
   const [parsingFile, setParsingFile] = useState(false);
   const brandColor = session.store?.brand_color ?? session.business_profile.brand_color ?? "#0E7C66";
   const logoUrl = session.store?.logo_url ?? null;
   const businessName = session.store?.business_name ?? session.business_profile.business_name ?? "Your store";
   const suggestedActions = getLatestSuggestedActions(session);
-  const busy = sending || generating || clearing || selectingTemplate || startingRealtime;
+  const busy = sending || generating || clearing || selectingTemplate || startingRealtime || attaching;
   const useRealtimeGate = realtimeRequired;
   const showComposer = !useRealtimeGate || realtimeActive;
   const selectedTemplateId =
@@ -190,10 +209,14 @@ export function BuilderChatPanel({
 
 
   function sendMessage() {
-    const message = input.trim();
+    const text = input.trim();
+    const imageRefs = formatMerchantImageRefs(pendingAttachments.map((item) => item.url));
+    const message = [text, imageRefs].filter(Boolean).join(text && imageRefs ? " " : "").trim();
     if (!message || busy) return;
     if (!ensureRealtimeReady()) return;
     setInput("");
+    setPendingAttachments([]);
+    setAttachIntentTarget(null);
     onSendMessage(message);
   }
 
@@ -237,17 +260,66 @@ export function BuilderChatPanel({
     sendMessage();
   }
 
-  function openUploadPicker(target: BuilderMediaTarget) {
+  function openAttachPicker(target: BuilderMediaTarget | null = null) {
     if (!session.store || busy) return;
-    setUploadTarget(target);
+    if (pendingAttachments.length >= MAX_CHAT_ATTACHMENTS) {
+      toast.error(`You can attach up to ${MAX_CHAT_ATTACHMENTS} images at a time.`);
+      return;
+    }
+    setAttachIntentTarget(target);
     fileInputRef.current?.click();
   }
 
-  function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
+  async function handleAttachFiles(event: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.target.files ?? []);
     event.target.value = "";
-    if (!file || busy) return;
-    onUploadMedia(uploadTarget, file);
+    if (!files.length || busy) return;
+    if (!session.store?.id) {
+      toast.error("Create your store first before attaching images.");
+      return;
+    }
+
+    const imageFiles = files.filter((file) => file.type.startsWith("image/"));
+    if (!imageFiles.length) {
+      toast.error("Please choose an image file.");
+      return;
+    }
+
+    const remaining = MAX_CHAT_ATTACHMENTS - pendingAttachments.length;
+    if (remaining <= 0) {
+      toast.error(`You can attach up to ${MAX_CHAT_ATTACHMENTS} images at a time.`);
+      return;
+    }
+
+    const toUpload = imageFiles.slice(0, remaining);
+    setAttaching(true);
+    try {
+      const { api } = await import("@/lib/api/client");
+      const uploaded: PendingChatAttachment[] = [];
+      for (const file of toUpload) {
+        const { url } = await api.uploadStorefrontImage(session.store.id, file);
+        uploaded.push({
+          id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          url,
+          name: file.name || "Photo",
+        });
+      }
+      setPendingAttachments((prev) => [...prev, ...uploaded].slice(0, MAX_CHAT_ATTACHMENTS));
+
+      const hint = intentHintForMediaTarget(attachIntentTarget);
+      if (hint) {
+        setInput((prev) => (prev.trim() ? prev : hint));
+      }
+      setAttachIntentTarget(null);
+    } catch {
+      toast.error("Failed to upload the image. Please try again.");
+    } finally {
+      setAttaching(false);
+    }
+  }
+
+  function removeAttachment(id: string) {
+    setPendingAttachments((prev) => prev.filter((item) => item.id !== id));
   }
 
   async function handleProductFile(event: React.ChangeEvent<HTMLInputElement>) {
@@ -257,33 +329,6 @@ export function BuilderChatPanel({
 
     setParsingFile(true);
     try {
-      // Image files: upload to backend as a product image, then
-      // let the vision agent analyze it and create a product.
-      if (file.type.startsWith("image/")) {
-        if (!session.store?.id) {
-          setInput("Please create your store first before uploading product images.");
-          setParsingFile(false);
-          return;
-        }
-
-        try {
-          const { api } = await import("@/lib/api/client");
-          const { url } = await api.uploadStorefrontImage(session.store.id, file);
-          // Insert image reference — user adds context about what to do with it.
-          // The cursor is placed before the marker so they can type their intent.
-          const imageRef = ` [Image: ${url}]`;
-          setInput((prev) => {
-            const existing = prev.trim();
-            return existing ? `${existing}${imageRef}` : `Add this as a product ${imageRef}`;
-          });
-        } catch {
-          setInput("Failed to upload the product image. Please try again.");
-        }
-        setParsingFile(false);
-        return;
-      }
-
-      // CSV/XLSX files
       const products = await parseProductFile(file);
       if (!products.length) {
         setInput("Couldn't parse any products from the file. Please check the format and try again.");
@@ -292,7 +337,7 @@ export function BuilderChatPanel({
       const text = formatProductsForAi(products);
       setInput((prev) => (prev.trim() ? `${prev}\n\n${text}` : text));
     } catch {
-      setInput("Failed to read the product file. Please try a .csv, .xlsx, or image file.");
+      setInput("Failed to read the product file. Please try a .csv or .xlsx file.");
     } finally {
       setParsingFile(false);
     }
@@ -326,15 +371,16 @@ export function BuilderChatPanel({
         ref={fileInputRef}
         type="file"
         accept="image/*"
+        multiple
         className="hidden"
-        onChange={handleFileChange}
+        onChange={(event) => void handleAttachFiles(event)}
       />
       <input
         ref={productFileRef}
         type="file"
-        accept=".csv,.xlsx,.xls,image/*"
+        accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
         className="hidden"
-        onChange={handleProductFile}
+        onChange={(event) => void handleProductFile(event)}
       />
 
       {!embedded ? (
@@ -465,7 +511,7 @@ export function BuilderChatPanel({
               disabled={busy}
               onPrompt={promptMessage}
               onColor={onApplyColor}
-              onUpload={openUploadPicker}
+              onUpload={(target) => openAttachPicker(target)}
               onApplyImage={onApplyImage}
             />
           ) : null}
@@ -533,19 +579,45 @@ export function BuilderChatPanel({
             {startingRealtime ? "Starting AI session…" : "Start AI session"}
           </button>
         ) : (
-          <div
-            className={cn(
-              "flex w-full items-end gap-1.5 rounded-[28px] border border-border/80 bg-secondary/70 p-1.5 pl-2 shadow-soft",
-              "transition focus-within:border-primary/45 focus-within:bg-background focus-within:ring-2 focus-within:ring-primary/15",
-            )}
-          >
+          <div className="space-y-2">
+            {pendingAttachments.length > 0 ? (
+              <div className="flex flex-wrap gap-2 px-1">
+                {pendingAttachments.map((attachment) => (
+                  <div
+                    key={attachment.id}
+                    className="group relative h-14 w-14 overflow-hidden rounded-xl border border-border bg-background shadow-soft"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={attachment.url}
+                      alt={attachment.name}
+                      className="h-full w-full object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeAttachment(attachment.id)}
+                      className="absolute right-0.5 top-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-ink/80 text-background opacity-90 transition hover:bg-ink"
+                      aria-label={`Remove ${attachment.name}`}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            <div
+              className={cn(
+                "flex w-full items-end gap-1.5 rounded-[28px] border border-border/80 bg-secondary/70 p-1.5 pl-2 shadow-soft",
+                "transition focus-within:border-primary/45 focus-within:bg-background focus-within:ring-2 focus-within:ring-primary/15",
+              )}
+            >
             <Popover>
               <PopoverTrigger asChild>
                 <button
                   type="button"
                   className="mb-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-ink-soft transition hover:bg-background hover:text-ink"
                   aria-label="Add attachments"
-                  title="Add photo, products, or stop session"
+                  title="Attach an image, products, or stop session"
                 >
                   <Plus className="h-5 w-5" strokeWidth={1.75} />
                 </button>
@@ -555,11 +627,15 @@ export function BuilderChatPanel({
                   <button
                     type="button"
                     disabled={!session.store || busy}
-                    onClick={() => openUploadPicker("media.hero_image_url")}
+                    onClick={() => openAttachPicker(null)}
                     className="inline-flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm text-ink transition hover:bg-secondary disabled:opacity-50"
                   >
-                    <ImagePlus className="h-4 w-4 text-ink-soft" />
-                    Upload photo
+                    {attaching ? (
+                      <Loader2 className="h-4 w-4 animate-spin text-ink-soft" />
+                    ) : (
+                      <ImagePlus className="h-4 w-4 text-ink-soft" />
+                    )}
+                    Attach image
                   </button>
                   <button
                     type="button"
@@ -609,19 +685,24 @@ export function BuilderChatPanel({
                 onChange={(event) => setInput(event.target.value)}
                 onKeyDown={handleKeyDown}
                 rows={1}
-                placeholder={inputPlaceholder}
+                placeholder={
+                  pendingAttachments.length
+                    ? "Tell the AI where to use this photo…"
+                    : inputPlaceholder
+                }
                 className="max-h-40 min-h-[40px] flex-1 resize-none overflow-y-auto bg-transparent px-1 py-2.5 text-sm leading-5 text-ink outline-none placeholder:text-ink-soft/80"
               />
             )}
 
             <button
               type="submit"
-              disabled={!input.trim() || busy}
+              disabled={(!input.trim() && pendingAttachments.length === 0) || busy}
               className="mb-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-ink text-background transition hover:opacity-90 disabled:opacity-35"
               aria-label="Send message"
             >
-              {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              {sending || attaching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             </button>
+            </div>
           </div>
         )}
       </form>

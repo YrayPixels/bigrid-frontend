@@ -55,6 +55,7 @@ import { missedActableRequestRetryHint } from "./roles/CriticAgent";
 
 const STATIC_TOOL_REPLY_MESSAGES: Record<string, string> = {
   refine_website_copy: "Done — I've updated the copy. Check the preview on the right!",
+  apply_merchant_image: "Done — I've placed your photo. Check the preview on the right!",
   capture_business_details:
     "Got it! I've saved your business details. Ready to build your website — just say 'build my website' when you're ready.",
   design_website:

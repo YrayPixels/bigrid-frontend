@@ -263,6 +263,13 @@ export function summarizeToolResult(name: string, result: Record<string, unknown
     }
     return "[tool:replace_template_images] template photos replaced";
   }
+  if (name === "apply_merchant_image" && result.ok) {
+    const target = typeof result.target === "string" ? result.target : "site";
+    if (typeof result.product_name === "string" && result.product_name) {
+      return `[tool:apply_merchant_image] ${target} photo set for ${result.product_name}`;
+    }
+    return `[tool:apply_merchant_image] uploaded photo applied to ${target}`;
+  }
   if (name === "add_products" && result.ok) {
     const added = Array.isArray(result.added) ? result.added.length : 0;
     const imaged = Array.isArray(result.imaged) ? result.imaged.length : 0;

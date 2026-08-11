@@ -60,6 +60,8 @@ function publicToolLabel(name: string, changedPaths?: string[]) {
       return "Finding brand photos";
     case "replace_template_images":
       return "Replacing template photos";
+    case "apply_merchant_image":
+      return "Placing your photo";
     case "switch_design":
       return "Switching design";
     case "apply_brand_color":

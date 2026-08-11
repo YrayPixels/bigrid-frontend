@@ -39,6 +39,7 @@ export class SessionAgent extends BuilderAgent {
     this.sessionState = input.session.storefront_snapshot
       ? "### Session state\nA website draft already exists in the preview. Call tools to fulfill the merchant request — do not ask permission first.\n" +
         "When calling replace_template_images, ALWAYS set scope yourself from the merchant's intent (full_site|hero|about|category_showcase|products). Do not omit scope. Banner/header/homepage background = hero.\n" +
+        "When the merchant message includes [Image: url], call apply_merchant_image (or process_product_image to add a new product). NEVER call replace_template_images or source_website_images when [Image: url] is present.\n" +
         "When the merchant names a specific product for a photo update, pass product_name (and scope=products). Never refresh all product photos for one named product.\n" +
         "When the merchant names a specific product for a description update, call generate_product_descriptions with product_name. Never rewrite all descriptions for one named product.\n" +
         "When adding a product and they want a photo, call add_products with find_images=true. If price is missing, ask_clarifying_question for the price first.\n" +
@@ -46,7 +47,7 @@ export class SessionAgent extends BuilderAgent {
         "When they ask to update/improve SEO title and description (or search visibility) without providing the exact text, call refine_website_copy to rewrite seo.title and seo.description from the business name and what they sell. Do NOT ask them for the title or description.\n" +
         "When they ask to improve/rewrite the headline or about section without exact text, call refine_website_copy immediately — invent on-brand copy. Do NOT ask what it should say.\n" +
         "When they want different colors/a new palette without naming hex, call apply_brand_color and pick a fitting palette. Do NOT ask which colors.\n" +
-        "When they want better/brand photos or to source images, call source_website_images or replace_template_images with a chosen scope. Do NOT ask which photos first.\n" +
+        "When they want better/brand photos or to source images (and did NOT upload [Image: url]), call source_website_images or replace_template_images with a chosen scope. Do NOT ask which photos first.\n" +
         "When they want product descriptions polished (no product named), call generate_product_descriptions for all products.\n" +
         "ask_clarifying_question ONLY when blocked (missing product price, or which specific product/section cannot be resolved). Never ask for inventable copy, SEO, FAQ, colors, or photo preferences.\n" +
         "If Pending clarification context is present, continue that pending action with the merchant's answer.\n" +

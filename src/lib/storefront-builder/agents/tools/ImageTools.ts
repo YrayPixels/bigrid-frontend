@@ -7,20 +7,167 @@ import {
   sourceAndApplyWebsiteImages,
 } from "@/lib/storefront-builder/image-sourcing";
 import { hydrateStorefrontCategoryShowcases } from "@/lib/storefront/blocks/category-showcase-utils";
+import type { CategoryShowcaseItem } from "@/lib/storefront/blocks/types";
 import { api } from "@/lib/api/client";
+import type { UpdateStoreInput } from "@/lib/api/types";
+import { setEditableStorefrontPath } from "@/lib/storefront-builder/editable-paths";
+import { extractFirstMerchantImageUrl } from "@/lib/storefront-builder/merchant-image";
 import {
   describeImageScope,
   isImageReplaceScope,
-  type ImageReplaceScope,
 } from "@/lib/storefront-builder/section-scope";
 import type { WebsiteBuilderContext, WebsiteBuilderToolDef } from "../types";
-import { asString, resolveLiveProduct, resolveStorefrontProduct, syncStorefrontProduct, NO_ARG_TOOL_PARAMETERS } from "./toolHelpers";
+import {
+  asString,
+  resolveLiveProduct,
+  resolveStorefrontProduct,
+  syncStorefrontProduct,
+  NO_ARG_TOOL_PARAMETERS,
+} from "./toolHelpers";
 import { sanitizePendingAction, withPendingAction } from "@/lib/storefront-builder/pending-action";
 import {
   getProductFocus,
   resolveProductNameFromContext,
   withProductFocus,
 } from "@/lib/storefront-builder/product-focus";
+
+const MERCHANT_IMAGE_TARGETS = [
+  "hero",
+  "about",
+  "logo",
+  "product",
+  "product_gallery",
+  "category_showcase",
+  "block_path",
+] as const;
+
+type MerchantImageTarget = (typeof MERCHANT_IMAGE_TARGETS)[number];
+
+function isMerchantImageTarget(value: string): value is MerchantImageTarget {
+  return (MERCHANT_IMAGE_TARGETS as readonly string[]).includes(value);
+}
+
+function resolveImageUrlFromArgs(
+  args: Record<string, unknown>,
+  message: string,
+): string {
+  const explicit = asString(args.image_url);
+  if (explicit) return explicit;
+  return extractFirstMerchantImageUrl(message) ?? "";
+}
+
+async function askWhichTarget(
+  ctx: WebsiteBuilderContext,
+  imageUrl: string,
+  question: string,
+  awaitKind: "product_name" | "text" = "text",
+) {
+  const pending = sanitizePendingAction({
+    type: "resume_tool",
+    tool: "apply_merchant_image",
+    arguments: { image_url: imageUrl },
+    await_field: awaitKind === "product_name" ? "product_name" : "target",
+    await_kind: awaitKind,
+    question,
+    original_message: ctx.message,
+  });
+  ctx.profile = withPendingAction(ctx.profile, pending);
+  ctx.assistantMessage = question;
+  ctx.status = "collecting_requirements";
+  ctx.payload = {
+    type: "requirements_request",
+    profile: ctx.profile,
+    pending_action: pending,
+  };
+  return { ok: false, error: "needs_clarification", message: question };
+}
+
+function applyCategoryShowcaseImage(
+  ctx: WebsiteBuilderContext,
+  imageUrl: string,
+  opts: {
+    blockId?: string;
+    categoryId?: string;
+    categoryLabel?: string;
+    itemIndex?: number | null;
+  },
+): { ok: true; changed_paths: string[]; label: string } | { ok: false; error: string; message: string } {
+  if (!ctx.storefront) {
+    return { ok: false, error: "website_not_generated", message: "Generate a website first." };
+  }
+
+  const blocks = ctx.storefront.pages?.home?.blocks ?? [];
+  const showcaseBlocks = blocks.filter(
+    (block) =>
+      block.type === "category_showcase" ||
+      block.id === "category-showcase" ||
+      block.id === "collections" ||
+      block.id === "rooms" ||
+      block.id === "choose-style",
+  );
+
+  if (!showcaseBlocks.length) {
+    return {
+      ok: false,
+      error: "no_category_showcase",
+      message: "I couldn't find a collections / Essentials section to update.",
+    };
+  }
+
+  const block =
+    (opts.blockId
+      ? showcaseBlocks.find((item) => item.id === opts.blockId)
+      : null) ?? showcaseBlocks[0];
+
+  const items = Array.isArray(block.props.items)
+    ? ([...block.props.items] as CategoryShowcaseItem[])
+    : [];
+
+  if (!items.length) {
+    return {
+      ok: false,
+      error: "no_showcase_items",
+      message: "That collections section doesn't have any tiles yet.",
+    };
+  }
+
+  let index = typeof opts.itemIndex === "number" && Number.isFinite(opts.itemIndex) ? opts.itemIndex : -1;
+  if (index < 0 && opts.categoryId) {
+    index = items.findIndex((item) => item.category_id === opts.categoryId);
+  }
+  if (index < 0 && opts.categoryLabel) {
+    const needle = opts.categoryLabel.toLowerCase();
+    index = items.findIndex((item) => item.label.toLowerCase() === needle);
+    if (index < 0) {
+      index = items.findIndex((item) => item.label.toLowerCase().includes(needle));
+    }
+  }
+  if (index < 0 && items.length === 1) index = 0;
+
+  if (index < 0 || index >= items.length) {
+    const labels = items
+      .slice(0, 6)
+      .map((item) => item.label)
+      .join(", ");
+    return {
+      ok: false,
+      error: "showcase_item_ambiguous",
+      message: `Which collection tile should get this photo? (${labels})`,
+    };
+  }
+
+  const path = `pages.home.blocks.${block.id}.props.items.${index}.image_url`;
+  if (!setEditableStorefrontPath(ctx.storefront, path, imageUrl)) {
+    items[index] = { ...items[index], image_url: imageUrl };
+    block.props = { ...block.props, items };
+  }
+
+  return {
+    ok: true,
+    changed_paths: [path],
+    label: items[index]?.label || `tile ${index + 1}`,
+  };
+}
 
 /** Stock photos, on-brand sourcing, and scoped template image replacement. */
 export class ImageTools {
@@ -375,6 +522,265 @@ export class ImageTools {
             changed_paths: replaced.changed_paths,
             recommendations: replaced.result.recommendations,
           };
+        },
+      },
+      {
+        name: "apply_merchant_image",
+        description:
+          "Apply a merchant-uploaded photo from an [Image: url] marker (or image_url arg) to a specific place on the store. ALWAYS prefer this over replace_template_images / source_website_images when the message contains [Image: url]. Targets: hero (header/banner), about, logo, product (cover photo), product_gallery (append extra photos), category_showcase (Essentials/collections tile), block_path (any editable image prop path). For adding a NEW product from the photo, use process_product_image instead. If the destination is unclear, ask one clarifying question — do not invent Unsplash stock.",
+        parameters: {
+          type: "object",
+          properties: {
+            image_url: {
+              type: "string",
+              description: "Uploaded image URL. If omitted, extracted from [Image: url] in the merchant message.",
+            },
+            target: {
+              type: "string",
+              enum: [...MERCHANT_IMAGE_TARGETS],
+              description:
+                "Where to place the image: hero, about, logo, product, product_gallery, category_showcase, or block_path.",
+            },
+            product_id: { type: "string" },
+            product_name: {
+              type: "string",
+              description: "Required for product / product_gallery when product_id is unknown.",
+            },
+            category_id: { type: "string" },
+            category_label: {
+              type: "string",
+              description: "Label of the Essentials / collections tile to update.",
+            },
+            item_index: {
+              type: "number",
+              description: "0-based tile index in the category showcase.",
+            },
+            block_id: {
+              type: "string",
+              description: "Optional category showcase block id (category-showcase, collections, rooms, choose-style).",
+            },
+            path: {
+              type: "string",
+              description:
+                "For target=block_path: editable image path e.g. pages.home.blocks.serum-promo.props.image_url",
+            },
+          },
+          required: ["target"],
+          additionalProperties: false,
+        },
+        handler: async (args, ctx) => {
+          const imageUrl = resolveImageUrlFromArgs(args, ctx.message);
+          if (!imageUrl) {
+            return {
+              ok: false,
+              error: "missing_image_url",
+              message: "I need the uploaded photo URL. Ask the merchant to attach an image again.",
+            };
+          }
+
+          const targetRaw = asString(args.target);
+          if (!targetRaw || !isMerchantImageTarget(targetRaw)) {
+            return askWhichTarget(
+              ctx,
+              imageUrl,
+              "Where should I use this photo — homepage header, about section, logo, a product, or a collections tile?",
+            );
+          }
+
+          if (targetRaw === "logo") {
+            try {
+              const body: UpdateStoreInput = { logo_url: imageUrl };
+              const store = await api.updateMyStore(body);
+              ctx.session = { ...ctx.session, store };
+              ctx.assistantMessage = "Done — I set that photo as your logo. Check the preview.";
+              ctx.status = "review_ready";
+              ctx.payload = { type: "logo_updated", logo_url: imageUrl };
+              ctx.profile = withPendingAction(ctx.profile, null);
+              return { ok: true, target: "logo", logo_url: imageUrl };
+            } catch (err) {
+              return {
+                ok: false,
+                error: err instanceof Error ? err.message : "logo_update_failed",
+              };
+            }
+          }
+
+          if (targetRaw === "hero" || targetRaw === "about") {
+            if (!ctx.storefront) {
+              return { ok: false, error: "website_not_generated" };
+            }
+            const path =
+              targetRaw === "hero" ? "media.hero_image_url" : "media.about_image_url";
+            if (!setEditableStorefrontPath(ctx.storefront, path, imageUrl)) {
+              return { ok: false, error: "path_update_failed", path };
+            }
+            ctx.status = "review_ready";
+            ctx.assistantMessage =
+              targetRaw === "hero"
+                ? "Done — I updated your homepage header photo. Check the preview on the right."
+                : "Done — I updated your about section photo. Check the preview on the right.";
+            ctx.payload = {
+              type: "merchant_image_applied",
+              target: targetRaw,
+              changed_paths: [path],
+              image_url: imageUrl,
+            };
+            ctx.profile = withPendingAction(ctx.profile, null);
+            return { ok: true, target: targetRaw, changed_paths: [path], image_url: imageUrl };
+          }
+
+          if (targetRaw === "block_path") {
+            if (!ctx.storefront) {
+              return { ok: false, error: "website_not_generated" };
+            }
+            const path = asString(args.path);
+            if (!path) {
+              return askWhichTarget(
+                ctx,
+                imageUrl,
+                "Which section image should I update? Tell me the section name (e.g. promo banner, about photo, Essentials tile).",
+              );
+            }
+            if (!/image_url|hero_image|about_image|\.src$/i.test(path) && !path.includes("media.")) {
+              return {
+                ok: false,
+                error: "path_not_image",
+                message: "That path doesn't look like an image field. Use an image_url path.",
+              };
+            }
+            if (!setEditableStorefrontPath(ctx.storefront, path, imageUrl)) {
+              return {
+                ok: false,
+                error: "path_not_editable",
+                message: `I couldn't update ${path}. Try naming the section (header, about, a product, or a collections tile).`,
+              };
+            }
+            ctx.status = "review_ready";
+            ctx.assistantMessage = "Done — I placed your photo on that section. Check the preview.";
+            ctx.payload = {
+              type: "merchant_image_applied",
+              target: "block_path",
+              changed_paths: [path],
+              image_url: imageUrl,
+            };
+            ctx.profile = withPendingAction(ctx.profile, null);
+            return { ok: true, target: "block_path", changed_paths: [path], image_url: imageUrl };
+          }
+
+          if (targetRaw === "category_showcase") {
+            if (!ctx.storefront) {
+              return { ok: false, error: "website_not_generated" };
+            }
+            const itemIndexRaw = args.item_index;
+            const itemIndex =
+              typeof itemIndexRaw === "number" && Number.isFinite(itemIndexRaw)
+                ? itemIndexRaw
+                : null;
+            const applied = applyCategoryShowcaseImage(ctx, imageUrl, {
+              blockId: asString(args.block_id) || undefined,
+              categoryId: asString(args.category_id) || undefined,
+              categoryLabel: asString(args.category_label) || undefined,
+              itemIndex,
+            });
+            if (!applied.ok) {
+              if (applied.error === "showcase_item_ambiguous") {
+                return askWhichTarget(ctx, imageUrl, applied.message);
+              }
+              ctx.assistantMessage = applied.message;
+              return { ok: false, error: applied.error, message: applied.message };
+            }
+            ctx.status = "review_ready";
+            ctx.assistantMessage = `Done — I updated the **${applied.label}** tile photo. Check the preview.`;
+            ctx.payload = {
+              type: "merchant_image_applied",
+              target: "category_showcase",
+              changed_paths: applied.changed_paths,
+              image_url: imageUrl,
+            };
+            ctx.profile = withPendingAction(ctx.profile, null);
+            return {
+              ok: true,
+              target: "category_showcase",
+              changed_paths: applied.changed_paths,
+              image_url: imageUrl,
+            };
+          }
+
+          if (targetRaw === "product" || targetRaw === "product_gallery") {
+            const productName = resolveProductNameFromContext({
+              message: ctx.message,
+              proposedName: asString(args.product_name) || undefined,
+              focus: getProductFocus(ctx.profile),
+            });
+            const resolved = await resolveLiveProduct(
+              asString(args.product_id) || undefined,
+              productName || undefined,
+            );
+            if (!resolved.product) {
+              return askWhichTarget(
+                ctx,
+                imageUrl,
+                resolved.error ?? "Which product should get this photo? Tell me the product name.",
+                "product_name",
+              );
+            }
+
+            const existingImages = (
+              resolved.product.images?.filter((url): url is string => Boolean(url?.trim())) ??
+              (resolved.product.image_url ? [resolved.product.image_url] : [])
+            ).filter(Boolean);
+
+            const patch =
+              targetRaw === "product_gallery"
+                ? {
+                    images: [...new Set([...existingImages, imageUrl])].slice(0, 12),
+                    ...(resolved.product.image_url ? {} : { image_url: imageUrl }),
+                  }
+                : {
+                    image_url: imageUrl,
+                    images: [imageUrl, ...existingImages.filter((url) => url !== imageUrl)].slice(
+                      0,
+                      12,
+                    ),
+                  };
+
+            try {
+              const updated = await api.updateProduct(resolved.product.id, patch);
+              if (ctx.storefront?.products) {
+                ctx.storefront = {
+                  ...ctx.storefront,
+                  products:
+                    syncStorefrontProduct(ctx.storefront.products, updated) ??
+                    ctx.storefront.products,
+                };
+              }
+              ctx.profile = withProductFocus(ctx.profile, {
+                product_id: updated.id,
+                product_name: updated.name,
+              });
+              ctx.profile = withPendingAction(ctx.profile, null);
+              ctx.status = "review_ready";
+              ctx.assistantMessage =
+                targetRaw === "product_gallery"
+                  ? `Done — I added that photo to **${updated.name}**'s gallery.`
+                  : `Done — I updated the photo for **${updated.name}**. Check Products or the preview.`;
+              ctx.payload = { type: "product_updated", product: updated };
+              return {
+                ok: true,
+                target: targetRaw,
+                product_id: updated.id,
+                product_name: updated.name,
+                image_url: imageUrl,
+              };
+            } catch (err) {
+              return {
+                ok: false,
+                error: err instanceof Error ? err.message : "update_product_failed",
+              };
+            }
+          }
+
+          return { ok: false, error: "unknown_target" };
         },
       },
     ];

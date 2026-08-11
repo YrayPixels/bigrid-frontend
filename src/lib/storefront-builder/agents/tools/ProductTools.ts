@@ -456,17 +456,19 @@ export class ProductTools {
           properties: {
             image_url: {
               type: "string",
-              description: "The URL of the uploaded product image to analyze",
+              description:
+                "The URL of the uploaded product image to analyze. If omitted, extracted from [Image: url] in the merchant message.",
             },
           },
-          required: ["image_url"],
           additionalProperties: false,
         },
         handler: async (args, ctx) => {
           let imageUrl = typeof args.image_url === "string" ? args.image_url.trim() : "";
           if (!imageUrl) {
-            const match = ctx.message.match(/\[Image:\s*(https?:\/\/[^\s\]]+)\]/i);
-            imageUrl = match?.[1] ?? "";
+            const { extractFirstMerchantImageUrl } = await import(
+              "@/lib/storefront-builder/merchant-image"
+            );
+            imageUrl = extractFirstMerchantImageUrl(ctx.message) ?? "";
           }
           if (!imageUrl) return { ok: false, error: "No image URL provided." };
 

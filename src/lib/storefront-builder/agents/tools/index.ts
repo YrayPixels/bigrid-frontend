@@ -51,6 +51,8 @@ const PRE_DRAFT_TOOL_NAMES = new Set([
   "get_order",
   "update_order_status",
   "suggest_site_improvements",
+  "process_product_image",
+  "apply_merchant_image",
   ...COMMERCE_OPS_TOOL_NAMES,
 ]);
 
@@ -61,6 +63,7 @@ const DRAFT_TOOL_NAMES = new Set([
   "apply_stock_images",
   "source_website_images",
   "replace_template_images",
+  "apply_merchant_image",
   "add_products",
   "generate_product_descriptions",
   "process_product_image",

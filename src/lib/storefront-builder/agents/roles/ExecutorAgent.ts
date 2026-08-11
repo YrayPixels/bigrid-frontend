@@ -63,6 +63,7 @@ export class ExecutorAgent extends BuilderAgent {
     this.sessionState = input.session.storefront_snapshot
       ? "### Session state\nA website draft already exists in the preview. Follow the plan above — call each planned tool in order. Never reply with only prose when a tool is assigned to you. Execute tools silently and report results after.\n" +
         "When calling replace_template_images, ALWAYS set scope yourself from the merchant's intent (full_site|hero|about|category_showcase|products). Do not omit scope. Banner/header/homepage background = hero.\n" +
+        "When the merchant message includes [Image: url], call apply_merchant_image (or process_product_image to add a new product). NEVER call replace_template_images or source_website_images when [Image: url] is present.\n" +
         "When the merchant names a specific product for a photo update, pass product_name (and scope=products). Never refresh all product photos for one named product.\n" +
         "When the merchant names a specific product for a description update, call generate_product_descriptions with product_name. Never rewrite all descriptions for one named product.\n" +
         "When adding a product and they want a photo (e.g. 'add Dell Latitude 5900 and find an image'), call add_products with find_images=true. If price is missing, ask_clarifying_question for the price first.\n" +

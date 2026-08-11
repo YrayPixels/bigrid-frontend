@@ -48,16 +48,19 @@ export const BUILDER_TOOL_DECISION_RULES = [
   "Draft exists + color, palette, shade, or hex only (no mention of design/look/layout/style): apply_brand_color — updates colors only, never switch_design. Vague 'different colors' / 'new palette' → pick a fitting palette yourself; do not ask which colors.",
   "Draft exists + stock photos (quick template defaults): apply_stock_images.",
   "Draft exists + find/source photo ideas, brand-matched images, or what photos to use: source_website_images — run it; do not ask which photos they want first.",
-  "Draft exists + image/photo updates: replace_template_images. ALWAYS pass scope yourself from merchant intent — never omit scope.",
+  "Draft exists + image/photo updates WITHOUT a merchant [Image: url] upload: replace_template_images. ALWAYS pass scope yourself from merchant intent — never omit scope.",
   "scope full_site: refresh photos across the site, or vague asks like 'update the images' / 'better photos' with no section AND no product named.",
   "scope hero: landing page, homepage header, hero image, banner, background banner, top banner photo.",
   "scope about: about section photo.",
   "scope category_showcase: Essentials, curated collections, rooms, choose your style.",
   "scope products: ALL best sellers / product grid / new arrivals photos — only when they want every product photo refreshed. Each product gets a photo matched to its own name and description (not generic stock).",
-  "Named product photo (e.g. 'better image for the iPhone 12', 'update the Blue Sofa photo'): replace_template_images with scope=products AND product_name set to that product. Never refresh the whole product grid for one named product.",
-  "Merchant says change/update/replace the banner, header photo, or homepage background: replace_template_images with scope=hero.",
-  "Essentials / collections / rooms / choose your style tiles: link_category_showcase (optional block_id). Missing tile images fill from Unsplash when linking or refreshing category_showcase.",
-  "When generating a website or switching design, photos are auto-sourced — use replace_template_images only if the merchant asks to refresh photos again.",
+  "Named product photo WITHOUT an uploaded [Image: url] (e.g. 'better image for the iPhone 12'): replace_template_images with scope=products AND product_name set to that product. Never refresh the whole product grid for one named product.",
+  "Merchant says change/update/replace the banner, header photo, or homepage background WITHOUT an uploaded image: replace_template_images with scope=hero.",
+  "Merchant message contains [Image: url] + any place to put it (header/banner/hero, about, logo, existing product, product gallery, Essentials/collections tile, section image): apply_merchant_image with that URL. NEVER call replace_template_images or source_website_images when [Image: url] is present.",
+  "Merchant message contains [Image: url] + add/create product intent: process_product_image (then confirm / add_products). Do NOT use apply_merchant_image for brand-new products.",
+  "Merchant message contains ONLY [Image: url] with no destination: ask where to use it (header, about, logo, which product, collections tile). Do NOT assume and do NOT source stock photos.",
+  "Essentials / collections / rooms / choose your style tiles: link_category_showcase (optional block_id). Missing tile images fill from Unsplash when linking or refreshing category_showcase — unless the merchant uploaded [Image: url], then use apply_merchant_image target=category_showcase.",
+  "When generating a website or switching design, photos are auto-sourced — use replace_template_images only if the merchant asks to refresh photos again (and did not upload their own).",
   ...(isCodeWorkbenchEnabled()
     ? [
         "Draft exists + custom code, build from scratch, unique design, handcrafted website, custom HTML: generate_custom_site — generates a completely custom website using real code instead of templates.",
@@ -81,8 +84,6 @@ export const BUILDER_TOOL_DECISION_RULES = [
   "Draft or send abandoned-cart recovery email/WhatsApp: draft_abandoned_recovery then send_abandoned_recovery (confirm=true to send). Never say you cannot send email — use these tools.",
   "Draft exists + add products (with optional find/get photo): add_products. Set find_images=true when they ask for a photo. If price is missing, ask_clarifying_question for the price — do not invent a price.",
   "Add product + find image in one request (e.g. 'add a Dell Latitude 5900 and find an image'): ONE step with add_products (find_images=true). Do NOT also call replace_template_images.",
-  "Draft exists + [Image: url] reference + header/homepage/hero context (NOT product/add): refine_website_copy to update media.hero_image_url or media.about_image_url.",
-  "Draft exists + ONLY an [Image: url] reference with no clear intent: ask the merchant what they want to do with the image (add as product, set as header, etc.). Do NOT assume.",
   "ask_clarifying_question ONLY when blocked: missing price for a new product, or they refer to one specific product/section vaguely and Recent product focus cannot resolve it. Never ask for copy, SEO text, FAQ content, colors, or photo preferences you can invent.",
   "Call exactly the tool(s) needed — prefer one focused tool per request.",
   "Do not generate until business name and a short description of what they sell exist.",
@@ -128,8 +129,10 @@ export const BUILDER_INTERPRET_PLANNER_SYSTEM_PROMPT_PREFIX =
   "### Plan rules\n" +
   "Plan step descriptions must use plain language a shop owner understands (websites, pages, copy, brand).\n" +
   "When work is scoped to one page/section, every plan step stays in that scope.\n" +
-  "For image updates, assign replace_template_images — Executor chooses scope; never rely on keyword matching.\n" +
-  "Named product photo → plan says ONLY that product, tools [\"replace_template_images\"].\n" +
+  "For image updates WITHOUT [Image: url], assign replace_template_images — Executor chooses scope; never rely on keyword matching.\n" +
+  "Named product photo without upload → plan says ONLY that product, tools [\"replace_template_images\"].\n" +
+  "Message contains [Image: url] + place it on header/about/logo/product/collections/section → tools [\"apply_merchant_image\"]. Never plan replace_template_images when [Image: url] is present.\n" +
+  "Message contains [Image: url] + add as product → tools [\"process_product_image\"].\n" +
   "Named product description → generate_product_descriptions for ONLY that product.\n\n" +
   "CRITICAL — every actionable plan step MUST include a non-empty tools array using ONLY allowed tool names.\n" +
   "CRITICAL — match the merchant request narrowly. Do NOT invent extra website edits.\n" +
@@ -155,7 +158,10 @@ export const BUILDER_INTERPRET_PLANNER_SYSTEM_PROMPT_PREFIX =
   "- Small style tweaks (buttons, spacing, density) → update_theme_style (NOT switch_design)\n" +
   "- Design/look/layout needing a different shop template → switch_design\n" +
   "- Font/typography → change_font\n" +
-  "- Image/photo for named product or section/site → replace_template_images (or source_website_images / apply_stock_images)\n" +
+  "- Image/photo for named product or section/site WITHOUT [Image: url] → replace_template_images (or source_website_images / apply_stock_images)\n" +
+  "- Message has [Image: url] + header/about/logo/product/gallery/collections/section → apply_merchant_image (never stock replace)\n" +
+  "- Message has [Image: url] + add/create product → process_product_image\n" +
+  "- Message has ONLY [Image: url] with no destination → ask_clarifying_question (or ask in reply) — do not source stock\n" +
   "- Unclear product/section that cannot be invented → ask_clarifying_question (NOT for inventable copy/SEO/FAQ/colors/photos)\n" +
   "- List products → list_products; adding products → add_products (find_images=true when they want a photo). Missing price → ask_clarifying_question first.\n" +
   "- Add product + find image → ONE step add_products with find_images=true — do NOT also plan replace_template_images\n" +
@@ -198,10 +204,11 @@ export const BUILDER_OUTCOME_CRITIC_SYSTEM_PROMPT =
   "Review whether the agent's tools and reply fulfilled the merchant's latest request.\n" +
   "Return DONE when the request is adequately handled (tools succeeded and match the ask, or a warm prose reply was enough for greetings/clarifications already answered).\n" +
   "Return NEED_USER when one missing detail blocks progress (e.g. product price), or the agent correctly asked a clarifying question.\n" +
-  "Return RETRY only when the agent clearly missed the request, used the wrong tool, under-fulfilled (e.g. appended one FAQ when asked to invent/update the FAQ section), used a product name as the brand, asked for inventable copy/SEO/colors/photos, or did nothing when a tool was required — explain briefly what to fix.\n" +
+  "Return RETRY only when the agent clearly missed the request, used the wrong tool, under-fulfilled (e.g. appended one FAQ when asked to invent/update the FAQ section), used a product name as the brand, asked for inventable copy/SEO/colors/photos, sourced stock photos when the merchant uploaded [Image: url], or did nothing when a tool was required — explain briefly what to fix.\n" +
   "FAQ invent/update/come-up-with/fit-my-brand asks require rewriting the full FAQ section (multiple Q&As), not adding a single generic question.\n" +
   "SEO invent/update/improve/search visibility asks require refine_website_copy rewriting seo.title and seo.description — asking the merchant for the title/description is a miss (RETRY).\n" +
   "Headline/about/color/photo invent-or-improve chips require acting with tools — asking which headline/about/colors/photos is a miss (RETRY).\n" +
+  "When the merchant message includes [Image: url], using replace_template_images or source_website_images instead of apply_merchant_image / process_product_image is a miss (RETRY).\n" +
   "Do NOT return RETRY for successful catalog/commerce tool runs (add/archive/list products, orders, metrics, abandoned recovery draft/send) when those tools match the ask.\n" +
   "Do NOT return RETRY when ask_clarifying_question already ran for a truly blocking detail (price / which named product).\n" +
   "Saying you cannot send email when draft_abandoned_recovery / send_abandoned_recovery are available is a miss (RETRY).\n" +

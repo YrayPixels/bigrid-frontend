@@ -204,6 +204,7 @@ const QUALITY_REVIEW_TOOLS = new Set([
   "change_font",
   "update_theme_style",
   "replace_template_images",
+  "apply_merchant_image",
   "source_website_images",
   "generate_product_descriptions",
   "generate_custom_site",
@@ -299,6 +300,12 @@ export function missedActableRequestRetryHint(
     ) &&
     !/\b(iphone|samsung|sofa|for\s+the\s+)\b/i.test(text)
   ) {
+    if (/\[Image:\s*https?:\/\//i.test(text)) {
+      return (
+        "Call apply_merchant_image now with the uploaded [Image: url]. " +
+        "Do not call replace_template_images or source_website_images."
+      );
+    }
     if (/\b(source|ideas?|what\s+photos|brand)\b/i.test(text)) {
       return (
         "Call source_website_images now with brand-matched photo suggestions. " +
@@ -308,6 +315,20 @@ export function missedActableRequestRetryHint(
     return (
       "Call replace_template_images now with scope=full_site (or hero if they only mentioned the header). " +
       "Do not ask which photos first."
+    );
+  }
+
+  if (/\[Image:\s*https?:\/\//i.test(text)) {
+    if (/\b(add|create|new)\b.*\bproduct\b|\bproduct\b.*\b(add|create|new)\b/i.test(text)) {
+      return (
+        "Call process_product_image now with the uploaded [Image: url]. " +
+        "Do not call replace_template_images."
+      );
+    }
+    return (
+      "Call apply_merchant_image now with the uploaded [Image: url] and the correct target " +
+      "(hero, about, logo, product, product_gallery, category_showcase, or block_path). " +
+      "Do not call replace_template_images or source_website_images."
     );
   }
 

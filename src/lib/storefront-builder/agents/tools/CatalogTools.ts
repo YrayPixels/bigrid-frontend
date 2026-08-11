@@ -109,6 +109,11 @@ export class CatalogTools {
             description: { type: "string" },
             stock_quantity: { type: "number" },
             image_url: { type: "string" },
+            images: {
+              type: "array",
+              items: { type: "string" },
+              description: "Full product gallery URLs. First entry should match the cover image_url when replacing.",
+            },
             status: { type: "string", enum: ["active", "draft", "archived"] },
             category: { type: "string" },
             category_id: { type: "string" },
@@ -140,6 +145,9 @@ export class CatalogTools {
           const stock = asNumber(args.stock_quantity);
           if (stock !== null) patch.stock_quantity = Math.max(0, Math.floor(stock));
           if (typeof args.image_url === "string") patch.image_url = args.image_url || null;
+          if (Array.isArray(args.images)) {
+            patch.images = args.images.map(String).filter((url) => url.trim()).slice(0, 12);
+          }
           if (
             args.status === "active" ||
             args.status === "draft" ||
