@@ -38,9 +38,10 @@ async function publicHttp<T>(path: string): Promise<T> {
 }
 
 /** Live store payloads must not be ISR-cached — publish/product edits should show immediately. */
-async function publicHttpFresh<T>(path: string): Promise<T> {
+async function publicHttpFresh<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: { Accept: "application/json" },
+    ...init,
+    headers: { Accept: "application/json", ...(init?.headers ?? {}) },
     cache: "no-store",
   });
   const data = await res.json().catch(() => ({}));
@@ -50,12 +51,14 @@ async function publicHttpFresh<T>(path: string): Promise<T> {
   return data as T;
 }
 
-async function publicWrite<T>(path: string, body: unknown): Promise<T> {
+async function publicWrite<T>(path: string, body: unknown, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
+    ...init,
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Accept: "application/json",
+      ...(init?.headers ?? {}),
     },
     body: JSON.stringify(body),
   });
@@ -66,10 +69,11 @@ async function publicWrite<T>(path: string, body: unknown): Promise<T> {
   return data as T;
 }
 
-async function publicForm<T>(path: string, form: FormData): Promise<T> {
+async function publicForm<T>(path: string, form: FormData, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
+    ...init,
     method: "POST",
-    headers: { Accept: "application/json" },
+    headers: { Accept: "application/json", ...(init?.headers ?? {}) },
     body: form,
   });
   const data = await res.json().catch(() => ({}));
@@ -77,6 +81,17 @@ async function publicForm<T>(path: string, form: FormData): Promise<T> {
     throw new StorefrontApiError(res.status, data?.message ?? "Request failed");
   }
   return data as T;
+}
+
+function customerAuthHeaders(): HeadersInit {
+  if (typeof window === "undefined") return {};
+  try {
+    const token = window.localStorage.getItem("storehause_customer_token");
+    if (!token) return {};
+    return { Authorization: `Bearer ${token}` };
+  } catch {
+    return {};
+  }
 }
 
 export const storefrontApi = {
@@ -264,6 +279,7 @@ export const storefrontApi = {
       return publicForm<{ session: TryOnSession }>(
         `${STOREHAUSE_API_PREFIX}/public/storefronts/${slug}/try-on/sessions`,
         form,
+        { headers: customerAuthHeaders() },
       );
     }
 
@@ -276,6 +292,7 @@ export const storefrontApi = {
         garment_category: body.garment_category,
         src_image_url: body.src_image_url,
       },
+      { headers: customerAuthHeaders() },
     );
   },
 
@@ -295,6 +312,7 @@ export const storefrontApi = {
     }
     return publicHttpFresh<{ session: TryOnSession }>(
       `${STOREHAUSE_API_PREFIX}/public/storefronts/${slug}/try-on/sessions/${sessionId}`,
+      { headers: customerAuthHeaders() },
     );
   },
 

@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, Search, ShoppingBag, UserRound, X } from "lucide-react";
+import { Menu, Search, ShoppingBag, X } from "lucide-react";
 import { useState } from "react";
 import { useCart } from "@/lib/storefront/cart-context";
 import { useStorefront } from "@/lib/storefront/store-context";
 import { useStorefrontTheme } from "@/lib/storefront/theme-context";
 import { STOREFRONT_FOOTER_LINKS, STOREFRONT_NAV_ITEMS } from "@/lib/storefront/template";
+import { StorefrontCustomerAccountControl } from "@/components/storefront/shell/storefront-customer-account-control";
 import { StorefrontLink } from "@/components/storefront/theme/storefront-link";
 import { cn } from "@/lib/utils";
 
@@ -113,13 +114,7 @@ export function MinimalisticShell({ children }: { children: React.ReactNode }) {
                 ) : null}
               </Link>
             )}
-            <span
-              className="hidden items-center gap-1 rounded-full px-3 py-2 text-[11px] font-semibold sm:inline-flex"
-              style={{ backgroundColor: theme.palette.primary, color: theme.palette.background }}
-            >
-              Sign in
-              <UserRound className="h-3.5 w-3.5" />
-            </span>
+            <StorefrontCustomerAccountControl variant="pill" />
             <button
               type="button"
               className="grid h-9 w-9 place-items-center rounded-full shadow-sm lg:hidden"

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, Search, ShoppingBag, User, X } from "lucide-react";
+import { Menu, Search, ShoppingBag, X } from "lucide-react";
 import { useState } from "react";
 import { useCart } from "@/lib/storefront/cart-context";
 import { useStorefront } from "@/lib/storefront/store-context";
@@ -11,6 +11,7 @@ import {
   hairFashionFooterColumns,
   hairFashionNavItems,
 } from "@/lib/storefront/hair-fashion-defaults";
+import { StorefrontCustomerAccountControl } from "@/components/storefront/shell/storefront-customer-account-control";
 import { StorefrontLink } from "@/components/storefront/theme/storefront-link";
 import { cn } from "@/lib/utils";
 
@@ -70,9 +71,11 @@ export function HairFashionShell({ children }: { children: React.ReactNode }) {
                   ) : null}
                 </Link>
               )}
-              <button type="button" aria-label="Account" className="hidden hover:opacity-60 sm:inline">
-                <User className="h-4 w-4" />
-              </button>
+              <StorefrontCustomerAccountControl
+                variant="icon"
+                className="hidden sm:inline-flex"
+                iconClassName="h-4 w-4"
+              />
               <button type="button" aria-label="Search" className="hover:opacity-60">
                 <Search className="h-4 w-4" />
               </button>

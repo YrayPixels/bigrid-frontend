@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronDown, Menu, Search, ShoppingBag, User, X } from "lucide-react";
+import { ChevronDown, Menu, Search, ShoppingBag, X } from "lucide-react";
 import { useState } from "react";
 import { useCart } from "@/lib/storefront/cart-context";
 import { useStorefront } from "@/lib/storefront/store-context";
 import { useStorefrontTheme } from "@/lib/storefront/theme-context";
 import { furnitureHardwareNavItems } from "@/lib/storefront/furniture-hardware-defaults";
+import { StorefrontCustomerAccountControl } from "@/components/storefront/shell/storefront-customer-account-control";
 import { StorefrontLink } from "@/components/storefront/theme/storefront-link";
 import { cn } from "@/lib/utils";
 
@@ -67,13 +68,11 @@ export function FurnitureHeader() {
           >
             <Search className="size-4" />
           </button>
-          <button
-            type="button"
-            aria-label="Account"
-            className="hidden size-9 items-center justify-center rounded-full hover:bg-[#f7f3eb]/10 sm:flex"
-          >
-            <User className="size-4" />
-          </button>
+          <StorefrontCustomerAccountControl
+            variant="icon"
+            className="hidden size-9 items-center justify-center rounded-full text-[#f7f3eb] hover:bg-[#f7f3eb]/10 sm:inline-flex"
+            iconClassName="size-4"
+          />
           {mode === "edit" ? (
             <span className="relative flex size-9 items-center justify-center rounded-full">
               <ShoppingBag className="size-4" />
