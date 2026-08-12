@@ -41,6 +41,7 @@ export function AiStylistPanel({ onClose, className }: AiStylistPanelProps) {
   const [tryOnProduct, setTryOnProduct] = useState<StoreProduct | null>(null);
   const [selectedChips, setSelectedChips] = useState<Record<string, string>>({});
   const [showFilters, setShowFilters] = useState(true);
+  const [thinking, setThinking] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -83,6 +84,7 @@ export function AiStylistPanel({ onClose, className }: AiStylistPanelProps) {
   }) {
     setBusy(true);
     setError(null);
+    setThinking("Understanding your request…");
     try {
       const response = await storefrontApi.aiShop(store.slug, {
         message: opts.message,
@@ -95,6 +97,8 @@ export function AiStylistPanel({ onClose, className }: AiStylistPanelProps) {
       const recommendation = response.recommendation ?? response.look;
       setLook(recommendation);
       setSuggestions(response.suggestions?.length ? response.suggestions : suggestions);
+      const latestThought = response.thinking?.at(-1);
+      setThinking(latestThought ? latestThought.title : null);
       setMessages((prev) => [
         ...prev,
         {
@@ -114,6 +118,7 @@ export function AiStylistPanel({ onClose, className }: AiStylistPanelProps) {
       setError(message);
     } finally {
       setBusy(false);
+      setThinking(null);
     }
   }
 
@@ -328,9 +333,11 @@ export function AiStylistPanel({ onClose, className }: AiStylistPanelProps) {
             </div>
           ))}
           {busy ? (
-            <div className="inline-flex items-center gap-2 text-xs" style={{ color: theme.palette.muted }}>
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              {shopper.supports_looks ? "Styling your look…" : "Searching the catalog…"}
+            <div className="space-y-1">
+              <div className="inline-flex items-center gap-2 text-xs" style={{ color: theme.palette.muted }}>
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                {thinking ?? (shopper.supports_looks ? "Styling your look…" : "Searching the catalog…")}
+              </div>
             </div>
           ) : null}
           {error ? <p className="text-sm text-red-600">{error}</p> : null}

@@ -484,6 +484,7 @@ export type ShoppingLook = {
 
 export type ShoppingIntent = {
   reply?: string;
+  action?: "search_products" | "catalog_overview" | "build_look" | "clarify" | "greeting";
   occasion?: string | null;
   styles?: string[];
   budget_max?: number | null;
@@ -515,9 +516,27 @@ export type ShopperContext = {
   categories: Array<{ id: string; name: string; slug: string }>;
 };
 
+export type ShopperThinkingEntry = {
+  agent: string;
+  phase: string;
+  title: string;
+  detail?: string;
+};
+
 export type AiShopResponse = {
   reply: string;
   intent: ShoppingIntent;
+  interpretation?: {
+    task_summary?: string;
+    steps?: string[];
+    constraints?: string[];
+  } | null;
+  plan?: {
+    action?: string;
+    intent_summary?: string;
+    plan_steps?: Array<{ step: number; description: string; tool: string }>;
+  } | null;
+  thinking?: ShopperThinkingEntry[];
   shopper: ShopperContext;
   look: ShoppingLook | null;
   recommendation?: ShoppingLook | null;
