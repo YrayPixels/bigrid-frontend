@@ -444,6 +444,59 @@ export type StoreProduct = {
   }>;
   perks?: string[];
   try_on?: ProductTryOnConfig | null;
+  style_profile?: ProductStyleProfile | null;
+  try_on_available?: boolean;
+};
+
+export type ProductStyleProfile = {
+  product_type?: string;
+  roles?: string[];
+  styles?: string[];
+  occasions?: string[];
+  colors?: string[];
+  formality?: string;
+  gender?: string;
+  material?: string | null;
+  source?: string;
+  generated_at?: string;
+};
+
+export type ShoppingLookItem = {
+  role: "primary" | "bag" | "shoe" | "accessory" | "beauty" | string;
+  product_id: string;
+  product: StoreProduct;
+};
+
+export type ShoppingLook = {
+  id: string;
+  name: string;
+  occasion?: string | null;
+  styles?: string[];
+  items: ShoppingLookItem[];
+  total_price: number;
+  currency: string;
+  try_on_product_id?: string | null;
+  within_budget?: boolean;
+};
+
+export type ShoppingIntent = {
+  reply?: string;
+  occasion?: string | null;
+  styles?: string[];
+  budget_max?: number | null;
+  currency?: string;
+  gender?: string | null;
+  categories?: string[];
+  revision?: string | null;
+  needs_clarification?: boolean;
+};
+
+export type AiShopResponse = {
+  reply: string;
+  intent: ShoppingIntent;
+  look: ShoppingLook | null;
+  suggestions: string[];
+  catalog_enriched?: boolean;
 };
 
 export type StoreCategory = {
