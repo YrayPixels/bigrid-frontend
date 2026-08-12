@@ -13,6 +13,7 @@ import {
   loadGuestChatSession,
   saveGuestChatSession,
 } from "@/lib/guest-preview-storage";
+import { trackPlatformEvent } from "@/lib/analytics/platform-events";
 import { cn } from "@/lib/utils";
 
 const EXAMPLE_PROMPT = "I sell handmade soy candles. Warm, cozy, gift-friendly.";
@@ -146,11 +147,21 @@ export function LandingPreviewPrompt({ mood = null, onMoodChange }: LandingPrevi
     workspaceRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, [chatStarted]);
 
+  useEffect(() => {
+    if (session?.messages.some((message) => message.role === "user")) {
+      trackPlatformEvent("preview_started", { source: "landing" });
+    }
+    if (session?.status === "ready" && session.store && session.storefront) {
+      trackPlatformEvent("preview_ready", { source: "landing" });
+    }
+  }, [session?.status, session?.store, session?.storefront, session?.messages]);
+
   async function sendMessage(message: string) {
     if (!session || sending) return;
     const trimmed = message.trim().slice(0, MAX_PROMPT_LENGTH);
     if (!trimmed) return;
 
+    const isFirstUserTurn = !session.messages.some((m) => m.role === "user");
     setSending(true);
     setInput("");
     const prior = session;
@@ -179,6 +190,9 @@ export function LandingPreviewPrompt({ mood = null, onMoodChange }: LandingPrevi
       };
       if (!res.ok || !data.session) {
         throw new Error(data.message || "Could not continue the chat.");
+      }
+      if (isFirstUserTurn) {
+        trackPlatformEvent("preview_started", { source: "landing" });
       }
       saveGuestChatSession(data.session);
       setSession(data.session);
@@ -448,6 +462,7 @@ export function LandingPreviewPrompt({ mood = null, onMoodChange }: LandingPrevi
                 </p>
                 <Link
                   href="/signup?from=preview"
+                  onClick={() => trackPlatformEvent("claim_store_clicked", { source: "landing" })}
                   className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition hover:opacity-90"
                 >
                   Claim this store

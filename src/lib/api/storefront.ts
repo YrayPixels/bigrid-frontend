@@ -220,6 +220,22 @@ export const storefrontApi = {
     );
   },
 
+  async recordPlatformEvent(body: {
+    event: string;
+    session_id?: string;
+    source?: string;
+    utm_source?: string;
+    utm_medium?: string;
+    utm_campaign?: string;
+    utm_content?: string;
+  }) {
+    if (USE_MOCKS) return { message: "Event recorded." };
+    return publicWrite<{ message: string; success?: boolean }>(
+      `${STOREHAUSE_API_PREFIX}/public/platform/events`,
+      body,
+    );
+  },
+
   async submitContact(slug: string, body: StoreContactInquiryInput): Promise<{ message: string }> {
     if (USE_MOCKS) return mockApi.submitContact(slug, body);
     return publicWrite<{ message: string }>(

@@ -14,6 +14,7 @@ import {
   loadGuestChatSession,
   saveGuestChatSession,
 } from "@/lib/guest-preview-storage";
+import { trackPlatformEvent } from "@/lib/analytics/platform-events";
 import { cn } from "@/lib/utils";
 
 function PreviewChatPage() {
@@ -31,6 +32,15 @@ function PreviewChatPage() {
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
   }, [session?.messages.length, sending]);
+
+  useEffect(() => {
+    if (session?.messages.some((message) => message.role === "user")) {
+      trackPlatformEvent("preview_started", { source: "preview" });
+    }
+    if (session?.status === "ready" && session.store && session.storefront) {
+      trackPlatformEvent("preview_ready", { source: "preview" });
+    }
+  }, [session?.status, session?.store, session?.storefront, session?.messages]);
 
   useEffect(() => {
     let cancelled = false;
@@ -56,6 +66,7 @@ function PreviewChatPage() {
             throw new Error(data.message || "Could not start the preview chat.");
           }
           if (cancelled) return;
+          trackPlatformEvent("preview_started", { source: "preview" });
           saveGuestChatSession(data.session);
           setSession(data.session);
           // Drop ?q= so refresh doesn't re-run the seed turn.
@@ -99,6 +110,7 @@ function PreviewChatPage() {
     const trimmed = message.trim();
     if (!trimmed) return;
 
+    const isFirstUserTurn = !session.messages.some((m) => m.role === "user");
     setSending(true);
     setInput("");
     const prior = session;
@@ -127,6 +139,9 @@ function PreviewChatPage() {
       };
       if (!res.ok || !data.session) {
         throw new Error(data.message || "Could not continue the chat.");
+      }
+      if (isFirstUserTurn) {
+        trackPlatformEvent("preview_started", { source: "preview" });
       }
       saveGuestChatSession(data.session);
       setSession(data.session);
@@ -194,6 +209,7 @@ function PreviewChatPage() {
             </Link>
             <Link
               href="/signup?from=preview"
+              onClick={() => trackPlatformEvent("claim_store_clicked", { source: "preview" })}
               className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-soft transition hover:opacity-90"
             >
               Create account
@@ -251,6 +267,7 @@ function PreviewChatPage() {
               </p>
               <Link
                 href="/signup?from=preview"
+                onClick={() => trackPlatformEvent("claim_store_clicked", { source: "preview" })}
                 className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition hover:opacity-90"
               >
                 Create account & manage store

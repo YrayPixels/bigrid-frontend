@@ -15,6 +15,7 @@ import {
   GoogleAuthFooter,
 } from "@/components/auth-shell";
 import { loadGuestPreview } from "@/lib/guest-preview-storage";
+import { trackPlatformEvent } from "@/lib/analytics/platform-events";
 
 function SignupForm() {
   const router = useRouter();
@@ -59,6 +60,9 @@ function SignupForm() {
     setSubmitting(true);
     try {
       await api.register({ name, email, password });
+      if (fromPreview) {
+        trackPlatformEvent("preview_signup_completed", { source: "signup" });
+      }
       await refresh();
       toast.success("Account created. Check your email for a verification code.");
       router.replace("/verify-email");
