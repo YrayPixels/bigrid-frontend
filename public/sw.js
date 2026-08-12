@@ -5,7 +5,7 @@
  * deploy changes this file and browsers detect a new service worker.
  */
 const VERSION = "1.0.17";
-const BUILD_ID = "dev";
+const BUILD_ID = "a0d195512e19";
 const CACHE = `bizgrid-sell-${VERSION}-${BUILD_ID}`;
 const PRECACHE = ["/sell", "/sell/checkout", "/sell/sales", "/manifest.webmanifest"];
 
