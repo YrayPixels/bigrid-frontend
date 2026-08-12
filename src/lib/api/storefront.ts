@@ -326,6 +326,7 @@ export const storefrontApi = {
       chips?: Array<string | { type: string; value: string }>;
       intent?: ShoppingIntent | null;
       look?: Pick<ShoppingLook, "id" | "items"> | ShoppingLook | null;
+      session_id?: string;
     },
   ): Promise<AiShopResponse> {
     if (USE_MOCKS) {

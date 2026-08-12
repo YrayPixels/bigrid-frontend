@@ -24,6 +24,7 @@ import { SalesAnalyticsCard } from "@/components/admin/dashboard/sales-analytics
 import { TrafficCard } from "@/components/admin/dashboard/traffic-card";
 import { TopSellingCard } from "@/components/admin/dashboard/top-selling-card";
 import { ProductSalesCard } from "@/components/admin/dashboard/product-sales-card";
+import { ShopperDemandCard } from "@/components/admin/dashboard/shopper-demand-card";
 
 function formatMoney(value: number, currency = "NGN") {
   return new Intl.NumberFormat("en-NG", {
@@ -302,6 +303,10 @@ export default function AdminDashboardPage() {
         <div className="min-w-0">
           <ProductSalesCard rows={overview?.orders_by_status ?? []} loading={loading} />
         </div>
+      </section>
+
+      <section className="mt-3 sm:mt-4">
+        <ShopperDemandCard summary={overview?.shopper_demand} loading={loading} />
       </section>
 
       <DashboardAiBuilderFab open={builderOpen} onOpenChange={setBuilderOpen} />

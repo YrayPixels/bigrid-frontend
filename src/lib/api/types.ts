@@ -1104,6 +1104,35 @@ export type MerchantDashboardStatusCount = {
   count: number;
 };
 
+export type ShopperDemandSummary = {
+  period_days: number;
+  total_requests: number;
+  new_since_last_visit: number;
+  budget_mentions: number;
+  has_activity: boolean;
+  top_queries: Array<{ query: string; count: number }>;
+  top_categories: Array<{ category: string; count: number }>;
+  recent_requests: Array<{
+    id: number;
+    message: string;
+    product_query?: string | null;
+    action?: string | null;
+    budget_max?: number | null;
+    categories?: string[];
+    had_recommendation: boolean;
+    within_budget?: boolean | null;
+    recommended_product_names?: string[];
+    interpretation_summary?: string | null;
+    logged_at?: string | null;
+  }>;
+  unmatched_requests: Array<{
+    message: string;
+    product_query?: string | null;
+    budget_max?: number | null;
+    logged_at?: string | null;
+  }>;
+};
+
 export type MerchantDashboardOverview = {
   location_id?: string;
   locations?: StoreLocation[];
@@ -1113,6 +1142,7 @@ export type MerchantDashboardOverview = {
   traffic_sources?: MerchantDashboardTrafficSource[];
   orders_by_status?: MerchantDashboardStatusCount[];
   recent_orders: StoreOrder[];
+  shopper_demand?: ShopperDemandSummary;
 };
 
 export type CreateStoreOrderInput = {
