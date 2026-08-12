@@ -1,27 +1,32 @@
-# Bizgrid (StoreHause)
+# Bizgrid (merchant app)
 
-AI-powered merchant platform for small businesses: invent a shop with chat, manage products and orders, and publish a live storefront customers can buy from.
+AI-powered merchant platform for small businesses: describe a shop in chat, manage products and orders, and publish a live storefront customers can buy from.
 
-This repository is the **merchant web app + public storefronts** (Next.js). The API and platform admin live in sibling repos listed below.
+This repository is the **merchant dashboard + public storefronts** (Next.js). The API and platform admin live in sibling repos.
+
+**Live:** [bizgrid.shop](https://www.bizgrid.shop) · **Judge demo:** `/demo` (see [Organizer demo](#organizer-demo-no-signup))
 
 ## Related repositories
 
-| Repository | Role | Stack |
-|------------|------|-------|
-| **[storehause](https://github.com/YrayPixels/storehause)** (this repo) | Merchant dashboard, AI website builder, hosted storefronts | Next.js 15, React 19, Tailwind |
-| **[storehausebackend](https://github.com/YrayPixels/storehausebackend)** | REST API, auth, AI generation, orders, billing hooks | Laravel 11, Sanctum, MySQL |
-| **[storehouseadmin](https://github.com/YrayPixels/storehouseadmin)** | Internal platform ops (merchants, templates, admins) | Vite, React 18 |
+Clone these next to each other. GitHub names differ from the local folder names used in this workspace:
 
-For a functional end-to-end demo, run **backend + this frontend**. The admin app is optional for judging unless you need platform-operator flows.
+| Local folder | GitHub | Role | Stack |
+|--------------|--------|------|-------|
+| `storehause/` (this repo) | [YrayPixels/bigrid-frontend](https://github.com/YrayPixels/bigrid-frontend) | Merchant dashboard, AI website builder, hosted storefronts | Next.js 15, React 19, Tailwind |
+| `storehausebackend/` | [YrayPixels/bizgrid-backend](https://github.com/YrayPixels/bizgrid-backend) | REST API, auth, AI agents, orders, billing | Laravel 11, Sanctum, MySQL |
+| `storehouseadmin/` | [YrayPixels/storehouseadmin](https://github.com/YrayPixels/storehouseadmin) | Internal platform ops (merchants, templates, agent logs) | Vite, React 18 |
+
+For an end-to-end demo, run **backend + this frontend**. The admin app is optional unless you need platform-operator flows.
 
 ## Features
 
-- Merchant registration, email verification, and session auth (Sanctum)
+- Merchant registration, email verification, Google sign-in, and session auth (Sanctum)
 - AI storefront / website builder (chat → generated shop)
-- Product and order management
-- Public storefront runtime (browse, cart, checkout)
+- Product, category, and order management
+- Public storefront runtime (browse, cart, Paystack checkout)
+- AI personal shopper on the storefront (catalog search, looks, optional virtual try-on)
 - Platform marketing surfaces (`/`, `/sell`, solutions, etc.)
-- Optional Google Places autocomplete, payments, and channel integrations (see backend env)
+- Optional Google Places autocomplete for zones and checkout
 
 ## Prerequisites
 
@@ -32,18 +37,16 @@ For a functional end-to-end demo, run **backend + this frontend**. The admin app
 | PHP | 8.2+ |
 | Composer | 2.x |
 | MySQL | 5.7+ / 8.x |
-| OpenAI API key | Required for AI storefront generation |
+| LLM API key | OpenAI **or** DeepSeek, configured on the **backend** |
 
-Optional: Redis (`docker compose up -d` in the backend repo), Google Maps key, payment provider keys.
+Optional: Redis (`docker compose up -d` in the backend repo), Google Maps key, Paystack / Dodo keys.
 
 ## Quick start (judges / local demo)
 
-Clone the three repos next to each other (names matter only for clarity):
-
 ```bash
-git clone https://github.com/YrayPixels/storehausebackend.git
-git clone https://github.com/YrayPixels/storehause.git
-git clone https://github.com/YrayPixels/storehouseadmin.git   # optional
+git clone https://github.com/YrayPixels/bizgrid-backend.git storehausebackend
+git clone https://github.com/YrayPixels/bigrid-frontend.git storehause
+git clone https://github.com/YrayPixels/storehouseadmin.git storehouseadmin   # optional
 ```
 
 ### 1. Backend API
@@ -96,7 +99,7 @@ Queue workers (recommended if you exercise AI / async jobs):
 php artisan queue:listen --tries=1
 ```
 
-Full backend env reference: [`storehausebackend/.env.example`](https://github.com/YrayPixels/storehausebackend/blob/main/.env.example). Deployment notes: [`RAILWAY.md`](https://github.com/YrayPixels/storehausebackend/blob/main/RAILWAY.md).
+Full backend env: [`storehausebackend/.env.example`](https://github.com/YrayPixels/bizgrid-backend/blob/main/.env.example). Setup: [`storehausebackend/README.md`](https://github.com/YrayPixels/bizgrid-backend).
 
 ### 2. Merchant app (this repo)
 
@@ -142,7 +145,7 @@ Log in with the seeded `STOREHAUSE_ADMIN_EMAIL` / `STOREHAUSE_ADMIN_PASSWORD` fr
 
 ## Organizer demo (no signup)
 
-One-click access for judges: open **`/demo`** on the merchant app (e.g. `https://your-domain/demo` or `http://localhost:3000/demo`).
+One-click access for judges: open **`/demo`** on the merchant app (production: `https://www.bizgrid.shop/demo`, local: `http://localhost:3000/demo`).
 
 That route signs you into a seeded **Glow Rituals** merchant with a published storefront, sample products, and sample orders — no account creation.
 
@@ -158,7 +161,7 @@ STOREHAUSE_DEMO_EMAIL=demo@bizgrid.shop
 
 Seed (or re-seed to reset shared demo data).
 
-**cPanel / production** (same pattern as migrate — uses `DEPLOY_KEY`):
+**Production** (same pattern as migrate — uses `DEPLOY_KEY`):
 
 ```bash
 curl -X POST "https://YOUR-API-DOMAIN/maintenance/cache-clear?key=YOUR_DEPLOY_KEY"
@@ -206,6 +209,7 @@ Copy from [`.env.example`](./.env.example).
 1. Open **`/demo`** — you land in the merchant dashboard as the sample Glow Rituals merchant.
 2. Explore **Products**, **Orders**, and **Website / Builder**.
 3. Open the live storefront at **`/s/glow-rituals-demo`** (browse, cart, checkout).
+4. Try the **AI shopper** on the storefront (chat FAB).
 
 ### Full signup path
 
@@ -213,7 +217,7 @@ Copy from [`.env.example`](./.env.example).
 2. Complete email verification if prompted (local mail may use your SMTP settings; set `MAIL_*` in backend `.env` or use a provider).
 3. Create / open a store and run the **AI Website Builder** — describe a business in plain language and generate a storefront.
 4. Add products, place a test order from the public storefront, and confirm it appears in merchant orders.
-5. (Optional) Open the admin app and inspect merchants / storefront templates.
+5. (Optional) Open the admin app and inspect merchants, agent logs, and storefront templates.
 
 ## Scripts (this repo)
 
@@ -266,7 +270,7 @@ All routes are prefixed with `/api`. Highlights:
 | Issue | What to check |
 |-------|----------------|
 | Frontend calls fail / CORS | Backend running on `:8000`; `NEXT_PUBLIC_API_BASE_URL` includes `/api` |
-| AI generation errors | `OPENAI_API_KEY` (or DeepSeek) set on **backend**; queue worker running if jobs are queued |
+| AI generation errors | `OPENAI_API_KEY` or `DEEPSEEK_API_KEY` set on **backend**; `AI_PROVIDER` matches; queue worker running if jobs are queued |
 | Demo login disabled / 404 | Backend `STOREHAUSE_DEMO_LOGIN=true` and `DemoMerchantSeeder` has run |
 | Admin seeder fails | `STOREHAUSE_ADMIN_PASSWORD` must be set and must not be the blocked default |
 | Empty UI with no API | Unset `NEXT_PUBLIC_USE_MOCKS` and point at a live API |
