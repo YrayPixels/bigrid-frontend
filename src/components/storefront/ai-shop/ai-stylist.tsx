@@ -233,7 +233,7 @@ export function AiStylistPanel({ onClose, className }: AiStylistPanelProps) {
         )}
         style={{
           backgroundColor: active ? theme.palette.primary : "transparent",
-          color: active ? theme.palette.background : theme.palette.foreground,
+          color: active ? theme.palette.background : theme.palette.text,
         }}
       >
         {label}
@@ -263,7 +263,7 @@ export function AiStylistPanel({ onClose, className }: AiStylistPanelProps) {
             type="button"
             onClick={onClose}
             className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border"
-            style={{ borderColor: theme.palette.border, color: theme.palette.foreground }}
+            style={{ borderColor: theme.palette.border, color: theme.palette.text }}
             aria-label="Close shopper"
           >
             <X className="h-4 w-4" />
@@ -328,7 +328,7 @@ export function AiStylistPanel({ onClose, className }: AiStylistPanelProps) {
               style={{
                 backgroundColor:
                   message.role === "user" ? theme.palette.primary : `${theme.palette.muted}18`,
-                color: message.role === "user" ? theme.palette.background : theme.palette.foreground,
+                color: message.role === "user" ? theme.palette.background : theme.palette.text,
               }}
             >
               {message.content}

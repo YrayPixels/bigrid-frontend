@@ -165,7 +165,7 @@ export function AiStylistFab() {
             style={{
               backgroundColor: theme.palette.surface,
               borderColor: theme.palette.border,
-              color: theme.palette.foreground,
+              color: theme.palette.text,
             }}
           >
             <p

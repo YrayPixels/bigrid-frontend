@@ -128,7 +128,7 @@ export function RecommendationCard({
             "flex-1 border px-4 py-2.5 text-xs font-bold uppercase tracking-[0.12em] transition disabled:opacity-50",
             theme.borderColor,
           )}
-          style={{ color: theme.palette.foreground }}
+          style={{ color: theme.palette.text }}
         >
           {addLabel}
         </button>

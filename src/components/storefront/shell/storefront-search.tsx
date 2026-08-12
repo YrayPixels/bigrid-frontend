@@ -82,9 +82,9 @@ export function StorefrontSearch({
   }
 
   const radius =
-    theme.buttonStyle === "square"
+    theme.buttonRadius === "rounded-none"
       ? "0px"
-      : theme.buttonStyle === "pill"
+      : theme.buttonRadius === "rounded-full"
         ? "9999px"
         : "0.75rem";
 
