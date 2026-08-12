@@ -1,9 +1,12 @@
 import { mockApi } from "./mocks";
 import type {
+  AiShopResponse,
   CreateStoreOrderInput,
   PlaceOrderResponse,
   PublicStorefront,
   PublishedStorefrontIndexEntry,
+  ShoppingIntent,
+  ShoppingLook,
   StoreContactInquiryInput,
   StoreOrder,
   StoreProductReview,
@@ -314,6 +317,44 @@ export const storefrontApi = {
       `${STOREHAUSE_API_PREFIX}/public/storefronts/${slug}/try-on/sessions/${sessionId}`,
       { headers: customerAuthHeaders() },
     );
+  },
+
+  async aiShop(
+    slug: string,
+    body: {
+      message?: string;
+      chips?: Array<string | { type: string; value: string }>;
+      intent?: ShoppingIntent | null;
+      look?: Pick<ShoppingLook, "id" | "items"> | ShoppingLook | null;
+    },
+  ): Promise<AiShopResponse> {
+    if (USE_MOCKS) {
+      return {
+        reply: "Here’s a sample look for your occasion.",
+        intent: {
+          occasion: "wedding",
+          styles: ["elegant"],
+          budget_max: 150000,
+          currency: "NGN",
+          needs_clarification: false,
+        },
+        look: null,
+        suggestions: ["Make it cheaper", "More elegant", "See it on me"],
+      };
+    }
+
+    return publicWrite<AiShopResponse>(
+      `${STOREHAUSE_API_PREFIX}/public/storefronts/${slug}/ai/shop`,
+      body,
+    );
+  },
+
+  async enrichStyleProfiles(
+    slug: string,
+    body?: { force?: boolean; limit?: number },
+  ): Promise<{ message: string; updated: number }> {
+    if (USE_MOCKS) return { message: "Catalog style profiles updated.", updated: 0 };
+    return publicWrite(`${STOREHAUSE_API_PREFIX}/public/storefronts/${slug}/ai/enrich-style-profiles`, body ?? {});
   },
 
   async recordAbandonedCart(

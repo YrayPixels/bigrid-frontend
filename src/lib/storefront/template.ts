@@ -462,6 +462,7 @@ export function getStorefrontPalette(
 export const STOREFRONT_NAV_ITEMS = [
   { href: "/", label: "Home" },
   { href: "/products", label: "Products" },
+  { href: "/stylist", label: "Stylist" },
   { href: "/about", label: "About" },
   { href: "/contact", label: "Contact" },
   { href: "/faq", label: "FAQ" },

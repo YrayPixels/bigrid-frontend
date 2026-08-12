@@ -106,13 +106,13 @@ export function LandingPage() {
 
       <LandingNav mood={mood} />
 
-      <div className="relative z-10 pt-[4.5rem]">
+      <div className="relative z-10 pt-14 sm:pt-[4.5rem]">
         <main>
           <LandingPreviewPrompt mood={mood} onMoodChange={setMood} />
 
-        <section id="platform" className="mx-auto max-w-6xl border-t border-border px-6 py-24">
-          <div className="mb-14 max-w-2xl">
-            <h2 className="font-display text-4xl font-bold tracking-tight md:text-5xl">
+        <section id="platform" className="mx-auto max-w-6xl border-t border-border px-4 py-16 sm:px-6 sm:py-24">
+          <div className="mb-10 max-w-2xl sm:mb-14">
+            <h2 className="font-display text-3xl font-bold tracking-tight sm:text-4xl md:text-5xl">
               Everything to open and run your shop
             </h2>
             <p className="mt-4 text-lg text-ink-soft">
@@ -132,12 +132,12 @@ export function LandingPage() {
           </div>
         </section>
 
-        <section id="showcase" className="relative overflow-hidden bg-gradient-hero py-24 text-white">
+        <section id="showcase" className="relative overflow-hidden bg-gradient-hero py-16 text-white sm:py-24">
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,oklch(1_0_0/0.1),transparent_45%)]" />
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_80%_80%,oklch(0.35_0.08_260/0.3),transparent_50%)]" />
-          <div className="relative mx-auto max-w-6xl px-6">
-            <div className="mb-12 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-              <h2 className="font-display text-5xl leading-none font-bold">Storefront examples</h2>
+          <div className="relative mx-auto max-w-6xl px-4 sm:px-6">
+            <div className="mb-8 flex flex-col gap-3 sm:mb-12 sm:gap-4 md:flex-row md:items-end md:justify-between">
+              <h2 className="font-display text-3xl leading-none font-bold sm:text-5xl">Storefront examples</h2>
               <p className="max-w-[32ch] text-sm text-white/70">
                 Fashion, beauty, home, and more — pick a template, then make it yours in chat.
               </p>
@@ -164,9 +164,9 @@ export function LandingPage() {
           </div>
         </section>
 
-        <section id="pricing" className="mx-auto max-w-6xl border-t border-border px-6 py-24">
-          <div className="mb-14 max-w-2xl">
-            <h2 className="font-display text-4xl font-bold tracking-tight md:text-5xl">Simple pricing, 14-day trial</h2>
+        <section id="pricing" className="mx-auto max-w-6xl border-t border-border px-4 py-16 sm:px-6 sm:py-24">
+          <div className="mb-10 max-w-2xl sm:mb-14">
+            <h2 className="font-display text-3xl font-bold tracking-tight sm:text-4xl md:text-5xl">Simple pricing, 14-day trial</h2>
             <p className="mt-4 text-lg text-ink-soft">
               Every plan includes a 14-day free trial. A 2.5% service fee is added to online orders
               at checkout and paid by your customer. Upgrade for more storefronts, custom domains,
@@ -221,9 +221,9 @@ export function LandingPage() {
           </div>
         </section>
 
-        <section id="faq" className="mx-auto max-w-6xl border-t border-border px-6 py-24">
-          <div className="mb-10 max-w-2xl">
-            <h2 className="font-display text-4xl font-bold tracking-tight md:text-5xl">Questions sellers ask</h2>
+        <section id="faq" className="mx-auto max-w-6xl border-t border-border px-4 py-16 sm:px-6 sm:py-24">
+          <div className="mb-8 max-w-2xl sm:mb-10">
+            <h2 className="font-display text-3xl font-bold tracking-tight sm:text-4xl md:text-5xl">Questions sellers ask</h2>
             <p className="mt-4 text-lg text-ink-soft">
               Straight answers about pricing, Paystack, WhatsApp, and launching without code.
             </p>
@@ -242,8 +242,8 @@ export function LandingPage() {
         </section>
       </main>
 
-      <footer className="border-t border-border bg-canvas-raised px-6 py-12">
-        <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-12 md:flex-row">
+      <footer className="border-t border-border bg-canvas-raised px-4 py-10 sm:px-6 sm:py-12">
+        <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-10 md:flex-row md:gap-12">
           <div className="space-y-4">
             <BizgridLogo size={28} showWordmark wordmarkClassName="text-xl font-bold tracking-tight" />
             <p className="max-w-[34ch] text-sm text-ink-soft">

@@ -229,6 +229,22 @@
   }
 }
 
+@keyframes mood-pulse-mobile {
+  0%,
+  100% {
+    transform: scale(1.03) translateY(0);
+    box-shadow:
+      0 0 0 0 var(--mood-ring-soft),
+      0 12px 28px -12px var(--mood-ring);
+  }
+  50% {
+    transform: scale(1.07) translateY(-3px);
+    box-shadow:
+      0 0 0 6px transparent,
+      0 18px 36px -10px var(--mood-ring);
+  }
+}
+
 .animate-reveal {
   animation: reveal-up 0.8s var(--ease-out-expo) both;
 }
@@ -240,6 +256,12 @@
 .animate-mood-pulse {
   animation: mood-pulse 1.8s ease-in-out infinite;
   will-change: transform, box-shadow;
+}
+
+@media (max-width: 639px) {
+  .animate-mood-pulse {
+    animation-name: mood-pulse-mobile;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
