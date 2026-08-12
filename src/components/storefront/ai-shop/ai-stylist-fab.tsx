@@ -134,15 +134,20 @@ export function AiStylistFab() {
     <>
       <div
         className={cn(
-          "fixed z-50 flex flex-col items-end gap-2",
-          isMobile ? "bottom-5 right-4" : "bottom-6 right-6",
+          "fixed z-50 flex flex-col items-end gap-2.5",
+          isMobile
+            ? "bottom-[max(1.25rem,env(safe-area-inset-bottom))] right-[max(1rem,env(safe-area-inset-right))]"
+            : "bottom-6 right-6",
         )}
       >
         <button
           type="button"
           onClick={openShopper}
           className={cn(
-            "max-w-[280px] origin-bottom-right text-left transition-all duration-500 ease-out sm:max-w-[320px]",
+            "origin-bottom-right text-left transition-all duration-500 ease-out",
+            isMobile
+              ? "w-[min(260px,calc(100vw-5.5rem))]"
+              : "max-w-[320px]",
             promptVisible && !open
               ? "pointer-events-auto translate-y-0 scale-100 opacity-100"
               : "pointer-events-none translate-y-2 scale-95 opacity-0",
@@ -151,14 +156,24 @@ export function AiStylistFab() {
           tabIndex={promptVisible && !open ? 0 : -1}
         >
           <div
-            className="relative rounded-[1.35rem] rounded-br-md border px-4 py-3.5 shadow-xl sm:px-5 sm:py-4"
+            className={cn(
+              "relative border shadow-xl",
+              isMobile
+                ? "rounded-[1.25rem] rounded-br-md px-3.5 py-3"
+                : "rounded-[1.35rem] rounded-br-md px-5 py-4",
+            )}
             style={{
               backgroundColor: theme.palette.surface,
               borderColor: theme.palette.border,
               color: theme.palette.foreground,
             }}
           >
-            <p className="text-[15px] font-semibold leading-snug tracking-tight sm:text-[16px]">
+            <p
+              className={cn(
+                "font-semibold leading-snug tracking-tight",
+                isMobile ? "text-[14px]" : "text-[16px]",
+              )}
+            >
               {activePrompt}
             </p>
             <span
@@ -236,7 +251,7 @@ export function AiStylistFab() {
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetContent
             side="bottom"
-            className="flex h-[min(92dvh,720px)] flex-col gap-0 rounded-t-2xl p-0"
+            className="flex h-[min(92dvh,720px)] flex-col gap-0 rounded-t-2xl p-0 pb-[env(safe-area-inset-bottom)]"
             style={{ backgroundColor: theme.palette.background }}
           >
             <AiStylistPanel onClose={() => setOpen(false)} className="h-full" />
