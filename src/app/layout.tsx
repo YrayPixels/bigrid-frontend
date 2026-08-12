@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { MetaPixel } from "@/components/analytics/meta-pixel";
 import { Toaster } from "@/components/ui/sonner";
 import { ConfirmDialogProvider } from "@/components/ui/confirm-dialog";
 import { JsonLd } from "@/lib/seo/json-ld";
@@ -69,6 +70,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body>
+        <MetaPixel />
         <JsonLd data={organizationSchema()} />
         <JsonLd data={websiteSchema()} />
         <JsonLd data={softwareApplicationSchema()} />
