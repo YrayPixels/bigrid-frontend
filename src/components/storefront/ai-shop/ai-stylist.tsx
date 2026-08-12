@@ -7,6 +7,7 @@ import type { ShopperContext, ShoppingIntent, ShoppingLook, StoreProduct } from 
 import { RecommendationCard } from "@/components/storefront/ai-shop/look-card";
 import { FittingSheet } from "@/components/storefront/try-on/fitting-sheet";
 import { fallbackShopperContext } from "@/lib/storefront/ai-shop-config";
+import { getOrCreateVisitSessionId } from "@/lib/storefront/marketing-attribution";
 import { useCart } from "@/lib/storefront/cart-context";
 import { useStorefront } from "@/lib/storefront/store-context";
 import { useStorefrontTheme } from "@/lib/storefront/theme-context";
@@ -91,6 +92,7 @@ export function AiStylistPanel({ onClose, className }: AiStylistPanelProps) {
         chips: opts.chips,
         intent,
         look,
+        session_id: getOrCreateVisitSessionId() || undefined,
       });
       setShopper(response.shopper);
       setIntent(response.intent);
