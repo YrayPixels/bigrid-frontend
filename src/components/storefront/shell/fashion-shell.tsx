@@ -9,6 +9,7 @@ import { useStorefront } from "@/lib/storefront/store-context";
 import { useStorefrontTheme } from "@/lib/storefront/theme-context";
 import { StorefrontFaqSection } from "@/components/storefront/pages/storefront-faq-section";
 import { STOREFRONT_FOOTER_LINKS, STOREFRONT_NAV_ITEMS } from "@/lib/storefront/template";
+import { StorefrontSearch } from "@/components/storefront/shell/storefront-search";
 import { StorefrontLink } from "@/components/storefront/theme/storefront-link";
 import { EditableText } from "@/components/storefront/theme/editable-text";
 import { getHomeBlockProps, homeBlockPath } from "@/lib/storefront/home-block-content";
@@ -85,6 +86,7 @@ export function FashionShell({ children }: { children: React.ReactNode }) {
           </StorefrontLink>
 
           <div className="flex items-center justify-end gap-4">
+            <StorefrontSearch variant="text" />
             {mode === "edit" ? (
               <span className="text-[11px] font-bold uppercase tracking-[0.12em]">
                 Cart ({itemCount})

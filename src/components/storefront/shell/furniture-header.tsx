@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronDown, Menu, Search, ShoppingBag, X } from "lucide-react";
+import { ChevronDown, Menu, ShoppingBag, X } from "lucide-react";
 import { useState } from "react";
 import { useCart } from "@/lib/storefront/cart-context";
 import { useStorefront } from "@/lib/storefront/store-context";
 import { useStorefrontTheme } from "@/lib/storefront/theme-context";
 import { furnitureHardwareNavItems } from "@/lib/storefront/furniture-hardware-defaults";
 import { StorefrontCustomerAccountControl } from "@/components/storefront/shell/storefront-customer-account-control";
+import { StorefrontSearch } from "@/components/storefront/shell/storefront-search";
 import { StorefrontLink } from "@/components/storefront/theme/storefront-link";
 import { cn } from "@/lib/utils";
 
@@ -61,13 +62,11 @@ export function FurnitureHeader() {
             <span className="inline-block h-3 w-4 rounded-sm bg-gradient-to-b from-red-500 via-white to-blue-600" />
             USD $ <ChevronDown className="size-3.5" />
           </button>
-          <button
-            type="button"
-            aria-label="Search"
+          <StorefrontSearch
+            variant="ghost"
             className="flex size-9 items-center justify-center rounded-full hover:bg-[#f7f3eb]/10"
-          >
-            <Search className="size-4" />
-          </button>
+            iconClassName="size-4"
+          />
           <StorefrontCustomerAccountControl
             variant="icon"
             className="hidden size-9 items-center justify-center rounded-full text-[#f7f3eb] hover:bg-[#f7f3eb]/10 sm:inline-flex"

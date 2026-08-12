@@ -2,21 +2,22 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import type { ShoppingLook } from "@/lib/api/types";
+import type { ShoppingLook, ShopperContext } from "@/lib/api/types";
 import { formatMoney } from "@/lib/storefront/format";
 import { useStorefrontTheme } from "@/lib/storefront/theme-context";
 import { PrimaryButton } from "@/components/storefront/theme/primary-button";
 import { cn } from "@/lib/utils";
 
-type LookCardProps = {
+type RecommendationCardProps = {
   look: ShoppingLook;
+  shopper: ShopperContext;
   onTryOn: () => void;
   onAddLook: () => void;
   tryOnAvailable?: boolean;
   busy?: boolean;
 };
 
-const ROLE_LABEL: Record<string, string> = {
+const FASHION_ROLE_LABEL: Record<string, string> = {
   primary: "Hero piece",
   bag: "Bag",
   shoe: "Shoes",
@@ -24,8 +25,40 @@ const ROLE_LABEL: Record<string, string> = {
   beauty: "Beauty",
 };
 
-export function LookCard({ look, onTryOn, onAddLook, tryOnAvailable, busy }: LookCardProps) {
+const PRODUCT_ROLE_LABEL: Record<string, string> = {
+  top_pick: "Top pick",
+  option_2: "Option 2",
+  option_3: "Option 3",
+  pick: "Recommended",
+};
+
+function roleLabel(role: string, isLook: boolean, index: number): string {
+  if (isLook) {
+    return FASHION_ROLE_LABEL[role] ?? role.replace(/_/g, " ");
+  }
+  if (index === 0) return "Top pick";
+  return PRODUCT_ROLE_LABEL[role] ?? `Option ${index + 1}`;
+}
+
+export function RecommendationCard({
+  look,
+  shopper,
+  onTryOn,
+  onAddLook,
+  tryOnAvailable,
+  busy,
+}: RecommendationCardProps) {
   const { theme } = useStorefrontTheme();
+  const isLook = look.type === "look";
+  const heading = isLook ? "Your look" : "Recommended for you";
+  const addLabel = isLook ? "Add look to cart" : "Add all to cart";
+  const countLabel = isLook
+    ? `${look.items.length} pieces`
+    : `${look.items.length} product${look.items.length === 1 ? "" : "s"}`;
+  const priceLabel =
+    !isLook && look.items.length > 1
+      ? `from ${formatMoney(look.total_price, look.currency)}`
+      : formatMoney(look.total_price, look.currency);
 
   return (
     <div
@@ -34,19 +67,19 @@ export function LookCard({ look, onTryOn, onAddLook, tryOnAvailable, busy }: Loo
     >
       <div className="border-b px-4 py-3 sm:px-5" style={{ borderColor: theme.palette.border }}>
         <p className="text-[10px] font-semibold uppercase tracking-[0.16em]" style={{ color: theme.palette.muted }}>
-          Your look
+          {heading}
         </p>
         <h3 className="mt-1 text-lg font-semibold tracking-tight" style={{ fontFamily: theme.displayFont }}>
           {look.name}
         </h3>
         <p className="mt-1 text-sm" style={{ color: theme.palette.muted }}>
-          {look.items.length} pieces · {formatMoney(look.total_price, look.currency)}
+          {countLabel} · {priceLabel}
           {look.within_budget === false ? " · slightly over budget" : ""}
         </p>
       </div>
 
       <ul className="divide-y" style={{ borderColor: theme.palette.border }}>
-        {look.items.map((item) => {
+        {look.items.map((item, index) => {
           const product = item.product;
           const image = product.image_url || product.images?.[0] || null;
           return (
@@ -61,7 +94,7 @@ export function LookCard({ look, onTryOn, onAddLook, tryOnAvailable, busy }: Loo
               </div>
               <div className="min-w-0 flex-1">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.14em]" style={{ color: theme.palette.muted }}>
-                  {ROLE_LABEL[item.role] ?? item.role}
+                  {roleLabel(item.role, isLook, index)}
                 </p>
                 <Link
                   href={`/products/${product.slug}`}
@@ -82,7 +115,7 @@ export function LookCard({ look, onTryOn, onAddLook, tryOnAvailable, busy }: Loo
       </ul>
 
       <div className="flex flex-col gap-2 border-t px-4 py-4 sm:flex-row sm:px-5" style={{ borderColor: theme.palette.border }}>
-        {tryOnAvailable ? (
+        {tryOnAvailable && shopper.supports_try_on ? (
           <PrimaryButton type="button" onClick={onTryOn} disabled={busy} className="flex-1">
             See it on you
           </PrimaryButton>
@@ -97,9 +130,12 @@ export function LookCard({ look, onTryOn, onAddLook, tryOnAvailable, busy }: Loo
           )}
           style={{ color: theme.palette.foreground }}
         >
-          Add look to cart
+          {addLabel}
         </button>
       </div>
     </div>
   );
 }
+
+/** @deprecated Use RecommendationCard */
+export const LookCard = RecommendationCard;
