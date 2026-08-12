@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, Search, ShoppingBag, X } from "lucide-react";
+import { Menu, ShoppingBag, X } from "lucide-react";
 import { useState } from "react";
 import { useCart } from "@/lib/storefront/cart-context";
 import { useStorefront } from "@/lib/storefront/store-context";
 import { useStorefrontTheme } from "@/lib/storefront/theme-context";
 import { STOREFRONT_FOOTER_LINKS, STOREFRONT_NAV_ITEMS } from "@/lib/storefront/template";
+import { StorefrontSearch } from "@/components/storefront/shell/storefront-search";
 import { StorefrontLink } from "@/components/storefront/theme/storefront-link";
 import { cn } from "@/lib/utils";
 
@@ -77,9 +78,7 @@ export function BeautyShell({ children }: { children: React.ReactNode }) {
               );
             })}
             </nav>
-            <button type="button" className="hidden place-items-center sm:grid" aria-label="Search">
-              <Search className="h-3.5 w-3.5" />
-            </button>
+            <StorefrontSearch variant="icon" iconClassName="h-3.5 w-3.5" />
             {mode === "edit" ? (
               <span className="relative grid place-items-center">
                 <ShoppingBag className="h-3.5 w-3.5" />

@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, Search, ShoppingBag, X } from "lucide-react";
+import { Menu, ShoppingBag, X } from "lucide-react";
 import { useState } from "react";
 import { StorefrontLink } from "@/components/storefront/theme/storefront-link";
+import { StorefrontSearch } from "@/components/storefront/shell/storefront-search";
 import { useCart } from "@/lib/storefront/cart-context";
 import { useStorefront } from "@/lib/storefront/store-context";
 import { useStorefrontTheme } from "@/lib/storefront/theme-context";
@@ -66,9 +67,7 @@ export function CosmeticsShell({ children }: { children: React.ReactNode }) {
           </nav>
 
           <div className="flex items-center justify-end gap-5" style={{ color: theme.palette.text }}>
-            <button type="button" className="hidden place-items-center sm:grid" aria-label="Search">
-              <Search className="h-4 w-4" />
-            </button>
+            <StorefrontSearch variant="icon" />
             {mode === "edit" ? (
               <span className="relative grid place-items-center">
                 <ShoppingBag className="h-4 w-4" />

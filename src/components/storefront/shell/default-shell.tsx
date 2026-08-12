@@ -8,6 +8,7 @@ import { useCart } from "@/lib/storefront/cart-context";
 import { useStorefront } from "@/lib/storefront/store-context";
 import { useStorefrontTheme } from "@/lib/storefront/theme-context";
 import { STOREFRONT_FOOTER_LINKS, STOREFRONT_NAV_ITEMS } from "@/lib/storefront/template";
+import { StorefrontSearch } from "@/components/storefront/shell/storefront-search";
 import { StorefrontLink } from "@/components/storefront/theme/storefront-link";
 import { getStorefrontUrl } from "@/lib/store-host";
 import { cn } from "@/lib/utils";
@@ -70,6 +71,10 @@ export function DefaultShell({ children }: { children: React.ReactNode }) {
           </nav>
 
           <div className="flex items-center gap-2">
+            <StorefrontSearch
+              variant="ghost"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-border bg-background hover:bg-secondary"
+            />
             {mode === "edit" ? (
               <span className="relative inline-flex h-10 w-10 items-center justify-center rounded-md border border-border bg-background">
                 <ShoppingBag className="h-4 w-4" />

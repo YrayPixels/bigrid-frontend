@@ -330,22 +330,65 @@ export const storefrontApi = {
   ): Promise<AiShopResponse> {
     if (USE_MOCKS) {
       return {
-        reply: "Here’s a sample look for your occasion.",
+        reply: "Here’s a sample recommendation for your request.",
         intent: {
-          occasion: "wedding",
-          styles: ["elegant"],
+          occasion: null,
+          styles: [],
           budget_max: 150000,
           currency: "NGN",
           needs_clarification: false,
+          product_query: "sample",
+          use_case: null,
+          attributes: [],
+        },
+        shopper: {
+          mode: "general",
+          industry: "other",
+          store_name: slug,
+          supports_looks: false,
+          supports_try_on: false,
+          recommendation_type: "products",
+          welcome_message: "What can I help you find?",
+          placeholder: "Tell me what you need…",
+          assistant_title: "Personal shopper",
+          quick_picks: [],
+          default_suggestions: ["Help me choose"],
+          categories: [],
         },
         look: null,
-        suggestions: ["Make it cheaper", "More elegant", "See it on me"],
+        recommendation: null,
+        suggestions: ["Cheaper options", "Show alternatives"],
       };
     }
 
     return publicWrite<AiShopResponse>(
       `${STOREHAUSE_API_PREFIX}/public/storefronts/${slug}/ai/shop`,
       body,
+    );
+  },
+
+  async aiShopConfig(slug: string): Promise<{ shopper: AiShopResponse["shopper"] }> {
+    if (USE_MOCKS) {
+      return {
+        shopper: {
+          mode: "general",
+          industry: "other",
+          store_name: slug,
+          supports_looks: false,
+          supports_try_on: false,
+          recommendation_type: "products",
+          welcome_message: "What can I help you find?",
+          placeholder: "Tell me what you need…",
+          assistant_title: "Personal shopper",
+          quick_picks: [],
+          default_suggestions: ["Help me choose"],
+          categories: [],
+        },
+      };
+    }
+
+    return publicHttpFresh<{ shopper: AiShopResponse["shopper"] }>(
+      `${STOREHAUSE_API_PREFIX}/public/storefronts/${slug}/ai/config`,
     );
   },
 

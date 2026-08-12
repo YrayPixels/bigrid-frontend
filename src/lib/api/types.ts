@@ -454,6 +454,8 @@ export type ProductStyleProfile = {
   styles?: string[];
   occasions?: string[];
   colors?: string[];
+  use_cases?: string[];
+  keywords?: string[];
   formality?: string;
   gender?: string;
   material?: string | null;
@@ -462,13 +464,14 @@ export type ProductStyleProfile = {
 };
 
 export type ShoppingLookItem = {
-  role: "primary" | "bag" | "shoe" | "accessory" | "beauty" | string;
+  role: "primary" | "bag" | "shoe" | "accessory" | "beauty" | "top_pick" | "option_2" | "option_3" | string;
   product_id: string;
   product: StoreProduct;
 };
 
 export type ShoppingLook = {
   id: string;
+  type?: "look" | "products";
   name: string;
   occasion?: string | null;
   styles?: string[];
@@ -487,14 +490,37 @@ export type ShoppingIntent = {
   currency?: string;
   gender?: string | null;
   categories?: string[];
+  use_case?: string | null;
+  product_query?: string | null;
+  attributes?: string[];
   revision?: string | null;
   needs_clarification?: boolean;
+};
+
+export type ShopperContext = {
+  mode: "fashion" | "electronics" | "beauty" | "general";
+  industry: string;
+  store_name: string;
+  supports_looks: boolean;
+  supports_try_on: boolean;
+  recommendation_type: "look" | "products";
+  welcome_message: string;
+  placeholder: string;
+  assistant_title: string;
+  quick_picks: Array<{
+    group: string;
+    chips: Array<{ type: string; label: string; value: string }>;
+  }>;
+  default_suggestions: string[];
+  categories: Array<{ id: string; name: string; slug: string }>;
 };
 
 export type AiShopResponse = {
   reply: string;
   intent: ShoppingIntent;
+  shopper: ShopperContext;
   look: ShoppingLook | null;
+  recommendation?: ShoppingLook | null;
   suggestions: string[];
   catalog_enriched?: boolean;
 };

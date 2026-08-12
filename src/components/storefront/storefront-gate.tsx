@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { Loader2 } from "lucide-react";
 import { StoreShell } from "@/components/storefront/store-shell";
+import { AiStylistFab } from "@/components/storefront/ai-shop/ai-stylist-fab";
 import { storefrontApi } from "@/lib/api/storefront";
 import { CartProvider } from "@/lib/storefront/cart-context";
 import { CartRefreshEffect } from "@/lib/storefront/cart-refresh-effect";
@@ -67,6 +68,7 @@ export function StorefrontGate({
           <CartProvider storeId={data.store.id}>
             <CartRefreshEffect />
             <StoreShell>{children}</StoreShell>
+            <AiStylistFab />
           </CartProvider>
         </StorefrontThemeProvider>
       </CustomerAuthProvider>

@@ -14,6 +14,8 @@ import {
   sortCatalogProducts,
 } from "@/lib/storefront/category-filters";
 import { useCategoryFilter } from "@/lib/storefront/use-category-filter";
+import { productMatchesSearch } from "@/lib/storefront/product-search";
+import { useProductSearchQuery } from "@/lib/storefront/use-product-search-query";
 import { productUnitPrice } from "@/lib/storefront/pricing";
 import { PageContainer } from "@/components/storefront/theme/page-container";
 import { PageTitle } from "@/components/storefront/theme/page-title";
@@ -306,6 +308,7 @@ function FashionProductsPage({
 }) {
   const { theme, mode } = useStorefrontTheme();
   const [selectedCategoryId, setSelectedCategoryId] = useCategoryFilter(categories);
+  const [searchQuery, setSearchQuery] = useProductSearchQuery();
   const [priceLimit, setPriceLimit] = useState(0);
   const [sortBy, setSortBy] = useState<"newest" | "price-low" | "price-high">("newest");
 
@@ -332,16 +335,17 @@ function FashionProductsPage({
         categories,
       );
       const matchesPrice = !priceLimit || product.price <= priceLimit;
-      return matchesCategory && matchesPrice;
+      const matchesSearch = productMatchesSearch(product, searchQuery);
+      return matchesCategory && matchesPrice && matchesSearch;
     });
 
     return sortCatalogProducts(next, sortBy, products);
-  }, [categories, priceLimit, products, selectedCategoryId, sortBy]);
+  }, [categories, priceLimit, products, searchQuery, selectedCategoryId, sortBy]);
 
   const pagination = useCatalogPagination(
     filteredProducts,
     12,
-    `${selectedCategoryId ?? "all"}-${priceLimit}-${sortBy}`,
+    `${selectedCategoryId ?? "all"}-${priceLimit}-${sortBy}-${searchQuery || "q"}`,
   );
 
   const selectedCategoryName = selectedCategoryId
@@ -350,6 +354,13 @@ function FashionProductsPage({
 
   type ActiveFilter = { key: string; label: string; clear: () => void };
   const activeFilters: ActiveFilter[] = [
+    searchQuery
+      ? {
+          key: "search",
+          label: `Search: ${searchQuery}`,
+          clear: () => setSearchQuery(null),
+        }
+      : null,
     selectedCategoryName
       ? {
           key: "category",
@@ -368,6 +379,7 @@ function FashionProductsPage({
 
   function clearFilters() {
     setSelectedCategoryId(null);
+    setSearchQuery(null);
     setPriceLimit(maxPrice);
   }
 
@@ -533,15 +545,18 @@ function BeautyProductsPage({
   const { discounts } = useStorefront();
   const isCosmetics = theme.id === "cosmetics";
   const [selectedCategoryId, setSelectedCategoryId] = useCategoryFilter(categories);
+  const [searchQuery, setSearchQuery] = useProductSearchQuery();
 
   const templateImages = isCosmetics ? cosmeticsTemplateImages : beautyTemplateImages;
-  const filteredProducts = products.filter((product) =>
-    productMatchesCategoryFilter(product, selectedCategoryId, categories),
+  const filteredProducts = products.filter(
+    (product) =>
+      productMatchesCategoryFilter(product, selectedCategoryId, categories) &&
+      productMatchesSearch(product, searchQuery),
   );
   const pagination = useCatalogPagination(
     filteredProducts,
     12,
-    selectedCategoryId ?? "all",
+    `${selectedCategoryId ?? "all"}-${searchQuery || "q"}`,
   );
 
   return (
@@ -596,6 +611,25 @@ function BeautyProductsPage({
               }),
             )}
           </div>
+
+          {searchQuery ? (
+            <div className="mb-4 flex flex-wrap items-center justify-center gap-2">
+              <span
+                className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold"
+                style={{ backgroundColor: theme.palette.surface, color: theme.palette.text }}
+              >
+                Search: {searchQuery}
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery(null)}
+                  className="opacity-70 hover:opacity-100"
+                  aria-label="Clear search"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </span>
+            </div>
+          ) : null}
 
           <p className="mb-6 text-center text-sm font-semibold" style={{ color: theme.palette.muted }}>
             {pagination.showingLabel}
@@ -676,6 +710,7 @@ function MinimalisticProductsPage({
   const { discounts } = useStorefront();
   const router = useRouter();
   const [selectedCategoryId, setSelectedCategoryId] = useCategoryFilter(categories);
+  const [searchQuery, setSearchQuery] = useProductSearchQuery();
   const [priceLimit, setPriceLimit] = useState(0);
   const [sortBy, setSortBy] = useState<"newest" | "price-low" | "price-high">("newest");
   const productPrices = useMemo(() => products.map((product) => product.price), [products]);
@@ -700,16 +735,17 @@ function MinimalisticProductsPage({
         categories,
       );
       const matchesPrice = !priceLimit || product.price <= priceLimit;
-      return matchesCategory && matchesPrice;
+      const matchesSearch = productMatchesSearch(product, searchQuery);
+      return matchesCategory && matchesPrice && matchesSearch;
     });
 
     return sortCatalogProducts(next, sortBy, products);
-  }, [categories, priceLimit, products, selectedCategoryId, sortBy]);
+  }, [categories, priceLimit, products, searchQuery, selectedCategoryId, sortBy]);
 
   const pagination = useCatalogPagination(
     filteredProducts,
     12,
-    `${selectedCategoryId ?? "all"}-${priceLimit}-${sortBy}`,
+    `${selectedCategoryId ?? "all"}-${priceLimit}-${sortBy}-${searchQuery || "q"}`,
   );
 
   const selectedCategoryName = selectedCategoryId
@@ -718,6 +754,13 @@ function MinimalisticProductsPage({
 
   type ActiveFilter = { key: string; label: string; clear: () => void };
   const activeFilters: ActiveFilter[] = [
+    searchQuery
+      ? {
+          key: "search",
+          label: `Search: ${searchQuery}`,
+          clear: () => setSearchQuery(null),
+        }
+      : null,
     selectedCategoryName
       ? {
           key: "category",
@@ -739,6 +782,7 @@ function MinimalisticProductsPage({
 
   function clearFilters() {
     setSelectedCategoryId(null);
+    setSearchQuery(null);
     setPriceLimit(maxPrice);
   }
 
@@ -1022,17 +1066,20 @@ function DefaultProductsPage({
   productGridCols: string;
 }) {
   const [selectedCategoryId, setSelectedCategoryId] = useCategoryFilter(categories);
+  const [searchQuery, setSearchQuery] = useProductSearchQuery();
   const filteredProducts = useMemo(
     () =>
-      products.filter((product) =>
-        productMatchesCategoryFilter(product, selectedCategoryId, categories),
+      products.filter(
+        (product) =>
+          productMatchesCategoryFilter(product, selectedCategoryId, categories) &&
+          productMatchesSearch(product, searchQuery),
       ),
-    [categories, products, selectedCategoryId],
+    [categories, products, searchQuery, selectedCategoryId],
   );
   const pagination = useCatalogPagination(
     filteredProducts,
     12,
-    selectedCategoryId ?? "all",
+    `${selectedCategoryId ?? "all"}-${searchQuery || "q"}`,
   );
 
   return (
@@ -1071,6 +1118,21 @@ function DefaultProductsPage({
               </button>
             )),
           )}
+        </div>
+      ) : null}
+      {searchQuery ? (
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <span className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-xs font-semibold text-ink">
+            Search: {searchQuery}
+            <button
+              type="button"
+              onClick={() => setSearchQuery(null)}
+              className="opacity-70 hover:opacity-100"
+              aria-label="Clear search"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </span>
         </div>
       ) : null}
       <p className="mt-6 text-sm text-ink-soft">{pagination.showingLabel}</p>

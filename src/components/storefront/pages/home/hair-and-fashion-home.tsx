@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { Search, ShoppingBag, User } from "lucide-react";
+import { ShoppingBag, User } from "lucide-react";
 import type { Store, StorefrontContent, StoreProduct } from "@/lib/api/types";
 import { EditableHeroMedia } from "@/components/storefront/theme/editable-hero-media";
 import { EditableImage } from "@/components/storefront/theme/editable-image";
 import { EditableText } from "@/components/storefront/theme/editable-text";
 import { StorefrontLink } from "@/components/storefront/theme/storefront-link";
+import { StorefrontSearch } from "@/components/storefront/shell/storefront-search";
 import {
   hairFashionDifferences,
   hairFashionFooterColumns,
@@ -185,9 +186,7 @@ export function HairAndFashionHome({
                 <button type="button" aria-label="Account" className="hover:opacity-60">
                   <User className="h-4 w-4" />
                 </button>
-                <button type="button" aria-label="Search" className="hover:opacity-60">
-                  <Search className="h-4 w-4" />
-                </button>
+                <StorefrontSearch variant="icon" className="hover:opacity-60" />
               </div>
             </div>
           </div>

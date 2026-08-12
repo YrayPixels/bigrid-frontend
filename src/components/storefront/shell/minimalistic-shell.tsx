@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, Search, ShoppingBag, X } from "lucide-react";
+import { Menu, ShoppingBag, X } from "lucide-react";
 import { useState } from "react";
 import { useCart } from "@/lib/storefront/cart-context";
 import { useStorefront } from "@/lib/storefront/store-context";
 import { useStorefrontTheme } from "@/lib/storefront/theme-context";
 import { STOREFRONT_FOOTER_LINKS, STOREFRONT_NAV_ITEMS } from "@/lib/storefront/template";
 import { StorefrontCustomerAccountControl } from "@/components/storefront/shell/storefront-customer-account-control";
+import { StorefrontSearch } from "@/components/storefront/shell/storefront-search";
 import { StorefrontLink } from "@/components/storefront/theme/storefront-link";
 import { cn } from "@/lib/utils";
 
@@ -78,14 +79,7 @@ export function MinimalisticShell({ children }: { children: React.ReactNode }) {
           </nav>
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              className="hidden h-9 w-9 place-items-center rounded-full shadow-sm sm:grid"
-              style={{ backgroundColor: `${theme.palette.surface}bf`, color: theme.palette.text }}
-              aria-label="Search"
-            >
-              <Search className="h-4 w-4" />
-            </button>
+            <StorefrontSearch variant="pill" />
             {mode === "edit" ? (
               <span
                 className="relative grid h-9 w-9 place-items-center rounded-full shadow-sm"

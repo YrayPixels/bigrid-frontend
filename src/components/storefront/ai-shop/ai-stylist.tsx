@@ -1,16 +1,15 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Loader2, Send } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Loader2, Send, X } from "lucide-react";
 import { StorefrontApiError, storefrontApi } from "@/lib/api/storefront";
-import type { ShoppingIntent, ShoppingLook, StoreProduct } from "@/lib/api/types";
+import type { ShopperContext, ShoppingIntent, ShoppingLook, StoreProduct } from "@/lib/api/types";
+import { RecommendationCard } from "@/components/storefront/ai-shop/look-card";
+import { FittingSheet } from "@/components/storefront/try-on/fitting-sheet";
+import { fallbackShopperContext } from "@/lib/storefront/ai-shop-config";
 import { useCart } from "@/lib/storefront/cart-context";
 import { useStorefront } from "@/lib/storefront/store-context";
 import { useStorefrontTheme } from "@/lib/storefront/theme-context";
-import { PageContainer } from "@/components/storefront/theme/page-container";
-import { PageTitle } from "@/components/storefront/theme/page-title";
-import { LookCard } from "@/components/storefront/ai-shop/look-card";
-import { FittingSheet } from "@/components/storefront/try-on/fitting-sheet";
 import { cn } from "@/lib/utils";
 
 type ChatMessage = {
@@ -19,58 +18,68 @@ type ChatMessage = {
   content: string;
 };
 
-const OCCASIONS = ["Wedding", "Date night", "Office", "Vacation", "Party", "Casual"] as const;
-const BUDGETS = [
-  { label: "< ₦50k", value: "< 50k" },
-  { label: "₦50–100k", value: "50-100k" },
-  { label: "₦100–200k", value: "100-200k" },
-  { label: "₦200k+", value: "200k+" },
-] as const;
-const VIBES = ["Elegant", "Minimal", "Bold", "Classic", "Trendy"] as const;
+type AiStylistPanelProps = {
+  onClose?: () => void;
+  className?: string;
+};
 
-function chip(type: string, value: string) {
-  return { type, value };
-}
-
-export function AiStylist() {
+export function AiStylistPanel({ onClose, className }: AiStylistPanelProps) {
   const { store, storefront } = useStorefront();
   const products = storefront.products ?? [];
   const { theme } = useStorefrontTheme();
   const { addItem } = useCart();
 
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: "welcome",
-      role: "assistant",
-      content:
-        "What are you dressing for? Pick an occasion, budget, and vibe — or just tell me what you need.",
-    },
-  ]);
+  const [shopper, setShopper] = useState<ShopperContext>(() => fallbackShopperContext(store));
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [intent, setIntent] = useState<ShoppingIntent | null>(null);
   const [look, setLook] = useState<ShoppingLook | null>(null);
-  const [suggestions, setSuggestions] = useState<string[]>([
-    "Wedding under ₦150k",
-    "Elegant office look",
-    "Something bold for a party",
-  ]);
+  const [suggestions, setSuggestions] = useState<string[]>(shopper.default_suggestions);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tryOnOpen, setTryOnOpen] = useState(false);
   const [tryOnProduct, setTryOnProduct] = useState<StoreProduct | null>(null);
-  const [selectedOccasion, setSelectedOccasion] = useState<string | null>(null);
-  const [selectedBudget, setSelectedBudget] = useState<string | null>(null);
-  const [selectedVibe, setSelectedVibe] = useState<string | null>(null);
+  const [selectedChips, setSelectedChips] = useState<Record<string, string>>({});
+  const [showFilters, setShowFilters] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    void storefrontApi.aiShopConfig(store.slug).then((response) => {
+      if (cancelled) return;
+      setShopper(response.shopper);
+      setSuggestions(response.shopper.default_suggestions);
+      setMessages([
+        {
+          id: "welcome",
+          role: "assistant",
+          content: response.shopper.welcome_message,
+        },
+      ]);
+    }).catch(() => {
+      if (cancelled) return;
+      setMessages([
+        {
+          id: "welcome",
+          role: "assistant",
+          content: shopper.welcome_message,
+        },
+      ]);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [store.slug]);
 
   const tryOnAvailable = useMemo(() => {
-    if (!look?.try_on_product_id) return false;
+    if (!look?.try_on_product_id || !shopper.supports_try_on) return false;
     const item = look.items.find((entry) => entry.product_id === look.try_on_product_id);
     return Boolean(item?.product.try_on?.enabled || item?.product.try_on_available);
-  }, [look]);
+  }, [look, shopper.supports_try_on]);
 
   async function runShop(opts: {
     message?: string;
-    chips?: Array<string | { type: string; value: string }>;
+    chips?: Array<{ type: string; value: string }>;
   }) {
     setBusy(true);
     setError(null);
@@ -81,8 +90,10 @@ export function AiStylist() {
         intent,
         look,
       });
+      setShopper(response.shopper);
       setIntent(response.intent);
-      setLook(response.look);
+      const recommendation = response.recommendation ?? response.look;
+      setLook(recommendation);
       setSuggestions(response.suggestions?.length ? response.suggestions : suggestions);
       setMessages((prev) => [
         ...prev,
@@ -92,11 +103,14 @@ export function AiStylist() {
           content: response.reply,
         },
       ]);
+      if (recommendation) {
+        setShowFilters(false);
+      }
     } catch (err) {
       const message =
         err instanceof StorefrontApiError
           ? err.message
-          : "Couldn’t build a look right now. Try again in a moment.";
+          : "Couldn’t find recommendations right now. Try again in a moment.";
       setError(message);
     } finally {
       setBusy(false);
@@ -110,7 +124,7 @@ export function AiStylist() {
     setMessages((prev) => [...prev, { id: `u-${Date.now()}`, role: "user", content: message }]);
 
     const lower = message.toLowerCase();
-    if (lower.includes("see it on") || lower === "see it on me") {
+    if (shopper.supports_try_on && (lower.includes("see it on") || lower === "see it on me")) {
       openTryOn();
       return;
     }
@@ -118,45 +132,65 @@ export function AiStylist() {
     await runShop({ message });
   }
 
-  async function showLookFromChips() {
+  function toggleChip(group: string, chip: { type: string; label: string; value: string }) {
+    const key = `${group}:${chip.type}:${chip.value}`;
+    setSelectedChips((prev) => {
+      const next = { ...prev };
+      if (next[key]) {
+        delete next[key];
+      } else {
+        next[key] = chip.value;
+      }
+      return next;
+    });
+  }
+
+  function isChipActive(group: string, chip: { type: string; value: string }) {
+    return Boolean(selectedChips[`${group}:${chip.type}:${chip.value}`]);
+  }
+
+  async function showFromQuickPicks() {
     const chips: Array<{ type: string; value: string }> = [];
-    if (selectedOccasion) chips.push(chip("occasion", selectedOccasion.toLowerCase().replace(/\s+/g, "_")));
-    if (selectedBudget) chips.push(chip("budget", selectedBudget));
-    if (selectedVibe) chips.push(chip("style", selectedVibe.toLowerCase()));
+    const labels: string[] = [];
+
+    for (const group of shopper.quick_picks) {
+      for (const chip of group.chips) {
+        if (isChipActive(group.group, chip)) {
+          chips.push({ type: chip.type, value: chip.value });
+          labels.push(chip.label);
+        }
+      }
+    }
+
     if (chips.length === 0) return;
 
-    const summary = [
-      selectedOccasion,
-      selectedVibe,
-      selectedBudget ? `budget ${selectedBudget}` : null,
-    ]
-      .filter(Boolean)
-      .join(" · ");
-
+    const summary = labels.join(" · ");
     setMessages((prev) => [...prev, { id: `u-${Date.now()}`, role: "user", content: summary }]);
-    await runShop({
-      message: `Show me what you'd wear for ${summary}`,
-      chips,
-    });
+
+    const prompt = shopper.supports_looks
+      ? `Show me what you'd wear for ${summary}`
+      : `Help me find ${summary} from this store`;
+
+    await runShop({ message: prompt, chips });
   }
 
   function openTryOn() {
     if (!look?.try_on_product_id) {
-      setError("This look isn’t try-on ready yet. Pick another dress or enable try-on on the product.");
+      setError("This item isn’t try-on ready yet.");
       return;
     }
     const fromLook = look.items.find((item) => item.product_id === look.try_on_product_id)?.product;
     const fromCatalog = products.find((product) => product.id === look.try_on_product_id) ?? null;
     const product = fromLook ?? fromCatalog;
     if (!product) {
-      setError("Couldn’t find the try-on product for this look.");
+      setError("Couldn’t find the try-on product.");
       return;
     }
     setTryOnProduct(product);
     setTryOnOpen(true);
   }
 
-  function addLookToCart() {
+  function addRecommendationToCart() {
     if (!look) return;
     for (const item of look.items) {
       addItem(item.product, 1);
@@ -166,7 +200,9 @@ export function AiStylist() {
       {
         id: `a-cart-${Date.now()}`,
         role: "assistant",
-        content: `Added all ${look.items.length} pieces to your cart. Ready when you are.`,
+        content: shopper.supports_looks
+          ? `Added all ${look.items.length} pieces to your cart.`
+          : `Added ${look.items.length} item${look.items.length === 1 ? "" : "s"} to your cart.`,
       },
     ]);
   }
@@ -185,7 +221,7 @@ export function AiStylist() {
         type="button"
         onClick={onClick}
         className={cn(
-          "rounded-full border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.1em] transition",
+          "rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] transition",
           theme.borderColor,
         )}
         style={{
@@ -198,168 +234,165 @@ export function AiStylist() {
     );
   }
 
+  const hasSelectedChips = Object.keys(selectedChips).length > 0;
+  const quickPickCta = shopper.supports_looks ? "Show me what you’d wear" : "Find products";
+
   return (
-    <PageContainer className="py-10 sm:py-14">
-      <PageTitle
-        title="Personal shopper"
-        subtitle="Tell us the occasion. We’ll build a complete look from this store — then you can try it on."
-      />
-
-      <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
-        <div className="space-y-5">
-          <section
-            className={cn("border p-4 sm:p-5", theme.borderColor)}
-            style={{ backgroundColor: theme.palette.surface }}
+    <div className={cn("flex h-full min-h-0 flex-col", className)}>
+      <header
+        className="flex shrink-0 items-center justify-between gap-3 border-b px-4 py-3"
+        style={{ borderColor: theme.palette.border, backgroundColor: theme.palette.surface }}
+      >
+        <div className="min-w-0">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.16em]" style={{ color: theme.palette.muted }}>
+            AI shopper
+          </p>
+          <h2 className="truncate text-sm font-semibold" style={{ fontFamily: theme.displayFont }}>
+            {shopper.assistant_title}
+          </h2>
+        </div>
+        {onClose ? (
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border"
+            style={{ borderColor: theme.palette.border, color: theme.palette.foreground }}
+            aria-label="Close shopper"
           >
-            <p className="text-[10px] font-semibold uppercase tracking-[0.16em]" style={{ color: theme.palette.muted }}>
-              Occasion
-            </p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {OCCASIONS.map((occasion) => (
-                <ChipButton
-                  key={occasion}
-                  label={occasion}
-                  active={selectedOccasion === occasion}
-                  onClick={() => setSelectedOccasion((prev) => (prev === occasion ? null : occasion))}
-                />
-              ))}
-            </div>
+            <X className="h-4 w-4" />
+          </button>
+        ) : null}
+      </header>
 
-            <p className="mt-5 text-[10px] font-semibold uppercase tracking-[0.16em]" style={{ color: theme.palette.muted }}>
-              Budget
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {showFilters && shopper.quick_picks.length > 0 ? (
+          <section className="space-y-3 border-b p-4" style={{ borderColor: theme.palette.border }}>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.14em]" style={{ color: theme.palette.muted }}>
+              Quick picks
             </p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {BUDGETS.map((budget) => (
-                <ChipButton
-                  key={budget.value}
-                  label={budget.label}
-                  active={selectedBudget === budget.value}
-                  onClick={() => setSelectedBudget((prev) => (prev === budget.value ? null : budget.value))}
-                />
-              ))}
-            </div>
-
-            <p className="mt-5 text-[10px] font-semibold uppercase tracking-[0.16em]" style={{ color: theme.palette.muted }}>
-              Vibe
-            </p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {VIBES.map((vibe) => (
-                <ChipButton
-                  key={vibe}
-                  label={vibe}
-                  active={selectedVibe === vibe}
-                  onClick={() => setSelectedVibe((prev) => (prev === vibe ? null : vibe))}
-                />
-              ))}
-            </div>
-
+            {shopper.quick_picks.map((group) => (
+              <div key={group.group}>
+                <p className="mb-1.5 text-[10px] font-medium uppercase tracking-[0.12em]" style={{ color: theme.palette.muted }}>
+                  {group.group}
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {group.chips.map((chip) => (
+                    <ChipButton
+                      key={`${group.group}-${chip.type}-${chip.value}`}
+                      label={chip.label}
+                      active={isChipActive(group.group, chip)}
+                      onClick={() => toggleChip(group.group, chip)}
+                    />
+                  ))}
+                </div>
+              </div>
+            ))}
             <button
               type="button"
-              disabled={busy || (!selectedOccasion && !selectedBudget && !selectedVibe)}
-              onClick={() => void showLookFromChips()}
-              className="mt-5 w-full px-4 py-3 text-xs font-bold uppercase tracking-[0.14em] disabled:opacity-50"
+              disabled={busy || !hasSelectedChips}
+              onClick={() => void showFromQuickPicks()}
+              className="w-full px-3 py-2.5 text-[11px] font-bold uppercase tracking-[0.12em] disabled:opacity-50"
               style={{ backgroundColor: theme.palette.primary, color: theme.palette.background }}
             >
-              Show me what you’d wear
+              {quickPickCta}
             </button>
           </section>
+        ) : shopper.quick_picks.length > 0 ? (
+          <div className="border-b px-4 py-2" style={{ borderColor: theme.palette.border }}>
+            <button
+              type="button"
+              onClick={() => setShowFilters(true)}
+              className="text-[11px] font-semibold uppercase tracking-[0.1em] underline-offset-2 hover:underline"
+              style={{ color: theme.palette.muted }}
+            >
+              Edit quick picks
+            </button>
+          </div>
+        ) : null}
 
-          <section
-            className={cn("flex min-h-[320px] flex-col border", theme.borderColor)}
-            style={{ backgroundColor: theme.palette.surface }}
-          >
-            <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4 sm:px-5">
-              {messages.map((message) => (
-                <div
-                  key={message.id}
-                  className={cn(
-                    "max-w-[92%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed",
-                    message.role === "user" ? "ml-auto" : "mr-auto",
-                  )}
-                  style={{
-                    backgroundColor:
-                      message.role === "user" ? theme.palette.primary : `${theme.palette.muted}18`,
-                    color: message.role === "user" ? theme.palette.background : theme.palette.foreground,
-                  }}
-                >
-                  {message.content}
-                </div>
-              ))}
-              {busy ? (
-                <div className="inline-flex items-center gap-2 text-xs" style={{ color: theme.palette.muted }}>
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  Styling your look…
-                </div>
-              ) : null}
-              {error ? (
-                <p className="text-sm text-red-600">{error}</p>
-              ) : null}
-            </div>
-
-            {suggestions.length > 0 ? (
-              <div className="flex flex-wrap gap-2 border-t px-4 py-3 sm:px-5" style={{ borderColor: theme.palette.border }}>
-                {suggestions.map((suggestion) => (
-                  <button
-                    key={suggestion}
-                    type="button"
-                    disabled={busy}
-                    onClick={() => void sendMessage(suggestion)}
-                    className={cn("border px-3 py-1.5 text-[11px] font-medium disabled:opacity-50", theme.borderColor)}
-                  >
-                    {suggestion}
-                  </button>
-                ))}
-              </div>
-            ) : null}
-
-            <form
-              className="flex gap-2 border-t p-3 sm:p-4"
-              style={{ borderColor: theme.palette.border }}
-              onSubmit={(event) => {
-                event.preventDefault();
-                void sendMessage(input);
+        <div className="space-y-3 p-4">
+          {messages.map((message) => (
+            <div
+              key={message.id}
+              className={cn(
+                "max-w-[92%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed",
+                message.role === "user" ? "ml-auto" : "mr-auto",
+              )}
+              style={{
+                backgroundColor:
+                  message.role === "user" ? theme.palette.primary : `${theme.palette.muted}18`,
+                color: message.role === "user" ? theme.palette.background : theme.palette.foreground,
               }}
             >
-              <input
-                value={input}
-                onChange={(event) => setInput(event.target.value)}
-                placeholder="Just tell me what you need…"
-                className="min-w-0 flex-1 border bg-transparent px-3 py-2.5 text-sm outline-none"
-                style={{ borderColor: theme.palette.border }}
-                disabled={busy}
-              />
-              <button
-                type="submit"
-                disabled={busy || !input.trim()}
-                className="inline-flex items-center justify-center px-3 disabled:opacity-50"
-                style={{ backgroundColor: theme.palette.primary, color: theme.palette.background }}
-                aria-label="Send"
-              >
-                <Send className="h-4 w-4" />
-              </button>
-            </form>
-          </section>
-        </div>
-
-        <div className="space-y-4">
-          {look ? (
-            <LookCard
-              look={look}
-              busy={busy}
-              tryOnAvailable={tryOnAvailable || Boolean(store.features?.virtual_try_on?.enabled)}
-              onTryOn={openTryOn}
-              onAddLook={addLookToCart}
-            />
-          ) : (
-            <div
-              className={cn("border px-5 py-10 text-sm", theme.borderColor)}
-              style={{ backgroundColor: theme.palette.surface, color: theme.palette.muted }}
-            >
-              Your complete look will land here — dress, bag, shoes, and accessories from this catalog.
+              {message.content}
             </div>
-          )}
+          ))}
+          {busy ? (
+            <div className="inline-flex items-center gap-2 text-xs" style={{ color: theme.palette.muted }}>
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              {shopper.supports_looks ? "Styling your look…" : "Searching the catalog…"}
+            </div>
+          ) : null}
+          {error ? <p className="text-sm text-red-600">{error}</p> : null}
+
+          {look ? (
+            <RecommendationCard
+              look={look}
+              shopper={shopper}
+              busy={busy}
+              tryOnAvailable={tryOnAvailable}
+              onTryOn={openTryOn}
+              onAddLook={addRecommendationToCart}
+            />
+          ) : null}
         </div>
       </div>
+
+      {suggestions.length > 0 ? (
+        <div
+          className="flex shrink-0 flex-wrap gap-1.5 border-t px-3 py-2"
+          style={{ borderColor: theme.palette.border }}
+        >
+          {suggestions.map((suggestion) => (
+            <button
+              key={suggestion}
+              type="button"
+              disabled={busy}
+              onClick={() => void sendMessage(suggestion)}
+              className={cn("border px-2.5 py-1 text-[10px] font-medium disabled:opacity-50", theme.borderColor)}
+            >
+              {suggestion}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      <form
+        className="flex shrink-0 gap-2 border-t p-3"
+        style={{ borderColor: theme.palette.border, backgroundColor: theme.palette.surface }}
+        onSubmit={(event) => {
+          event.preventDefault();
+          void sendMessage(input);
+        }}
+      >
+        <input
+          value={input}
+          onChange={(event) => setInput(event.target.value)}
+          placeholder={shopper.placeholder}
+          className="min-w-0 flex-1 border bg-transparent px-3 py-2.5 text-sm outline-none"
+          style={{ borderColor: theme.palette.border }}
+          disabled={busy}
+        />
+        <button
+          type="submit"
+          disabled={busy || !input.trim()}
+          className="inline-flex items-center justify-center px-3 disabled:opacity-50"
+          style={{ backgroundColor: theme.palette.primary, color: theme.palette.background }}
+          aria-label="Send"
+        >
+          <Send className="h-4 w-4" />
+        </button>
+      </form>
 
       {tryOnProduct ? (
         <FittingSheet
@@ -373,6 +406,6 @@ export function AiStylist() {
           }}
         />
       ) : null}
-    </PageContainer>
+    </div>
   );
 }
