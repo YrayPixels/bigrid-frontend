@@ -118,15 +118,6 @@ export default function LoginPage() {
           Create one
         </Link>
       </p>
-
-      {process.env.NEXT_PUBLIC_ENABLE_DEMO_LOGIN === "true" ? (
-        <p className="mt-3 text-center text-sm text-ink-soft">
-          Organizer preview?{" "}
-          <Link href="/demo" className="font-semibold text-primary hover:underline">
-            Enter the demo
-          </Link>
-        </p>
-      ) : null}
     </AuthShell>
   );
 }
