@@ -1,4 +1,4 @@
-export type AiProviderName = "openai" | "deepseek";
+export type AiProviderName = "openai" | "deepseek" | "gemini";
 
 export type PlatformAiConfig = {
   provider: AiProviderName;

@@ -8,7 +8,7 @@ type ProviderBundle = {
   chat: (model: string) => LanguageModelV1;
 };
 
-function createProviderBundle(provider: "openai" | "deepseek", apiKey: string): ProviderBundle {
+function createProviderBundle(provider: "openai" | "deepseek" | "gemini", apiKey: string): ProviderBundle {
   if (provider === "deepseek") {
     const deepseek = createOpenAI({
       apiKey,
@@ -20,6 +20,17 @@ function createProviderBundle(provider: "openai" | "deepseek", apiKey: string): 
     };
   }
 
+  if (provider === "gemini") {
+    const gemini = createOpenAI({
+      apiKey,
+      baseURL: process.env.GEMINI_BASE_URL ?? "https://generativelanguage.googleapis.com/v1beta/openai",
+    });
+
+    return {
+      chat: (model: string) => gemini(model),
+    };
+  }
+
   const openai = createOpenAI({ apiKey });
 
   return {
@@ -27,13 +38,17 @@ function createProviderBundle(provider: "openai" | "deepseek", apiKey: string): 
   };
 }
 
-function resolveLocalDevApiKey(provider: "openai" | "deepseek"): string | undefined {
+function resolveLocalDevApiKey(provider: "openai" | "deepseek" | "gemini"): string | undefined {
   if (API_BASE) {
     return undefined;
   }
 
   if (provider === "deepseek") {
     return process.env.DEEPSEEK_API_KEY ?? process.env.OPENAI_API_KEY;
+  }
+
+  if (provider === "gemini") {
+    return process.env.GEMINI_API_KEY;
   }
 
   return process.env.OPENAI_API_KEY;

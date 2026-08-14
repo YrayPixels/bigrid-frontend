@@ -37,7 +37,7 @@ For an end-to-end demo, run **backend + this frontend**. The admin app is option
 | PHP | 8.2+ |
 | Composer | 2.x |
 | MySQL | 5.7+ / 8.x |
-| LLM API key | OpenAI **or** DeepSeek, configured on the **backend** |
+| LLM API key | OpenAI, DeepSeek, and/or Gemini, configured on the **backend**. Gemini powers shopper, vision, and marketing when `GEMINI_API_KEY` is set. |
 
 Optional: Redis (`docker compose up -d` in the backend repo), Google Maps key, Paystack / Dodo keys.
 
@@ -270,7 +270,7 @@ All routes are prefixed with `/api`. Highlights:
 | Issue | What to check |
 |-------|----------------|
 | Frontend calls fail / CORS | Backend running on `:8000`; `NEXT_PUBLIC_API_BASE_URL` includes `/api` |
-| AI generation errors | `OPENAI_API_KEY` or `DEEPSEEK_API_KEY` set on **backend**; `AI_PROVIDER` matches; queue worker running if jobs are queued |
+| AI generation errors | `OPENAI_API_KEY`, `DEEPSEEK_API_KEY`, or `GEMINI_API_KEY` set on **backend**; `AI_PROVIDER` matches the builder; queue worker running if jobs are queued |
 | Demo login disabled / 404 | Backend `STOREHAUSE_DEMO_LOGIN=true` and `DemoMerchantSeeder` has run |
 | Admin seeder fails | `STOREHAUSE_ADMIN_PASSWORD` must be set and must not be the blocked default |
 | Empty UI with no API | Unset `NEXT_PUBLIC_USE_MOCKS` and point at a live API |
