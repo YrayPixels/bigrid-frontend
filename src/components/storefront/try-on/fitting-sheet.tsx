@@ -14,6 +14,8 @@ import {
   loadSavedTryOnLook,
   photoTipForMode,
   saveTryOnLook,
+  styleOptionsForMode,
+  usesGenderStyle,
   type GarmentCategory,
 } from "@/lib/storefront/try-on";
 import {
@@ -32,14 +34,6 @@ import {
 } from "@/components/ui/sheet";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
-
-const BAG_STYLES = [
-  { value: "random", label: "Surprise me" },
-  { value: "style_parisian_chic", label: "Parisian" },
-  { value: "style_urban_chic", label: "Urban" },
-  { value: "style_mediterranean_chic", label: "Mediterranean" },
-  { value: "style_art_deco_style", label: "Art deco" },
-] as const;
 
 type Step = "photo" | "options" | "generating" | "result" | "error";
 
@@ -70,13 +64,17 @@ export function FittingSheet({
 
   const mode = getTryOnMode(product);
   const isClothes = mode === "clothes";
-  const askGender = !isClothes && (product.try_on?.bag_gender_default ?? "ask") === "ask";
+  const showLookOptions = usesGenderStyle(mode);
+  const styleOptions = styleOptionsForMode(mode);
+  const askGender = showLookOptions && (product.try_on?.bag_gender_default ?? "ask") === "ask";
   const defaultGender =
     product.try_on?.bag_gender_default === "male" ||
     product.try_on?.bag_gender_default === "female"
       ? product.try_on.bag_gender_default
       : "female";
-  const defaultStyle = product.try_on?.bag_style ?? "random";
+  const defaultStyle = styleOptions.some((option) => option.value === (product.try_on?.bag_style ?? "random"))
+    ? (product.try_on?.bag_style ?? "random")
+    : "random";
   const defaultGarment: GarmentCategory =
     product.try_on?.garment_category && isGarmentCategory(product.try_on.garment_category)
       ? product.try_on.garment_category
@@ -210,8 +208,8 @@ export function FittingSheet({
     try {
       const { session: created } = await storefrontApi.createTryOnSession(store.slug, {
         product_id: product.id,
-        gender: isClothes ? undefined : gender,
-        style: isClothes ? undefined : style,
+        gender: showLookOptions ? gender : undefined,
+        style: showLookOptions ? style : undefined,
         garment_category: isClothes ? garmentCategory : undefined,
         src_image: srcFile ?? undefined,
         src_image_url: srcFile ? undefined : (srcDataUrl ?? undefined),
@@ -424,7 +422,7 @@ export function FittingSheet({
               ))}
             </div>
           </div>
-        ) : (
+        ) : showLookOptions ? (
           <>
             {askGender ? (
               <div>
@@ -459,7 +457,7 @@ export function FittingSheet({
             <div>
               <p className="mb-2 text-sm font-semibold">Style</p>
               <div className="flex flex-wrap gap-2">
-                {BAG_STYLES.map((option) => (
+                {styleOptions.map((option) => (
                   <button
                     key={option.value}
                     type="button"
@@ -484,6 +482,10 @@ export function FittingSheet({
               </div>
             </div>
           </>
+        ) : (
+          <p className="text-sm leading-relaxed" style={{ color: theme.palette.muted }}>
+            We’ll apply this product to your photo. Color and fit may vary.
+          </p>
         )}
       </div>
 

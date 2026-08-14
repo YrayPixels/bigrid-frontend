@@ -180,9 +180,19 @@ export type StoreShippingSettings = {
   return_policy?: string | null;
 };
 
+export type TryOnMode =
+  | "bag"
+  | "clothes"
+  | "hat"
+  | "shoes"
+  | "nail"
+  | "watch"
+  | "necklace"
+  | "fabric";
+
 export type ProductTryOnConfig = {
   enabled: boolean;
-  mode: "bag" | "clothes";
+  mode: TryOnMode;
   ref_image_url?: string | null;
   bag_gender_default?: "female" | "male" | "ask";
   bag_style?: string;
@@ -193,6 +203,13 @@ export type ProductTryOnConfig = {
     | "lower_body"
     | "outerwear"
     | "shoes";
+  nail_effect_type?: "nail_polish" | "press_on_nails";
+  nail_sub_type?: "color" | "design";
+  nail_color?: string;
+  nail_texture?: string;
+  nail_shape?: string;
+  nail_length?: number;
+  fabric_template_id?: string;
 };
 
 export type StoreFeatures = {
@@ -203,8 +220,8 @@ export type StoreFeatures = {
 
 export type TryOnSession = {
   id: string;
-  product_id: string;
-  mode: "bag" | "clothes";
+  product_id: string | null;
+  mode: TryOnMode;
   status: "pending" | "processing" | "success" | "error" | string;
   result_url: string | null;
   error_code: string | null;

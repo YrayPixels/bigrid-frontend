@@ -19,6 +19,7 @@ import type {
   StoreCustomer,
   StoreCustomersResponse,
   StoreProduct,
+  TryOnSession,
   ProductImportReport,
   StorefrontContent,
   StorefrontDraftResponse,
@@ -903,6 +904,84 @@ export const api = {
       body: JSON.stringify(body),
     });
     return res.product;
+  },
+
+  async listTryOnModels(): Promise<{ id: string; name: string; gender: string; image_url: string }[]> {
+    requireToken();
+    if (USE_MOCKS) {
+      return [
+        {
+          id: "model_amara",
+          name: "Amara",
+          gender: "female",
+          image_url: "https://plugins-media.makeupar.com/smb/blog/post/2024-05-07/b103976d-1b0e-4bed-aab4-9307308b84d7.jpg",
+        },
+      ];
+    }
+    const res = await http<{ models: { id: string; name: string; gender: string; image_url: string }[] }>(
+      `${STOREHAUSE_API_PREFIX}/try-on/models`,
+    );
+    return res.models ?? [];
+  },
+
+  async createModelLook(body: {
+    garment_image_url: string;
+    model_id?: string;
+    model_image_url?: string;
+    garment_category?: string;
+    product_id?: string;
+  }): Promise<{ session: TryOnSession }> {
+    requireToken();
+    if (USE_MOCKS) {
+      return {
+        session: {
+          id: "mock-model-look",
+          product_id: body.product_id ?? null,
+          mode: "clothes",
+          status: "success",
+          result_url: body.garment_image_url,
+          error_code: null,
+          error_message: null,
+        },
+      };
+    }
+    return http<{ session: TryOnSession }>(`${STOREHAUSE_API_PREFIX}/try-on/model-looks`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  async getModelLook(sessionId: string): Promise<{ session: TryOnSession }> {
+    requireToken();
+    if (USE_MOCKS) {
+      return {
+        session: {
+          id: sessionId,
+          product_id: null,
+          mode: "clothes",
+          status: "success",
+          result_url: null,
+          error_code: null,
+          error_message: null,
+        },
+      };
+    }
+    return http<{ session: TryOnSession }>(`${STOREHAUSE_API_PREFIX}/try-on/model-looks/${sessionId}`);
+  },
+
+  async listFabricTemplates(): Promise<{ id: string; name: string; thumbnail_url: string | null }[]> {
+    requireToken();
+    if (USE_MOCKS) {
+      return [
+        { id: "stub_silk_001", name: "Silk", thumbnail_url: null },
+        { id: "stub_linen_001", name: "Linen", thumbnail_url: null },
+        { id: "stub_cotton_001", name: "Cotton", thumbnail_url: null },
+      ];
+    }
+    const res = await http<{ templates: { id: string; name: string; thumbnail_url: string | null }[] }>(
+      `${STOREHAUSE_API_PREFIX}/try-on/fabric-templates`,
+    );
+    return res.templates ?? [];
   },
 
   async duplicateProduct(productId: string): Promise<StoreProduct> {

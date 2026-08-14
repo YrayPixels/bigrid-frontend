@@ -48,7 +48,22 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { generateProductDescriptionCopy } from "@/lib/storefront-builder/product-description";
-import type { StoreCategory, StoreProduct } from "@/lib/api/types";
+import { api } from "@/lib/api/client";
+import type { StoreCategory, StoreProduct, TryOnMode } from "@/lib/api/types";
+import { ProductModelLook } from "@/components/admin/product-model-look";
+import {
+  GARMENT_CATEGORY_OPTIONS,
+  NAIL_EFFECT_OPTIONS,
+  NAIL_POLISH_TEXTURE_OPTIONS,
+  NAIL_PRESS_ON_TEXTURE_OPTIONS,
+  NAIL_SHAPE_OPTIONS,
+  NAIL_SUB_TYPE_OPTIONS,
+  TRY_ON_MODES,
+  isTryOnMode,
+  refImageHintForMode,
+  styleOptionsForMode,
+  usesGenderStyle,
+} from "@/lib/storefront/try-on";
 
 type VariantOptionForm = {
   value: string;
@@ -74,11 +89,18 @@ type ProductForm = {
   variants: { name: string; options: VariantOptionForm[] }[];
   perks: string[];
   try_on_enabled: boolean;
-  try_on_mode: "bag" | "clothes";
+  try_on_mode: TryOnMode;
   try_on_bag_gender: "female" | "male" | "ask";
   try_on_bag_style: string;
   try_on_garment_category: string;
   try_on_ref_image_url: string;
+  try_on_nail_effect_type: "nail_polish" | "press_on_nails";
+  try_on_nail_sub_type: "color" | "design";
+  try_on_nail_color: string;
+  try_on_nail_texture: string;
+  try_on_nail_shape: string;
+  try_on_nail_length: string;
+  try_on_fabric_template_id: string;
 };
 
 type StoreVariantOption = NonNullable<StoreProduct["variants"]>[number]["options"][number];
@@ -154,23 +176,6 @@ const PERK_SUGGESTIONS = [
   "Authentic / original",
 ] as const;
 
-const BAG_STYLE_OPTIONS = [
-  { value: "random", label: "Surprise me" },
-  { value: "style_parisian_chic", label: "Parisian chic" },
-  { value: "style_urban_chic", label: "Urban chic" },
-  { value: "style_mediterranean_chic", label: "Mediterranean chic" },
-  { value: "style_art_deco_style", label: "Art deco" },
-] as const;
-
-const GARMENT_CATEGORY_OPTIONS = [
-  { value: "auto", label: "Auto" },
-  { value: "full_body", label: "Full body / dress" },
-  { value: "upper_body", label: "Upper body" },
-  { value: "lower_body", label: "Lower body" },
-  { value: "outerwear", label: "Outerwear" },
-  { value: "shoes", label: "Shoes" },
-] as const;
-
 const blankForm: ProductForm = {
   name: "",
   slug: "",
@@ -193,6 +198,13 @@ const blankForm: ProductForm = {
   try_on_bag_style: "random",
   try_on_garment_category: "auto",
   try_on_ref_image_url: "",
+  try_on_nail_effect_type: "nail_polish",
+  try_on_nail_sub_type: "color",
+  try_on_nail_color: "#c41e3a",
+  try_on_nail_texture: "cream",
+  try_on_nail_shape: "square_oval",
+  try_on_nail_length: "1",
+  try_on_fabric_template_id: "",
 };
 
 function slugify(value: string) {
@@ -292,7 +304,7 @@ function formFromProduct(product?: StoreProduct): ProductForm {
       : [],
     perks: product.perks?.length ? [...product.perks] : [],
     try_on_enabled: Boolean(product.try_on?.enabled),
-    try_on_mode: product.try_on?.mode === "clothes" ? "clothes" : "bag",
+    try_on_mode: isTryOnMode(product.try_on?.mode) ? product.try_on.mode : "bag",
     try_on_bag_gender:
       product.try_on?.bag_gender_default === "female" ||
       product.try_on?.bag_gender_default === "male"
@@ -301,6 +313,15 @@ function formFromProduct(product?: StoreProduct): ProductForm {
     try_on_bag_style: product.try_on?.bag_style ?? "random",
     try_on_garment_category: product.try_on?.garment_category ?? "auto",
     try_on_ref_image_url: product.try_on?.ref_image_url ?? "",
+    try_on_nail_effect_type:
+      product.try_on?.nail_effect_type === "press_on_nails" ? "press_on_nails" : "nail_polish",
+    try_on_nail_sub_type: product.try_on?.nail_sub_type === "design" ? "design" : "color",
+    try_on_nail_color: product.try_on?.nail_color ?? "#c41e3a",
+    try_on_nail_texture: product.try_on?.nail_texture ?? "cream",
+    try_on_nail_shape: product.try_on?.nail_shape ?? "square_oval",
+    try_on_nail_length:
+      product.try_on?.nail_length != null ? String(product.try_on.nail_length) : "1",
+    try_on_fabric_template_id: product.try_on?.fabric_template_id ?? "",
   };
 }
 
@@ -354,6 +375,13 @@ function productFromForm(form: ProductForm, existing?: StoreProduct): StoreProdu
         form.try_on_garment_category === "shoes"
           ? form.try_on_garment_category
           : "auto",
+      nail_effect_type: form.try_on_nail_effect_type,
+      nail_sub_type: form.try_on_nail_sub_type,
+      nail_color: form.try_on_nail_color,
+      nail_texture: form.try_on_nail_texture,
+      nail_shape: form.try_on_nail_shape,
+      nail_length: Number(form.try_on_nail_length) || 1,
+      fabric_template_id: form.try_on_fabric_template_id.trim() || undefined,
     },
   };
 }
@@ -500,6 +528,9 @@ export function ProductFormDialog({
   const [savingCategory, setSavingCategory] = useState(false);
   const [generatingDescription, setGeneratingDescription] = useState(false);
   const [sessionKey, setSessionKey] = useState(0);
+  const [fabricTemplates, setFabricTemplates] = useState<
+    { id: string; name: string; thumbnail_url: string | null }[]
+  >([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
@@ -542,6 +573,22 @@ export function ProductFormDialog({
     // Only re-seed when the editor opens or the product being edited changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, editingProduct?.id]);
+
+  useEffect(() => {
+    if (!open || !form.try_on_enabled || form.try_on_mode !== "fabric") return;
+    let cancelled = false;
+    void api
+      .listFabricTemplates()
+      .then((templates) => {
+        if (!cancelled) setFabricTemplates(templates);
+      })
+      .catch(() => {
+        if (!cancelled) setFabricTemplates([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, form.try_on_enabled, form.try_on_mode]);
 
   useEffect(() => {
     if (!open || skuTouched) return;
@@ -1140,6 +1187,24 @@ export function ProductFormDialog({
                       Add URL
                     </Button>
                   </div>
+                </FormSection>
+
+                <FormSection
+                  title="Wear on a model"
+                  description="Generate an on-model photo from your product image. Added to the gallery above."
+                >
+                  <ProductModelLook
+                    productId={form.id}
+                    garmentImageUrl={form.images[0] ?? null}
+                    canAddImage={form.images.length < MAX_PRODUCT_IMAGES}
+                    uploadImage={uploadImage}
+                    onAddImage={(url) =>
+                      setForm((current) => ({
+                        ...current,
+                        images: normalizeProductImages([...current.images, url]),
+                      }))
+                    }
+                  />
                 </FormSection>
 
                 <FormSection title="Basics" description="Name, description, and catalog details.">
@@ -1854,7 +1919,8 @@ export function ProductFormDialog({
                           onValueChange={(value) =>
                             setForm((current) => ({
                               ...current,
-                              try_on_mode: value === "clothes" ? "clothes" : "bag",
+                              try_on_mode: isTryOnMode(value) ? value : "bag",
+                              try_on_bag_style: "random",
                             }))
                           }
                         >
@@ -1862,13 +1928,16 @@ export function ProductFormDialog({
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="bag">Bag</SelectItem>
-                            <SelectItem value="clothes">Clothes / dress</SelectItem>
+                            {TRY_ON_MODES.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {option.label}
+                              </SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       </div>
 
-                      {form.try_on_mode === "bag" ? (
+                      {usesGenderStyle(form.try_on_mode) ? (
                         <>
                           <div className="space-y-2">
                             <Label>Default gender</Label>
@@ -1904,7 +1973,7 @@ export function ProductFormDialog({
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
-                                {BAG_STYLE_OPTIONS.map((option) => (
+                                {styleOptionsForMode(form.try_on_mode).map((option) => (
                                   <SelectItem key={option.value} value={option.value}>
                                     {option.label}
                                   </SelectItem>
@@ -1913,7 +1982,9 @@ export function ProductFormDialog({
                             </Select>
                           </div>
                         </>
-                      ) : (
+                      ) : null}
+
+                      {form.try_on_mode === "clothes" ? (
                         <div className="space-y-2">
                           <Label>Garment category</Label>
                           <Select
@@ -1937,26 +2008,213 @@ export function ProductFormDialog({
                             </SelectContent>
                           </Select>
                         </div>
-                      )}
+                      ) : null}
 
-                      <div className="space-y-2 sm:col-span-2">
-                        <Label>Reference image URL (optional)</Label>
-                        <Input
-                          value={form.try_on_ref_image_url}
-                          onChange={(event) =>
-                            setForm((current) => ({
-                              ...current,
-                              try_on_ref_image_url: event.target.value,
-                            }))
-                          }
-                          placeholder="Defaults to product cover image"
-                        />
-                        <p className="text-xs text-ink-soft">
-                          {form.try_on_mode === "clothes"
-                            ? "Use a front-facing single garment shot (or worn outfit that fully covers the apply area)."
-                            : "Use a clean front-facing product shot. Single bag, well lit."}
-                        </p>
-                      </div>
+                      {form.try_on_mode === "nail" ? (
+                        <>
+                          <div className="space-y-2">
+                            <Label>Nail type</Label>
+                            <Select
+                              value={form.try_on_nail_effect_type}
+                              onValueChange={(value) =>
+                                setForm((current) => ({
+                                  ...current,
+                                  try_on_nail_effect_type:
+                                    value === "press_on_nails" ? "press_on_nails" : "nail_polish",
+                                  try_on_nail_texture: "cream",
+                                }))
+                              }
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {NAIL_EFFECT_OPTIONS.map((option) => (
+                                  <SelectItem key={option.value} value={option.value}>
+                                    {option.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Look</Label>
+                            <Select
+                              value={form.try_on_nail_sub_type}
+                              onValueChange={(value) =>
+                                setForm((current) => ({
+                                  ...current,
+                                  try_on_nail_sub_type: value === "design" ? "design" : "color",
+                                }))
+                              }
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {NAIL_SUB_TYPE_OPTIONS.map((option) => (
+                                  <SelectItem key={option.value} value={option.value}>
+                                    {option.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          {form.try_on_nail_sub_type === "color" ? (
+                            <div className="space-y-2">
+                              <Label>Color</Label>
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="color"
+                                  value={form.try_on_nail_color}
+                                  onChange={(event) =>
+                                    setForm((current) => ({
+                                      ...current,
+                                      try_on_nail_color: event.target.value,
+                                    }))
+                                  }
+                                  className="h-9 w-12 cursor-pointer rounded border border-border bg-background"
+                                  aria-label="Nail color"
+                                />
+                                <Input
+                                  value={form.try_on_nail_color}
+                                  onChange={(event) =>
+                                    setForm((current) => ({
+                                      ...current,
+                                      try_on_nail_color: event.target.value,
+                                    }))
+                                  }
+                                  placeholder="#c41e3a"
+                                />
+                              </div>
+                            </div>
+                          ) : null}
+                          <div className="space-y-2">
+                            <Label>Texture</Label>
+                            <Select
+                              value={form.try_on_nail_texture}
+                              onValueChange={(value) =>
+                                setForm((current) => ({ ...current, try_on_nail_texture: value }))
+                              }
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {(form.try_on_nail_effect_type === "press_on_nails"
+                                  ? NAIL_PRESS_ON_TEXTURE_OPTIONS
+                                  : NAIL_POLISH_TEXTURE_OPTIONS
+                                ).map((option) => (
+                                  <SelectItem key={option.value} value={option.value}>
+                                    {option.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          {form.try_on_nail_effect_type === "press_on_nails" ? (
+                            <>
+                              <div className="space-y-2">
+                                <Label>Shape</Label>
+                                <Select
+                                  value={form.try_on_nail_shape}
+                                  onValueChange={(value) =>
+                                    setForm((current) => ({ ...current, try_on_nail_shape: value }))
+                                  }
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {NAIL_SHAPE_OPTIONS.map((option) => (
+                                      <SelectItem key={option.value} value={option.value}>
+                                        {option.label}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Length</Label>
+                                <Input
+                                  type="number"
+                                  min="0.8"
+                                  max="2.15"
+                                  step="0.05"
+                                  value={form.try_on_nail_length}
+                                  onChange={(event) =>
+                                    setForm((current) => ({
+                                      ...current,
+                                      try_on_nail_length: event.target.value,
+                                    }))
+                                  }
+                                />
+                              </div>
+                            </>
+                          ) : null}
+                        </>
+                      ) : null}
+
+                      {form.try_on_mode === "fabric" ? (
+                        <div className="space-y-2 sm:col-span-2">
+                          <Label>Fabric template</Label>
+                          {fabricTemplates.length ? (
+                            <Select
+                              value={form.try_on_fabric_template_id}
+                              onValueChange={(value) =>
+                                setForm((current) => ({
+                                  ...current,
+                                  try_on_fabric_template_id: value,
+                                }))
+                              }
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Choose a fabric" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {fabricTemplates.map((template) => (
+                                  <SelectItem key={template.id} value={template.id}>
+                                    {template.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <Input
+                              value={form.try_on_fabric_template_id}
+                              onChange={(event) =>
+                                setForm((current) => ({
+                                  ...current,
+                                  try_on_fabric_template_id: event.target.value,
+                                }))
+                              }
+                              placeholder="PerfectCorp template ID"
+                            />
+                          )}
+                          <p className="text-xs text-ink-soft">
+                            Fabric try-on applies a material template to the shopper’s photo.
+                          </p>
+                        </div>
+                      ) : null}
+
+                      {form.try_on_mode !== "fabric" ? (
+                        <div className="space-y-2 sm:col-span-2">
+                          <Label>Reference image URL (optional)</Label>
+                          <Input
+                            value={form.try_on_ref_image_url}
+                            onChange={(event) =>
+                              setForm((current) => ({
+                                ...current,
+                                try_on_ref_image_url: event.target.value,
+                              }))
+                            }
+                            placeholder="Defaults to product cover image"
+                          />
+                          <p className="text-xs text-ink-soft">
+                            {refImageHintForMode(form.try_on_mode)}
+                          </p>
+                        </div>
+                      ) : null}
                     </div>
                   ) : null}
                 </FormSection>
