@@ -6,7 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api, getToken, onAuthLogout, setToken } from "@/lib/api/client";
 import { cacheAuthUser, readCachedAuthUser } from "@/lib/auth-user-cache";
-import { merchantKeys } from "@/lib/query-keys";
+import { prefetchMerchantWorkspace } from "@/hooks/use-merchant-queries";
 import { postAuthPath, type User } from "@/lib/api/types";
 
 type AuthCtx = {
@@ -128,24 +128,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       cacheAuthUser(freshUser);
       setUser(freshUser);
       setImpersonating(Boolean(freshUser.impersonating) || impersonation);
-      if (freshUser.has_store && freshUser.can_access_admin !== false) {
-        await Promise.all([
-          qc.prefetchQuery({
-            queryKey: merchantKeys.store.me(),
-            queryFn: () => api.getMyStore(),
-            staleTime: 5 * 60 * 1000,
-          }),
-          qc.prefetchQuery({
-            queryKey: merchantKeys.dashboard("all"),
-            queryFn: () => api.getDashboardOverview("all"),
-            staleTime: 60 * 1000,
-          }),
-        ]);
-      }
       if (!impersonation) {
         toast.success(`Welcome${freshUser.name ? `, ${freshUser.name.split(" ")[0]}` : ""}!`);
         router.replace(postAuthPath(freshUser));
       }
+      prefetchMerchantWorkspace(qc, freshUser);
     } catch {
       setToken(null);
       cacheAuthUser(null);

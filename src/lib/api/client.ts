@@ -192,10 +192,7 @@ async function http<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (res.status === 204) return undefined as T;
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    if (res.status === 401) {
-      setToken(null);
-      emitLogoutEvent();
-    }
+    logoutIfUnauthorized(res.status, token);
     throw new ApiError(res.status, apiErrorMessage(data), apiErrorCode(data));
   }
   return data as T;
@@ -213,13 +210,18 @@ async function httpForm<T>(path: string, body: FormData): Promise<T> {
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    if (res.status === 401) {
-      setToken(null);
-      emitLogoutEvent();
-    }
+    logoutIfUnauthorized(res.status, token);
     throw new ApiError(res.status, apiErrorMessage(data), apiErrorCode(data));
   }
   return data as T;
+}
+
+function logoutIfUnauthorized(status: number, requestToken: string | null) {
+  if (status !== 401) return;
+  // A 401 from an older in-flight request must not wipe a token issued after it started.
+  if (getToken() !== requestToken) return;
+  setToken(null);
+  emitLogoutEvent();
 }
 
 function requireToken(): string {

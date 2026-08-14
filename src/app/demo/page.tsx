@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { AuthShell } from "@/components/auth-shell";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api/client";
-import { merchantKeys } from "@/lib/query-keys";
+import { prefetchMerchantWorkspace } from "@/hooks/use-merchant-queries";
 import { postAuthPath } from "@/lib/api/types";
 
 function DemoLoginInner() {
@@ -26,22 +26,9 @@ function DemoLoginInner() {
     try {
       const { user: nextUser } = await api.demoLogin();
       setUser(nextUser);
-      if (nextUser.has_store && nextUser.can_access_admin !== false) {
-        await Promise.all([
-          queryClient.prefetchQuery({
-            queryKey: merchantKeys.store.me(),
-            queryFn: () => api.getMyStore(),
-            staleTime: 5 * 60 * 1000,
-          }),
-          queryClient.prefetchQuery({
-            queryKey: merchantKeys.dashboard("all"),
-            queryFn: () => api.getDashboardOverview("all"),
-            staleTime: 60 * 1000,
-          }),
-        ]);
-      }
       toast.success("Welcome to the Bizgrid demo");
       router.replace(postAuthPath(nextUser));
+      prefetchMerchantWorkspace(queryClient, nextUser);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Demo login failed";
       setError(message);

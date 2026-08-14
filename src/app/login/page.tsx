@@ -8,7 +8,7 @@ import { Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api/client";
-import { merchantKeys } from "@/lib/query-keys";
+import { prefetchMerchantWorkspace } from "@/hooks/use-merchant-queries";
 import { postAuthPath } from "@/lib/api/types";
 import {
   AuthShell,
@@ -39,22 +39,9 @@ export default function LoginPage() {
     try {
       const { user: nextUser } = await api.login({ email, password, remember });
       setUser(nextUser);
-      if (nextUser.has_store && nextUser.can_access_admin !== false) {
-        await Promise.all([
-          queryClient.prefetchQuery({
-            queryKey: merchantKeys.store.me(),
-            queryFn: () => api.getMyStore(),
-            staleTime: 5 * 60 * 1000,
-          }),
-          queryClient.prefetchQuery({
-            queryKey: merchantKeys.dashboard("all"),
-            queryFn: () => api.getDashboardOverview("all"),
-            staleTime: 60 * 1000,
-          }),
-        ]);
-      }
       toast.success(`Welcome back, ${nextUser.name.split(" ")[0]}!`);
       router.replace(postAuthPath(nextUser));
+      prefetchMerchantWorkspace(queryClient, nextUser);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Login failed");
     } finally {
