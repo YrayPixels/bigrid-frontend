@@ -39,6 +39,12 @@ export function postAuthPath(user: User): string {
   return user.has_store ? "/admin" : "/admin/onboarding";
 }
 
+/** Full navigation so middleware sees the auth cookie and App Router cannot swallow the redirect. */
+export function redirectAfterAuth(user: User) {
+  if (typeof window === "undefined") return;
+  window.location.replace(postAuthPath(user));
+}
+
 export function isEmailVerified(user: User | null | undefined): boolean {
   return Boolean(user?.email_verified_at);
 }
@@ -540,6 +546,11 @@ export type ShopperThinkingEntry = {
   detail?: string;
 };
 
+export type AiShopChatMessage = {
+  role: "user" | "assistant";
+  content: string;
+};
+
 export type AiShopResponse = {
   reply: string;
   intent: ShoppingIntent;
@@ -558,7 +569,18 @@ export type AiShopResponse = {
   look: ShoppingLook | null;
   recommendation?: ShoppingLook | null;
   suggestions: string[];
+  session_id?: string;
+  messages?: AiShopChatMessage[];
   catalog_enriched?: boolean;
+};
+
+export type AiShopConfigResponse = {
+  shopper: ShopperContext;
+  session_id?: string;
+  messages?: AiShopChatMessage[];
+  recommendation?: ShoppingLook | null;
+  look?: ShoppingLook | null;
+  suggestions?: string[];
 };
 
 export type StoreCategory = {

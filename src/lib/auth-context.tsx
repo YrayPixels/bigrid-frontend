@@ -1,13 +1,12 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, Suspense, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, Suspense, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api, getToken, onAuthLogout, setToken } from "@/lib/api/client";
 import { cacheAuthUser, readCachedAuthUser } from "@/lib/auth-user-cache";
-import { prefetchMerchantWorkspace } from "@/hooks/use-merchant-queries";
-import { postAuthPath, type User } from "@/lib/api/types";
+import { redirectAfterAuth, type User } from "@/lib/api/types";
 
 type AuthCtx = {
   user: User | null;
@@ -34,49 +33,51 @@ function AuthCallbackHandler({
   onError: (message: string) => void;
 }) {
   const searchParams = useSearchParams();
+  const handledKey = useRef<string | null>(null);
+
   useEffect(() => {
     const authCode = searchParams.get("auth_code");
     if (authCode) {
+      const key = `code:${authCode}`;
+      if (handledKey.current === key) return;
+      handledKey.current = key;
       onAuthCode(authCode);
-      const url = new URL(window.location.href);
-      url.searchParams.delete("auth_code");
-      window.history.replaceState({}, "", url.pathname + url.search);
       return;
     }
 
     const authToken = searchParams.get("auth_token");
     if (authToken) {
+      const key = `token:${authToken}`;
+      if (handledKey.current === key) return;
+      handledKey.current = key;
       onAuthToken(authToken);
-      const url = new URL(window.location.href);
-      url.searchParams.delete("auth_token");
-      window.history.replaceState({}, "", url.pathname + url.search);
       return;
     }
 
     const impersonateCode = searchParams.get("impersonate_code");
     if (impersonateCode) {
+      const key = `impersonate_code:${impersonateCode}`;
+      if (handledKey.current === key) return;
+      handledKey.current = key;
       onImpersonateCode(impersonateCode);
-      const url = new URL(window.location.href);
-      url.searchParams.delete("impersonate_code");
-      window.history.replaceState({}, "", url.pathname + url.search);
       return;
     }
 
     const impersonateToken = searchParams.get("impersonate_token");
     if (impersonateToken) {
+      const key = `impersonate_token:${impersonateToken}`;
+      if (handledKey.current === key) return;
+      handledKey.current = key;
       onImpersonateToken(impersonateToken);
-      const url = new URL(window.location.href);
-      url.searchParams.delete("impersonate_token");
-      window.history.replaceState({}, "", url.pathname + url.search);
       return;
     }
 
     const authError = searchParams.get("auth_error");
     if (authError) {
+      const key = `error:${authError}`;
+      if (handledKey.current === key) return;
+      handledKey.current = key;
       onError(authError);
-      const url = new URL(window.location.href);
-      url.searchParams.delete("auth_error");
-      window.history.replaceState({}, "", url.pathname + url.search);
     }
   }, [searchParams, onAuthToken, onAuthCode, onImpersonateToken, onImpersonateCode, onError]);
   return null;
@@ -130,9 +131,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setImpersonating(Boolean(freshUser.impersonating) || impersonation);
       if (!impersonation) {
         toast.success(`Welcome${freshUser.name ? `, ${freshUser.name.split(" ")[0]}` : ""}!`);
-        router.replace(postAuthPath(freshUser));
+        redirectAfterAuth(freshUser);
       }
-      prefetchMerchantWorkspace(qc, freshUser);
     } catch {
       setToken(null);
       cacheAuthUser(null);

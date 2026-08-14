@@ -31,26 +31,8 @@ import type {
   StoreProduct,
   StorefrontDraftResponse,
   StorefrontTemplateOption,
-  User,
 } from "@/lib/api/types";
 import { merchantKeys } from "@/lib/query-keys";
-
-/** Warm store + dashboard caches after sign-in. Failures are ignored — pages fetch on mount. */
-export function prefetchMerchantWorkspace(queryClient: QueryClient, user: User) {
-  if (!user.has_store || user.can_access_admin === false) return;
-  void Promise.all([
-    queryClient.prefetchQuery({
-      queryKey: merchantKeys.store.me(),
-      queryFn: () => api.getMyStore(),
-      staleTime: 5 * 60 * 1000,
-    }),
-    queryClient.prefetchQuery({
-      queryKey: merchantKeys.dashboard("all"),
-      queryFn: () => api.getDashboardOverview("all"),
-      staleTime: 60 * 1000,
-    }),
-  ]).catch(() => {});
-}
 
 type StoreQueryOptions = Omit<
   UseQueryOptions<Store | null, Error>,

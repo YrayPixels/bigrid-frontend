@@ -1,15 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api/client";
-import { prefetchMerchantWorkspace } from "@/hooks/use-merchant-queries";
-import { postAuthPath } from "@/lib/api/types";
+import { redirectAfterAuth } from "@/lib/api/types";
 import {
   AuthShell,
   AuthSubmitButton,
@@ -18,8 +15,6 @@ import {
 } from "@/components/auth-shell";
 
 export default function LoginPage() {
-  const router = useRouter();
-  const queryClient = useQueryClient();
   const { user, loading, setUser } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -29,9 +24,9 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (!loading && user) {
-      router.replace(postAuthPath(user));
+      redirectAfterAuth(user);
     }
-  }, [user, loading, router]);
+  }, [user, loading]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -40,14 +35,23 @@ export default function LoginPage() {
       const { user: nextUser } = await api.login({ email, password, remember });
       setUser(nextUser);
       toast.success(`Welcome back, ${nextUser.name.split(" ")[0]}!`);
-      router.replace(postAuthPath(nextUser));
-      prefetchMerchantWorkspace(queryClient, nextUser);
+      redirectAfterAuth(nextUser);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Login failed");
-    } finally {
       setSubmitting(false);
     }
   };
+
+  if (!loading && user) {
+    return (
+      <AuthShell title="Welcome back">
+        <div className="flex items-center gap-2 text-sm text-ink-soft">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Taking you to your dashboard…
+        </div>
+      </AuthShell>
+    );
+  }
 
   return (
     <AuthShell title="Welcome back">

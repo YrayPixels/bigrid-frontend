@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "next dev",
-    "build": "node scripts/stamp-pwa-build.mjs && next build && node scripts/stamp-pwa-build.mjs --reset-if-local",
+    "build": "node scripts/bump-pwa-version.mjs && node scripts/stamp-pwa-build.mjs && next build && node scripts/stamp-pwa-build.mjs --reset-if-local",
     "start": "next start",
     "lint": "eslint .",
     "hooks:install": "git config core.hooksPath .githooks",

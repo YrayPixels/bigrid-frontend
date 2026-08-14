@@ -46,17 +46,40 @@ export function AiStylistPanel({ onClose, className }: AiStylistPanelProps) {
 
   useEffect(() => {
     let cancelled = false;
-    void storefrontApi.aiShopConfig(store.slug).then((response) => {
+    const sessionId = getOrCreateVisitSessionId() || undefined;
+    void storefrontApi.aiShopConfig(store.slug, sessionId).then((response) => {
       if (cancelled) return;
       setShopper(response.shopper);
-      setSuggestions(response.shopper.default_suggestions);
-      setMessages([
-        {
-          id: "welcome",
-          role: "assistant",
-          content: response.shopper.welcome_message,
-        },
-      ]);
+      const restored = (response.messages ?? []).filter(
+        (message) => message.content.trim() !== "",
+      );
+      if (restored.length > 0) {
+        setMessages(
+          restored.map((message, index) => ({
+            id: `s-${index}`,
+            role: message.role,
+            content: message.content,
+          })),
+        );
+      } else {
+        setMessages([
+          {
+            id: "welcome",
+            role: "assistant",
+            content: response.shopper.welcome_message,
+          },
+        ]);
+      }
+      const restoredLook = response.recommendation ?? response.look ?? null;
+      if (restoredLook) {
+        setLook(restoredLook);
+        setShowFilters(false);
+      }
+      setSuggestions(
+        response.suggestions?.length
+          ? response.suggestions
+          : response.shopper.default_suggestions,
+      );
     }).catch(() => {
       if (cancelled) return;
       setMessages([
@@ -96,7 +119,7 @@ export function AiStylistPanel({ onClose, className }: AiStylistPanelProps) {
       });
       setShopper(response.shopper);
       setIntent(response.intent);
-      const recommendation = response.recommendation ?? response.look;
+      const recommendation = response.recommendation ?? response.look ?? null;
       setLook(recommendation);
       setSuggestions(response.suggestions?.length ? response.suggestions : suggestions);
       const latestThought = response.thinking?.at(-1);

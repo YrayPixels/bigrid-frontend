@@ -1,20 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { AuthShell } from "@/components/auth-shell";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api/client";
-import { prefetchMerchantWorkspace } from "@/hooks/use-merchant-queries";
-import { postAuthPath } from "@/lib/api/types";
+import { redirectAfterAuth } from "@/lib/api/types";
 
 function DemoLoginInner() {
-  const router = useRouter();
   const searchParams = useSearchParams();
-  const queryClient = useQueryClient();
   const { user, loading, setUser } = useAuth();
   const [status, setStatus] = useState<"idle" | "signing_in" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
@@ -27,8 +23,7 @@ function DemoLoginInner() {
       const { user: nextUser } = await api.demoLogin();
       setUser(nextUser);
       toast.success("Welcome to the Bizgrid demo");
-      router.replace(postAuthPath(nextUser));
-      prefetchMerchantWorkspace(queryClient, nextUser);
+      redirectAfterAuth(nextUser);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Demo login failed";
       setError(message);
@@ -40,7 +35,7 @@ function DemoLoginInner() {
   useEffect(() => {
     if (loading) return;
     if (user) {
-      router.replace(postAuthPath(user));
+      redirectAfterAuth(user);
       return;
     }
 
@@ -55,7 +50,7 @@ function DemoLoginInner() {
     started.current = true;
     void enterDemo();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- auto-start once after auth resolves
-  }, [loading, user, router, searchParams]);
+  }, [loading, user, searchParams]);
 
   return (
     <AuthShell

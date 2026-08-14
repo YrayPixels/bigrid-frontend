@@ -1,5 +1,6 @@
 import { mockApi } from "./mocks";
 import type {
+  AiShopConfigResponse,
   AiShopResponse,
   CreateStoreOrderInput,
   PlaceOrderResponse,
@@ -375,6 +376,10 @@ export const storefrontApi = {
         look: null,
         recommendation: null,
         suggestions: ["Cheaper options", "Show alternatives"],
+        session_id: body.session_id,
+        messages: [
+          { role: "assistant", content: "Here’s a sample recommendation for your request." },
+        ],
       };
     }
 
@@ -384,7 +389,7 @@ export const storefrontApi = {
     );
   },
 
-  async aiShopConfig(slug: string): Promise<{ shopper: AiShopResponse["shopper"] }> {
+  async aiShopConfig(slug: string, sessionId?: string): Promise<AiShopConfigResponse> {
     if (USE_MOCKS) {
       return {
         shopper: {
@@ -401,11 +406,14 @@ export const storefrontApi = {
           default_suggestions: ["Help me choose"],
           categories: [],
         },
+        session_id: sessionId,
+        messages: [{ role: "assistant", content: "What can I help you find?" }],
       };
     }
 
-    return publicHttpFresh<{ shopper: AiShopResponse["shopper"] }>(
-      `${STOREHAUSE_API_PREFIX}/public/storefronts/${slug}/ai/config`,
+    const query = sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : "";
+    return publicHttpFresh<AiShopConfigResponse>(
+      `${STOREHAUSE_API_PREFIX}/public/storefronts/${slug}/ai/config${query}`,
     );
   },
 
