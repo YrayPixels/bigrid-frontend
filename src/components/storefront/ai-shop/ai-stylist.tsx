@@ -1,16 +1,27 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Loader2, Send, X } from "lucide-react";
+import { toast } from "sonner";
 import { StorefrontApiError, storefrontApi } from "@/lib/api/storefront";
-import type { ShopperContext, ShoppingIntent, ShoppingLook, StoreProduct } from "@/lib/api/types";
+import type { ShopperContext, ShoppingIntent, ShoppingLook } from "@/lib/api/types";
 import { RecommendationCard } from "@/components/storefront/ai-shop/look-card";
-import { FittingSheet } from "@/components/storefront/try-on/fitting-sheet";
+import { OutfitLookSheet } from "@/components/storefront/try-on/outfit-look-sheet";
+import { TryOnSignInDialog } from "@/components/storefront/try-on/product-try-on-cta";
 import { fallbackShopperContext } from "@/lib/storefront/ai-shop-config";
 import { getOrCreateVisitSessionId } from "@/lib/storefront/marketing-attribution";
 import { useCart } from "@/lib/storefront/cart-context";
+import { useCustomerAuthOptional } from "@/lib/storefront/customer-auth";
 import { useStorefront } from "@/lib/storefront/store-context";
 import { useStorefrontTheme } from "@/lib/storefront/theme-context";
+import {
+  isTryOnAsk,
+  saveOutfitPreview,
+  selectedLookItems,
+  tryOnEligibleLookItems,
+  type CartOutfit,
+} from "@/lib/storefront/outfit-look";
 import { cn } from "@/lib/utils";
 
 type ChatMessage = {
@@ -25,10 +36,14 @@ type AiStylistPanelProps = {
 };
 
 export function AiStylistPanel({ onClose, className }: AiStylistPanelProps) {
-  const { store, storefront } = useStorefront();
-  const products = storefront.products ?? [];
+  const { store } = useStorefront();
   const { theme } = useStorefrontTheme();
-  const { addItem } = useCart();
+  const { addLookItems } = useCart();
+  const router = useRouter();
+  const customerAuth = useCustomerAuthOptional();
+  const customer = customerAuth?.customer ?? null;
+  const authLoading = customerAuth?.loading ?? false;
+  const requireCustomerAuth = customerAuth !== null;
 
   const [shopper, setShopper] = useState<ShopperContext>(() => fallbackShopperContext(store));
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -39,7 +54,10 @@ export function AiStylistPanel({ onClose, className }: AiStylistPanelProps) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tryOnOpen, setTryOnOpen] = useState(false);
-  const [tryOnProduct, setTryOnProduct] = useState<StoreProduct | null>(null);
+  const [signInOpen, setSignInOpen] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [pendingTryOn, setPendingTryOn] = useState(false);
+  const [preferTryOn, setPreferTryOn] = useState(true);
   const [selectedChips, setSelectedChips] = useState<Record<string, string>>({});
   const [showFilters, setShowFilters] = useState(true);
   const [thinking, setThinking] = useState<string | null>(null);
@@ -73,6 +91,7 @@ export function AiStylistPanel({ onClose, className }: AiStylistPanelProps) {
       const restoredLook = response.recommendation ?? response.look ?? null;
       if (restoredLook) {
         setLook(restoredLook);
+        setSelectedIds(restoredLook.items.map((item) => item.product_id));
         setShowFilters(false);
       }
       setSuggestions(
@@ -96,11 +115,29 @@ export function AiStylistPanel({ onClose, className }: AiStylistPanelProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [store.slug]);
 
+  const selectedItems = useMemo(
+    () => (look ? selectedLookItems(look, selectedIds) : []),
+    [look, selectedIds],
+  );
+
   const tryOnAvailable = useMemo(() => {
-    if (!look?.try_on_product_id || !shopper.supports_try_on) return false;
-    const item = look.items.find((entry) => entry.product_id === look.try_on_product_id);
-    return Boolean(item?.product.try_on?.enabled || item?.product.try_on_available);
-  }, [look, shopper.supports_try_on]);
+    if (!look || !shopper.supports_try_on) return false;
+    return tryOnEligibleLookItems(store, selectedItems).length > 0;
+  }, [look, selectedItems, shopper.supports_try_on, store]);
+
+  useEffect(() => {
+    if (!look) return;
+    if (typeof window === "undefined") return;
+    if (authLoading) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("try_on_look") !== "1") return;
+    if (requireCustomerAuth && !customer) return;
+    setTryOnOpen(true);
+    const url = new URL(window.location.href);
+    url.searchParams.delete("try_on_look");
+    url.searchParams.delete("shopper");
+    window.history.replaceState({}, "", url.pathname + url.search + url.hash);
+  }, [look, customer, authLoading, requireCustomerAuth]);
 
   async function runShop(opts: {
     message?: string;
@@ -121,6 +158,9 @@ export function AiStylistPanel({ onClose, className }: AiStylistPanelProps) {
       setIntent(response.intent);
       const recommendation = response.recommendation ?? response.look ?? null;
       setLook(recommendation);
+      if (recommendation) {
+        setSelectedIds(recommendation.items.map((item) => item.product_id));
+      }
       setSuggestions(response.suggestions?.length ? response.suggestions : suggestions);
       const latestThought = response.thinking?.at(-1);
       setThinking(latestThought ? latestThought.title : null);
@@ -153,9 +193,19 @@ export function AiStylistPanel({ onClose, className }: AiStylistPanelProps) {
     setInput("");
     setMessages((prev) => [...prev, { id: `u-${Date.now()}`, role: "user", content: message }]);
 
-    const lower = message.toLowerCase();
-    if (shopper.supports_try_on && (lower.includes("see it on") || lower === "see it on me")) {
-      openTryOn();
+    if (isTryOnAsk(message) && look) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `a-tryon-${Date.now()}`,
+          role: "assistant",
+          content:
+            selectedItems.length > 1
+              ? "Yes — I’ll open the full look so you can try the selected pieces on together, then add or buy them as one outfit."
+              : "Yes — I’ll open this piece so you can see it on you, then add it to your bag.",
+        },
+      ]);
+      openOutfitLook(shopper.supports_try_on && tryOnAvailable);
       return;
     }
 
@@ -204,37 +254,79 @@ export function AiStylistPanel({ onClose, className }: AiStylistPanelProps) {
     await runShop({ message: prompt, chips });
   }
 
-  function openTryOn() {
-    if (!look?.try_on_product_id) {
-      setError("This item isn’t try-on ready yet.");
+  function toggleLookItem(productId: string) {
+    setSelectedIds((current) => {
+      if (current.includes(productId)) {
+        if (current.length <= 1) return current;
+        return current.filter((id) => id !== productId);
+      }
+      return [...current, productId];
+    });
+  }
+
+  function openOutfitLook(requireTryOn = false) {
+    if (!look || selectedItems.length === 0) {
+      setError("Pick at least one piece to continue.");
       return;
     }
-    const fromLook = look.items.find((item) => item.product_id === look.try_on_product_id)?.product;
-    const fromCatalog = products.find((product) => product.id === look.try_on_product_id) ?? null;
-    const product = fromLook ?? fromCatalog;
-    if (!product) {
-      setError("Couldn’t find the try-on product.");
+    if (requireTryOn && !tryOnAvailable) {
+      setError("This look isn’t try-on ready yet.");
       return;
     }
-    setTryOnProduct(product);
+    if (requireTryOn && requireCustomerAuth && !customer) {
+      if (authLoading) return;
+      setPendingTryOn(true);
+      setSignInOpen(true);
+      return;
+    }
+    setError(null);
+    setPreferTryOn(requireTryOn);
     setTryOnOpen(true);
   }
 
-  function addRecommendationToCart() {
-    if (!look) return;
-    for (const item of look.items) {
-      addItem(item.product, 1);
-    }
+  function outfitMeta(resultUrl?: string | null): CartOutfit | null {
+    if (!look) return null;
+    return {
+      id: look.id,
+      name: look.name,
+      result_url: resultUrl ?? null,
+    };
+  }
+
+  function addLookToBag(resultUrl?: string | null) {
+    if (!look || selectedItems.length === 0) return;
+    const outfit = outfitMeta(resultUrl);
+    if (!outfit) return;
+    addLookItems(
+      selectedItems.map((item) => item.product),
+      outfit,
+    );
+    saveOutfitPreview(
+      store.id,
+      outfit,
+      selectedItems.map((item) => item.product_id),
+    );
+    const count = selectedItems.length;
+    toast.success(
+      shopper.supports_looks
+        ? `Added all ${count} pieces to your cart.`
+        : `Added ${count} item${count === 1 ? "" : "s"} to your cart.`,
+    );
     setMessages((prev) => [
       ...prev,
       {
         id: `a-cart-${Date.now()}`,
         role: "assistant",
         content: shopper.supports_looks
-          ? `Added all ${look.items.length} pieces to your cart.`
-          : `Added ${look.items.length} item${look.items.length === 1 ? "" : "s"} to your cart.`,
+          ? `Added all ${count} pieces to your cart. You can pay for the full look together at checkout.`
+          : `Added ${count} item${count === 1 ? "" : "s"} to your cart.`,
       },
     ]);
+  }
+
+  function buyLookNow(resultUrl?: string | null) {
+    addLookToBag(resultUrl);
+    router.push("/checkout");
   }
 
   function ChipButton({
@@ -372,9 +464,11 @@ export function AiStylistPanel({ onClose, className }: AiStylistPanelProps) {
               look={look}
               shopper={shopper}
               busy={busy}
+              selectedIds={selectedIds}
               tryOnAvailable={tryOnAvailable}
-              onTryOn={openTryOn}
-              onAddLook={addRecommendationToCart}
+              onToggleItem={toggleLookItem}
+              onTryOn={() => openOutfitLook(true)}
+              onOpenLook={() => openOutfitLook(false)}
             />
           ) : null}
         </div>
@@ -426,16 +520,33 @@ export function AiStylistPanel({ onClose, className }: AiStylistPanelProps) {
         </button>
       </form>
 
-      {tryOnProduct ? (
-        <FittingSheet
+      <TryOnSignInDialog
+        open={signInOpen}
+        onOpenChange={(open) => {
+          setSignInOpen(open);
+          if (!open) setPendingTryOn(false);
+        }}
+        onContinue={() => {
+          if (typeof window === "undefined") {
+            customerAuth?.signInWithGoogle();
+            return;
+          }
+          const ret = new URL(window.location.href);
+          ret.searchParams.set("shopper", "1");
+          if (pendingTryOn) ret.searchParams.set("try_on_look", "1");
+          customerAuth?.signInWithGoogle(ret.toString());
+        }}
+      />
+
+      {look && selectedItems.length > 0 ? (
+        <OutfitLookSheet
           open={tryOnOpen}
           onOpenChange={setTryOnOpen}
-          product={tryOnProduct}
-          onAddToCart={() => addItem(tryOnProduct, 1)}
-          onBuyNow={() => {
-            addItem(tryOnProduct, 1);
-            window.location.href = "/checkout";
-          }}
+          look={look}
+          items={selectedItems}
+          preferTryOn={preferTryOn}
+          onAddToCart={(resultUrl) => addLookToBag(resultUrl)}
+          onBuyNow={(resultUrl) => buyLookNow(resultUrl)}
         />
       ) : null}
     </div>

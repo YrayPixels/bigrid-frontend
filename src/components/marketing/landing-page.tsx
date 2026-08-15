@@ -11,6 +11,7 @@ import {
   type LandingMood,
 } from "@/components/marketing/landing-preview-prompt";
 import { PLATFORM_FAQS } from "@/lib/seo/platform-faqs";
+import { cn } from "@/lib/utils";
 
 const FEATURES = [
   {
@@ -89,9 +90,15 @@ const SHOWCASE_SHOPS = [
 
 export function LandingPage() {
   const [mood, setMood] = useState<LandingMood | null>(null);
+  const [keepStore, setKeepStore] = useState<{ shopName: string } | null>(null);
 
   return (
-    <div className="relative min-h-screen bg-canvas text-ink font-sans selection:bg-primary/20">
+    <div
+      className={cn(
+        "relative min-h-screen bg-canvas font-sans text-ink selection:bg-primary/20",
+        keepStore && "pb-24 lg:pb-0",
+      )}
+    >
       {LANDING_MOODS.map((item) => (
         <div
           key={item.id}
@@ -104,11 +111,15 @@ export function LandingPage() {
         />
       ))}
 
-      <LandingNav mood={mood} />
+      <LandingNav mood={mood} keepStore={keepStore} />
 
       <div className="relative z-10 pt-14 sm:pt-[4.5rem]">
         <main>
-          <LandingPreviewPrompt mood={mood} onMoodChange={setMood} />
+          <LandingPreviewPrompt
+            mood={mood}
+            onMoodChange={setMood}
+            onKeepStoreChange={setKeepStore}
+          />
 
         <section id="platform" className="mx-auto max-w-6xl border-t border-border px-4 py-16 sm:px-6 sm:py-24">
           <div className="mb-10 max-w-2xl sm:mb-14">

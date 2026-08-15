@@ -23,6 +23,8 @@ import {
 import { beautyTemplateImages } from "@/lib/storefront/beauty-defaults";
 import { cosmeticsTemplateImages } from "@/lib/storefront/cosmetics-defaults";
 import { minimalisticTemplateImages } from "@/lib/storefront/minimalistic-defaults";
+import { OutfitLookBanner } from "@/components/storefront/outfit-look-banner";
+import { clearOutfitPreview } from "@/lib/storefront/outfit-look";
 
 export function CheckoutPageView() {
   const router = useRouter();
@@ -218,6 +220,7 @@ export function CheckoutPageView() {
               await storefrontApi.verifyPayment(store.slug, reference);
               window.sessionStorage.setItem("storehaus_last_order", result.order.order_number);
               clear();
+              clearOutfitPreview(store.id);
               router.push(
                 `/checkout/success?order=${encodeURIComponent(result.order.order_number)}&email=${encodeURIComponent(result.order.customer_email)}&paid=1`,
               );
@@ -237,6 +240,7 @@ export function CheckoutPageView() {
 
       window.sessionStorage.setItem("storehaus_last_order", result.order.order_number);
       clear();
+      clearOutfitPreview(store.id);
       router.push(
         `/checkout/success?order=${encodeURIComponent(result.order.order_number)}&email=${encodeURIComponent(result.order.customer_email)}`,
       );
@@ -515,6 +519,7 @@ export function CheckoutPageView() {
             </div>
 
             <div className="mt-5 space-y-4">
+              <OutfitLookBanner lines={lines} compact />
               {lines.map((line, index) => {
                 const image =
                   line.product.image_url ??
@@ -759,6 +764,7 @@ export function CheckoutPageView() {
             Order summary
           </h2>
           <div className="mt-4 space-y-3">
+            <OutfitLookBanner lines={lines} compact />
             {lines.map((line) => (
               <div key={cartLineKey(line.product.id, line.selectedOptions)} className="flex items-start justify-between gap-4 text-sm">
                 <span>

@@ -13,6 +13,7 @@ import { fashionTemplateImages } from "@/lib/storefront/fashion-defaults";
 import { minimalisticTemplateImages } from "@/lib/storefront/minimalistic-defaults";
 import { formatMoney } from "@/lib/storefront/format";
 import { PageContainer } from "@/components/storefront/theme/page-container";
+import { OutfitLookBanner } from "@/components/storefront/outfit-look-banner";
 import { PrimaryButton } from "@/components/storefront/theme/primary-button";
 import { useStorefrontTheme } from "@/lib/storefront/theme-context";
 
@@ -133,6 +134,8 @@ function FashionCartPageView() {
                 </div>
               ))}
             </div>
+
+            <OutfitLookBanner lines={lines} />
 
             <div className="mt-8 divide-y" style={{ borderColor: theme.palette.border }}>
               {lines.map((line, index) => {
@@ -519,6 +522,8 @@ function MinimalisticCartPageView() {
               ))}
             </div>
 
+            <OutfitLookBanner lines={lines} />
+
             <div className="mt-8 divide-y" style={{ borderColor: theme.palette.border }}>
               {lines.map((line, index) => {
                 const image =
@@ -824,6 +829,7 @@ export function CartPageView() {
         Cart
       </h1>
       <div className="mt-8 space-y-4">
+        <OutfitLookBanner lines={lines} compact />
         {lines.map((line) => {
           const lineKey = cartLineKey(line.product.id, line.selectedOptions);
           const selectedSummary = formatSelectedOptions(line.selectedOptions);

@@ -3,14 +3,16 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { BizgridLogo } from "@/components/bizgrid-logo";
+import { KeepStoreCta } from "@/components/marketing/keep-store-cta";
 import type { LandingMood } from "@/components/marketing/landing-preview-prompt";
 import { cn } from "@/lib/utils";
 
 type LandingNavProps = {
   mood?: LandingMood | null;
+  keepStore?: { shopName: string } | null;
 };
 
-export function LandingNav({ mood = null }: LandingNavProps) {
+export function LandingNav({ mood = null, keepStore = null }: LandingNavProps) {
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
@@ -64,13 +66,17 @@ export function LandingNav({ mood = null }: LandingNavProps) {
         >
           Log in
         </Link>
-        <a
-          href="#try-preview"
-          className="rounded-full bg-primary px-3.5 py-2 text-sm font-medium text-primary-foreground shadow-soft transition hover:opacity-90 sm:px-5"
-        >
-          <span className="sm:hidden">Generate</span>
-          <span className="hidden sm:inline">Generate store</span>
-        </a>
+        {keepStore ? (
+          <KeepStoreCta variant="header" source="landing" shopName={keepStore.shopName} />
+        ) : (
+          <a
+            href="#try-preview"
+            className="rounded-full bg-primary px-3.5 py-2 text-sm font-medium text-primary-foreground shadow-soft transition hover:opacity-90 sm:px-5"
+          >
+            <span className="sm:hidden">Generate</span>
+            <span className="hidden sm:inline">Generate store</span>
+          </a>
+        )}
       </div>
     </nav>
   );

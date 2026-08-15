@@ -12,6 +12,8 @@ import { applyTemplateToDraft, normalizeStorefrontContent } from "@/lib/storefro
 import { resolveStorefrontTemplate, getStorefrontTheme } from "@/lib/storefront/template";
 import { getStorefrontUrl } from "@/lib/store-host";
 import { StoreShell } from "@/components/storefront/store-shell";
+import { KeepStoreCta } from "@/components/marketing/keep-store-cta";
+import type { PlatformEventSource } from "@/lib/analytics/platform-events";
 import { cn } from "@/lib/utils";
 
 type GuestPage = "home" | "products" | "about" | "faq";
@@ -26,9 +28,11 @@ const PAGES: Array<{ id: GuestPage; label: string }> = [
 export function GuestStorefrontBrowser({
   store,
   storefront,
+  keepStoreSource,
 }: {
   store: Store;
   storefront: StorefrontContent;
+  keepStoreSource?: PlatformEventSource;
 }) {
   const [activePage, setActivePage] = useState<GuestPage>("home");
   const templateId: StorefrontTemplateId = resolveStorefrontTemplate(store, storefront);
@@ -115,6 +119,14 @@ export function GuestStorefrontBrowser({
           </StorefrontThemeProvider>
         </StorefrontProvider>
       </div>
+      {keepStoreSource ? (
+        <div className="hidden items-center justify-between gap-3 border-t border-border bg-card px-3 py-2.5 sm:px-4 lg:flex">
+          <p className="min-w-0 truncate text-xs text-ink-soft">
+            Like it? Save <span className="font-semibold text-ink">{store.business_name}</span>
+          </p>
+          <KeepStoreCta variant="compact" source={keepStoreSource} shopName={store.business_name} />
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -75,12 +75,12 @@ function SignupForm() {
 
   return (
     <AuthShell
-      title={fromPreview ? "Claim your store" : "Join us"}
+      title={fromPreview ? "Keep your store" : "Join us"}
       subtitle={
         fromPreview
           ? previewShopName
-            ? `Create an account to manage ${previewShopName} and keep building.`
-            : "Create an account to save your preview and manage your store."
+            ? `Save ${previewShopName} with a free account — then keep editing, take payments, and publish.`
+            : "Save this preview with a free account so you don't lose it."
           : "14-day free trial — no card required."
       }
       footer={
@@ -151,7 +151,7 @@ function SignupForm() {
           {submitting
             ? "Creating account..."
             : fromPreview
-              ? "Create account & continue"
+              ? "Keep this store"
               : "Continue"}
         </AuthSubmitButton>
       </form>

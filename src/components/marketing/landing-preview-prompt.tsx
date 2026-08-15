@@ -3,16 +3,19 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from "react";
-import { ArrowRight, Loader2, Send, Sparkles } from "lucide-react";
+import { Loader2, Send, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { GuestStorefrontBrowser } from "@/components/marketing/guest-storefront-browser";
 import type { GuestChatSession } from "@/lib/storefront-builder/guest-preview-types";
 import { createGuestChatSession } from "@/lib/storefront-builder/guest-preview-types";
 import {
   clearGuestPreview,
+  isReturningReadyGuestPreview,
   loadGuestChatSession,
+  markGuestPreviewVisitActive,
   saveGuestChatSession,
 } from "@/lib/guest-preview-storage";
+import { KeepStoreCta, WaitingStoreReminder } from "@/components/marketing/keep-store-cta";
 import { trackPlatformEvent } from "@/lib/analytics/platform-events";
 import { cn } from "@/lib/utils";
 
@@ -87,14 +90,21 @@ export const LANDING_MOODS = PREVIEW_FAN.map((item) => item.mood);
 type LandingPreviewPromptProps = {
   mood?: LandingMood | null;
   onMoodChange?: (mood: LandingMood | null) => void;
+  onKeepStoreChange?: (keepStore: { shopName: string } | null) => void;
 };
 
-export function LandingPreviewPrompt({ mood = null, onMoodChange }: LandingPreviewPromptProps) {
+export function LandingPreviewPrompt({
+  mood = null,
+  onMoodChange,
+  onKeepStoreChange,
+}: LandingPreviewPromptProps) {
   const [session, setSession] = useState<GuestChatSession | null>(null);
+  const [waitingPreview, setWaitingPreview] = useState<GuestChatSession | null>(null);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const workspaceRef = useRef<HTMLDivElement>(null);
+  const previewRef = useRef<HTMLDivElement>(null);
   const moodClearTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pointerTypeRef = useRef<"mouse" | "touch" | "pen" | "unknown">("unknown");
   const chatStarted = (session?.messages.length ?? 0) > 1 || sending;
@@ -124,17 +134,17 @@ export function LandingPreviewPrompt({ mood = null, onMoodChange }: LandingPrevi
 
   useEffect(() => {
     const stored = loadGuestChatSession();
-    if (stored && stored.status !== "ready") {
+    if (isReturningReadyGuestPreview(stored)) {
+      setWaitingPreview(stored);
+      setSession(createGuestChatSession());
+      return;
+    }
+    if (stored) {
+      markGuestPreviewVisitActive();
       setSession(stored);
       return;
     }
-    if (stored?.status === "ready" && stored.store && stored.storefront) {
-      setSession(stored);
-      return;
-    }
-    const fresh = createGuestChatSession();
-    saveGuestChatSession(fresh);
-    setSession(fresh);
+    setSession(createGuestChatSession());
   }, []);
 
   useEffect(() => {
@@ -148,6 +158,12 @@ export function LandingPreviewPrompt({ mood = null, onMoodChange }: LandingPrevi
   }, [chatStarted]);
 
   useEffect(() => {
+    if (session?.status !== "ready" || !session.store || !session.storefront) return;
+    if (typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches) return;
+    previewRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [session?.status, session?.store, session?.storefront]);
+
+  useEffect(() => {
     if (session?.messages.some((message) => message.role === "user")) {
       trackPlatformEvent("preview_started", { source: "landing" });
     }
@@ -156,12 +172,31 @@ export function LandingPreviewPrompt({ mood = null, onMoodChange }: LandingPrevi
     }
   }, [session?.status, session?.store, session?.storefront, session?.messages]);
 
+  useEffect(() => {
+    const name =
+      session?.status === "ready" && session.store
+        ? session.store.business_name
+        : waitingPreview?.store?.business_name;
+    if (name) {
+      onKeepStoreChange?.({ shopName: name });
+      return;
+    }
+    onKeepStoreChange?.(null);
+  }, [
+    session?.status,
+    session?.store?.business_name,
+    waitingPreview?.store?.business_name,
+    onKeepStoreChange,
+  ]);
+
   async function sendMessage(message: string) {
     if (!session || sending) return;
     const trimmed = message.trim().slice(0, MAX_PROMPT_LENGTH);
     if (!trimmed) return;
 
     const isFirstUserTurn = !session.messages.some((m) => m.role === "user");
+    const replacingWaiting = waitingPreview;
+    if (waitingPreview) setWaitingPreview(null);
     setSending(true);
     setInput("");
     const prior = session;
@@ -198,7 +233,12 @@ export function LandingPreviewPrompt({ mood = null, onMoodChange }: LandingPrevi
       setSession(data.session);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not continue the chat.");
-      setSession(loadGuestChatSession() ?? prior);
+      if (replacingWaiting) {
+        setWaitingPreview(replacingWaiting);
+        setSession(prior);
+      } else {
+        setSession(loadGuestChatSession() ?? prior);
+      }
     } finally {
       setSending(false);
     }
@@ -211,11 +251,17 @@ export function LandingPreviewPrompt({ mood = null, onMoodChange }: LandingPrevi
 
   function handleStartOver() {
     clearGuestPreview();
-    const fresh = createGuestChatSession();
-    saveGuestChatSession(fresh);
-    setSession(fresh);
+    setWaitingPreview(null);
+    setSession(createGuestChatSession());
     setInput("");
     toast.message("Started a new preview chat.");
+  }
+
+  function handleResumeWaiting() {
+    if (!waitingPreview) return;
+    markGuestPreviewVisitActive();
+    setSession(waitingPreview);
+    setWaitingPreview(null);
   }
 
   if (!session) {
@@ -237,8 +283,12 @@ export function LandingPreviewPrompt({ mood = null, onMoodChange }: LandingPrevi
         : "e.g. Vintage inspired clothing";
 
   if (!chatStarted) {
+    const waitingName = waitingPreview?.store?.business_name ?? null;
     return (
-      <section id="try-preview" className="relative overflow-hidden">
+      <section
+        id="try-preview"
+        className={cn("relative overflow-hidden", waitingName && "pb-24 lg:pb-0")}
+      >
         <div
           className="pointer-events-none absolute inset-0 bg-gradient-mesh transition-opacity duration-500"
           style={{ opacity: mood ? 0.08 : 0.55 }}
@@ -257,6 +307,14 @@ export function LandingPreviewPrompt({ mood = null, onMoodChange }: LandingPrevi
               Describe what you sell in a few words to generate a storefront you can preview free —
               payments, orders, and marketing built in.
             </p>
+
+            {waitingName ? (
+              <WaitingStoreReminder
+                shopName={waitingName}
+                onOpen={handleResumeWaiting}
+                onStartNew={handleStartOver}
+              />
+            ) : null}
 
             <form onSubmit={handleSubmit} className="mt-6 w-full max-w-2xl sm:mt-8">
               <div className="rounded-2xl bg-primary/30 p-px shadow-glow">
@@ -282,7 +340,7 @@ export function LandingPreviewPrompt({ mood = null, onMoodChange }: LandingPrevi
                 </div>
               </div>
               <div className="mt-2 flex items-center justify-between gap-3 px-1 text-xs text-ink-soft">
-                <span>No account needed yet</span>
+                <span>{waitingName ? "Or describe a new shop to start over" : "No account needed yet"}</span>
                 <span className="font-mono tabular-nums">
                   {input.length} / {MAX_PROMPT_LENGTH}
                 </span>
@@ -387,24 +445,35 @@ export function LandingPreviewPrompt({ mood = null, onMoodChange }: LandingPrevi
               })}
             </div>
             <p className="mt-3 text-xs text-ink-soft sm:mt-4 sm:text-sm">
-              Fashion, beauty, home, and more — then claim the shop when you’re ready.
+              Fashion, beauty, home, and more — then keep the shop that&apos;s yours.
             </p>
           </div>
         </div>
+        {waitingName ? (
+          <KeepStoreCta variant="sticky" source="landing" shopName={waitingName} />
+        ) : null}
       </section>
     );
   }
 
   return (
-    <section id="try-preview" className="scroll-mt-20 px-4 py-8 sm:scroll-mt-24 sm:px-6 sm:py-10 md:py-14">
+    <section
+      id="try-preview"
+      className={cn(
+        "scroll-mt-20 px-4 py-8 sm:scroll-mt-24 sm:px-6 sm:py-10 md:py-14",
+        isReady && "pb-28 lg:pb-14",
+      )}
+    >
       <div ref={workspaceRef} className="mx-auto max-w-6xl space-y-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="font-mono text-[10px] font-semibold tracking-[0.16em] text-primary uppercase">
-              Building your storefront
+              {isReady ? "Your store is ready" : "Building your storefront"}
             </p>
             <h2 className="font-display mt-1 text-xl font-bold tracking-tight sm:text-2xl md:text-3xl">
-              Keep chatting — your live preview updates here
+              {isReady
+                ? "Keep this store so you don’t lose the preview"
+                : "Keep chatting — your live preview updates here"}
             </h2>
           </div>
           <button
@@ -416,8 +485,8 @@ export function LandingPreviewPrompt({ mood = null, onMoodChange }: LandingPrevi
           </button>
         </div>
 
-        <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-elevated lg:grid lg:grid-cols-[minmax(280px,400px)_1fr]">
-          <div className="flex min-h-0 flex-col">
+        <div className="flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-elevated lg:grid lg:grid-cols-[minmax(280px,400px)_1fr]">
+          <div className={cn("flex min-h-0 flex-col", isReady && "order-2 lg:order-1")}>
             <div className="flex items-center gap-2 border-b border-border bg-muted/40 px-4 py-3 sm:px-5">
               <Sparkles className="h-4 w-4 shrink-0 text-primary" />
               <div className="min-w-0">
@@ -455,20 +524,12 @@ export function LandingPreviewPrompt({ mood = null, onMoodChange }: LandingPrevi
             </div>
 
             {isReady ? (
-              <div className="border-t border-border bg-primary/5 px-4 py-3 sm:px-5">
-                <p className="text-xs text-ink-soft">
-                  Preview ready for{" "}
-                  <span className="font-semibold text-ink">{session.store?.business_name}</span>.
-                </p>
-                <Link
-                  href="/signup?from=preview"
-                  onClick={() => trackPlatformEvent("claim_store_clicked", { source: "landing" })}
-                  className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition hover:opacity-90"
-                >
-                  Claim this store
-                  <ArrowRight className="h-4 w-4" />
-                </Link>
-              </div>
+              <KeepStoreCta
+                variant="inline"
+                source="landing"
+                shopName={session.store?.business_name}
+                className="hidden lg:block"
+              />
             ) : null}
 
             <form onSubmit={handleSubmit} className="border-t border-border p-3 sm:p-4">
@@ -502,7 +563,13 @@ export function LandingPreviewPrompt({ mood = null, onMoodChange }: LandingPrevi
             </form>
           </div>
 
-          <div className="border-t border-border bg-secondary/30 lg:border-t-0 lg:border-l">
+          <div
+            ref={previewRef}
+            className={cn(
+              "border-t border-border bg-secondary/30 lg:border-t-0 lg:border-l",
+              isReady && "order-1 scroll-mt-20 lg:order-2",
+            )}
+          >
             {isReady && session.store && session.storefront ? (
               <div className="p-3 sm:p-4">
                 <div className="mb-3 flex items-center justify-between gap-3">
@@ -518,7 +585,11 @@ export function LandingPreviewPrompt({ mood = null, onMoodChange }: LandingPrevi
                     Open full preview
                   </Link>
                 </div>
-                <GuestStorefrontBrowser store={session.store} storefront={session.storefront} />
+                <GuestStorefrontBrowser
+                  store={session.store}
+                  storefront={session.storefront}
+                  keepStoreSource="landing"
+                />
               </div>
             ) : (
               <div className="flex min-h-[220px] flex-col items-center justify-center px-6 py-10 text-center sm:min-h-[320px] sm:py-12 lg:min-h-full">
@@ -546,6 +617,9 @@ export function LandingPreviewPrompt({ mood = null, onMoodChange }: LandingPrevi
           </div>
         </div>
       </div>
+      {isReady ? (
+        <KeepStoreCta variant="sticky" source="landing" shopName={session.store?.business_name} />
+      ) : null}
     </section>
   );
 }

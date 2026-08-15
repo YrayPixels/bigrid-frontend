@@ -502,6 +502,7 @@ export type ShoppingLook = {
   total_price: number;
   currency: string;
   try_on_product_id?: string | null;
+  try_on_product_ids?: string[];
   within_budget?: boolean;
 };
 

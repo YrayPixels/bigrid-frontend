@@ -3,15 +3,18 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState, type FormEvent } from "react";
-import { ArrowRight, Loader2, Send, Sparkles } from "lucide-react";
+import { Loader2, Send, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { BizgridLogo } from "@/components/bizgrid-logo";
 import { GuestStorefrontBrowser } from "@/components/marketing/guest-storefront-browser";
+import { KeepStoreCta } from "@/components/marketing/keep-store-cta";
 import type { GuestChatSession } from "@/lib/storefront-builder/guest-preview-types";
 import { createGuestChatSession } from "@/lib/storefront-builder/guest-preview-types";
 import {
   clearGuestPreview,
+  isReturningReadyGuestPreview,
   loadGuestChatSession,
+  markGuestPreviewVisitActive,
   saveGuestChatSession,
 } from "@/lib/guest-preview-storage";
 import { trackPlatformEvent } from "@/lib/analytics/platform-events";
@@ -28,10 +31,17 @@ function PreviewChatPage() {
   const [sending, setSending] = useState(false);
   const bootstrappedQuery = useRef<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const previewRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
   }, [session?.messages.length, sending]);
+
+  useEffect(() => {
+    if (session?.status !== "ready" || !session.store || !session.storefront) return;
+    if (typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches) return;
+    previewRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [session?.status, session?.store, session?.storefront]);
 
   useEffect(() => {
     if (session?.messages.some((message) => message.role === "user")) {
@@ -88,14 +98,19 @@ function PreviewChatPage() {
 
       const stored = loadGuestChatSession();
       if (stored) {
+        const returning = isReturningReadyGuestPreview(stored);
+        markGuestPreviewVisitActive();
         setSession(stored);
         setReady(true);
+        if (returning && stored.store?.business_name) {
+          toast.message(`${stored.store.business_name} is still here`, {
+            description: "Keep this store so you don’t lose the preview.",
+          });
+        }
         return;
       }
 
-      const fresh = createGuestChatSession();
-      saveGuestChatSession(fresh);
-      setSession(fresh);
+      setSession(createGuestChatSession());
       setReady(true);
     }
 
@@ -161,9 +176,7 @@ function PreviewChatPage() {
   function handleStartOver() {
     clearGuestPreview();
     bootstrappedQuery.current = null;
-    const fresh = createGuestChatSession();
-    saveGuestChatSession(fresh);
-    setSession(fresh);
+    setSession(createGuestChatSession());
     setInput("");
     router.replace("/preview");
     toast.message("Started a new preview chat.");
@@ -190,7 +203,7 @@ function PreviewChatPage() {
         : "Describe what you sell…";
 
   return (
-    <div className="flex min-h-screen flex-col bg-canvas text-ink">
+    <div className={cn("flex min-h-screen flex-col bg-canvas text-ink", isReady && "pb-24 lg:pb-0")}>
       <header className="sticky top-0 z-40 border-b border-border bg-canvas/90 backdrop-blur-md">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
           <Link href="/" className="flex items-center">
@@ -207,20 +220,32 @@ function PreviewChatPage() {
             <Link href="/login" className="hidden text-sm font-medium text-ink-soft hover:text-ink sm:inline">
               Log in
             </Link>
-            <Link
-              href="/signup?from=preview"
-              onClick={() => trackPlatformEvent("claim_store_clicked", { source: "preview" })}
-              className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-soft transition hover:opacity-90"
-            >
-              Create account
-              <ArrowRight className="h-4 w-4" />
-            </Link>
+            {isReady ? (
+              <KeepStoreCta
+                variant="header"
+                source="preview"
+                shopName={session.store?.business_name}
+                className="hidden sm:inline-flex"
+              />
+            ) : (
+              <Link
+                href="/signup?from=preview"
+                className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-soft transition hover:opacity-90"
+              >
+                Create account
+              </Link>
+            )}
           </div>
         </div>
       </header>
 
       <main className="mx-auto grid w-full max-w-7xl flex-1 gap-6 px-4 py-6 lg:grid-cols-[minmax(320px,400px)_1fr] lg:px-6 lg:py-8">
-        <section className="flex min-h-[520px] flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-soft lg:min-h-[calc(100vh-8rem)]">
+        <section
+          className={cn(
+            "flex min-h-[520px] flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-soft lg:min-h-[calc(100vh-8rem)]",
+            isReady && "order-2 lg:order-1",
+          )}
+        >
           <div className="border-b border-border px-4 py-3">
             <div className="flex items-center gap-2 text-sm font-semibold">
               <Sparkles className="h-4 w-4 text-primary" />
@@ -260,20 +285,12 @@ function PreviewChatPage() {
           </div>
 
           {isReady ? (
-            <div className="border-t border-border bg-primary/5 px-4 py-3">
-              <p className="text-xs text-ink-soft">
-                Preview ready for{" "}
-                <span className="font-semibold text-ink">{session.store?.business_name}</span>.
-              </p>
-              <Link
-                href="/signup?from=preview"
-                onClick={() => trackPlatformEvent("claim_store_clicked", { source: "preview" })}
-                className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition hover:opacity-90"
-              >
-                Create account & manage store
-                <ArrowRight className="h-4 w-4" />
-              </Link>
-            </div>
+            <KeepStoreCta
+              variant="inline"
+              source="preview"
+              shopName={session.store?.business_name}
+              className="hidden lg:block"
+            />
           ) : null}
 
           <form onSubmit={handleSubmit} className="border-t border-border p-3">
@@ -304,7 +321,10 @@ function PreviewChatPage() {
           </form>
         </section>
 
-        <section className="min-w-0">
+        <section
+          ref={previewRef}
+          className={cn("min-w-0 scroll-mt-20", isReady && "order-1 lg:order-2")}
+        >
           {isReady && session.store && session.storefront ? (
             <div className="space-y-4">
               <div className="rounded-2xl border border-border bg-gradient-mesh/30 p-5 sm:p-6">
@@ -321,10 +341,20 @@ function PreviewChatPage() {
                     style={{ backgroundColor: session.store.brand_color }}
                     aria-hidden
                   />{" "}
-                  {session.store.brand_color}. Create an account when you&apos;re ready to manage it.
+                  {session.store.brand_color}. Save it so you don&apos;t lose this preview.
                 </p>
+                <KeepStoreCta
+                  variant="compact"
+                  source="preview"
+                  shopName={session.store.business_name}
+                  className="mt-4 h-11 w-full justify-center px-4 text-sm lg:hidden"
+                />
               </div>
-              <GuestStorefrontBrowser store={session.store} storefront={session.storefront} />
+              <GuestStorefrontBrowser
+                store={session.store}
+                storefront={session.storefront}
+                keepStoreSource="preview"
+              />
             </div>
           ) : (
             <div className="flex min-h-[420px] flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-card/60 px-6 text-center lg:min-h-[calc(100vh-8rem)]">
@@ -351,6 +381,9 @@ function PreviewChatPage() {
           )}
         </section>
       </main>
+      {isReady ? (
+        <KeepStoreCta variant="sticky" source="preview" shopName={session.store?.business_name} />
+      ) : null}
     </div>
   );
 }

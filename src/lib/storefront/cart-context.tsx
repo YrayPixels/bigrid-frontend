@@ -16,18 +16,21 @@ import {
   defaultSelectedOptions,
   type SelectedOptions,
 } from "@/lib/storefront/cart-line";
+import type { CartOutfit } from "@/lib/storefront/outfit-look";
 
 export type CartLine = {
   product: StoreProduct;
   quantity: number;
   selectedOptions?: SelectedOptions;
+  outfit?: CartOutfit;
 };
 
 type CartContextValue = {
   lines: CartLine[];
   itemCount: number;
   subtotal: number;
-  addItem: (product: StoreProduct, quantity?: number, selectedOptions?: SelectedOptions) => void;
+  addItem: (product: StoreProduct, quantity?: number, selectedOptions?: SelectedOptions, outfit?: CartOutfit) => void;
+  addLookItems: (products: StoreProduct[], outfit: CartOutfit) => void;
   removeItem: (lineKey: string) => void;
   setQuantity: (lineKey: string, quantity: number) => void;
   clear: () => void;
@@ -72,12 +75,22 @@ function normalizeLines(raw: unknown): CartLine[] {
             ),
           )
         : undefined;
+    const outfit =
+      line.outfit && typeof line.outfit === "object" && typeof line.outfit.id === "string"
+        ? {
+            id: line.outfit.id,
+            name: typeof line.outfit.name === "string" ? line.outfit.name : "Your look",
+            result_url:
+              typeof line.outfit.result_url === "string" ? line.outfit.result_url : null,
+          }
+        : undefined;
     lines.push({
       product: line.product,
       quantity: line.quantity,
       ...(selectedOptions && Object.keys(selectedOptions).length > 0
         ? { selectedOptions }
         : {}),
+      ...(outfit ? { outfit } : {}),
     });
   }
   return lines;
@@ -106,21 +119,44 @@ export function CartProvider({ storeId, children }: { storeId: string; children:
   }, [lines, storeId]);
 
   const addItem = useCallback(
-    (product: StoreProduct, quantity = 1, selectedOptions?: SelectedOptions) => {
+    (product: StoreProduct, quantity = 1, selectedOptions?: SelectedOptions, outfit?: CartOutfit) => {
       const options = resolveOptions(product, selectedOptions);
       const key = cartLineKey(product.id, options);
       setLines((current) => {
         const existing = current.find((line) => lineIdentity(line) === key);
         if (existing) {
           return current.map((line) =>
-            lineIdentity(line) === key ? { ...line, quantity: line.quantity + quantity } : line,
+            lineIdentity(line) === key
+              ? { ...line, quantity: line.quantity + quantity, ...(outfit ? { outfit } : {}) }
+              : line,
           );
         }
-        return [...current, { product, quantity, selectedOptions: options }];
+        return [...current, { product, quantity, selectedOptions: options, ...(outfit ? { outfit } : {}) }];
       });
     },
     [],
   );
+
+  const addLookItems = useCallback((products: StoreProduct[], outfit: CartOutfit) => {
+    setLines((current) => {
+      let next = [...current];
+      for (const product of products) {
+        const options = resolveOptions(product);
+        const key = cartLineKey(product.id, options);
+        const existing = next.find((line) => lineIdentity(line) === key);
+        if (existing) {
+          next = next.map((line) =>
+            lineIdentity(line) === key
+              ? { ...line, quantity: line.quantity + 1, outfit }
+              : line,
+          );
+        } else {
+          next = [...next, { product, quantity: 1, selectedOptions: options, outfit }];
+        }
+      }
+      return next;
+    });
+  }, []);
 
   const removeItem = useCallback((lineKey: string) => {
     setLines((current) => current.filter((line) => lineIdentity(line) !== lineKey));
@@ -156,8 +192,8 @@ export function CartProvider({ storeId, children }: { storeId: string; children:
     const subtotal = lines.reduce((sum, line) => {
       return sum + cartLineUnitPrice(line.product, line.selectedOptions) * line.quantity;
     }, 0);
-    return { lines, itemCount, subtotal, addItem, removeItem, setQuantity, clear, refreshLines };
-  }, [addItem, clear, lines, removeItem, setQuantity, refreshLines]);
+    return { lines, itemCount, subtotal, addItem, addLookItems, removeItem, setQuantity, clear, refreshLines };
+  }, [addItem, addLookItems, clear, lines, removeItem, setQuantity, refreshLines]);
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }

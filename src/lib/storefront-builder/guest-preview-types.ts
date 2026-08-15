@@ -5,6 +5,8 @@ import type {
 } from "@/lib/api/types";
 
 export const GUEST_PREVIEW_STORAGE_KEY = "bizgrid_guest_preview_v2";
+export const GUEST_PREVIEW_VISIT_KEY = "bizgrid_guest_preview_visit";
+export const GUEST_PREVIEW_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 export const GUEST_PREVIEW_PRODUCT_COUNT = 10;
 
 export type GuestChatStatus =

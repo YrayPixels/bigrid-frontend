@@ -317,7 +317,7 @@ function isStartOverReply(message: string): boolean {
 }
 
 function isSignupNudgeReply(message: string): boolean {
-  return /\b(create\s+(an\s+)?account|sign\s*up|register|claim|manage\s+(my\s+)?store|publish)\b/i.test(
+  return /\b(create\s+(an\s+)?account|sign\s*up|register|claim|keep(?:\s+this)?\s+store|save\s+this\s+(?:store|preview|shop)|manage\s+(my\s+)?store|publish)\b/i.test(
     message,
   );
 }
@@ -751,7 +751,7 @@ export async function processGuestChatTurn(
         ...next.messages,
         makeGuestMessage(
           "assistant",
-          "Create a free account to save this preview, manage products, take payments, and publish. Use the Create account button when you're ready — or keep refining the site here first.",
+          "Save this preview with a free account so you can manage products, take payments, and publish. Tap Keep this store — you can still refine the site after.",
         ),
       ];
       return next;
@@ -862,7 +862,7 @@ export async function processGuestChatTurn(
         ...next.messages,
         makeGuestMessage(
           "assistant",
-          `Your ${generated.store.business_name} preview is ready — ${generated.storefront.products?.length ?? 0} starter products, brand color, and homepage copy. Browse it on the right. You can ask me to update the content, headline, or products — or create an account to manage the store.`,
+          `Your ${generated.store.business_name} preview is ready — ${generated.storefront.products?.length ?? 0} starter products and a homepage. Save it so you don't lose it. You can keep editing after.`,
         ),
       ],
       updated_at: nowIso(),

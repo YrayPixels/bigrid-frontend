@@ -47,6 +47,37 @@ function GoogleIcon() {
   );
 }
 
+export function TryOnSignInDialog({
+  open,
+  onOpenChange,
+  onContinue,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onContinue: () => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Sign in to try it on</DialogTitle>
+          <DialogDescription>
+            Use Google to save your look and try items on across stores.
+          </DialogDescription>
+        </DialogHeader>
+        <button
+          type="button"
+          onClick={onContinue}
+          className="flex w-full items-center justify-center rounded-xl border border-border bg-background px-4 py-3 text-sm font-medium transition hover:bg-muted"
+        >
+          <GoogleIcon />
+          Continue with Google
+        </button>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function ProductTryOnCta({
   product,
   onAddToCart,
@@ -97,32 +128,19 @@ export function ProductTryOnCta({
         {label}
       </button>
 
-      <Dialog open={signInOpen} onOpenChange={setSignInOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Sign in to try it on</DialogTitle>
-            <DialogDescription>
-              Use Google to save your look and try items on across stores.
-            </DialogDescription>
-          </DialogHeader>
-          <button
-            type="button"
-            onClick={() => {
-              if (typeof window === "undefined") {
-                customerAuth?.signInWithGoogle();
-                return;
-              }
-              const ret = new URL(window.location.href);
-              ret.searchParams.set("try_on", "1");
-              customerAuth?.signInWithGoogle(ret.toString());
-            }}
-            className="flex w-full items-center justify-center rounded-xl border border-border bg-background px-4 py-3 text-sm font-medium transition hover:bg-muted"
-          >
-            <GoogleIcon />
-            Continue with Google
-          </button>
-        </DialogContent>
-      </Dialog>
+      <TryOnSignInDialog
+        open={signInOpen}
+        onOpenChange={setSignInOpen}
+        onContinue={() => {
+          if (typeof window === "undefined") {
+            customerAuth?.signInWithGoogle();
+            return;
+          }
+          const ret = new URL(window.location.href);
+          ret.searchParams.set("try_on", "1");
+          customerAuth?.signInWithGoogle(ret.toString());
+        }}
+      />
 
       {!requireCustomerAuth || customer ? (
         <FittingSheet

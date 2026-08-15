@@ -2,8 +2,10 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { Check } from "lucide-react";
 import type { ShoppingLook, ShopperContext } from "@/lib/api/types";
 import { formatMoney } from "@/lib/storefront/format";
+import { lookItemUnitPrice, lookItemsTotal, selectedLookItems } from "@/lib/storefront/outfit-look";
 import { useStorefrontTheme } from "@/lib/storefront/theme-context";
 import { PrimaryButton } from "@/components/storefront/theme/primary-button";
 import { cn } from "@/lib/utils";
@@ -11,8 +13,10 @@ import { cn } from "@/lib/utils";
 type RecommendationCardProps = {
   look: ShoppingLook;
   shopper: ShopperContext;
+  selectedIds: string[];
+  onToggleItem: (productId: string) => void;
   onTryOn: () => void;
-  onAddLook: () => void;
+  onOpenLook: () => void;
   tryOnAvailable?: boolean;
   busy?: boolean;
 };
@@ -43,22 +47,25 @@ function roleLabel(role: string, isLook: boolean, index: number): string {
 export function RecommendationCard({
   look,
   shopper,
+  selectedIds,
+  onToggleItem,
   onTryOn,
-  onAddLook,
+  onOpenLook,
   tryOnAvailable,
   busy,
 }: RecommendationCardProps) {
   const { theme } = useStorefrontTheme();
   const isLook = look.type === "look";
   const heading = isLook ? "Your look" : "Recommended for you";
-  const addLabel = isLook ? "Add look to cart" : "Add all to cart";
+  const selectedItems = selectedLookItems(look, selectedIds);
+  const selectedCount = selectedItems.length;
+  const selectedTotal = lookItemsTotal(selectedItems);
   const countLabel = isLook
-    ? `${look.items.length} pieces`
-    : `${look.items.length} product${look.items.length === 1 ? "" : "s"}`;
-  const priceLabel =
-    !isLook && look.items.length > 1
-      ? `from ${formatMoney(look.total_price, look.currency)}`
-      : formatMoney(look.total_price, look.currency);
+    ? `${selectedCount} piece${selectedCount === 1 ? "" : "s"}`
+    : `${selectedCount} product${selectedCount === 1 ? "" : "s"}`;
+  const tryLabel =
+    selectedCount > 1 ? "Try this look" : shopper.supports_looks ? "See it on you" : "Try it on";
+  const openLabel = selectedCount > 1 ? "Review look" : isLook ? "Add look to cart" : "Add all to cart";
 
   return (
     <div
@@ -73,17 +80,40 @@ export function RecommendationCard({
           {look.name}
         </h3>
         <p className="mt-1 text-sm" style={{ color: theme.palette.muted }}>
-          {countLabel} · {priceLabel}
+          {countLabel} · {formatMoney(selectedTotal, look.currency)}
           {look.within_budget === false ? " · slightly over budget" : ""}
         </p>
+        {look.items.length > 1 ? (
+          <p className="mt-2 text-[11px]" style={{ color: theme.palette.muted }}>
+            Tap pieces to include them in the look.
+          </p>
+        ) : null}
       </div>
 
       <ul className="divide-y" style={{ borderColor: theme.palette.border }}>
         {look.items.map((item, index) => {
           const product = item.product;
           const image = product.image_url || product.images?.[0] || null;
+          const selected = selectedIds.includes(item.product_id);
           return (
             <li key={`${item.role}-${item.product_id}`} className="flex gap-3 px-4 py-3 sm:px-5">
+              {look.items.length > 1 ? (
+                <button
+                  type="button"
+                  onClick={() => onToggleItem(item.product_id)}
+                  disabled={busy}
+                  className="mt-1 grid h-5 w-5 shrink-0 place-items-center rounded border"
+                  style={{
+                    borderColor: selected ? theme.palette.primary : theme.palette.border,
+                    backgroundColor: selected ? theme.palette.primary : "transparent",
+                    color: selected ? theme.palette.background : theme.palette.muted,
+                  }}
+                  aria-pressed={selected}
+                  aria-label={selected ? `Remove ${product.name} from look` : `Add ${product.name} to look`}
+                >
+                  {selected ? <Check className="h-3 w-3" strokeWidth={3} /> : null}
+                </button>
+              ) : null}
               <div
                 className="relative h-16 w-14 shrink-0 overflow-hidden"
                 style={{ backgroundColor: `${theme.palette.muted}22` }}
@@ -103,10 +133,7 @@ export function RecommendationCard({
                   {product.name}
                 </Link>
                 <p className="mt-0.5 text-xs" style={{ color: theme.palette.muted }}>
-                  {formatMoney(
-                    product.effective_price ?? product.sale_price ?? product.price,
-                    product.currency || look.currency,
-                  )}
+                  {formatMoney(lookItemUnitPrice(product), product.currency || look.currency)}
                 </p>
               </div>
             </li>
@@ -116,21 +143,21 @@ export function RecommendationCard({
 
       <div className="flex flex-col gap-2 border-t px-4 py-4 sm:flex-row sm:px-5" style={{ borderColor: theme.palette.border }}>
         {tryOnAvailable && shopper.supports_try_on ? (
-          <PrimaryButton type="button" onClick={onTryOn} disabled={busy} className="flex-1">
-            See it on you
+          <PrimaryButton type="button" onClick={onTryOn} disabled={busy || selectedCount === 0} className="flex-1">
+            {tryLabel}
           </PrimaryButton>
         ) : null}
         <button
           type="button"
-          onClick={onAddLook}
-          disabled={busy}
+          onClick={onOpenLook}
+          disabled={busy || selectedCount === 0}
           className={cn(
             "flex-1 border px-4 py-2.5 text-xs font-bold uppercase tracking-[0.12em] transition disabled:opacity-50",
             theme.borderColor,
           )}
           style={{ color: theme.palette.text }}
         >
-          {addLabel}
+          {openLabel}
         </button>
       </div>
     </div>

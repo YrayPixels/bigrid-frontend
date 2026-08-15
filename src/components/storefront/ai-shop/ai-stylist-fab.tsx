@@ -118,6 +118,16 @@ export function AiStylistFab() {
     return () => clearTimeout(resume);
   }, [open, promptsPaused]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("shopper") === "1" || params.get("try_on_look") === "1") {
+      setOpen(true);
+      setPromptVisible(false);
+      setPromptsPaused(true);
+    }
+  }, []);
+
   if (shouldHideFab(pathname)) {
     return null;
   }
