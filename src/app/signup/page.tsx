@@ -21,6 +21,7 @@ function SignupForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const fromPreview = searchParams.get("from") === "preview";
+  const fromAd = searchParams.get("from") === "ad";
   const { user, loading, refresh } = useAuth();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -62,6 +63,8 @@ function SignupForm() {
       await api.register({ name, email, password });
       if (fromPreview) {
         trackPlatformEvent("preview_signup_completed", { source: "signup" });
+      } else if (fromAd) {
+        trackPlatformEvent("ad_signup_completed", { source: "signup" });
       }
       await refresh();
       toast.success("Account created. Check your email for a verification code.");
@@ -75,13 +78,15 @@ function SignupForm() {
 
   return (
     <AuthShell
-      title={fromPreview ? "Keep your store" : "Join us"}
+      title={fromPreview ? "Keep your store" : fromAd ? "Start your free trial" : "Join us"}
       subtitle={
         fromPreview
           ? previewShopName
             ? `Save ${previewShopName} with a free account — then keep editing, take payments, and publish.`
             : "Save this preview with a free account so you don't lose it."
-          : "14-day free trial — no card required."
+          : fromAd
+            ? "Describe your shop after signup and Bizgrid builds your storefront — payments, orders, and WhatsApp tools included."
+            : "14-day free trial — no card required."
       }
       footer={
         <p className="text-center text-xs leading-relaxed text-ink-soft">
@@ -152,7 +157,9 @@ function SignupForm() {
             ? "Creating account..."
             : fromPreview
               ? "Keep this store"
-              : "Continue"}
+              : fromAd
+                ? "Start free trial"
+                : "Continue"}
         </AuthSubmitButton>
       </form>
 

@@ -8,9 +8,20 @@ export type PlatformEventName =
   | "preview_started"
   | "preview_ready"
   | "claim_store_clicked"
-  | "preview_signup_completed";
+  | "preview_signup_completed"
+  | "ad_landing_viewed"
+  | "ad_signup_clicked"
+  | "ad_signup_completed";
 
-export type PlatformEventSource = "landing" | "preview" | "signup";
+export type PlatformEventSource =
+  | "landing"
+  | "preview"
+  | "signup"
+  | "start"
+  | "hero"
+  | "nav"
+  | "sticky"
+  | "footer";
 
 type TrackOptions = {
   source?: PlatformEventSource;
