@@ -97,12 +97,9 @@ export function AdLandingPage() {
               Start 14-day free trial
               <ArrowRight className="h-4 w-4" />
             </Link>
-            <Link
-              href="/#try-preview"
-              className="text-sm font-medium text-ink-soft transition hover:text-primary"
-            >
-              Or try a free preview first — no account needed
-            </Link>
+            <p className="text-xs text-ink-soft">
+              Prefer to explore first? You can try the free preview from the main website.
+            </p>
           </div>
 
           <ul className="mx-auto mt-6 flex max-w-lg flex-wrap items-center justify-center gap-x-4 gap-y-2 sm:mt-8">
