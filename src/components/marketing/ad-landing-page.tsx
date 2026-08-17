@@ -97,9 +97,9 @@ export function AdLandingPage() {
               Start 14-day free trial
               <ArrowRight className="h-4 w-4" />
             </Link>
-            <p className="text-xs text-ink-soft">
+            {/* <p className="text-xs text-ink-soft">
               Prefer to explore first? You can try the free preview from the main website.
-            </p>
+            </p> */}
           </div>
 
           <ul className="mx-auto mt-6 flex max-w-lg flex-wrap items-center justify-center gap-x-4 gap-y-2 sm:mt-8">
