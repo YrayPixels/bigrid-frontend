@@ -10,6 +10,7 @@ import {
   LayoutDashboard,
   LogOut,
   Megaphone,
+  MessageCircle,
   MessageSquare,
   Package,
   Percent,
@@ -82,6 +83,7 @@ const navGroups: NavGroup[] = [
     items: [
       { href: "/sell", label: "Sell", icon: Store },
       { href: "/admin/messages", label: "Messages & Negotiations", icon: MessageSquare },
+      { href: "/admin/whatsapp", label: "WhatsApp Inbox", icon: MessageCircle },
       { href: "/admin/orders", label: "Orders", icon: ShoppingBag },
       { href: "/admin/customers", label: "Customers", icon: Users },
       { href: "/admin/staff", label: "Staff", icon: UserPlus },
