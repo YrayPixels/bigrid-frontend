@@ -2,11 +2,14 @@
 
 import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api/client";
-import { redirectAfterAuth } from "@/lib/api/types";
+import { postAuthPath, redirectAfterAuth } from "@/lib/api/types";
+import { merchantKeys } from "@/lib/query-keys";
 import {
   AuthShell,
   AuthSubmitButton,
@@ -15,6 +18,8 @@ import {
 } from "@/components/auth-shell";
 
 export default function LoginPage() {
+  const router = useRouter();
+  const queryClient = useQueryClient();
   const { user, loading, setUser } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
