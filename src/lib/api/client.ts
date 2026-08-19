@@ -54,6 +54,8 @@ import type {
   AbandonedRecoverySourceType,
   ConnectWhatsAppInput,
   ConnectTikTokInput,
+  CustomerConversationSummary,
+  CustomerConversationDetail,
   PublishTikTokVideoInput,
   UpdateMessagingSettingsInput,
   SocialPost,
@@ -1423,6 +1425,40 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify(input),
     });
+  },
+
+  async getConversations(): Promise<{
+    conversations: CustomerConversationSummary[];
+    whatsapp?: MarketingStatus["whatsapp"];
+  }> {
+    requireToken();
+    return http<{
+      conversations: CustomerConversationSummary[];
+      whatsapp?: MarketingStatus["whatsapp"];
+    }>(`${STOREHAUSE_API_PREFIX}/marketing/conversations`);
+  },
+
+  async getConversationDetail(id: string): Promise<CustomerConversationDetail> {
+    requireToken();
+    return http<CustomerConversationDetail>(
+      `${STOREHAUSE_API_PREFIX}/marketing/conversations/${encodeURIComponent(id)}`,
+    );
+  },
+
+  async sendConversationReply(id: string, text: string): Promise<{ message: string }> {
+    requireToken();
+    return http<{ message: string }>(
+      `${STOREHAUSE_API_PREFIX}/marketing/conversations/${encodeURIComponent(id)}/reply`,
+      { method: "POST", body: JSON.stringify({ text }) },
+    );
+  },
+
+  async getConversationAiDraft(id: string): Promise<{ draft: string }> {
+    requireToken();
+    return http<{ draft: string }>(
+      `${STOREHAUSE_API_PREFIX}/marketing/conversations/${encodeURIComponent(id)}/ai-draft`,
+      { method: "POST" },
+    );
   },
 
   async getAbandonedRecoveries(params?: { page?: number; per_page?: number }): Promise<AbandonedRecoveryResponse> {

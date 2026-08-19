@@ -1702,6 +1702,19 @@ export type CustomerConversationSummary = {
   latest_direction?: "inbound" | "outbound";
 };
 
+export type CustomerMessageItem = {
+  id: string;
+  direction: "inbound" | "outbound";
+  body: string;
+  ai_generated: boolean;
+  sent_by: "ai" | "merchant" | null;
+  created_at: string;
+};
+
+export type CustomerConversationDetail = CustomerConversationSummary & {
+  messages: CustomerMessageItem[];
+};
+
 export type ConnectWhatsAppInput = {
   phone_number_id: string;
   display_phone_number: string;

@@ -29,6 +29,7 @@ export function ChannelsPanel() {
     phone_number_id: "",
     display_phone_number: "",
     access_token: "",
+    waba_id: "",
   });
   const [tiktokForm, setTiktokForm] = useState({
     business_account_id: "",
@@ -110,7 +111,7 @@ export function ChannelsPanel() {
     onSuccess: (data) => {
       toast.success("WhatsApp connected.");
       merchantCache.setMarketingStatus(queryClient, data);
-      setWhatsappForm({ phone_number_id: "", display_phone_number: "", access_token: "" });
+      setWhatsappForm({ phone_number_id: "", display_phone_number: "", access_token: "", waba_id: "" });
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -382,6 +383,22 @@ export function ChannelsPanel() {
                   placeholder="Permanent token from Meta"
                 />
               </Field>
+              <Field label="WhatsApp Business Account ID (optional)">
+                <Input
+                  value={whatsappForm.waba_id ?? ""}
+                  onChange={(event) =>
+                    setWhatsappForm((prev) => ({ ...prev, waba_id: event.target.value }))
+                  }
+                  placeholder="WABA ID — used to subscribe webhooks"
+                />
+              </Field>
+              <p className="text-xs text-ink-soft">
+                After connecting, customer messages appear in{" "}
+                <a href="/admin/whatsapp" className="underline">
+                  WhatsApp Inbox
+                </a>{" "}
+                so you can reply from Bizgrid instead of only in WhatsApp.
+              </p>
               <Button
                 onClick={() => connectWhatsApp.mutate()}
                 disabled={connectWhatsApp.isPending}
