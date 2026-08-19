@@ -359,7 +359,7 @@ export function ChannelsPanel() {
           ) : (
             <div className="space-y-3">
               <WhatsAppEmbeddedSignupButton
-                signup={whatsapp.embedded_signup}
+                signup={whatsapp?.embedded_signup}
                 onConnected={(data) => merchantCache.setMarketingStatus(queryClient, data)}
               />
               <p className="text-xs text-ink-soft">
