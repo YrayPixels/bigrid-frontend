@@ -4,8 +4,8 @@
  * BUILD_ID is stamped at build time via scripts/stamp-pwa-build.mjs so every
  * deploy changes this file and browsers detect a new service worker.
  */
-const VERSION = "1.0.27";
-const BUILD_ID = "13632cb9910a";
+const VERSION = "1.0.29";
+const BUILD_ID = "139742834893";
 const CACHE = `bizgrid-sell-${VERSION}-${BUILD_ID}`;
 const PRECACHE = ["/sell", "/sell/checkout", "/sell/sales", "/manifest.webmanifest"];
 

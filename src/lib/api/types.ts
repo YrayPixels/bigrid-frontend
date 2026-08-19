@@ -323,6 +323,7 @@ export type UpdateStoreInput = {
     sound_alerts?: boolean;
     email_alerts?: boolean;
   };
+  virtual_try_on_enabled?: boolean;
 };
 
 export type DealieChatMode = "full_ai" | "ai_assisted" | "human_only";
