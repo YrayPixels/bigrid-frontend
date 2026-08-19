@@ -1638,6 +1638,13 @@ export type MarketingStatus = {
     phone_number_id: string | null;
     auto_reply_enabled: boolean;
     webhook_url: string;
+    coexistence?: boolean;
+    embedded_signup?: {
+      configured: boolean;
+      app_id: string | null;
+      config_id: string | null;
+      graph_version: string;
+    };
   };
   tiktok: {
     configured: boolean;

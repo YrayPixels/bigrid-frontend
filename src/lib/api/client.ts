@@ -1361,6 +1361,18 @@ export const api = {
     );
   },
 
+  async completeWhatsAppEmbeddedSignup(input: {
+    code: string;
+    waba_id?: string | null;
+    phone_number_id?: string | null;
+  }): Promise<MarketingStatus & { message: string }> {
+    requireToken();
+    return http<MarketingStatus & { message: string }>(
+      `${STOREHAUSE_API_PREFIX}/marketing/whatsapp/embedded-signup`,
+      { method: "POST", body: JSON.stringify(input) },
+    );
+  },
+
   async connectWhatsAppMarketing(input: ConnectWhatsAppInput): Promise<MarketingStatus & { message: string }> {
     requireToken();
     return http<MarketingStatus & { message: string }>(`${STOREHAUSE_API_PREFIX}/marketing/whatsapp/connect`, {

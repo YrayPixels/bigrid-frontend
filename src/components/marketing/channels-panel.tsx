@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { WhatsAppEmbeddedSignupButton } from "@/components/marketing/whatsapp-embedded-signup";
 
 /** Every social connection the store can publish or reply through. */
 export function ChannelsPanel() {
@@ -31,6 +32,7 @@ export function ChannelsPanel() {
     access_token: "",
     waba_id: "",
   });
+  const [showManualWhatsapp, setShowManualWhatsapp] = useState(false);
   const [tiktokForm, setTiktokForm] = useState({
     business_account_id: "",
     account_name: "",
@@ -318,8 +320,8 @@ export function ChannelsPanel() {
             WhatsApp AI replies
           </CardTitle>
           <CardDescription>
-            When customers message your business number, AI can answer product questions and share
-            your storefront link.
+            Connect the WhatsApp Business number already on your phone so customer chats stay in
+            WhatsApp and also appear in the inbox.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -329,6 +331,7 @@ export function ChannelsPanel() {
                 <div className="text-sm font-medium text-ink">{whatsapp.display_phone_number}</div>
                 <div className="text-xs text-ink-soft">
                   Phone number ID {whatsapp.phone_number_id}
+                  {whatsapp.coexistence ? " · phone + inbox" : ""}
                 </div>
               </div>
               <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
@@ -355,6 +358,23 @@ export function ChannelsPanel() {
             </>
           ) : (
             <div className="space-y-3">
+              <WhatsAppEmbeddedSignupButton
+                signup={whatsapp.embedded_signup}
+                onConnected={(data) => merchantCache.setMarketingStatus(queryClient, data)}
+              />
+              <p className="text-xs text-ink-soft">
+                Use Continue with WhatsApp Business. You do not need a phone number ID — Meta
+                sends it after you confirm on your phone.
+              </p>
+              <button
+                type="button"
+                className="text-xs text-ink-soft underline"
+                onClick={() => setShowManualWhatsapp((open) => !open)}
+              >
+                {showManualWhatsapp ? "Hide Cloud API credentials" : "Use Cloud API credentials instead"}
+              </button>
+              {showManualWhatsapp ? (
+                <>
               <Field label="Phone number ID">
                 <Input
                   value={whatsappForm.phone_number_id}
@@ -406,6 +426,8 @@ export function ChannelsPanel() {
               >
                 Connect WhatsApp
               </Button>
+                </>
+              ) : null}
             </div>
           )}
         </CardContent>

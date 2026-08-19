@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { api } from "@/lib/api/client";
 import type { CustomerConversationDetail } from "@/lib/api/types";
 import { merchantCache, useMarketingStatus } from "@/hooks/use-merchant-queries";
+import { WhatsAppEmbeddedSignupButton } from "@/components/marketing/whatsapp-embedded-signup";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -56,6 +57,7 @@ export default function AdminWhatsAppInboxPage() {
   const [channelFilter, setChannelFilter] = useState<"all" | "whatsapp" | "tiktok">("all");
   const [replyText, setReplyText] = useState("");
   const [isDraftLoading, setIsDraftLoading] = useState(false);
+  const [showManualConnect, setShowManualConnect] = useState(false);
   const [whatsappForm, setWhatsappForm] = useState({
     phone_number_id: "",
     display_phone_number: "",
@@ -64,7 +66,7 @@ export default function AdminWhatsAppInboxPage() {
   });
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const marketingQuery = useMarketingStatus();
+  const marketingQuery = useMarketingStatus({ staleTime: 0, refetchOnMount: "always" });
 
   const conversationsQuery = useQuery({
     queryKey: ["wa-conversations"],
@@ -198,7 +200,9 @@ export default function AdminWhatsAppInboxPage() {
           </CardTitle>
           <CardDescription>
             {connected
-              ? `Connected as ${whatsappStatus?.display_phone_number ?? "your business number"}`
+              ? `Connected as ${whatsappStatus?.display_phone_number ?? "your business number"}${
+                  whatsappStatus?.coexistence ? " · also on your phone" : ""
+                }`
               : "Connect your WhatsApp Business number to receive customer messages here."}
           </CardDescription>
           {connected ? (
@@ -306,11 +310,35 @@ export default function AdminWhatsAppInboxPage() {
                 <Link2 className="mx-auto mb-3 h-10 w-10 text-ink-soft" />
                 <h2 className="text-lg font-semibold">Connect your WhatsApp number</h2>
                 <p className="mt-1 text-sm text-ink-soft">
-                  Link your WhatsApp Business Cloud API number so customer DMs arrive in this inbox
-                  in near real time. You can reply here instead of only in WhatsApp.
+                  Use the same number on your phone (WhatsApp Business app) and in this inbox.
+                  Open WhatsApp Business 2.24.17+ during setup and scan the QR Meta shows you.
                 </p>
               </div>
+              <WhatsAppEmbeddedSignupButton
+                signup={whatsappStatus?.embedded_signup}
+                onConnected={(data) => {
+                  merchantCache.setMarketingStatus(queryClient, data);
+                  queryClient.invalidateQueries({ queryKey: ["wa-conversations"] });
+                }}
+              />
+              <p className="text-center text-xs text-ink-soft">
+                Click the button, log into Meta, then confirm in WhatsApp Business on your phone.
+                You do not need a phone number ID.
+              </p>
+              <button
+                type="button"
+                className="w-full text-center text-xs text-ink-soft underline"
+                onClick={() => setShowManualConnect((open) => !open)}
+              >
+                {showManualConnect ? "Hide Cloud API credentials" : "Use Cloud API credentials instead"}
+              </button>
+              {showManualConnect ? (
               <div className="space-y-3">
+                <p className="text-xs text-ink-soft">
+                  This is only for a number already in WhatsApp Manager as Cloud API. Phone number
+                  ID is under WhatsApp Manager → Account tools → Phone numbers, or Meta Developer →
+                  WhatsApp → API setup. This path usually takes the number off the phone app.
+                </p>
                 <div className="space-y-1.5">
                   <Label>Phone number ID</Label>
                   <Input
@@ -378,6 +406,7 @@ export default function AdminWhatsAppInboxPage() {
                   </p>
                 ) : null}
               </div>
+              ) : null}
             </div>
           </div>
         ) : !selectedId || !detail ? (
