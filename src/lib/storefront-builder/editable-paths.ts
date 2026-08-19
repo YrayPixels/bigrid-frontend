@@ -479,6 +479,7 @@ function applyIndexedField(
   const field = match[2];
 
   if (key === "value_props") {
+    if (!storefront.value_props) storefront.value_props = [];
     if (!storefront.value_props[index]) {
       storefront.value_props[index] = { title: "", body: "" };
     }

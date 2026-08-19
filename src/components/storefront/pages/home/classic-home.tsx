@@ -153,7 +153,7 @@ export function ClassicHome({
         <div
           className={`grid w-full gap-8 px-4 py-16 sm:grid-cols-3 sm:px-6 ${isEditorial ? "text-center" : ""}`}
         >
-          {storefront.value_props.map((item, index) => (
+          {(storefront.value_props ?? []).map((item, index) => (
             <div key={item.title}>
               <div
                 className={`grid h-9 w-9 place-items-center text-sm font-bold text-white ${isEditorial ? "mx-auto rounded-full" : "rounded-lg"}`}
