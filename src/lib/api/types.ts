@@ -125,6 +125,7 @@ export type Store = {
   has_unpublished_changes?: boolean;
   checkout_enabled?: boolean;
   payouts_configured?: boolean;
+  can_receive_payouts?: boolean;
   payout_account_name?: string | null;
   payout_bank_name?: string | null;
   payout_account_number?: string | null;
@@ -457,6 +458,7 @@ export type MerchantSubscription = {
   is_local_trial?: boolean;
   trial_expired?: boolean;
   can_access_live_storefront?: boolean;
+  can_receive_payouts?: boolean;
   limits: SubscriptionLimit[];
   usage?: MerchantSubscriptionUsage;
   has_payment_method: boolean;
@@ -1332,6 +1334,7 @@ export type PlaceOrderResponse = {
 export type StorePaymentSettings = {
   checkout_enabled: boolean;
   payouts_configured: boolean;
+  can_receive_payouts?: boolean;
   payout_account_name: string | null;
   payout_bank_name: string | null;
   payout_account_number: string | null;

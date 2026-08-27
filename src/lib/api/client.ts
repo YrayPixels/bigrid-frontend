@@ -689,6 +689,7 @@ export const api = {
       return {
         checkout_enabled: true,
         payouts_configured: false,
+        can_receive_payouts: true,
         payout_account_name: null,
         payout_bank_name: null,
         payout_account_number: null,
@@ -716,6 +717,7 @@ export const api = {
         payouts_configured: Boolean(
           body.payout_account_name && body.payout_bank_name && body.payout_account_number,
         ),
+        can_receive_payouts: true,
         payout_account_name: body.payout_account_name ?? null,
         payout_bank_name: body.payout_bank_name ?? null,
         payout_account_number: body.payout_account_number ?? null,

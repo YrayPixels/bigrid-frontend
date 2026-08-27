@@ -305,11 +305,19 @@ export default function AdminSettingsPage() {
             </Link>
             <SettingsStat
               label="Payout status"
-              value={store.payouts_configured ? "Bank details saved" : "Add bank account"}
+              value={
+                store.can_receive_payouts === false
+                  ? "Payouts paused"
+                  : store.payouts_configured
+                    ? "Bank details saved"
+                    : "Add bank account"
+              }
               hint={
-                store.payouts_configured
-                  ? "Bizgrid will settle paid orders to your account"
-                  : "Required to receive settlements from customer orders"
+                store.can_receive_payouts === false
+                  ? "Subscribe to receive settlements — store stays live and can still collect payments"
+                  : store.payouts_configured
+                    ? "Bizgrid will settle paid orders to your account"
+                    : "Required to receive settlements from customer orders"
               }
               icon={Wallet}
             />

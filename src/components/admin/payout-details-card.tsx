@@ -70,7 +70,11 @@ export function PayoutDetailsCard() {
         <CardTitle className="flex items-center gap-2">
           <Banknote className="h-5 w-5 text-primary" />
           Payout bank account
-          {data?.payouts_configured ? <Badge className="bg-green-600">Ready</Badge> : null}
+          {data?.can_receive_payouts === false ? (
+            <Badge variant="destructive">Payouts paused</Badge>
+          ) : data?.payouts_configured ? (
+            <Badge className="bg-green-600">Ready</Badge>
+          ) : null}
         </CardTitle>
         <CardDescription>
           Bizgrid collects customer payments via Paystack. Add your bank details so we can settle
@@ -78,6 +82,19 @@ export function PayoutDetailsCard() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {data?.can_receive_payouts === false ? (
+          <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-ink">
+            <p className="font-medium text-destructive">Payouts are paused</p>
+            <p className="mt-1 text-ink-soft">
+              Your storefront stays live and can still collect payments.{" "}
+              <Link href="/admin/settings/plan" className="font-medium text-primary hover:underline">
+                Subscribe to a plan
+              </Link>{" "}
+              to receive settlements again.
+            </p>
+          </div>
+        ) : null}
+
         {!emailVerified ? (
           <div className="rounded-xl border border-amber-600/25 bg-amber-500/10 p-4 text-sm text-ink">
             <p className="font-medium">Verify your email to save payout details</p>
