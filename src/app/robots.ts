@@ -40,7 +40,7 @@ export default async function robots(): Promise<MetadataRoute.Robots> {
     rules: {
       userAgent: "*",
       allow: "/",
-      disallow: ["/admin", "/api", "/app", "/onboarding", "/login", "/signup"],
+      disallow: ["/admin", "/api", "/app", "/onboarding"],
     },
     sitemap: sitemaps,
     host: baseUrl.replace(/^https?:\/\//, ""),
