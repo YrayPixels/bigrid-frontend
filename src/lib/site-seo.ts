@@ -43,6 +43,8 @@ export function getSitemapBaseUrl(host: string | null | undefined): string {
 /** Indexable platform marketing/legal pages (same-host sitemap only). */
 export const PLATFORM_PUBLIC_PATHS = [
   "/",
+  "/login",
+  "/signup",
   "/privacy",
   "/terms",
   "/stores",

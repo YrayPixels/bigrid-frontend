@@ -48,7 +48,7 @@ export function MarketingChrome({
             href="/signup"
             className="rounded-full bg-primary px-5 py-2 text-sm font-medium text-primary-foreground shadow-soft transition hover:opacity-90"
           >
-            Start trial
+            Get started
           </Link>
         </div>
       </nav>
@@ -95,6 +95,8 @@ export function MarketingChrome({
             <FooterCol
               title="Company"
               links={[
+                { href: "/login", label: "Log in" },
+                { href: "/signup", label: "Get started" },
                 { href: "mailto:support@bizgrid.ai", label: "Contact" },
                 { href: "/terms", label: "Terms" },
                 { href: "/privacy", label: "Privacy" },

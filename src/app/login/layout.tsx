@@ -2,7 +2,10 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Log in — Bizgrid",
-  robots: { index: false, follow: false },
+  description:
+    "Sign in to your Bizgrid account to manage your storefront, orders, payments, and WhatsApp tools.",
+  alternates: { canonical: "/login" },
+  robots: { index: true, follow: true },
 };
 
 export default function LoginLayout({ children }: { children: React.ReactNode }) {
