@@ -241,8 +241,9 @@ export default function PlanSettingsPage() {
           <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm">
             <p className="font-medium text-destructive">Your free trial has ended.</p>
             <p className="mt-1 text-ink-soft">
-              Subscribe to a plan to publish again and restore your live storefront. Billing is handled
-              by Dodo — choosing a plan starts your paid subscription immediately.
+              Your storefront stays live and can still collect payments, but payouts are paused until
+              you subscribe. Billing is handled by Dodo — choosing a plan starts your paid
+              subscription immediately.
             </p>
           </div>
         ) : subscription?.is_local_trial ? (
@@ -252,8 +253,9 @@ export default function PlanSettingsPage() {
             </p>
             <p className="mt-1 text-ink-soft">
               Trial ends {formatRenewalDate(subscription.trial_ends_at ?? subscription.renews_at)}. After
-              that, subscribe to keep your storefront live. A {subscription.transaction_fee_percent ?? 2.5}%
-              service fee applies to online orders on every plan.
+              that, subscribe to keep receiving payouts and publishing updates. A{" "}
+              {subscription.transaction_fee_percent ?? 2.5}% service fee applies to online orders on
+              every plan.
             </p>
           </div>
         ) : (subscription?.transaction_fee_percent ?? 0) > 0 ? (
