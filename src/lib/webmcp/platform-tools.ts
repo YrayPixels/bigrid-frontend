@@ -180,6 +180,7 @@ export function createPlatformWebMcpTools(): WebMcpToolDefinition[] {
         },
         required: ["store_slug", "product_id"],
       },
+      annotations: { readOnlyHint: false },
       execute: async (input) => {
         const storeSlug = String(input.store_slug ?? "").trim();
         const productId = String(input.product_id ?? "").trim();
