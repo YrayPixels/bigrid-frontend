@@ -22,6 +22,7 @@ export type WebMcpModelContext = {
     },
     options?: { signal?: AbortSignal },
   ) => Promise<void>;
+  getTools?: (options?: { fromOrigins?: string[] }) => Promise<unknown[]>;
 };
 
 declare global {
