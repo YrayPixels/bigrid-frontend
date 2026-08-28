@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { isWebMcpSupported, registerWebMcpTools } from "@/lib/webmcp/model-context";
-import { createPlatformWebMcpTools } from "@/lib/webmcp/platform-tools";
+import { ensurePlatformWebMcpTools } from "@/lib/webmcp/bootstrap";
 
 /**
  * Registers Bizgrid platform WebMCP tools on every page when the browser supports WebMCP.
@@ -10,16 +9,7 @@ import { createPlatformWebMcpTools } from "@/lib/webmcp/platform-tools";
  */
 export function PlatformWebMcpProvider() {
   useEffect(() => {
-    if (!isWebMcpSupported()) return;
-
-    const controller = new AbortController();
-    const tools = createPlatformWebMcpTools();
-
-    void registerWebMcpTools(tools, controller.signal);
-
-    return () => {
-      controller.abort();
-    };
+    void ensurePlatformWebMcpTools();
   }, []);
 
   return null;

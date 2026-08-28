@@ -23,7 +23,6 @@ export function createPlatformWebMcpTools(): WebMcpToolDefinition[] {
       inputSchema: {
         type: "object",
         properties: {},
-        additionalProperties: false,
       },
       annotations: { readOnlyHint: true },
       execute: async () => {
@@ -53,7 +52,6 @@ export function createPlatformWebMcpTools(): WebMcpToolDefinition[] {
           },
         },
         required: ["store_slug"],
-        additionalProperties: false,
       },
       annotations: { readOnlyHint: true },
       execute: async (input) => {
@@ -95,7 +93,6 @@ export function createPlatformWebMcpTools(): WebMcpToolDefinition[] {
           },
         },
         required: ["query"],
-        additionalProperties: false,
       },
       annotations: { readOnlyHint: true },
       execute: async (input) => {
@@ -135,7 +132,6 @@ export function createPlatformWebMcpTools(): WebMcpToolDefinition[] {
           },
         },
         required: ["store_slug", "product_id"],
-        additionalProperties: false,
       },
       annotations: { readOnlyHint: true },
       execute: async (input) => {
@@ -179,10 +175,10 @@ export function createPlatformWebMcpTools(): WebMcpToolDefinition[] {
           selected_options: {
             type: "object",
             description: 'Variant choices, e.g. {"Size":"M","Color":"Black"}.',
+            additionalProperties: { type: "string" },
           },
         },
         required: ["store_slug", "product_id"],
-        additionalProperties: false,
       },
       execute: async (input) => {
         const storeSlug = String(input.store_slug ?? "").trim();
@@ -244,7 +240,6 @@ export function createPlatformWebMcpTools(): WebMcpToolDefinition[] {
             description: "Optional store slug to read one merchant cart.",
           },
         },
-        additionalProperties: false,
       },
       annotations: { readOnlyHint: true },
       execute: async (input) => {
