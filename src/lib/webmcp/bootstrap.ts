@@ -6,6 +6,37 @@ const WEBMCP_LOG_PREFIX = "[bizgrid/webmcp]";
 let bootstrapPromise: Promise<string[]> | null = null;
 let abortController: AbortController | null = null;
 
+function waitForModelContext(maxAttempts = 120): Promise<ReturnType<typeof getModelContext>> {
+  return new Promise((resolve) => {
+    let attempts = 0;
+
+    const tick = () => {
+      const context = getModelContext();
+      if (context || attempts >= maxAttempts) {
+        resolve(context);
+        return;
+      }
+      attempts += 1;
+      requestAnimationFrame(tick);
+    };
+
+    tick();
+  });
+}
+
+function notifyToolChange(context: NonNullable<ReturnType<typeof getModelContext>>) {
+  try {
+    document.dispatchEvent(new Event("toolchange"));
+  } catch {
+    // Some browsers expose toolchange on modelContext instead of document.
+  }
+
+  const modelContext = context as NonNullable<ReturnType<typeof getModelContext>> & {
+    dispatchEvent?: (event: Event) => boolean;
+  };
+  modelContext.dispatchEvent?.(new Event("toolchange"));
+}
+
 /**
  * Register platform tools once per page load. Avoids React Strict Mode cleanup
  * unregistering tools before agents can discover them.
@@ -20,11 +51,12 @@ export function ensurePlatformWebMcpTools(): Promise<string[]> {
   }
 
   bootstrapPromise = (async () => {
-    const context = getModelContext();
+    const context = await waitForModelContext();
     if (!context) {
       if (process.env.NODE_ENV === "development") {
         console.info(WEBMCP_LOG_PREFIX, "WebMCP API not available in this browser.");
       }
+      bootstrapPromise = null;
       return [];
     }
 
@@ -54,6 +86,7 @@ export function ensurePlatformWebMcpTools(): Promise<string[]> {
     }
 
     if (registered.length > 0) {
+      notifyToolChange(context);
       console.info(WEBMCP_LOG_PREFIX, `Registered ${registered.length} tool(s):`, registered.join(", "));
     }
 
