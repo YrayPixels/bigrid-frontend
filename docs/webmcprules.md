@@ -303,14 +303,8 @@ C. All issues and questions concerning the construction, validity, interpretatio
 
 SOME JURISDICTIONS DO NOT ALLOW THE LIMITATIONS OR EXCLUSION OF LIABILITY FOR INCIDENTAL OR CONSEQUENTIAL DAMAGES, SO THE ABOVE LIMITATIONS OF LIABILITY MAY NOT APPLY TO YOU.
 
- 
-
-15. Additional Terms
+15.Additional Terms
 Please review the Devpost Terms of Service at https://info.devpost.com/terms for additional rules that apply to your participation in the Hackathon and more generally your use of the Hackathon Website. Such Terms of Service are incorporated by reference into these Official Rules, including that the term "Poster" in the Terms of Service shall mean the same as "Sponsor" in these Official Rules." If there is a conflict between the Terms of Service and these Official Rules, these Official Rules shall control with respect to this Hackathon only.
 
- 
-
-16. Entrant’s Personal Information
+16.Entrant’s Personal Information
 Information collected from Entrants is subject to Devpost’s Privacy Policy, which is available at https://info.devpost.com/privacy.
-
- 
