@@ -26,7 +26,7 @@
 
 ## ChatGPT browser: Site tools vs `getTools()`
 
-If the **Site tools** menu in the address bar lists your 6 tools but `await document.modelContext.getTools()` returns `[]` in the console, **that is normal in ChatGPT’s built-in browser**. The console often runs in the app shell, not the page frame where tools are registered.
+If the **Site tools** menu in the address bar lists your 7 tools but `await document.modelContext.getTools()` returns `[]` in the console, **that is normal in ChatGPT’s built-in browser**. The console often runs in the app shell, not the page frame where tools are registered.
 
 **Trust the Site tools menu.** Ask ChatGPT:
 
@@ -43,7 +43,7 @@ Or tap a tool in **Available site tools** and ask ChatGPT to run it.
 ## Pre-demo checklist (15 min before recording)
 
 - [ ] Open https://www.bizgrid.shop in WebMCP-enabled browser
-- [ ] Console: `await document.modelContext.getTools()` → **6 tools**
+- [ ] Console: `await document.modelContext.getTools()` → **7 tools**
 - [ ] At least **2 published stores** with **active products** (check `/stores`)
 - [ ] Pick a search term you know returns results (test in console):
 
@@ -63,7 +63,7 @@ await document.modelContext.executeTool(t, JSON.stringify({ query: "serum", limi
 | Time | Visual | Audio / action |
 |------|--------|----------------|
 | **0:00–0:15** | Bizgrid homepage | Pitch (one-liner above). “I’m on bizgrid.shop — hundreds of African merchants publish here.” |
-| **0:15–0:35** | DevTools console | “WebMCP exposes six tools.” Run `getTools()`, briefly scroll the 6 names. |
+| **0:15–0:35** | DevTools console | “WebMCP exposes seven tools.” Run `getTools()`, briefly scroll the 7 names. |
 | **0:35–1:05** | ChatGPT browser chat **beside** or **over** the site | **Prompt 1** (below). Show agent calling `list_stores` then `search_products`. |
 | **1:05–1:35** | Agent result + product cards in chat | **Prompt 2**. Agent calls `get_product` or picks from search. Read aloud store name + price. |
 | **1:35–2:05** | Same | **Prompt 3**. Agent calls `add_to_cart`. Highlight `store_slug` and `checkout_url` in response. |
@@ -170,14 +170,14 @@ Read naturally; cut pauses in edit.
 “I open the store cart in the same browser. The product is already here. I review and pay — agent discovered, human confirms. That’s the collaboration WebMCP enables.”
 
 **[2:35] Close**  
-“Six tools: list stores, store info, search, product, cart read, cart write. Platform-wide commerce, merchant-scoped checkout. Bizgrid is live at bizgrid.shop, open source on GitHub.”
+“Seven tools: list stores, full catalog, store info, search, product, cart read, cart write. Platform-wide commerce, merchant-scoped checkout. Bizgrid is live at bizgrid.shop, open source on GitHub.”
 
 ---
 
 ## What judges must see (checklist in video)
 
 - [ ] URL bar shows **https://www.bizgrid.shop**
-- [ ] **`document.modelContext.getTools()`** → 6 tools (names visible)
+- [ ] **`document.modelContext.getTools()`** → 7 tools (names visible)
 - [ ] Agent or console calls **`search_products`** with cross-store results
 - [ ] Response includes **`store_slug`** per product
 - [ ] **`add_to_cart`** succeeds with **`checkout_url`**
@@ -202,7 +202,7 @@ Cross-store product search and cart actions required custom integrations per mer
 
 ### Implementation (brief)
 
-Next.js registers six tools via `document.modelContext.registerTool` on load. Tool handlers call Laravel APIs (`/public/catalog/search`, etc.). `add_to_cart` writes to the same `localStorage` cart keys each storefront already uses, so humans and agents share state.
+Next.js registers seven tools via `document.modelContext.registerTool` on load. Tool handlers call Laravel APIs (`/public/catalog/products`, `/public/catalog/search`, etc.). `add_to_cart` writes to the same `localStorage` cart keys each storefront already uses, so humans and agents share state.
 
 ---
 
@@ -214,7 +214,7 @@ Next.js registers six tools via `document.modelContext.registerTool` on load. To
 | No published stores | Publish demo store; use `/demo` merchant |
 | Agent ignores tools | Start prompt with “Use the website's WebMCP tools **only**” |
 | Cart empty on store page | Wrong `store_slug`; re-run `add_to_cart` |
-| `getTools()` empty | Hard refresh; check `[bizgrid/webmcp] Registered 6 tool(s)` in console |
+| `getTools()` empty | Hard refresh; check `[bizgrid/webmcp] Registered 7 tool(s)` in console |
 
 ---
 
@@ -223,7 +223,7 @@ Next.js registers six tools via `document.modelContext.registerTool` on load. To
 **Title:** Bizgrid + WebMCP — Agent-native marketplace for African commerce
 
 **Description:**
-Demo of WebMCP on https://www.bizgrid.shop — platform-wide product search and per-store cart/checkout. Built for the OpenAI WebMCP Challenge. Tools: list_stores, search_products, get_product, add_to_cart, get_cart, get_store_info.
+Demo of WebMCP on https://www.bizgrid.shop — platform-wide product catalog/search and per-store cart/checkout. Built for the OpenAI WebMCP Challenge. Tools: list_stores, list_catalog, search_products, get_product, add_to_cart, get_cart, get_store_info.
 
 ---
 

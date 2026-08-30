@@ -40,6 +40,44 @@ export function createPlatformWebMcpTools(): WebMcpToolDefinition[] {
       },
     },
     {
+      name: "list_catalog",
+      description:
+        "List the full published Bizgrid product catalog across all stores (or one store). Each product includes the store it belongs to. Paginate with offset when meta.has_more is true. Prefer search_products when the shopper has a specific query.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          store_slug: {
+            type: "string",
+            description: "Optional store slug to list products for one merchant only.",
+          },
+          limit: {
+            type: "number",
+            description: "Page size (default 50, max 100).",
+          },
+          offset: {
+            type: "number",
+            description: "Pagination offset from a previous meta.next_offset.",
+          },
+        },
+      },
+      annotations: { readOnlyHint: true },
+      execute: async (input) => {
+        const limitRaw = Number(input.limit);
+        const offsetRaw = Number(input.offset);
+        const result = await platformCatalogApi.listProducts({
+          store_slug: String(input.store_slug ?? "").trim() || undefined,
+          limit: Number.isFinite(limitRaw) ? limitRaw : undefined,
+          offset: Number.isFinite(offsetRaw) ? offsetRaw : undefined,
+        });
+
+        return webMcpJson({
+          count: result.products.length,
+          meta: result.meta,
+          products: result.products.map((hit) => summarizePlatformProduct(hit.store, hit.product)),
+        });
+      },
+    },
+    {
       name: "get_store_info",
       description:
         "Get one Bizgrid store by slug: name, industry, description, storefront URL, and product count.",
@@ -48,7 +86,7 @@ export function createPlatformWebMcpTools(): WebMcpToolDefinition[] {
         properties: {
           store_slug: {
             type: "string",
-            description: "Store slug from list_stores or search_products.",
+            description: "Store slug from list_stores, list_catalog, or search_products.",
           },
         },
         required: ["store_slug"],
@@ -71,7 +109,7 @@ export function createPlatformWebMcpTools(): WebMcpToolDefinition[] {
     {
       name: "search_products",
       description:
-        "Search products across all published Bizgrid stores. Each result includes the store it belongs to so purchases route to the correct shop.",
+        "Search products across all published Bizgrid stores by query. For the full catalog without a search phrase, use list_catalog. Each result includes the store it belongs to so purchases route to the correct shop.",
       inputSchema: {
         type: "object",
         properties: {
