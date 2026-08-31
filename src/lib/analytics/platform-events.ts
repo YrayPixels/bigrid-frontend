@@ -11,17 +11,22 @@ export type PlatformEventName =
   | "preview_signup_completed"
   | "ad_landing_viewed"
   | "ad_signup_clicked"
-  | "ad_signup_completed";
+  | "ad_signup_completed"
+  | "bizfest_landing_viewed"
+  | "bizfest_apply_clicked";
 
 export type PlatformEventSource =
   | "landing"
   | "preview"
   | "signup"
   | "start"
+  | "grants"
   | "hero"
   | "nav"
   | "sticky"
-  | "footer";
+  | "footer"
+  | "eligibility"
+  | "secondary";
 
 type TrackOptions = {
   source?: PlatformEventSource;
