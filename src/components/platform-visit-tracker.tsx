@@ -8,7 +8,7 @@ import {
   captureMarketingAttributionFromUrl,
   getOrCreateVisitSessionId,
 } from "@/lib/storefront/marketing-attribution";
-import { isPlatformRootHost } from "@/lib/store-host";
+import { isGrantsHost, isPlatformRootHost } from "@/lib/store-host";
 
 const EXCLUDED_PREFIXES = ["/admin", "/sell", "/s", "/api", "/preview"] as const;
 
@@ -24,25 +24,42 @@ function isLoggedIn(): boolean {
   return document.cookie.includes("storehaus_auth_present=1");
 }
 
+/** Map grants.bizgrid.shop browser paths onto canonical /grants… routes. */
+function resolveTrackedPath(pathname: string, host: string): string {
+  if (!isGrantsHost(host)) return pathname;
+
+  if (!pathname || pathname === "/") return "/grants";
+  if (pathname === "/grants" || pathname.startsWith("/grants/")) return pathname;
+  return `/grants${pathname}`;
+}
+
+function shouldTrackHost(host: string): boolean {
+  return isPlatformRootHost(host) || isGrantsHost(host);
+}
+
 export function PlatformVisitTracker() {
   const pathname = usePathname();
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (!isPlatformRootHost(window.location.host)) return;
-    if (!pathname || isExcludedPath(pathname)) return;
+
+    const host = window.location.host;
+    if (!shouldTrackHost(host)) return;
+
+    const trackedPath = resolveTrackedPath(pathname || "/", host);
+    if (!trackedPath || isExcludedPath(trackedPath)) return;
     if (isLoggedIn()) return;
 
     const sessionId = getOrCreateVisitSessionId();
     const attribution = captureMarketingAttributionFromUrl();
-    const sentKey = `storehaus_platform_visit_sent:${pathname}`;
+    const sentKey = `storehaus_platform_visit_sent:${trackedPath}`;
     if (window.sessionStorage.getItem(sentKey) === "1") return;
     window.sessionStorage.setItem(sentKey, "1");
 
     void storefrontApi
       .recordPlatformVisit({
         session_id: sessionId || undefined,
-        path: pathname,
+        path: trackedPath,
         referrer: document.referrer || undefined,
         ...attribution,
       })
