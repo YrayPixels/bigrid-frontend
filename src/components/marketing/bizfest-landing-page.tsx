@@ -24,15 +24,15 @@ const ELIGIBILITY_STEPS = [
 ] as const;
 
 const AUDIENCE_TAGS = [
-  { label: "Fashion brands", rotate: "-6deg" },
-  { label: "Beauty & cosmetics", rotate: "4deg" },
-  { label: "Food businesses", rotate: "3deg" },
-  { label: "Electronics", rotate: "-5deg" },
-  { label: "Home & lifestyle", rotate: "5deg" },
-  { label: "WhatsApp sellers", rotate: "-3deg" },
-  { label: "Instagram shops", rotate: "6deg" },
-  { label: "Small retailers", rotate: "-4deg" },
-  { label: "Service businesses", rotate: "2deg" },
+  { label: "Fashion brands", rotate: "-8deg", x: "0", y: "0" },
+  { label: "Beauty & cosmetics", rotate: "5deg", x: "0.5rem", y: "0.25rem" },
+  { label: "Food businesses", rotate: "3deg", x: "-0.25rem", y: "0" },
+  { label: "Electronics", rotate: "-6deg", x: "0.75rem", y: "-0.15rem" },
+  { label: "Home & lifestyle", rotate: "7deg", x: "0", y: "0.2rem" },
+  { label: "WhatsApp sellers", rotate: "-4deg", x: "0.35rem", y: "0" },
+  { label: "Instagram shops", rotate: "6deg", x: "-0.15rem", y: "0.15rem" },
+  { label: "Small retailers", rotate: "-5deg", x: "0.5rem", y: "-0.1rem" },
+  { label: "Service businesses", rotate: "4deg", x: "0", y: "0.25rem" },
 ] as const;
 
 const NAV_LINKS = [
@@ -58,6 +58,8 @@ function BrandChip({
     </span>
   );
 }
+
+type CtaSource = "hero" | "nav" | "sticky" | "eligibility" | "footer";
 
 function trackApplyClick(source: CtaSource) {
   trackPlatformEvent("bizfest_apply_clicked", { source, once: false });
@@ -275,54 +277,63 @@ export function BizFestLandingPage() {
           </div>
         </section>
 
-        <section className="bg-canvas px-2 py-10 sm:px-4 sm:py-14">
-          <div className="relative mx-auto max-w-[90rem] overflow-hidden rounded-[1.75rem] bg-ink sm:rounded-[2.5rem]">
-            <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-primary/20 blur-3xl" />
-            <div className="pointer-events-none absolute -bottom-24 left-1/3 h-56 w-56 rounded-full bg-accent/15 blur-3xl" />
-
-            <div className="relative grid items-end lg:grid-cols-[0.95fr_1.05fr]">
-              <div className="relative mx-auto w-full max-w-md px-6 pt-10 lg:max-w-none lg:-ml-2 lg:px-0 lg:pt-8">
-                <div className="relative aspect-[3/4] w-full overflow-hidden rounded-[1.25rem] sm:rounded-[1.75rem] lg:rounded-none lg:rounded-tr-[2.5rem]">
-                  <Image
-                    src="/landing/shop-leather.jpg"
-                    alt="Nigerian fashion seller with products ready for online"
-                    fill
-                    className="object-cover object-[center_20%]"
-                    sizes="(max-width: 1024px) 90vw, 45vw"
-                    priority={false}
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-ink via-ink/20 to-transparent lg:bg-gradient-to-r lg:from-transparent lg:via-transparent lg:to-ink/40" />
-                </div>
+        <section className="relative bg-canvas px-3 py-16 sm:px-6 sm:py-20 lg:py-24">
+          <div className="relative mx-auto max-w-[90rem]">
+            {/* Brand panel — overflow visible so the photo can break the frame */}
+            <div className="relative overflow-visible rounded-[1.75rem] bg-ink sm:rounded-[2.75rem]">
+              <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[1.75rem] sm:rounded-[2.75rem]">
+                <div className="absolute -right-16 top-0 h-72 w-72 rounded-full bg-primary/25 blur-3xl" />
+                <div className="absolute -bottom-20 left-1/4 h-64 w-64 rounded-full bg-accent/20 blur-3xl" />
               </div>
 
-              <div className="relative px-6 pb-12 pt-8 sm:px-10 sm:pb-16 lg:py-16 lg:pr-14 lg:pl-8">
-                <div className="inline-flex items-center rounded-full border border-primary-foreground/25 px-3.5 py-1.5">
-                  <BrandChip
-                    label="Who it's for"
-                    className="font-modern-sans inline-flex items-center gap-1.5 text-[11px] font-semibold tracking-wide text-primary-foreground sm:text-xs"
-                  />
+              <div className="relative grid lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-center">
+                {/* Cutout photo — overlaps the panel like the reference */}
+                <div className="relative z-10 mx-auto w-[min(100%,22rem)] px-4 pt-6 sm:w-[min(100%,26rem)] lg:mx-0 lg:-my-14 lg:w-auto lg:max-w-none lg:self-stretch lg:px-0 lg:pt-0">
+                  <div className="relative aspect-[3/4] w-full lg:ml-6 lg:h-[min(36rem,70vh)] lg:w-auto lg:max-w-[28rem] lg:aspect-auto xl:ml-10 xl:max-w-[32rem]">
+                    <div className="absolute inset-0 overflow-hidden rounded-[1.5rem] shadow-[0_24px_60px_-20px_rgba(0,0,0,0.55)] lg:rounded-[2rem]">
+                      <Image
+                        src="/landing/shop-leather.jpg"
+                        alt="Seller ready to take their business online with BizFest"
+                        fill
+                        className="object-cover object-[center_18%]"
+                        sizes="(max-width: 1024px) 90vw, 32rem"
+                      />
+                    </div>
+                  </div>
                 </div>
 
-                <h2 className="font-modern-sans mt-5 text-[2.5rem] leading-[0.95] font-bold tracking-tight text-primary-foreground sm:text-5xl md:text-6xl lg:text-[4.25rem]">
-                  Who is BizFest for?
-                </h2>
+                {/* Copy + sticker tags */}
+                <div className="relative z-10 px-6 pb-12 pt-8 sm:px-10 sm:pb-16 lg:py-16 lg:pr-16 lg:pl-6 xl:pr-20">
+                  <div className="inline-flex items-center rounded-full border border-primary-foreground/30 px-3.5 py-1.5">
+                    <BrandChip
+                      label="Who it's for"
+                      className="font-modern-sans inline-flex items-center gap-1.5 text-[11px] font-semibold tracking-wide text-primary-foreground sm:text-xs"
+                    />
+                  </div>
 
-                <p className="mt-4 max-w-xl text-sm leading-relaxed text-primary-foreground/70 sm:text-base">
-                  Already selling on WhatsApp, Instagram, or in person — but don&apos;t have a proper
-                  online store yet? That&apos;s your seat at BizFest.
-                </p>
+                  <h2 className="font-modern-sans mt-5 max-w-[12ch] text-[2.75rem] leading-[0.95] font-bold tracking-tight text-primary-foreground sm:mt-6 sm:text-5xl md:text-6xl lg:text-[4.5rem]">
+                    Who is BizFest for?
+                  </h2>
 
-                <ul className="mt-8 flex max-w-2xl flex-wrap gap-3 sm:mt-10 sm:gap-4">
-                  {AUDIENCE_TAGS.map((tag) => (
-                    <li
-                      key={tag.label}
-                      className="rounded-full bg-canvas-raised px-4 py-2.5 text-sm font-semibold text-ink shadow-soft sm:px-5 sm:py-3 sm:text-base"
-                      style={{ transform: `rotate(${tag.rotate})` }}
-                    >
-                      {tag.label}
-                    </li>
-                  ))}
-                </ul>
+                  <p className="mt-4 max-w-md text-sm leading-relaxed text-primary-foreground/75 sm:mt-5 sm:text-base md:text-lg">
+                    Already selling on WhatsApp, Instagram, or in person — but don&apos;t have a
+                    proper online store yet? That&apos;s your seat at BizFest.
+                  </p>
+
+                  <ul className="mt-8 flex max-w-xl flex-wrap content-start gap-x-3 gap-y-4 sm:mt-10 sm:gap-x-4 sm:gap-y-5">
+                    {AUDIENCE_TAGS.map((tag) => (
+                      <li
+                        key={tag.label}
+                        className="rounded-2xl bg-canvas-raised px-4 py-2.5 text-sm font-semibold text-ink shadow-[0_8px_24px_-12px_rgba(0,0,0,0.45)] sm:px-5 sm:py-3 sm:text-[15px]"
+                        style={{
+                          transform: `translate(${tag.x}, ${tag.y}) rotate(${tag.rotate})`,
+                        }}
+                      >
+                        {tag.label}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               </div>
             </div>
           </div>
