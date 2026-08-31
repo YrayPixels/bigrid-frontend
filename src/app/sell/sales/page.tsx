@@ -62,16 +62,16 @@ export default function SellSalesPage() {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-4 py-5 sm:px-6 sm:py-8 lg:px-8">
       <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Today&apos;s sales</h1>
-      <p className="mt-1 text-sm text-zinc-500">
+      <p className="mt-1 text-sm text-ink-soft">
         {count} sale{count === 1 ? "" : "s"} · {formatMoney(total, currency)}
         {pending.length > 0 ? ` · ${pending.length} pending sync` : ""}
       </p>
 
       <div className="mt-5 grid gap-3 sm:grid-cols-2">
         {loading ? (
-          <p className="col-span-full py-8 text-center text-sm text-zinc-500">Loading…</p>
+          <p className="col-span-full py-8 text-center text-sm text-ink-soft">Loading…</p>
         ) : count === 0 ? (
-          <p className="col-span-full py-8 text-center text-sm text-zinc-500">No sales yet today.</p>
+          <p className="col-span-full py-8 text-center text-sm text-ink-soft">No sales yet today.</p>
         ) : (
           <>
             {pending.map((row) => (
@@ -102,12 +102,12 @@ export default function SellSalesPage() {
               <Link
                 key={order.id}
                 href={`/sell/done/${order.id}`}
-                className="block rounded-2xl bg-white p-4 ring-1 ring-zinc-200 transition hover:ring-zinc-300 sm:p-5"
+                className="block rounded-2xl bg-card p-4 ring-1 ring-border transition hover:ring-border sm:p-5"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="font-medium">{order.order_number}</p>
-                    <p className="mt-0.5 text-xs capitalize text-zinc-500">
+                    <p className="mt-0.5 text-xs capitalize text-ink-soft">
                       {(order.payment_method || "paid").replace("_", " ")}
                       {order.cashier_name ? ` · ${order.cashier_name}` : ""}
                     </p>

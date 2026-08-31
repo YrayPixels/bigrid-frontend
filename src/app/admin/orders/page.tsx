@@ -157,8 +157,8 @@ export default function AdminOrdersPage() {
 
   return (
     <TooltipProvider delayDuration={150}>
-      <div className="w-full bg-[#f7f7f5] px-4 py-6 text-[#171717] sm:px-6 lg:px-8">
-        <section className="overflow-hidden rounded-[28px] border border-border/70 bg-white shadow-[0_24px_80px_rgba(15,23,42,0.08)]">
+      <div className="w-full bg-canvas px-4 py-6 text-ink sm:px-6 lg:px-8">
+        <section className="overflow-hidden rounded-[28px] border border-border/70 bg-canvas-raised shadow-elevated">
           <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border/70 px-5 py-4 sm:px-6">
             <div>
               <div className="flex items-center gap-2">
@@ -188,7 +188,7 @@ export default function AdminOrdersPage() {
                 void ordersQuery.refetch();
                 void dashboardQuery.refetch();
               }}
-              className="inline-flex items-center gap-2 rounded-xl border border-border bg-white px-4 py-2 text-sm font-semibold shadow-sm hover:bg-secondary"
+              className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2 text-sm font-semibold shadow-sm hover:bg-secondary"
             >
               <RefreshCcw className="h-4 w-4" />
               Refresh
@@ -209,36 +209,36 @@ export default function AdminOrdersPage() {
                   value={statValues.totalSales}
                   label="Total Sales"
                   tooltip="Total revenue from orders that were not cancelled or refunded."
-                  backgroundClassName="bg-[#edf3ff]"
+                  backgroundClassName="bg-primary/10"
                   icon={<span className="text-lg font-bold text-ink">₦</span>}
                 />
                 <AdminStatCard
                   value={statValues.totalOrders}
                   label="Total Orders"
                   tooltip="The total number of orders placed through your storefront."
-                  backgroundClassName="bg-[#edf8f0]"
-                  icon={<ShoppingBag className="h-5 w-5 text-[#4f8a4a]" />}
+                  backgroundClassName="bg-emerald-500/10"
+                  icon={<ShoppingBag className="h-5 w-5 text-emerald-600" />}
                 />
                 <AdminStatCard
                   value={statValues.pendingOrders}
                   label="Pending Orders"
                   tooltip="Orders still waiting to be processed or fulfilled."
-                  backgroundClassName="bg-[#fdf0f0]"
-                  icon={<Clock3 className="h-5 w-5 text-[#d14343]" />}
+                  backgroundClassName="bg-destructive/10"
+                  icon={<Clock3 className="h-5 w-5 text-destructive" />}
                 />
                 <AdminStatCard
                   value={statValues.averageOrderValue}
                   label="Average Order Value"
                   tooltip="Average amount customers spend per order."
-                  backgroundClassName="bg-[#edf3ff]"
-                  icon={<TrendingUp className="h-5 w-5 text-[#3b6fd8]" />}
+                  backgroundClassName="bg-primary/10"
+                  icon={<TrendingUp className="h-5 w-5 text-primary" />}
                 />
               </>
             )}
           </div>
 
           <div className="p-4 sm:p-6">
-            <section className="rounded-2xl border border-border/80 bg-[#fbfbfa] p-5 shadow-sm">
+            <section className="rounded-2xl border border-border/80 bg-canvas p-5 shadow-sm">
         <div className="grid gap-4 md:grid-cols-[1fr_180px_180px]">
           <label className="space-y-2 text-sm">
             <span className="font-medium">Search orders</span>
@@ -283,7 +283,7 @@ export default function AdminOrdersPage() {
         </div>
       </section>
 
-            <section className="mt-6 overflow-hidden rounded-2xl border border-border/80 bg-white shadow-sm">
+            <section className="mt-6 overflow-hidden rounded-2xl border border-border/80 bg-canvas-raised shadow-sm">
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <div>
             <h2 className="font-display text-lg font-bold">Storefront orders</h2>

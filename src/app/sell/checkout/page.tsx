@@ -177,14 +177,14 @@ export default function SellCheckoutPage() {
     <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col px-4 py-5 sm:px-6 sm:py-8 lg:px-8">
       <button
         type="button"
-        className="mb-4 text-left text-sm text-zinc-500 hover:text-zinc-800"
+        className="mb-4 text-left text-sm text-ink-soft hover:text-ink"
         onClick={() => router.push("/sell")}
       >
         ← Back to cart
       </button>
 
-      <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-200 sm:p-6">
-        <p className="text-sm text-zinc-500">Total due</p>
+      <div className="rounded-2xl bg-card p-5 shadow-sm ring-1 ring-border sm:p-6">
+        <p className="text-sm text-ink-soft">Total due</p>
         <p className="mt-1 text-3xl font-semibold tracking-tight sm:text-4xl">
           {formatMoney(subtotal, currency)}
         </p>
@@ -199,12 +199,12 @@ export default function SellCheckoutPage() {
           onClick={() => setTender("cash")}
           className={`rounded-2xl px-4 py-5 text-left ring-1 ${
             tender === "cash"
-              ? "bg-zinc-900 text-white ring-zinc-900"
-              : "bg-white text-zinc-900 ring-zinc-200"
+              ? "bg-ink text-canvas ring-ink"
+              : "bg-card text-ink ring-border"
           }`}
         >
           <p className="text-base font-semibold">Cash</p>
-          <p className={`mt-1 text-xs ${tender === "cash" ? "text-zinc-300" : "text-zinc-500"}`}>
+          <p className={`mt-1 text-xs ${tender === "cash" ? "text-ink-soft" : "text-ink-soft"}`}>
             Count money received
           </p>
         </button>
@@ -213,14 +213,14 @@ export default function SellCheckoutPage() {
           onClick={() => setTender("bank_transfer")}
           className={`rounded-2xl px-4 py-5 text-left ring-1 ${
             tender === "bank_transfer"
-              ? "bg-zinc-900 text-white ring-zinc-900"
-              : "bg-white text-zinc-900 ring-zinc-200"
+              ? "bg-ink text-canvas ring-ink"
+              : "bg-card text-ink ring-border"
           }`}
         >
           <p className="text-base font-semibold">Transfer</p>
           <p
             className={`mt-1 text-xs ${
-              tender === "bank_transfer" ? "text-zinc-300" : "text-zinc-500"
+              tender === "bank_transfer" ? "text-ink-soft" : "text-ink-soft"
             }`}
           >
             Confirm bank payment
@@ -229,7 +229,7 @@ export default function SellCheckoutPage() {
       </div>
 
       {tender === "cash" ? (
-        <div className="mt-5 space-y-3 rounded-2xl bg-white p-4 ring-1 ring-zinc-200 sm:p-5">
+        <div className="mt-5 space-y-3 rounded-2xl bg-card p-4 ring-1 ring-border sm:p-5">
           <label className="block text-sm font-medium">Amount received</label>
           <Input
             inputMode="decimal"
@@ -238,9 +238,9 @@ export default function SellCheckoutPage() {
             placeholder={String(subtotal)}
             className="h-12 text-lg"
           />
-          <p className="text-sm text-zinc-600">
+          <p className="text-sm text-ink-soft">
             Change due:{" "}
-            <span className="font-semibold text-zinc-900">
+            <span className="font-semibold text-ink">
               {formatMoney(changeDue, currency)}
             </span>
           </p>
@@ -248,14 +248,14 @@ export default function SellCheckoutPage() {
       ) : null}
 
       {tender === "bank_transfer" ? (
-        <div className="mt-5 space-y-3 rounded-2xl bg-white p-4 ring-1 ring-zinc-200 sm:p-5">
+        <div className="mt-5 space-y-3 rounded-2xl bg-card p-4 ring-1 ring-border sm:p-5">
           {payments?.payouts_configured ? (
             <>
               <p className="text-sm font-medium">Pay to</p>
               <div className="space-y-1 text-sm">
                 <p>{payments.payout_bank_name}</p>
                 <p className="font-semibold tracking-wide">{payments.payout_account_number}</p>
-                <p className="text-zinc-600">{payments.payout_account_name}</p>
+                <p className="text-ink-soft">{payments.payout_account_name}</p>
               </div>
               <Input
                 value={transferRef}

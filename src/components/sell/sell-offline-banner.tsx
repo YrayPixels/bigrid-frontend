@@ -75,7 +75,7 @@ export function SellOfflineBanner() {
             type="button"
             size="sm"
             variant="outline"
-            className="h-8 border-amber-300 bg-white"
+            className="h-8 border-amber-300 bg-card"
             onClick={() => void syncNow()}
             disabled={syncing}
           >
@@ -127,7 +127,7 @@ export function SellOfflineBanner() {
             type="button"
             size="sm"
             variant="outline"
-            className="h-8 border-amber-300 bg-white"
+            className="h-8 border-amber-300 bg-card"
             onClick={() => void syncNow()}
             disabled={syncing}
           >
@@ -141,7 +141,7 @@ export function SellOfflineBanner() {
 
   if (installEvent) {
     return (
-      <div className="border-b border-zinc-200 bg-white px-4 py-2 text-sm text-zinc-700 sm:px-6 lg:px-8">
+      <div className="border-b border-border bg-card px-4 py-2 text-sm text-ink-soft sm:px-6 lg:px-8">
         <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-2">
           <p>Install Bizgrid on this device for faster offline access.</p>
           <Button

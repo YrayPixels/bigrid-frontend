@@ -433,7 +433,7 @@ function FormSection({
   const [open, setOpen] = useState(defaultOpen);
 
   return (
-    <section className="overflow-hidden rounded-xl border border-border bg-white">
+    <section className="overflow-hidden rounded-xl border border-border bg-card">
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
@@ -1021,7 +1021,7 @@ export function ProductFormDialog({
           onSubmit={(event) => void handleSubmit(event)}
           className="flex min-h-0 flex-1 flex-col"
         >
-          <header className="shrink-0 border-b border-border bg-white px-4 py-3 sm:px-6 sm:py-4">
+          <header className="shrink-0 border-b border-border bg-canvas-raised px-4 py-3 sm:px-6 sm:py-4">
             <div className="flex w-full items-start justify-between gap-3">
               <div className="min-w-0 pr-2">
                 <DialogTitle className="font-display text-lg font-bold tracking-tight sm:text-2xl">
@@ -2265,7 +2265,7 @@ export function ProductFormDialog({
               </div>
 
               <aside className="space-y-4 lg:sticky lg:top-0 lg:self-start">
-                <div className="overflow-hidden rounded-xl border border-border bg-white p-4 shadow-sm">
+                <div className="overflow-hidden rounded-xl border border-border bg-card p-4 shadow-sm">
                   <p className="mb-3 text-[11px] font-medium uppercase tracking-wide text-ink-soft">
                     Storefront preview
                   </p>
@@ -2308,7 +2308,7 @@ export function ProductFormDialog({
             </div>
           </div>
 
-          <footer className="shrink-0 border-t border-border bg-white px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-4 sm:pb-4">
+          <footer className="shrink-0 border-t border-border bg-canvas-raised px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-4 sm:pb-4">
             <div className="flex w-full items-center justify-between gap-2">
               <Button
                 type="button"

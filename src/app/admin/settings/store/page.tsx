@@ -700,7 +700,7 @@ export default function AdminSettingsStorePage() {
                         size="sm"
                         disabled={syncingDealie}
                         onClick={() => void handleSyncCatalog()}
-                        className="bg-white hover:bg-primary/5 border-primary/20 text-primary shadow-soft"
+                        className="bg-card hover:bg-primary/5 border-primary/20 text-primary shadow-soft"
                       >
                         {syncingDealie ? (
                           <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />

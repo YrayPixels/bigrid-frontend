@@ -95,7 +95,7 @@ function RecoveryPanel({
   const canWhatsApp = Boolean(item.customer_phone);
 
   return (
-    <div className="space-y-4 rounded-xl border border-border bg-[#fbfbfa] p-4">
+    <div className="space-y-4 rounded-xl border border-border bg-canvas p-4">
       <div className="flex flex-wrap gap-2">
         <Button
           type="button"
@@ -215,8 +215,8 @@ export default function AbandonedRecoveryPage() {
   const activeItem = items.find((item) => item.id === activeId) ?? null;
 
   return (
-    <div className="w-full bg-[#f7f7f5] px-4 py-6 text-[#171717] sm:px-6 lg:px-8">
-      <section className="overflow-hidden rounded-[28px] border border-border/70 bg-white shadow-[0_24px_80px_rgba(15,23,42,0.08)]">
+    <div className="w-full bg-canvas px-4 py-6 text-ink sm:px-6 lg:px-8">
+      <section className="overflow-hidden rounded-[28px] border border-border/70 bg-canvas-raised shadow-elevated">
         <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border/70 px-5 py-4 sm:px-6">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
@@ -243,28 +243,28 @@ export default function AbandonedRecoveryPage() {
           value={String(statValues.total)}
           label="Recoverable leads"
           tooltip="Customers who abandoned checkout or left contact details in cart."
-          backgroundClassName="bg-[#edf3ff]"
-          icon={<ShoppingCart className="h-5 w-5 text-[#3b6fd8]" />}
+          backgroundClassName="bg-primary/10"
+          icon={<ShoppingCart className="h-5 w-5 text-primary" />}
         />
         <AdminStatCard
           value={String(statValues.checkoutCount)}
           label="Unpaid checkouts"
           tooltip="Orders placed but payment was not completed."
-          backgroundClassName="bg-[#fdf0f0]"
-          icon={<Wallet className="h-5 w-5 text-[#d14343]" />}
+          backgroundClassName="bg-destructive/10"
+          icon={<Wallet className="h-5 w-5 text-destructive" />}
         />
         <AdminStatCard
           value={String(statValues.cartCount)}
           label="Saved carts"
           tooltip="Shoppers who entered contact details but did not submit checkout."
-          backgroundClassName="bg-[#edf8f0]"
-          icon={<MessageCircle className="h-5 w-5 text-[#4f8a4a]" />}
+          backgroundClassName="bg-emerald-500/10"
+          icon={<MessageCircle className="h-5 w-5 text-emerald-600" />}
         />
         <AdminStatCard
           value={statValues.recoverableValue}
           label="Potential value"
           tooltip="Combined value of abandoned carts and unpaid checkouts."
-          backgroundClassName="bg-[#edf3ff]"
+          backgroundClassName="bg-primary/10"
           icon={<span className="text-lg font-bold text-ink">₦</span>}
         />
         </div>

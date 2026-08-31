@@ -354,7 +354,7 @@ export function SellScanDialog({
             <TabsTrigger value="ocr">Label / OCR</TabsTrigger>
           </TabsList>
 
-          <div className="relative aspect-[4/3] overflow-hidden rounded-xl bg-zinc-900">
+          <div className="relative aspect-[4/3] overflow-hidden rounded-xl bg-ink">
             <video
               ref={videoRef}
               className="h-full w-full object-cover"
@@ -376,7 +376,7 @@ export function SellScanDialog({
           {cameraError ? (
             <p className="text-sm text-amber-700">{cameraError}</p>
           ) : (
-            <p className="text-xs text-zinc-500">
+            <p className="text-xs text-ink-soft">
               {mode === "barcode"
                 ? "Point at a barcode or QR. USB scanners work in the field below."
                 : "Capture or upload a product label — we’ll match name, SKU, or barcode text."}
@@ -440,7 +440,7 @@ export function SellScanDialog({
               />
             </div>
             {ocrHint ? (
-              <p className="rounded-lg bg-zinc-100 px-3 py-2 text-xs text-zinc-600">
+              <p className="rounded-lg bg-muted px-3 py-2 text-xs text-ink-soft">
                 Read: {ocrHint}
               </p>
             ) : null}
@@ -448,7 +448,7 @@ export function SellScanDialog({
         </Tabs>
 
         {candidates.length > 0 ? (
-          <div className="space-y-2 border-t border-zinc-200 pt-3">
+          <div className="space-y-2 border-t border-border pt-3">
             <p className="text-sm font-medium">Matches</p>
             <div className="max-h-48 space-y-2 overflow-y-auto">
               {candidates.map((product) => {
@@ -463,9 +463,9 @@ export function SellScanDialog({
                       onProduct(product);
                       onOpenChange(false);
                     }}
-                    className="flex w-full items-center gap-3 rounded-xl bg-zinc-50 p-2 text-left ring-1 ring-zinc-200 disabled:opacity-50"
+                    className="flex w-full items-center gap-3 rounded-xl bg-muted/60 p-2 text-left ring-1 ring-border disabled:opacity-50"
                   >
-                    <div className="relative size-12 shrink-0 overflow-hidden rounded-lg bg-zinc-200">
+                    <div className="relative size-12 shrink-0 overflow-hidden rounded-lg bg-muted">
                       {product.image_url ? (
                         <Image
                           src={product.image_url}
@@ -479,7 +479,7 @@ export function SellScanDialog({
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">{product.name}</p>
-                      <p className="text-xs text-zinc-500">
+                      <p className="text-xs text-ink-soft">
                         {product.sku || product.barcode || "No code"}
                         {outOfStock ? " · Out of stock" : ""}
                       </p>

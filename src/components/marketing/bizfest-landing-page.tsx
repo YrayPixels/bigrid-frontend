@@ -4,6 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useEffect } from "react";
 import { ArrowRight, ShoppingBag } from "lucide-react";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { BIZFEST_SIGNUP_HREF } from "@/lib/marketing/bizfest-signup";
 import { trackPlatformEvent } from "@/lib/analytics/platform-events";
 
@@ -207,13 +208,16 @@ export function BizFestLandingPage() {
               </a>
             ))}
           </div>
-          <Link
-            href={BIZFEST_SIGNUP_HREF}
-            onClick={() => trackApplyClick("nav")}
-            className="shrink-0 rounded-full bg-primary px-3.5 py-2 text-sm font-semibold text-primary-foreground shadow-soft transition hover:opacity-90 sm:px-5"
-          >
-            Apply
-          </Link>
+          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+            <ThemeToggle className="h-9 w-9 border-border/60" />
+            <Link
+              href={BIZFEST_SIGNUP_HREF}
+              onClick={() => trackApplyClick("nav")}
+              className="rounded-full bg-primary px-3.5 py-2 text-sm font-semibold text-primary-foreground shadow-soft transition hover:opacity-90 sm:px-5"
+            >
+              Apply
+            </Link>
+          </div>
         </nav>
       </header>
 
@@ -260,31 +264,31 @@ export function BizFestLandingPage() {
 
           <div
             id="prizes"
-            className="absolute inset-x-0 bottom-16 z-20 bg-ink px-3 py-3.5 sm:bottom-0 sm:px-6 sm:py-5"
+            className="absolute inset-x-0 bottom-16 z-20 bg-panel px-3 py-3.5 sm:bottom-0 sm:px-6 sm:py-5"
           >
             <div className="mx-auto flex max-w-5xl flex-col items-center gap-3 sm:flex-row sm:justify-between sm:gap-8">
-              <p className="font-modern-sans text-[10px] font-semibold tracking-[0.16em] text-primary-foreground/50 uppercase sm:text-xs sm:tracking-[0.18em]">
+              <p className="font-modern-sans text-[10px] font-semibold tracking-[0.16em] text-panel-foreground/50 uppercase sm:text-xs sm:tracking-[0.18em]">
                 ₦6,000,000 prize pool
               </p>
               <div className="grid w-full grid-cols-2 gap-x-4 gap-y-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:justify-center sm:gap-x-8">
                 {PRIZES.map((prize) => (
                   <div
                     key={prize.place}
-                    className="flex items-baseline justify-center gap-1.5 text-primary-foreground sm:justify-start sm:gap-2"
+                    className="flex items-baseline justify-center gap-1.5 text-panel-foreground sm:justify-start sm:gap-2"
                   >
                     <span className="font-modern-sans text-sm font-bold sm:text-xl">{prize.amount}</span>
-                    <span className="text-[10px] text-primary-foreground/45 sm:text-xs">{prize.place}</span>
+                    <span className="text-[10px] text-panel-foreground/45 sm:text-xs">{prize.place}</span>
                   </div>
                 ))}
               </div>
-              <p className="hidden text-xs text-primary-foreground/40 lg:block">Powered by Bizgrid</p>
+              <p className="hidden text-xs text-panel-foreground/40 lg:block">Powered by Bizgrid</p>
             </div>
           </div>
         </section>
 
         <section className="relative bg-canvas px-3 pt-16 pb-8 sm:px-6 sm:pt-24 sm:pb-14 lg:pt-28 lg:pb-16">
           <div className="relative mx-auto max-w-[90rem]">
-            <div className="relative overflow-visible rounded-[1.5rem] bg-ink sm:rounded-[2.75rem]">
+            <div className="relative overflow-visible rounded-[1.5rem] bg-panel sm:rounded-[2.75rem]">
               <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[1.5rem] sm:rounded-[2.75rem]">
                 <div className="absolute -right-16 top-0 h-72 w-72 rounded-full bg-primary/25 blur-3xl" />
                 <div className="absolute -bottom-20 left-1/4 h-64 w-64 rounded-full bg-accent/20 blur-3xl" />
@@ -308,18 +312,18 @@ export function BizFestLandingPage() {
                 </div>
 
                 <div className="relative z-10 px-5 pb-8 pt-5 text-center sm:px-10 sm:pb-12 sm:pt-8 sm:text-left lg:py-16 lg:pr-16 lg:pl-6 lg:text-left xl:pr-20">
-                  <div className="inline-flex items-center rounded-full border border-primary-foreground/30 px-3.5 py-1.5">
+                  <div className="inline-flex items-center rounded-full border border-panel-foreground/30 px-3.5 py-1.5">
                     <BrandChip
                       label="Who it's for"
-                      className="font-modern-sans inline-flex items-center gap-1.5 text-[11px] font-semibold tracking-wide text-primary-foreground sm:text-xs"
+                      className="font-modern-sans inline-flex items-center gap-1.5 text-[11px] font-semibold tracking-wide text-panel-foreground sm:text-xs"
                     />
                   </div>
 
-                  <h2 className="font-modern-sans mx-auto mt-4 max-w-[14ch] text-[2.15rem] leading-[0.98] font-bold tracking-tight text-primary-foreground sm:mx-0 sm:mt-6 sm:text-5xl md:text-6xl lg:text-[4.5rem]">
+                  <h2 className="font-modern-sans mx-auto mt-4 max-w-[14ch] text-[2.15rem] leading-[0.98] font-bold tracking-tight text-panel-foreground sm:mx-0 sm:mt-6 sm:text-5xl md:text-6xl lg:text-[4.5rem]">
                     Who is BizFest for?
                   </h2>
 
-                  <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-primary-foreground/75 sm:mx-0 sm:mt-5 sm:text-base md:text-lg">
+                  <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-panel-foreground/75 sm:mx-0 sm:mt-5 sm:text-base md:text-lg">
                     Already selling on WhatsApp, Instagram, or in person — but don&apos;t have a
                     proper online store yet? That&apos;s your seat at BizFest.
                   </p>
@@ -420,7 +424,7 @@ export function BizFestLandingPage() {
           </div>
         </section>
 
-        <section id="finale" className="scroll-mt-24 bg-ink px-4 py-14 text-primary-foreground sm:px-6 sm:py-24">
+        <section id="finale" className="scroll-mt-24 bg-panel px-4 py-14 text-panel-foreground sm:px-6 sm:py-24">
           <div className="mx-auto max-w-2xl text-center">
             <p className="font-modern-sans text-[11px] font-semibold tracking-[0.2em] text-accent uppercase">
               The grand finale
@@ -428,7 +432,7 @@ export function BizFestLandingPage() {
             <h2 className="font-modern-sans mt-3 text-[1.75rem] font-bold tracking-tight sm:text-4xl">
               BizFest Conference &amp; Expo
             </h2>
-            <p className="mt-4 text-sm leading-relaxed text-primary-foreground/60 sm:text-base">
+            <p className="mt-4 text-sm leading-relaxed text-panel-foreground/60 sm:text-base">
               Top 10 businesses pitch live. Keynotes, masterclasses, networking, and a merchant expo
               — then ₦6,000,000 in prizes. Top 13 merchants win.
             </p>
@@ -440,19 +444,19 @@ export function BizFestLandingPage() {
               Apply for BizFest
               <ArrowRight className="h-4 w-4" />
             </Link>
-            <p className="mt-4 text-xs text-primary-foreground/40">Free to join · No card required</p>
+            <p className="mt-4 text-xs text-panel-foreground/40">Free to join · No card required</p>
           </div>
         </section>
       </main>
 
-      <footer className="border-t border-primary-foreground/10 bg-ink px-4 py-6 text-center sm:px-6">
-        <p className="text-xs text-primary-foreground/35">
+      <footer className="border-t border-panel-foreground/10 bg-panel px-4 py-6 text-center sm:px-6">
+        <p className="text-xs text-panel-foreground/35">
           © {new Date().getFullYear()} Bizgrid ·{" "}
-          <Link href="/terms" className="hover:text-primary-foreground/70">
+          <Link href="/terms" className="hover:text-panel-foreground/70">
             Terms
           </Link>
           {" · "}
-          <Link href="/privacy" className="hover:text-primary-foreground/70">
+          <Link href="/privacy" className="hover:text-panel-foreground/70">
             Privacy
           </Link>
         </p>

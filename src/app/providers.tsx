@@ -4,6 +4,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Suspense, useState, type ReactNode } from "react";
 import { PlatformWebMcpProvider } from "@/components/webmcp/platform-webmcp-provider";
 import { PlatformVisitTracker } from "@/components/platform-visit-tracker";
+import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider } from "@/lib/auth-context";
 import { createQueryClient } from "@/lib/query-client";
 
@@ -12,13 +13,15 @@ export function Providers({ children }: { children: ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <Suspense fallback={null}>
-          <PlatformVisitTracker />
-          <PlatformWebMcpProvider />
-        </Suspense>
-        <Suspense fallback={null}>{children}</Suspense>
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <Suspense fallback={null}>
+            <PlatformVisitTracker />
+            <PlatformWebMcpProvider />
+          </Suspense>
+          <Suspense fallback={null}>{children}</Suspense>
+        </AuthProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }
