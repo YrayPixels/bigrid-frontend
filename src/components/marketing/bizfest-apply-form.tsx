@@ -2,8 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useState } from "react";
-import { ArrowLeft, ArrowRight, CheckCircle2, Loader2 } from "lucide-react";
-import { BizgridLogo } from "@/components/bizgrid-logo";
+import { ArrowLeft, ArrowRight, CheckCircle2, Loader2, ShoppingBag } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { storefrontApi } from "@/lib/api/storefront";
 import {
@@ -73,6 +72,24 @@ const inputClass =
 const selectClass = inputClass;
 const textareaClass =
   "min-h-[96px] w-full resize-y rounded-xl border border-border bg-canvas-raised px-3.5 py-2.5 text-sm text-ink outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20";
+
+function BrandChip({
+  label,
+  className,
+  labelClassName,
+}: {
+  label: string;
+  className?: string;
+  labelClassName?: string;
+}) {
+  return (
+    <span className={className}>
+      <ShoppingBag className="h-3.5 w-3.5 text-primary" aria-hidden strokeWidth={2.25} />
+      <span className={labelClassName}>{label}</span>
+      <ShoppingBag className="h-3.5 w-3.5 text-accent" aria-hidden strokeWidth={2.25} />
+    </span>
+  );
+}
 
 export function BizFestApplyForm() {
   const [form, setForm] = useState<FormState>(INITIAL);
@@ -160,7 +177,16 @@ export function BizFestApplyForm() {
           </Link>
           <div className="flex items-center gap-3">
             <ThemeToggle />
-            <BizgridLogo size={28} showWordmark wordmarkClassName="text-lg font-bold" />
+            <Link
+              href="/grants"
+              className="font-modern-sans flex items-center gap-2 text-sm font-bold tracking-tight text-ink"
+            >
+              <BrandChip
+                label="BizFest 1.0"
+                className="inline-flex items-center gap-1.5"
+                labelClassName="tracking-tight"
+              />
+            </Link>
           </div>
         </div>
       </header>
