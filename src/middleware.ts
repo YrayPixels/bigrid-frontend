@@ -28,6 +28,15 @@ function handleGrantsHost(request: NextRequest): NextResponse | null {
 
   const { pathname, search } = request.nextUrl;
 
+  // Public assets and framework routes must not be rewritten under /grants.
+  if (
+    pathname.startsWith("/_next") ||
+    pathname.startsWith("/api") ||
+    pathname.includes(".")
+  ) {
+    return NextResponse.next();
+  }
+
   if (
     pathname.startsWith("/signup") ||
     pathname.startsWith("/login") ||
