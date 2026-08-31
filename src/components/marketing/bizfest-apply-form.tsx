@@ -9,6 +9,7 @@ import {
   BIZFEST_CATEGORIES,
   BIZFEST_HOW_HEARD,
   BIZFEST_SELL_CHANNELS,
+  BIZFEST_SOCIAL_LINKS,
 } from "@/lib/marketing/bizfest-signup";
 import { readMarketingAttribution } from "@/lib/storefront/marketing-attribution";
 import { trackPlatformEvent } from "@/lib/analytics/platform-events";
@@ -74,6 +75,7 @@ const textareaClass =
 
 export function BizFestApplyForm() {
   const [form, setForm] = useState<FormState>(INITIAL);
+  const [followedSocial, setFollowedSocial] = useState(false);
   const [step, setStep] = useState<1 | 2>(1);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -110,6 +112,10 @@ export function BizFestApplyForm() {
       setError("Please tell us how you heard about BizFest and whether you're solo or a team.");
       return;
     }
+    if (!followedSocial) {
+      setError("Please follow Bizgrid on social media, then confirm below to continue.");
+      return;
+    }
 
     setSubmitting(true);
     setError(null);
@@ -130,6 +136,7 @@ export function BizFestApplyForm() {
         online_presence_url: form.online_presence_url.trim() || undefined,
         how_heard: form.how_heard,
         team_type: form.team_type as "solo" | "team",
+        followed_social: true,
         ...attribution,
         programme: "bizfest-1",
       });
@@ -181,6 +188,23 @@ export function BizFestApplyForm() {
               >
                 Back to BizFest
               </Link>
+            </div>
+            <div className="mx-auto mt-10 max-w-sm border-t border-border pt-8">
+              <p className="text-sm font-medium text-ink">Stay close to BizFest updates</p>
+              <p className="mt-1 text-xs text-ink-soft">Follow Bizgrid for tips, deadlines, and announcements.</p>
+              <div className="mt-4 flex flex-wrap justify-center gap-2">
+                {BIZFEST_SOCIAL_LINKS.map((link) => (
+                  <a
+                    key={link.id}
+                    href={link.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex h-10 items-center justify-center rounded-xl border border-border px-4 text-sm font-semibold text-ink transition hover:border-primary hover:text-primary"
+                  >
+                    {link.label}
+                  </a>
+                ))}
+              </div>
             </div>
           </div>
         ) : (
@@ -358,6 +382,39 @@ export function BizFestApplyForm() {
                         <option value="team">With a team / staff</option>
                       </select>
                     </Field>
+                  </div>
+
+                  <div className="rounded-2xl border border-border bg-canvas px-4 py-4 sm:px-5">
+                    <p className="text-sm font-semibold text-ink">Follow Bizgrid on social</p>
+                    <p className="mt-1 text-xs text-ink-soft">
+                      Stay updated on BizFest deadlines, tips, and announcements.
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {BIZFEST_SOCIAL_LINKS.map((link) => (
+                        <a
+                          key={link.id}
+                          href={link.href}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex h-10 items-center justify-center rounded-xl border border-border bg-canvas-raised px-4 text-sm font-semibold text-ink transition hover:border-primary hover:text-primary"
+                        >
+                          Follow on {link.label}
+                        </a>
+                      ))}
+                    </div>
+                    <label className="mt-4 flex cursor-pointer items-start gap-3 text-left text-sm text-ink">
+                      <input
+                        type="checkbox"
+                        checked={followedSocial}
+                        onChange={(e) => setFollowedSocial(e.target.checked)}
+                        className="mt-0.5 h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                        required
+                      />
+                      <span>
+                        I follow Bizgrid on Instagram, TikTok, X, and LinkedIn{" "}
+                        <span className="text-primary">*</span>
+                      </span>
+                    </label>
                   </div>
 
                   <p className="text-xs leading-relaxed text-ink-soft">
