@@ -216,7 +216,7 @@ export function BizFestApplyForm() {
               Apply to participate
             </h1>
             <p className="mt-2 max-w-xl text-sm text-ink-soft sm:text-base">
-              Tell us about your small business. Please provide accurate details — free to apply.
+              Tell us about your business. Please provide accurate details — free to apply.
             </p>
 
             <div className="mt-6 flex gap-2">
