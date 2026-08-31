@@ -3,11 +3,48 @@ import type { NextRequest } from "next/server";
 import { isCodeWorkbenchEnabled } from "@/lib/features";
 import {
   getStorefrontUrl,
+  isGrantsHost,
   isPlatformRootHost,
   parseStoreSlugFromHost,
   resolveCustomDomainSlug,
   STORE_PLATFORM_DOMAIN,
 } from "@/lib/store-host";
+
+function getPlatformOrigin(request: NextRequest): string {
+  const host = request.headers.get("host") ?? "";
+  const hostname = host.split(":")[0].toLowerCase();
+  const port = host.includes(":") ? host.split(":")[1] : "";
+
+  if (hostname.endsWith(".localhost") || hostname === "localhost") {
+    return `http://localhost${port ? `:${port}` : ":3000"}`;
+  }
+
+  return `https://www.${STORE_PLATFORM_DOMAIN}`;
+}
+
+function handleGrantsHost(request: NextRequest): NextResponse | null {
+  const host = request.headers.get("host");
+  if (!isGrantsHost(host)) return null;
+
+  const { pathname, search } = request.nextUrl;
+
+  if (
+    pathname.startsWith("/signup") ||
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/terms") ||
+    pathname.startsWith("/privacy")
+  ) {
+    return NextResponse.redirect(`${getPlatformOrigin(request)}${pathname}${search}`);
+  }
+
+  if (pathname.startsWith("/grants")) {
+    return NextResponse.next();
+  }
+
+  const url = request.nextUrl.clone();
+  url.pathname = pathname === "/" ? "/grants" : `/grants${pathname}`;
+  return NextResponse.rewrite(url);
+}
 
 function supportsSubdomainStorefronts(): boolean {
   return !STORE_PLATFORM_DOMAIN.endsWith(".vercel.app");
@@ -55,6 +92,9 @@ function isWorkbenchPath(pathname: string): boolean {
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  const grantsResponse = handleGrantsHost(request);
+  if (grantsResponse) return grantsResponse;
 
   if (pathname.startsWith("/s/")) {
     const redirect = redirectPathStorefrontToSubdomain(request);

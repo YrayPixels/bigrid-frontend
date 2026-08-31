@@ -16,7 +16,10 @@ const RESERVED = new Set([
   "static",
   "assets",
   "cdn",
+  "grants",
 ]);
+
+export const GRANTS_SUBDOMAIN = "grants";
 
 export const STORE_PLATFORM_DOMAIN =
   process.env.NEXT_PUBLIC_STORE_PLATFORM_DOMAIN ?? "bizgrid.shop";
@@ -81,6 +84,15 @@ export function parseStoreSlugFromHost(host: string | undefined | null): string 
   }
 
   return null;
+}
+
+export function isGrantsHost(host: string | undefined | null): boolean {
+  if (!host) return false;
+  const hostname = host.split(":")[0].toLowerCase();
+  return (
+    hostname === `${GRANTS_SUBDOMAIN}.${STORE_PLATFORM_DOMAIN}` ||
+    hostname === `${GRANTS_SUBDOMAIN}.localhost`
+  );
 }
 
 export function isPlatformRootHost(host: string | undefined | null): boolean {

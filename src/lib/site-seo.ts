@@ -50,6 +50,7 @@ export const PLATFORM_PUBLIC_PATHS = [
   "/stores",
   "/academy",
   "/industries",
+  "/grants",
 ] as const;
 
 export const PLATFORM_PRIVACY_URL = "/privacy";
