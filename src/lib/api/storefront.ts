@@ -250,6 +250,7 @@ export const storefrontApi = {
     online_presence_url?: string;
     how_heard: string;
     team_type: "solo" | "team";
+    followed_social: boolean;
     utm_source?: string;
     utm_medium?: string;
     utm_campaign?: string;
