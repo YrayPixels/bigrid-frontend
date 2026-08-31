@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { ArrowLeft, ArrowRight, CheckCircle2, Loader2 } from "lucide-react";
 import { BizgridLogo } from "@/components/bizgrid-logo";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { storefrontApi } from "@/lib/api/storefront";
 import {
   BIZFEST_CATEGORIES,
@@ -157,7 +158,10 @@ export function BizFestApplyForm() {
             <ArrowLeft className="h-4 w-4" />
             Back to BizFest
           </Link>
-          <BizgridLogo size={28} showWordmark wordmarkClassName="text-lg font-bold" />
+          <div className="flex items-center gap-3">
+            <ThemeToggle />
+            <BizgridLogo size={28} showWordmark wordmarkClassName="text-lg font-bold" />
+          </div>
         </div>
       </header>
 

@@ -263,7 +263,7 @@ export function SellQuickAddDialog({
           <div className="space-y-2">
             <Label>Photo</Label>
             {previewUrl ? (
-              <div className="relative overflow-hidden rounded-xl bg-zinc-100 ring-1 ring-zinc-200">
+              <div className="relative overflow-hidden rounded-xl bg-muted ring-1 ring-border">
                 <img
                   src={previewUrl}
                   alt=""
@@ -316,7 +316,7 @@ export function SellQuickAddDialog({
               </div>
             )}
             {!previewUrl && uploadImage ? (
-              <p className="text-xs text-zinc-500">Optional — helps recognize it next time.</p>
+              <p className="text-xs text-ink-soft">Optional — helps recognize it next time.</p>
             ) : null}
             {!uploadImage ? (
               <p className="text-xs text-amber-700">Photo upload unavailable for this store.</p>
@@ -359,7 +359,7 @@ export function SellQuickAddDialog({
               disabled={busy}
             />
             {lookingUp ? (
-              <p className="flex items-center gap-1.5 text-xs text-zinc-500">
+              <p className="flex items-center gap-1.5 text-xs text-ink-soft">
                 <Loader2 className="size-3 animate-spin" />
                 Looking up barcode…
               </p>

@@ -27,6 +27,7 @@ import {
 import { SettingsNavMenu } from "@/components/admin/settings-nav-tree";
 import { LocationScopeSwitcher } from "@/components/admin/location-scope-switcher";
 import { BizgridLogo } from "@/components/bizgrid-logo";
+import { ModeToggle } from "@/components/mode-toggle";
 import { LaunchChecklistReminder } from "@/components/admin/launch-checklist-reminder";
 import { EmailVerificationBanner } from "@/components/admin/email-verification-banner";
 import { useAuth } from "@/lib/auth-context";
@@ -253,6 +254,7 @@ export function MerchantShell({ children }: { children: React.ReactNode }) {
             <p className="truncate text-xs text-ink-soft sm:hidden">{selectedLabel}</p>
           </div>
           <LocationScopeSwitcher />
+          <ModeToggle />
         </header>
         <EmailVerificationBanner />
         <LaunchChecklistReminder />

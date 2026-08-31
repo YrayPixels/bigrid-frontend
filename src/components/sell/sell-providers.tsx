@@ -16,7 +16,7 @@ export function SellProviders({ children }: { children: ReactNode }) {
   // Avoid SSR/localStorage mismatches for cart + IDB.
   if (!mounted) {
     return (
-      <div className="flex min-h-dvh items-center justify-center bg-zinc-100 text-sm text-zinc-500">
+      <div className="flex min-h-dvh items-center justify-center bg-muted text-sm text-ink-soft">
         Loading…
       </div>
     );

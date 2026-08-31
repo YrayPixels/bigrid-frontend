@@ -520,8 +520,8 @@ function ProductFiltersPanel({
         <div
           className={
             embedded
-              ? "bg-white"
-              : "rounded-2xl border border-border/80 bg-white p-4"
+              ? "bg-canvas-raised"
+              : "rounded-2xl border border-border/80 bg-canvas-raised p-4"
           }
         >
           {embedded ? null : (
@@ -1332,8 +1332,8 @@ export default function AdminProductsPage() {
 
   return (
     <TooltipProvider delayDuration={150}>
-    <div className="w-full bg-[#f7f7f5] px-4 py-6 text-[#171717] sm:px-6 lg:px-8">
-      <section className="overflow-hidden rounded-[28px] border border-border/70 bg-white shadow-[0_24px_80px_rgba(15,23,42,0.08)]">
+    <div className="w-full bg-canvas px-4 py-6 text-ink sm:px-6 lg:px-8">
+      <section className="overflow-hidden rounded-[28px] border border-border/70 bg-canvas-raised shadow-elevated">
         <div className="flex flex-col gap-3 border-b border-border/70 px-4 py-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:px-6">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
@@ -1359,7 +1359,7 @@ export default function AdminProductsPage() {
                 : `${selectedLabel}: catalog and stock are shared across all store locations.`}
             </span>
           </div>
-          <div className="inline-flex w-fit items-center gap-2 rounded-xl border border-border bg-white px-3 py-2 text-xs font-medium text-ink-soft shadow-sm">
+          <div className="inline-flex w-fit items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-xs font-medium text-ink-soft shadow-sm">
             <CalendarDays className="h-4 w-4 shrink-0" />
             <span className="truncate">Last updated: {formatUpdatedDate(lastUpdated)}</span>
           </div>
@@ -1371,7 +1371,7 @@ export default function AdminProductsPage() {
             compactValue={formatMoneyCompact(totalRetailValue, defaultCurrency)}
             label="Total Retail Value"
             tooltip="The total selling price of all your products."
-            backgroundClassName="bg-[#edf3ff]"
+            backgroundClassName="bg-primary/10"
             icon={<span className="text-lg font-bold text-ink">₦</span>}
           />
           <AdminStatCard
@@ -1379,34 +1379,34 @@ export default function AdminProductsPage() {
             compactValue={formatMoneyCompact(totalInventoryValue, defaultCurrency)}
             label="Total Inventory Value"
             tooltip="The retail value of all units currently in stock."
-            backgroundClassName="bg-[#edf8f0]"
+            backgroundClassName="bg-emerald-500/10"
             icon={<span className="text-lg font-bold text-ink">₦</span>}
           />
           <AdminStatCard
             value={String(productsSold)}
             label="Products Sold"
             tooltip="Total units sold across completed and active orders."
-            backgroundClassName="bg-[#fdf0f0]"
-            icon={<Tag className="h-5 w-5 text-[#d14343]" />}
+            backgroundClassName="bg-destructive/10"
+            icon={<Tag className="h-5 w-5 text-destructive" />}
           />
           <AdminStatCard
             value={String(outOfStockCount)}
             label="Out of Stock"
             tooltip="Products with zero units left in inventory."
-            backgroundClassName="bg-[#edf3ff]"
-            icon={<Package className="h-5 w-5 text-[#3b6fd8]" />}
+            backgroundClassName="bg-primary/10"
+            icon={<Package className="h-5 w-5 text-primary" />}
           />
         </div>
 
         <div className="grid gap-0 lg:grid-cols-[260px_minmax(0,1fr)]">
-          <aside className="hidden border-b border-border/70 bg-white p-5 lg:block lg:border-b-0 lg:border-r">
+          <aside className="hidden border-b border-border/70 bg-canvas-raised p-5 lg:block lg:border-b-0 lg:border-r">
             <ProductFiltersPanel {...filterPanelProps} />
           </aside>
 
-          <main className="min-w-0 bg-[#fbfbfa] p-4 sm:p-5">
-            <div className="rounded-2xl border border-border/80 bg-white p-4 shadow-sm">
+          <main className="min-w-0 bg-canvas p-4 sm:p-5">
+            <div className="rounded-2xl border border-border/80 bg-canvas-raised p-4 shadow-sm">
               <div className="flex flex-col gap-3">
-                <div className="grid w-full grid-cols-2 gap-1 overflow-hidden rounded-xl border border-border bg-[#f7f7f5] p-1 text-xs font-semibold sm:inline-grid sm:w-auto sm:grid-cols-4">
+                <div className="grid w-full grid-cols-2 gap-1 overflow-hidden rounded-xl border border-border bg-muted p-1 text-xs font-semibold sm:inline-grid sm:w-auto sm:grid-cols-4">
                   {[
                     { value: "all", label: "All", count: products.length },
                     { value: "active", label: "Active", count: activeCount },
@@ -1419,7 +1419,7 @@ export default function AdminProductsPage() {
                       onClick={() => setStatusFilter(tab.value as StatusFilter)}
                       className={`rounded-lg px-3 py-2 transition sm:px-5 ${
                         statusFilter === tab.value
-                          ? "bg-white text-ink shadow-sm"
+                          ? "bg-card text-ink shadow-sm"
                           : "text-ink-soft hover:text-ink"
                       }`}
                     >
@@ -1436,7 +1436,7 @@ export default function AdminProductsPage() {
                       value={search}
                       onChange={(event) => setSearch(event.target.value)}
                       placeholder="Search product"
-                      className="h-10 rounded-xl bg-white pl-9 text-xs"
+                      className="h-10 rounded-xl bg-card pl-9 text-xs"
                     />
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
@@ -1454,7 +1454,7 @@ export default function AdminProductsPage() {
                         </span>
                       ) : null}
                     </Button>
-                    <label className="inline-flex h-10 flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl border border-border bg-white px-3 py-2 text-sm font-semibold text-ink shadow-sm hover:bg-secondary sm:flex-none sm:px-4">
+                    <label className="inline-flex h-10 flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-sm font-semibold text-ink shadow-sm hover:bg-secondary sm:flex-none sm:px-4">
                       {importing ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
@@ -1485,7 +1485,7 @@ export default function AdminProductsPage() {
                     </Button>
                     <Button
                       onClick={openNewProduct}
-                      className="h-10 flex-1 rounded-xl bg-[#1f1f1f] text-white sm:flex-none"
+                      className="h-10 flex-1 rounded-xl bg-ink text-canvas sm:flex-none"
                     >
                       <Plus className="h-4 w-4" />
                       New Product
@@ -1539,7 +1539,7 @@ export default function AdminProductsPage() {
                     return (
                       <article
                         key={product.id}
-                        className={`group relative overflow-hidden rounded-2xl border bg-white p-2.5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-soft sm:p-3 ${selectedProductIds.has(product.id) ? "border-primary ring-2 ring-primary/20" : "border-border/80"}`}
+                        className={`group relative overflow-hidden rounded-2xl border bg-card p-2.5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-soft sm:p-3 ${selectedProductIds.has(product.id) ? "border-primary ring-2 ring-primary/20" : "border-border/80"}`}
                       >
                         <div className="absolute left-3 top-3 z-10 flex items-center gap-2">
                           <input
@@ -1612,7 +1612,7 @@ export default function AdminProductsPage() {
                         <button
                           type="button"
                           onClick={() => openEditProduct(product)}
-                          className="grid aspect-[4/3] w-full place-items-center overflow-hidden rounded-xl bg-[#f4f4f2]"
+                          className="grid aspect-[4/3] w-full place-items-center overflow-hidden rounded-xl bg-muted"
                         >
                           {product.image_url ? (
                             <img
@@ -1685,7 +1685,7 @@ export default function AdminProductsPage() {
                   <div className="flex items-center gap-2">
                     <span>Show</span>
                     <select
-                      className="h-8 rounded-lg border border-border bg-white px-2 text-xs text-ink"
+                      className="h-8 rounded-lg border border-border bg-card px-2 text-xs text-ink"
                       value={pageSize}
                       onChange={(event) => setPageSize(Number(event.target.value))}
                       aria-label="Products per page"
@@ -1719,7 +1719,7 @@ export default function AdminProductsPage() {
                       onClick={() => setPage(pageNumber)}
                       className={`grid h-8 w-8 place-items-center rounded-lg ${
                         pageNumber === currentPage
-                          ? "bg-[#1f1f1f] text-white"
+                          ? "bg-ink text-canvas"
                           : "hover:bg-secondary"
                       }`}
                       aria-label={`Page ${pageNumber}`}
@@ -1757,7 +1757,7 @@ export default function AdminProductsPage() {
           <div className="flex-1 overflow-y-auto px-4 py-4">
             <ProductFiltersPanel {...filterPanelProps} embedded />
           </div>
-          <SheetFooter className="border-t border-border bg-white p-4 sm:flex-col sm:space-x-0">
+          <SheetFooter className="border-t border-border bg-canvas-raised p-4 sm:flex-col sm:space-x-0">
             <Button type="button" className="w-full" onClick={() => setFiltersOpen(false)}>
               Show {filteredProducts.length} result{filteredProducts.length === 1 ? "" : "s"}
             </Button>

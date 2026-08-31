@@ -12,6 +12,7 @@ import { SellOfflineBanner } from "@/components/sell/sell-offline-banner";
 import { usePosOffline } from "@/lib/pos-offline/context";
 import { registerPosServiceWorker } from "@/lib/pos-offline/register-sw";
 import { useSellCart } from "@/lib/sell-cart";
+import { ModeToggle } from "@/components/mode-toggle";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -67,10 +68,10 @@ function SellShellInner({ children }: { children: ReactNode }) {
       !navigator.onLine &&
       Boolean(getToken());
     return (
-      <div className="flex min-h-dvh flex-col items-center justify-center gap-2 bg-zinc-100 px-6 text-center text-sm text-zinc-500">
+      <div className="flex min-h-dvh flex-col items-center justify-center gap-2 bg-canvas px-6 text-center text-sm text-ink-soft">
         <p>{offlineWaiting ? "Offline" : "Loading…"}</p>
         {offlineWaiting ? (
-          <p className="max-w-sm text-xs text-zinc-400">
+          <p className="max-w-sm text-xs text-ink-soft">
             Open Sell once while online so your session and catalog can be cached for offline use.
           </p>
         ) : null}
@@ -79,13 +80,13 @@ function SellShellInner({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="flex min-h-dvh w-full flex-col bg-zinc-100 text-zinc-900">
-      <header className="sticky top-0 z-20 border-b border-zinc-200 bg-white/95 backdrop-blur">
+    <div className="flex min-h-dvh w-full flex-col bg-canvas text-ink">
+      <header className="sticky top-0 z-20 border-b border-border bg-canvas-raised/95 backdrop-blur">
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-6 lg:px-8">
           <div className="flex items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-3">
               {storeLogo ? (
-                <div className="relative size-10 shrink-0 overflow-hidden rounded-xl bg-zinc-100 ring-1 ring-zinc-200">
+                <div className="relative size-10 shrink-0 overflow-hidden rounded-xl bg-muted ring-1 ring-border">
                   <Image
                     src={storeLogo}
                     alt=""
@@ -103,7 +104,7 @@ function SellShellInner({ children }: { children: ReactNode }) {
                     <span className="ml-2 text-xs font-normal text-amber-700">Offline</span>
                   ) : null}
                 </p>
-                <p className="truncate text-xs text-zinc-500 sm:text-sm">{user.name}</p>
+                <p className="truncate text-xs text-ink-soft sm:text-sm">{user.name}</p>
               </div>
             </div>
             <div className="flex items-center gap-1 sm:gap-2">
@@ -113,7 +114,7 @@ function SellShellInner({ children }: { children: ReactNode }) {
                     value={locationId ?? undefined}
                     onValueChange={(value) => setLocationId(value)}
                   >
-                    <SelectTrigger className="h-10 bg-white">
+                    <SelectTrigger className="h-10 bg-card">
                       <SelectValue placeholder="Select location" />
                     </SelectTrigger>
                     <SelectContent>
@@ -130,7 +131,7 @@ function SellShellInner({ children }: { children: ReactNode }) {
                 variant="ghost"
                 size="icon"
                 asChild
-                className={pathname.startsWith("/sell/sales") ? "bg-zinc-100" : ""}
+                className={pathname.startsWith("/sell/sales") ? "bg-muted" : ""}
               >
                 <Link href="/sell/sales" aria-label="Today's sales">
                   <History className="size-5" />
@@ -140,7 +141,7 @@ function SellShellInner({ children }: { children: ReactNode }) {
                 variant="ghost"
                 size="icon"
                 asChild
-                className={pathname === "/sell" ? "bg-zinc-100" : ""}
+                className={pathname === "/sell" ? "bg-muted" : ""}
               >
                 <Link href="/sell" aria-label="Sell">
                   <ShoppingBag className="size-5" />
@@ -150,12 +151,13 @@ function SellShellInner({ children }: { children: ReactNode }) {
                 variant="ghost"
                 size="icon"
                 asChild
-                className={pathname === "/sell/settings" ? "bg-zinc-100" : ""}
+                className={pathname === "/sell/settings" ? "bg-muted" : ""}
               >
                 <Link href="/sell/settings" aria-label="Settings">
                   <Settings className="size-5" />
                 </Link>
               </Button>
+              <ModeToggle />
               <Button
                 variant="ghost"
                 size="icon"
@@ -175,7 +177,7 @@ function SellShellInner({ children }: { children: ReactNode }) {
                 value={locationId ?? undefined}
                 onValueChange={(value) => setLocationId(value)}
               >
-                <SelectTrigger className="h-10 w-full bg-white">
+                <SelectTrigger className="h-10 w-full bg-card">
                   <SelectValue placeholder="Select location" />
                 </SelectTrigger>
                 <SelectContent>

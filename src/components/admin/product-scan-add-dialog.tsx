@@ -397,7 +397,7 @@ export function ProductScanAddDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex items-center gap-2 text-xs font-medium text-zinc-500">
+        <div className="flex items-center gap-2 text-xs font-medium text-ink-soft">
           <span className={phase === "scan" ? "text-ink" : undefined}>1. Scan</span>
           <span aria-hidden>→</span>
           <span className={phase === "photo" || phase === "review" ? "text-ink" : undefined}>
@@ -437,11 +437,11 @@ export function ProductScanAddDialog({
         {cameraError ? (
           <p className="text-sm text-amber-700">{cameraError}</p>
         ) : (
-          <p className="text-xs text-zinc-500">{hint}</p>
+          <p className="text-xs text-ink-soft">{hint}</p>
         )}
 
         {pendingCode ? (
-          <p className="rounded-lg bg-zinc-100 px-3 py-2 text-xs text-zinc-600">
+          <p className="rounded-lg bg-muted px-3 py-2 text-xs text-ink-soft">
             Barcode <span className="font-semibold text-ink">{pendingCode}</span>
           </p>
         ) : null}
@@ -537,7 +537,7 @@ export function ProductScanAddDialog({
         ) : null}
 
         {sessionProducts.length > 0 ? (
-          <div className="space-y-2 border-t border-zinc-200 pt-3">
+          <div className="space-y-2 border-t border-border pt-3">
             <p className="text-sm font-medium">
               Added this session · {sessionProducts.length}
             </p>
@@ -548,9 +548,9 @@ export function ProductScanAddDialog({
                   type="button"
                   disabled={busy}
                   onClick={() => onEditProduct?.(product)}
-                  className="flex w-full items-center gap-3 rounded-xl bg-zinc-50 p-2 text-left ring-1 ring-zinc-200 disabled:opacity-50"
+                  className="flex w-full items-center gap-3 rounded-xl bg-muted/60 p-2 text-left ring-1 ring-border disabled:opacity-50"
                 >
-                  <div className="relative size-12 shrink-0 overflow-hidden rounded-lg bg-zinc-200">
+                  <div className="relative size-12 shrink-0 overflow-hidden rounded-lg bg-muted">
                     {product.image_url ? (
                       <Image
                         src={product.image_url}
@@ -561,14 +561,14 @@ export function ProductScanAddDialog({
                         unoptimized
                       />
                     ) : (
-                      <div className="grid size-full place-items-center text-zinc-400">
+                      <div className="grid size-full place-items-center text-ink-soft">
                         <Archive className="size-4" />
                       </div>
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium">{product.name}</p>
-                    <p className="text-xs text-zinc-500">
+                    <p className="text-xs text-ink-soft">
                       {product.barcode || product.sku || "No code"} · Archived
                     </p>
                   </div>

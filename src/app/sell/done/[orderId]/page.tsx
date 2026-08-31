@@ -57,7 +57,7 @@ export default function SellDonePage() {
 
   if (loading || (!order && !pending)) {
     return (
-      <div className="flex flex-1 items-center justify-center text-sm text-zinc-500">
+      <div className="flex flex-1 items-center justify-center text-sm text-ink-soft">
         Loading receipt…
       </div>
     );
@@ -133,7 +133,7 @@ export default function SellDonePage() {
       <h1 className="mt-4 text-center text-2xl font-semibold tracking-tight sm:text-3xl">
         Sale complete
       </h1>
-      <p className="mt-1 text-center text-sm text-zinc-500">{receipt.order_number}</p>
+      <p className="mt-1 text-center text-sm text-ink-soft">{receipt.order_number}</p>
       {receipt.offline ? (
         <p className="mt-2 flex items-center justify-center gap-1.5 text-center text-xs text-amber-700">
           <CloudOff className="size-3.5" />
@@ -146,7 +146,7 @@ export default function SellDonePage() {
       <p className="mt-4 text-center text-3xl font-semibold sm:text-4xl">
         {formatMoney(receipt.total_amount, receipt.currency)}
       </p>
-      <p className="mt-1 text-center text-sm capitalize text-zinc-500">
+      <p className="mt-1 text-center text-sm capitalize text-ink-soft">
         {(receipt.payment_method || "paid").replace("_", " ")}
         {receipt.payment_method === "cash" && receipt.amount_tendered != null
           ? ` · Change ${formatMoney(

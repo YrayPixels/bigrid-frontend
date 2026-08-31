@@ -55,11 +55,11 @@ export function AdminStatCard({
           </p>
           <p className="mt-1 text-[11px] font-medium leading-snug text-ink-soft sm:text-sm">{label}</p>
         </div>
-        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white shadow-sm sm:hidden">
+        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-canvas-raised shadow-sm sm:hidden">
           {icon}
         </div>
       </div>
-      <div className="hidden h-12 w-12 shrink-0 place-items-center rounded-xl bg-white shadow-sm sm:grid">
+      <div className="hidden h-12 w-12 shrink-0 place-items-center rounded-xl bg-canvas-raised shadow-sm sm:grid">
         {icon}
       </div>
     </div>

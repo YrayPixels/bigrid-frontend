@@ -120,13 +120,13 @@ function CartPanel({
     <div className="flex h-full min-h-0 flex-col">
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto">
         {lines.length === 0 ? (
-          <p className="py-10 text-center text-sm text-zinc-500">
+          <p className="py-10 text-center text-sm text-ink-soft">
             Tap products to add them to the cart.
           </p>
         ) : (
           lines.map((line) => (
             <div key={line.key} className="flex gap-3">
-              <div className="relative size-14 shrink-0 overflow-hidden rounded-xl bg-zinc-100 ring-1 ring-zinc-200">
+              <div className="relative size-14 shrink-0 overflow-hidden rounded-xl bg-muted ring-1 ring-border">
                 {line.image_url ? (
                   <Image
                     src={line.image_url}
@@ -137,7 +137,7 @@ function CartPanel({
                     unoptimized
                   />
                 ) : (
-                  <div className="flex h-full items-center justify-center text-[10px] text-zinc-400">
+                  <div className="flex h-full items-center justify-center text-[10px] text-ink-soft">
                     No image
                   </div>
                 )}
@@ -145,7 +145,7 @@ function CartPanel({
               <div className="min-w-0 flex-1">
                 <p className="font-medium leading-snug">{line.name}</p>
                 {Object.keys(line.selected_options).length > 0 ? (
-                  <p className="text-xs text-zinc-500">
+                  <p className="text-xs text-ink-soft">
                     {Object.entries(line.selected_options)
                       .map(([k, v]) => `${k}: ${v}`)
                       .join(" · ")}
@@ -176,7 +176,7 @@ function CartPanel({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="size-9 text-zinc-500"
+                  className="size-9 text-ink-soft"
                   onClick={() => removeLine(line.key)}
                 >
                   <Trash2 className="size-4" />
@@ -186,7 +186,7 @@ function CartPanel({
           ))
         )}
 
-        <div className="space-y-2 border-t border-zinc-200 pt-4">
+        <div className="space-y-2 border-t border-border pt-4">
           <Input
             placeholder="Customer name (optional)"
             value={customerName}
@@ -434,16 +434,16 @@ export default function SellPage() {
   return (
     <div className="relative flex flex-1 flex-col lg:flex-row lg:items-stretch lg:gap-0">
       <div className="flex min-w-0 flex-1 flex-col pb-28 lg:pb-0">
-        <div className="sticky top-[calc(3.75rem+env(safe-area-inset-top))] z-10 space-y-3 border-b border-zinc-200 bg-zinc-100/95 px-4 py-3 backdrop-blur sm:px-6 lg:top-[4.25rem] lg:px-8">
+        <div className="sticky top-[calc(3.75rem+env(safe-area-inset-top))] z-10 space-y-3 border-b border-border bg-canvas/95 px-4 py-3 backdrop-blur sm:px-6 lg:top-[4.25rem] lg:px-8">
           <div className="flex gap-2">
             <div className="relative min-w-0 flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-zinc-400" />
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-soft" />
               <Input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 onKeyDown={(e) => void onSearchKeyDown(e)}
                 placeholder="Search or scan SKU / barcode"
-                className="h-11 rounded-xl bg-white pl-9"
+                className="h-11 rounded-xl bg-card pl-9"
                 autoComplete="off"
               />
             </div>
@@ -464,7 +464,7 @@ export default function SellPage() {
                 type="button"
                 onClick={() => setCategoryId(null)}
                 className={`shrink-0 rounded-full px-3 py-1.5 text-sm ${
-                  !categoryId ? "bg-zinc-900 text-white" : "bg-white text-zinc-700 ring-1 ring-zinc-200"
+                  !categoryId ? "bg-ink text-canvas" : "bg-card text-ink-soft ring-1 ring-border"
                 }`}
               >
                 All
@@ -476,8 +476,8 @@ export default function SellPage() {
                   onClick={() => setCategoryId(category.id)}
                   className={`shrink-0 rounded-full px-3 py-1.5 text-sm ${
                     categoryId === category.id
-                      ? "bg-zinc-900 text-white"
-                      : "bg-white text-zinc-700 ring-1 ring-zinc-200"
+                      ? "bg-ink text-canvas"
+                      : "bg-card text-ink-soft ring-1 ring-border"
                   }`}
                 >
                   {category.name}
@@ -490,12 +490,12 @@ export default function SellPage() {
         <div className="grid grid-cols-2 gap-3 px-4 py-4 sm:grid-cols-3 sm:px-6 md:grid-cols-4 lg:grid-cols-3 lg:px-8 xl:grid-cols-4 2xl:grid-cols-5">
           {loading && products.length === 0
             ? Array.from({ length: 8 }).map((_, i) => (
-                <div key={i} className="h-40 animate-pulse rounded-2xl bg-zinc-200/70 sm:h-48" />
+                <div key={i} className="h-40 animate-pulse rounded-2xl bg-muted/70 sm:h-48" />
               ))
             : null}
           {!loading && products.length === 0 ? (
             <div className="col-span-full flex flex-col items-center gap-3 py-12 text-center">
-              <p className="text-sm text-zinc-500">
+              <p className="text-sm text-ink-soft">
                 {cacheEmpty
                   ? "No offline catalog yet. Connect once to download products."
                   : search.trim()
@@ -531,9 +531,9 @@ export default function SellPage() {
                 type="button"
                 disabled={outOfStock}
                 onClick={() => onTapProduct(product)}
-                className="flex flex-col overflow-hidden rounded-2xl bg-white text-left shadow-sm ring-1 ring-zinc-200 transition hover:ring-zinc-300 disabled:opacity-50"
+                className="flex flex-col overflow-hidden rounded-2xl bg-card text-left shadow-sm ring-1 ring-border transition hover:ring-border disabled:opacity-50"
               >
-                <div className="relative aspect-square bg-zinc-100">
+                <div className="relative aspect-square bg-muted">
                   {product.image_url ? (
                     <Image
                       src={product.image_url}
@@ -544,7 +544,7 @@ export default function SellPage() {
                       unoptimized
                     />
                   ) : (
-                    <div className="flex h-full items-center justify-center text-xs text-zinc-400">
+                    <div className="flex h-full items-center justify-center text-xs text-ink-soft">
                       No image
                     </div>
                   )}
@@ -554,7 +554,7 @@ export default function SellPage() {
                   <p className="text-sm font-semibold">
                     {formatMoney(product.effective_price, product.currency)}
                   </p>
-                  <p className="text-xs text-zinc-500">
+                  <p className="text-xs text-ink-soft">
                     {outOfStock
                       ? "Out of stock"
                       : product.stock_quantity === null
@@ -568,11 +568,11 @@ export default function SellPage() {
         </div>
       </div>
 
-      <aside className="hidden w-[22rem] shrink-0 border-l border-zinc-200 bg-white lg:flex xl:w-[26rem]">
+      <aside className="hidden w-[22rem] shrink-0 border-l border-border bg-card lg:flex xl:w-[26rem]">
         <div className="sticky top-[4.25rem] flex h-[calc(100dvh-4.25rem)] w-full flex-col p-5">
           <div className="mb-4 flex items-center justify-between gap-3">
             <h2 className="text-lg font-semibold tracking-tight">Cart</h2>
-            <p className="text-sm text-zinc-500">
+            <p className="text-sm text-ink-soft">
               {itemCount} item{itemCount === 1 ? "" : "s"}
             </p>
           </div>
@@ -585,7 +585,7 @@ export default function SellPage() {
           <button
             type="button"
             onClick={() => setCartOpen(true)}
-            className="mx-auto flex w-full max-w-lg items-center justify-between rounded-2xl bg-zinc-900 px-5 py-4 text-white shadow-lg"
+            className="mx-auto flex w-full max-w-lg items-center justify-between rounded-2xl bg-ink px-5 py-4 text-canvas shadow-lg"
           >
             <span className="text-sm font-medium">
               {itemCount} item{itemCount === 1 ? "" : "s"}
@@ -636,8 +636,8 @@ export default function SellPage() {
                             }
                             className={`rounded-full px-3 py-1.5 text-sm ${
                               active
-                                ? "bg-zinc-900 text-white"
-                                : "bg-zinc-100 text-zinc-800"
+                                ? "bg-ink text-canvas"
+                                : "bg-muted text-ink"
                             }`}
                           >
                             {option.value}

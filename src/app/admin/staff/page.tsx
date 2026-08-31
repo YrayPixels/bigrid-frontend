@@ -393,25 +393,26 @@ export default function StaffAdminPage() {
   };
 
   if (loading) {
-    return <div className="p-6 text-sm text-muted-foreground">Loading staff…</div>;
+    return <div className="bg-canvas p-6 text-sm text-ink-soft">Loading staff…</div>;
   }
 
   return (
-    <div className="w-full space-y-8 p-6">
+    <div className="w-full bg-canvas px-4 py-6 text-ink sm:px-6 lg:px-8">
+      <section className="space-y-8 overflow-hidden rounded-[28px] border border-border/70 bg-canvas-raised p-5 shadow-elevated sm:p-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Staff & locations</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <h1 className="font-display text-xl font-bold tracking-tight sm:text-2xl">Staff & locations</h1>
+        <p className="mt-1 text-sm text-ink-soft">
           Invite cashiers and managers to sell from their phones at{" "}
-          <span className="font-medium text-foreground">/sell</span>.
+          <span className="font-medium text-ink">/sell</span>.
         </p>
       </div>
 
-      <section className="space-y-4 rounded-xl border bg-card p-5">
+      <section className="space-y-4 rounded-xl border border-border bg-card p-5">
         <div>
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-soft">
             Locations
           </h2>
-          <p className="mt-1 text-xs text-muted-foreground">
+          <p className="mt-1 text-xs text-ink-soft">
             At checkout, the customer&apos;s Google Place (city/state/area) is matched to a
             location to set delivery fee and free shipping.
           </p>
@@ -423,7 +424,7 @@ export default function StaffAdminPage() {
             const editForm = editForms[location.id];
 
             return (
-              <li key={location.id} className="rounded-lg border bg-secondary/20">
+              <li key={location.id} className="rounded-lg border border-border bg-secondary/20">
                 <div className="flex flex-wrap items-start justify-between gap-3 px-3 py-3 text-sm">
                   <div className="min-w-0 space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
@@ -494,7 +495,7 @@ export default function StaffAdminPage() {
             );
           })}
         </ul>
-        <form onSubmit={addLocation} className="space-y-3 rounded-lg border border-dashed p-4">
+        <form onSubmit={addLocation} className="space-y-3 rounded-lg border border-dashed border-border p-4">
           <p className="text-sm font-medium">Add location</p>
           <LocationShippingFields
             idPrefix="new-location"
@@ -507,15 +508,15 @@ export default function StaffAdminPage() {
         </form>
       </section>
 
-      <section className="space-y-4 rounded-xl border bg-card p-5">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+      <section className="space-y-4 rounded-xl border border-border bg-card p-5">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-soft">
           Team
         </h2>
         {owner ? (
-          <div className="flex items-center justify-between rounded-lg border px-3 py-3 text-sm">
+          <div className="flex items-center justify-between rounded-lg border border-border px-3 py-3 text-sm">
             <div>
               <p className="font-medium">{owner.name}</p>
-              <p className="text-muted-foreground">{owner.email}</p>
+              <p className="text-ink-soft">{owner.email}</p>
             </div>
             <Badge>Owner</Badge>
           </div>
@@ -523,12 +524,12 @@ export default function StaffAdminPage() {
         {staff.map((member) => (
           <div
             key={member.id}
-            className="flex flex-wrap items-center justify-between gap-3 rounded-lg border px-3 py-3 text-sm"
+            className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border px-3 py-3 text-sm"
           >
             <div>
               <p className="font-medium">{member.name}</p>
-              <p className="text-muted-foreground">{member.email}</p>
-              <p className="mt-1 text-xs capitalize text-muted-foreground">
+              <p className="text-ink-soft">{member.email}</p>
+              <p className="mt-1 text-xs capitalize text-ink-soft">
                 {member.role}
                 {member.default_location_name ? ` · ${member.default_location_name}` : ""}
               </p>
@@ -544,12 +545,12 @@ export default function StaffAdminPage() {
           </div>
         ))}
         {staff.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No staff yet. Add a cashier below.</p>
+          <p className="text-sm text-ink-soft">No staff yet. Add a cashier below.</p>
         ) : null}
       </section>
 
-      <section className="rounded-xl border bg-card p-5">
-        <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+      <section className="rounded-xl border border-border bg-card p-5">
+        <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-ink-soft">
           Add staff
         </h2>
         <form onSubmit={onCreate} className="grid gap-3 sm:grid-cols-2">
@@ -599,6 +600,7 @@ export default function StaffAdminPage() {
             {submitting ? "Adding…" : "Add staff member"}
           </Button>
         </form>
+      </section>
       </section>
     </div>
   );
