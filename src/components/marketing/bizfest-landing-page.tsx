@@ -14,13 +14,10 @@ const PRIZES = [
   { place: "Next 10", amount: "₦100k each" },
 ] as const;
 
-const ELIGIBILITY_STEPS = [
-  { step: "01", title: "Create your account", body: "Sign up for Bizgrid — free to join." },
-  { step: "02", title: "Build your store", body: "Launch an online storefront in minutes." },
-  { step: "03", title: "Add 5+ products", body: "List what you already sell." },
-  { step: "04", title: "Complete your profile", body: "Tell customers who you are." },
-  { step: "05", title: "Publish your store", body: "Go live and share your link." },
-  { step: "06", title: "Make your first sale", body: "One transaction makes you official." },
+const REQUIREMENTS = [
+  "Create a free Bizgrid account and store",
+  "Add at least 5 products and complete your profile",
+  "Publish your store and make your first sale",
 ] as const;
 
 const AUDIENCE_TAGS = [
@@ -36,8 +33,8 @@ const AUDIENCE_TAGS = [
 ] as const;
 
 const NAV_LINKS = [
-  { href: "#prizes", label: "Prizes" },
-  { href: "#how", label: "How it works" },
+  { href: "#about", label: "About" },
+  { href: "#prizes-detail", label: "Prizes" },
   { href: "#finale", label: "Conference" },
 ] as const;
 
@@ -172,12 +169,17 @@ export function BizFestLandingPage() {
         .bizfest-float { animation: bizfest-float 4.5s ease-in-out infinite; }
         .bizfest-outline {
           color: transparent;
-          -webkit-text-stroke: 2.5px var(--ink);
+          -webkit-text-stroke: 1.75px var(--ink);
           paint-order: stroke fill;
         }
         @media (min-width: 640px) {
           .bizfest-outline {
             -webkit-text-stroke: 4px var(--ink);
+          }
+        }
+        @media (max-width: 639px) {
+          .bizfest-tag {
+            transform: none !important;
           }
         }
       `}</style>
@@ -187,15 +189,15 @@ export function BizFestLandingPage() {
 
       {/* Floating pill nav */}
       <header className="fixed inset-x-0 top-0 z-50 px-3 pt-3 sm:px-6 sm:pt-5">
-        <nav className="mx-auto flex max-w-5xl items-center justify-between gap-4 rounded-full border border-border/60 bg-canvas-raised px-4 py-2.5 shadow-soft sm:px-6 sm:py-3">
+        <nav className="mx-auto flex max-w-5xl items-center justify-between gap-2 rounded-full border border-border/60 bg-canvas-raised px-3 py-2 shadow-soft sm:gap-4 sm:px-6 sm:py-3">
           <Link
             href="/"
-            className="font-modern-sans flex shrink-0 items-center gap-2 text-sm font-bold tracking-tight text-ink sm:text-base"
+            className="font-modern-sans flex min-w-0 shrink items-center gap-2 text-sm font-bold tracking-tight text-ink sm:text-base"
           >
             <BrandChip
               label="BizFest 1.0"
-              className="inline-flex items-center gap-1.5"
-              labelClassName="tracking-tight"
+              className="inline-flex items-center gap-1 sm:gap-1.5"
+              labelClassName="tracking-tight truncate"
             />
           </Link>
           <div className="hidden items-center gap-7 text-sm font-medium text-ink-soft md:flex">
@@ -208,16 +210,16 @@ export function BizFestLandingPage() {
           <Link
             href={BIZFEST_SIGNUP_HREF}
             onClick={() => trackApplyClick("nav")}
-            className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-soft transition hover:opacity-90 sm:px-5"
+            className="shrink-0 rounded-full bg-primary px-3.5 py-2 text-sm font-semibold text-primary-foreground shadow-soft transition hover:opacity-90 sm:px-5"
           >
             Apply
           </Link>
         </nav>
       </header>
 
-      <main>
+      <main className="pb-20 sm:pb-0">
         <section className="relative flex min-h-[100svh] flex-col">
-          <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col items-center justify-center px-4 pb-28 pt-28 text-center sm:px-6 sm:pb-32 sm:pt-32">
+          <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col items-center justify-center px-4 pb-[11.5rem] pt-24 text-center sm:px-6 sm:pb-32 sm:pt-32">
             <div className="bizfest-rise inline-flex items-center rounded-full border border-border bg-canvas-raised px-3.5 py-1.5 shadow-soft">
               <BrandChip
                 label="BizFest 1.0"
@@ -225,20 +227,20 @@ export function BizFestLandingPage() {
               />
             </div>
 
-            <h1 className="bizfest-rise-2 font-modern-sans relative mt-6 w-full text-[3.35rem] leading-[0.88] font-bold tracking-[-0.04em] uppercase sm:mt-8 sm:text-[5.25rem] md:text-[6.5rem] lg:text-[8rem]">
+            <h1 className="bizfest-rise-2 font-modern-sans relative mt-5 w-full max-w-[20ch] text-[2.55rem] leading-[0.9] font-bold tracking-[-0.04em] uppercase sm:mt-8 sm:max-w-none sm:text-[5.25rem] md:text-[6.5rem] lg:text-[8rem]">
               <span className="block text-ink">Build. Sell.</span>
               <span className="relative mt-1 block">
                 <span className="bizfest-outline">Grow. Win.</span>
-                <GrowthMark className="bizfest-float pointer-events-none absolute top-1/2 right-[4%] h-24 w-[4.75rem] -translate-y-[62%] sm:right-[8%] sm:h-32 sm:w-28 md:right-[10%] md:h-40 md:w-36 lg:h-48 lg:w-40" />
+                <GrowthMark className="bizfest-float pointer-events-none absolute top-1/2 right-[2%] hidden h-24 w-[4.75rem] -translate-y-[62%] sm:right-[8%] sm:block sm:h-32 sm:w-28 md:right-[10%] md:h-40 md:w-36 lg:h-48 lg:w-40" />
               </span>
             </h1>
 
-            <p className="bizfest-rise-3 mx-auto mt-6 max-w-xl text-sm leading-relaxed text-ink-soft sm:mt-8 sm:text-base md:text-lg">
+            <p className="bizfest-rise-3 mx-auto mt-5 max-w-xl text-sm leading-relaxed text-ink-soft sm:mt-8 sm:text-base md:text-lg">
               Join BizFest — Nigeria&apos;s business growth festival for sellers ready to go online.
               Build on Bizgrid, compete on growth, and win from a ₦6,000,000 prize pool.
             </p>
 
-            <div className="bizfest-rise-4 mt-8 flex w-full max-w-md flex-col items-stretch gap-3 sm:mt-10 sm:max-w-none sm:flex-row sm:justify-center">
+            <div className="bizfest-rise-4 mt-7 flex w-full max-w-sm flex-col items-stretch gap-3 sm:mt-10 sm:max-w-none sm:flex-row sm:justify-center">
               <Link
                 href={BIZFEST_SIGNUP_HREF}
                 onClick={() => trackApplyClick("hero")}
@@ -248,27 +250,30 @@ export function BizFestLandingPage() {
                 <ArrowRight className="h-4 w-4" />
               </Link>
               <a
-                href="#how"
+                href="#about"
                 className="inline-flex h-12 items-center justify-center rounded-xl border border-ink bg-transparent px-8 text-sm font-semibold text-ink transition hover:bg-ink/5"
               >
-                How it works
+                Learn more
               </a>
             </div>
           </div>
 
           <div
             id="prizes"
-            className="absolute inset-x-0 bottom-16 z-20 bg-ink px-4 py-4 sm:bottom-0 sm:px-6 sm:py-5"
+            className="absolute inset-x-0 bottom-16 z-20 bg-ink px-3 py-3.5 sm:bottom-0 sm:px-6 sm:py-5"
           >
-            <div className="mx-auto flex max-w-5xl flex-col items-center justify-between gap-4 sm:flex-row sm:gap-8">
-              <p className="font-modern-sans text-xs font-semibold tracking-[0.18em] text-primary-foreground/50 uppercase">
+            <div className="mx-auto flex max-w-5xl flex-col items-center gap-3 sm:flex-row sm:justify-between sm:gap-8">
+              <p className="font-modern-sans text-[10px] font-semibold tracking-[0.16em] text-primary-foreground/50 uppercase sm:text-xs sm:tracking-[0.18em]">
                 ₦6,000,000 prize pool
               </p>
-              <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 sm:gap-x-8">
+              <div className="grid w-full grid-cols-2 gap-x-4 gap-y-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:justify-center sm:gap-x-8">
                 {PRIZES.map((prize) => (
-                  <div key={prize.place} className="flex items-baseline gap-2 text-primary-foreground">
-                    <span className="font-modern-sans text-base font-bold sm:text-xl">{prize.amount}</span>
-                    <span className="text-xs text-primary-foreground/45">{prize.place}</span>
+                  <div
+                    key={prize.place}
+                    className="flex items-baseline justify-center gap-1.5 text-primary-foreground sm:justify-start sm:gap-2"
+                  >
+                    <span className="font-modern-sans text-sm font-bold sm:text-xl">{prize.amount}</span>
+                    <span className="text-[10px] text-primary-foreground/45 sm:text-xs">{prize.place}</span>
                   </div>
                 ))}
               </div>
@@ -277,33 +282,32 @@ export function BizFestLandingPage() {
           </div>
         </section>
 
-        <section className="relative bg-canvas px-3 py-16 sm:px-6 sm:py-20 lg:py-24">
+        <section className="relative bg-canvas px-3 pt-16 pb-8 sm:px-6 sm:pt-24 sm:pb-14 lg:pt-28 lg:pb-16">
           <div className="relative mx-auto max-w-[90rem]">
-            {/* Brand panel — overflow visible so the photo can break the frame */}
-            <div className="relative overflow-visible rounded-[1.75rem] bg-ink sm:rounded-[2.75rem]">
-              <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[1.75rem] sm:rounded-[2.75rem]">
+            <div className="relative overflow-visible rounded-[1.5rem] bg-ink sm:rounded-[2.75rem]">
+              <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[1.5rem] sm:rounded-[2.75rem]">
                 <div className="absolute -right-16 top-0 h-72 w-72 rounded-full bg-primary/25 blur-3xl" />
                 <div className="absolute -bottom-20 left-1/4 h-64 w-64 rounded-full bg-accent/20 blur-3xl" />
               </div>
 
               <div className="relative grid lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-center">
-                {/* Cutout photo — overlaps the panel like the reference */}
-                <div className="relative z-10 mx-auto w-[min(100%,22rem)] px-4 pt-6 sm:w-[min(100%,26rem)] lg:mx-0 lg:-my-14 lg:w-auto lg:max-w-none lg:self-stretch lg:px-0 lg:pt-0">
-                  <div className="relative aspect-[3/4] w-full lg:ml-6 lg:h-[min(36rem,70vh)] lg:w-auto lg:max-w-[28rem] lg:aspect-auto xl:ml-10 xl:max-w-[32rem]">
-                    <div className="absolute inset-0 overflow-hidden rounded-[1.5rem] shadow-[0_24px_60px_-20px_rgba(0,0,0,0.55)] lg:rounded-[2rem]">
-                      <Image
-                        src="/landing/shop-leather.jpg"
-                        alt="Seller ready to take their business online with BizFest"
-                        fill
-                        className="object-cover object-[center_18%]"
-                        sizes="(max-width: 1024px) 90vw, 32rem"
-                      />
-                    </div>
+                {/* Cutout — smaller on mobile, pops on desktop */}
+                <div className="relative z-10 mx-auto -mt-8 flex w-full max-w-[14rem] items-end justify-center px-2 sm:-mt-10 sm:max-w-[18rem] lg:mx-0 lg:-mt-20 lg:mb-0 lg:max-w-[30rem] lg:justify-start lg:self-end lg:px-0 xl:max-w-[34rem]">
+                  <div className="relative aspect-[1254/1791] w-full lg:translate-y-1">
+                    <Image
+                      src="/landing/bizfest-who.png"
+                      alt="Seller shopping and selling online with BizFest"
+                      width={1254}
+                      height={1791}
+                      quality={95}
+                      className="h-auto w-full object-contain drop-shadow-[0_28px_50px_rgba(0,0,0,0.45)]"
+                      sizes="(max-width: 1024px) 56vw, 34rem"
+                      priority
+                    />
                   </div>
                 </div>
 
-                {/* Copy + sticker tags */}
-                <div className="relative z-10 px-6 pb-12 pt-8 sm:px-10 sm:pb-16 lg:py-16 lg:pr-16 lg:pl-6 xl:pr-20">
+                <div className="relative z-10 px-5 pb-8 pt-5 text-center sm:px-10 sm:pb-12 sm:pt-8 sm:text-left lg:py-16 lg:pr-16 lg:pl-6 lg:text-left xl:pr-20">
                   <div className="inline-flex items-center rounded-full border border-primary-foreground/30 px-3.5 py-1.5">
                     <BrandChip
                       label="Who it's for"
@@ -311,20 +315,20 @@ export function BizFestLandingPage() {
                     />
                   </div>
 
-                  <h2 className="font-modern-sans mt-5 max-w-[12ch] text-[2.75rem] leading-[0.95] font-bold tracking-tight text-primary-foreground sm:mt-6 sm:text-5xl md:text-6xl lg:text-[4.5rem]">
+                  <h2 className="font-modern-sans mx-auto mt-4 max-w-[14ch] text-[2.15rem] leading-[0.98] font-bold tracking-tight text-primary-foreground sm:mx-0 sm:mt-6 sm:text-5xl md:text-6xl lg:text-[4.5rem]">
                     Who is BizFest for?
                   </h2>
 
-                  <p className="mt-4 max-w-md text-sm leading-relaxed text-primary-foreground/75 sm:mt-5 sm:text-base md:text-lg">
+                  <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-primary-foreground/75 sm:mx-0 sm:mt-5 sm:text-base md:text-lg">
                     Already selling on WhatsApp, Instagram, or in person — but don&apos;t have a
                     proper online store yet? That&apos;s your seat at BizFest.
                   </p>
 
-                  <ul className="mt-8 flex max-w-xl flex-wrap content-start gap-x-3 gap-y-4 sm:mt-10 sm:gap-x-4 sm:gap-y-5">
+                  <ul className="mt-7 flex max-w-xl flex-wrap content-start justify-center gap-x-2.5 gap-y-3 sm:mt-10 sm:justify-start sm:gap-x-4 sm:gap-y-5">
                     {AUDIENCE_TAGS.map((tag) => (
                       <li
                         key={tag.label}
-                        className="rounded-2xl bg-canvas-raised px-4 py-2.5 text-sm font-semibold text-ink shadow-[0_8px_24px_-12px_rgba(0,0,0,0.45)] sm:px-5 sm:py-3 sm:text-[15px]"
+                        className="bizfest-tag rounded-2xl bg-canvas-raised px-3.5 py-2 text-xs font-semibold text-ink shadow-[0_8px_24px_-12px_rgba(0,0,0,0.45)] sm:px-5 sm:py-3 sm:text-[15px]"
                         style={{
                           transform: `translate(${tag.x}, ${tag.y}) rotate(${tag.rotate})`,
                         }}
@@ -339,52 +343,89 @@ export function BizFestLandingPage() {
           </div>
         </section>
 
-        <section id="how" className="scroll-mt-24 border-t border-border bg-canvas px-4 py-16 sm:px-6 sm:py-24">
+        <section id="about" className="scroll-mt-24 border-t border-border bg-canvas px-4 py-14 sm:px-6 sm:py-24">
           <div className="mx-auto max-w-5xl">
             <div className="mx-auto max-w-2xl text-center">
               <p className="font-modern-sans text-[11px] font-semibold tracking-[0.2em] text-primary uppercase">
-                How it works
+                About BizFest
               </p>
-              <h2 className="font-modern-sans mt-3 text-3xl font-bold tracking-tight text-ink sm:text-4xl">
-                Six steps to activate
+              <h2 className="font-modern-sans mt-3 text-[1.75rem] font-bold tracking-tight text-ink sm:text-4xl">
+                A growth festival for sellers going online
               </h2>
-              <p className="mt-3 text-sm text-ink-soft sm:text-base">
-                Registration isn&apos;t enough. Complete every step to become an official BizFest
-                participant.
+              <p className="mt-4 text-sm leading-relaxed text-ink-soft sm:text-base">
+                BizFest helps Nigerian small businesses that already sell — on WhatsApp, Instagram,
+                or in person — build a proper online store on Bizgrid, grow real sales, and compete
+                for funding. Free to join. Powered by Bizgrid.
               </p>
             </div>
 
-            <ol className="mt-12 grid gap-x-10 gap-y-8 sm:grid-cols-2 lg:grid-cols-3">
-              {ELIGIBILITY_STEPS.map((item) => (
-                <li key={item.step} className="border-t border-border pt-4">
-                  <span className="font-modern-sans text-xs font-bold tracking-wider text-primary">
-                    {item.step}
-                  </span>
-                  <h3 className="font-modern-sans mt-2 text-lg font-semibold text-ink">{item.title}</h3>
-                  <p className="mt-1 text-sm text-ink-soft">{item.body}</p>
-                </li>
-              ))}
-            </ol>
+            <div id="prizes-detail" className="scroll-mt-24 mt-12 sm:mt-16">
+              <p className="text-center font-modern-sans text-[11px] font-semibold tracking-[0.2em] text-primary uppercase">
+                Prize pool
+              </p>
+              <p className="font-modern-sans mt-2 text-center text-4xl font-bold tracking-tight text-ink sm:text-5xl md:text-6xl">
+                ₦6,000,000
+              </p>
 
-            <div className="mt-12 text-center">
+              <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 sm:gap-4">
+                {PRIZES.map((prize) => (
+                  <div
+                    key={prize.place}
+                    className="border-t-2 border-primary bg-canvas-raised px-4 py-5 text-center sm:px-5 sm:py-6"
+                  >
+                    <p className="font-modern-sans text-2xl font-bold tracking-tight text-ink sm:text-3xl">
+                      {prize.amount}
+                    </p>
+                    <p className="mt-1 text-xs font-medium tracking-wide text-ink-soft uppercase sm:text-sm">
+                      {prize.place}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="mx-auto mt-12 max-w-xl sm:mt-16">
+              <p className="text-center font-modern-sans text-[11px] font-semibold tracking-[0.2em] text-primary uppercase">
+                To qualify
+              </p>
+              <h3 className="font-modern-sans mt-2 text-center text-xl font-bold text-ink sm:text-2xl">
+                Simple requirements
+              </h3>
+              <ul className="mt-6 space-y-3">
+                {REQUIREMENTS.map((item) => (
+                  <li
+                    key={item}
+                    className="flex items-start gap-3 border-b border-border pb-3 text-sm text-ink last:border-b-0 sm:text-base"
+                  >
+                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-hidden />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-4 text-center text-xs text-ink-soft sm:text-sm">
+                Registration alone isn&apos;t enough — you need an activated store with a real sale.
+              </p>
+            </div>
+
+            <div className="mt-10 text-center sm:mt-12">
               <Link
                 href={BIZFEST_SIGNUP_HREF}
                 onClick={() => trackApplyClick("eligibility")}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-primary px-6 text-sm font-semibold text-primary-foreground transition hover:opacity-90"
+                className="inline-flex h-11 w-full max-w-xs items-center justify-center gap-2 rounded-xl bg-primary px-6 text-sm font-semibold text-primary-foreground transition hover:opacity-90 sm:w-auto"
               >
-                Start with step 01
+                Apply for BizFest
                 <ArrowRight className="h-4 w-4" />
               </Link>
             </div>
           </div>
         </section>
 
-        <section id="finale" className="scroll-mt-24 bg-ink px-4 py-16 text-primary-foreground sm:px-6 sm:py-24">
+        <section id="finale" className="scroll-mt-24 bg-ink px-4 py-14 text-primary-foreground sm:px-6 sm:py-24">
           <div className="mx-auto max-w-2xl text-center">
             <p className="font-modern-sans text-[11px] font-semibold tracking-[0.2em] text-accent uppercase">
               The grand finale
             </p>
-            <h2 className="font-modern-sans mt-3 text-3xl font-bold tracking-tight sm:text-4xl">
+            <h2 className="font-modern-sans mt-3 text-[1.75rem] font-bold tracking-tight sm:text-4xl">
               BizFest Conference &amp; Expo
             </h2>
             <p className="mt-4 text-sm leading-relaxed text-primary-foreground/60 sm:text-base">
@@ -394,7 +435,7 @@ export function BizFestLandingPage() {
             <Link
               href={BIZFEST_SIGNUP_HREF}
               onClick={() => trackApplyClick("footer")}
-              className="mt-8 inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-primary px-8 text-sm font-semibold text-primary-foreground shadow-glow transition hover:opacity-90"
+              className="mt-8 inline-flex h-12 w-full max-w-xs items-center justify-center gap-2 rounded-xl bg-primary px-8 text-sm font-semibold text-primary-foreground shadow-glow transition hover:opacity-90 sm:w-auto"
             >
               Apply for BizFest
               <ArrowRight className="h-4 w-4" />

@@ -237,6 +237,31 @@ export const storefrontApi = {
     );
   },
 
+  async submitBizfestApplication(body: {
+    owner_name: string;
+    business_name: string;
+    email: string;
+    phone: string;
+    category: string;
+    city: string;
+    what_you_sell: string;
+    sell_channels: string;
+    unique_value: string;
+    online_presence_url?: string;
+    how_heard: string;
+    team_type: "solo" | "team";
+    utm_source?: string;
+    utm_medium?: string;
+    utm_campaign?: string;
+    programme?: string;
+  }) {
+    return publicWrite<{
+      message: string;
+      success?: boolean;
+      data?: { id: number; has_store: boolean };
+    }>(`${STOREHAUSE_API_PREFIX}/public/bizfest/applications`, body);
+  },
+
   async submitContact(slug: string, body: StoreContactInquiryInput): Promise<{ message: string }> {
     if (USE_MOCKS) return mockApi.submitContact(slug, body);
     return publicWrite<{ message: string }>(
