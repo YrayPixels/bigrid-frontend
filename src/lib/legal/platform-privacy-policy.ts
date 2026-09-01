@@ -58,7 +58,7 @@ Our service providers are permitted to use your information only as needed to pe
     },
     {
       heading: "Your rights and choices",
-      body: `Depending on your location, you may have rights to access, correct, delete, or restrict processing of your personal information, or to object to certain processing. You may update account details in your admin settings or contact us to make a request.
+      body: `Depending on your location, you may have rights to access, correct, delete, or restrict processing of your personal information, or to object to certain processing. You may update account details in your admin settings or submit a data deletion request at bizgrid.shop/delete-date.
 
 You can opt out of non-essential marketing emails by using the unsubscribe link in those messages.`,
     },

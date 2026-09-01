@@ -353,6 +353,11 @@ export function LandingPage() {
                     Privacy policy
                   </Link>
                 </li>
+                <li>
+                  <Link href="/delete-date" className="transition-colors hover:text-primary">
+                    Delete your data
+                  </Link>
+                </li>
               </ul>
             </div>
           </div>
