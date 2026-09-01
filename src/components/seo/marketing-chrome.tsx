@@ -100,6 +100,7 @@ export function MarketingChrome({
                 { href: "mailto:support@bizgrid.ai", label: "Contact" },
                 { href: "/terms", label: "Terms" },
                 { href: "/privacy", label: "Privacy" },
+                { href: "/delete-date", label: "Delete data" },
               ]}
             />
           </div>

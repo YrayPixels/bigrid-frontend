@@ -41,7 +41,8 @@ function handleGrantsHost(request: NextRequest): NextResponse | null {
     pathname.startsWith("/signup") ||
     pathname.startsWith("/login") ||
     pathname.startsWith("/terms") ||
-    pathname.startsWith("/privacy")
+    pathname.startsWith("/privacy") ||
+    pathname.startsWith("/delete-date")
   ) {
     return NextResponse.redirect(`${getPlatformOrigin(request)}${pathname}${search}`);
   }

@@ -46,6 +46,7 @@ export const PLATFORM_PUBLIC_PATHS = [
   "/login",
   "/signup",
   "/privacy",
+  "/delete-date",
   "/terms",
   "/stores",
   "/academy",
@@ -62,6 +63,7 @@ export const STOREFRONT_STATIC_PATHS = [
   "/contact",
   "/faq",
   "/privacy-policy",
+  "/delete-date",
 ] as const;
 
 export function resolveMetadataAssetUrl(baseUrl: string, url: string): string {

@@ -469,6 +469,7 @@ export const STOREFRONT_NAV_ITEMS = [
 
 export const STOREFRONT_FOOTER_LINKS = [
   { href: "/privacy-policy", label: "Privacy policy" },
+  { href: "/delete-date", label: "Delete your data" },
   { href: "/contact", label: "Contact" },
   { href: "/faq", label: "FAQ" },
 ] as const;
