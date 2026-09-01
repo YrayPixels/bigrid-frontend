@@ -263,6 +263,43 @@ export const storefrontApi = {
     }>(`${STOREHAUSE_API_PREFIX}/public/bizfest/applications`, body);
   },
 
+  async submitBizfestPartnerInquiry(body: {
+    inquiry_type: "sponsor" | "partner";
+    company_name: string;
+    contact_name: string;
+    email: string;
+    phone: string;
+    tier_interest?: string;
+    interests?: ("sponsorship" | "expo_booth" | "exhibition_space")[];
+    booth_package?: string;
+    space_package?: string;
+    booth_quantity?: number;
+    message?: string;
+    utm_source?: string;
+    utm_medium?: string;
+    utm_campaign?: string;
+    programme?: string;
+  }) {
+    return publicWrite<{
+      message: string;
+      success?: boolean;
+      data?: { id: number };
+    }>(`${STOREHAUSE_API_PREFIX}/public/bizfest/partner-inquiries`, body);
+  },
+
+  async listBizfestPartners(programme = "bizfest-1") {
+    return publicHttpFresh<{
+      success: boolean;
+      data: Array<{
+        id: number;
+        name: string;
+        label: string | null;
+        logo_url: string | null;
+        website_url: string | null;
+      }>;
+    }>(`${STOREHAUSE_API_PREFIX}/public/bizfest/partners?programme=${encodeURIComponent(programme)}`);
+  },
+
   async submitContact(slug: string, body: StoreContactInquiryInput): Promise<{ message: string }> {
     if (USE_MOCKS) return mockApi.submitContact(slug, body);
     return publicWrite<{ message: string }>(

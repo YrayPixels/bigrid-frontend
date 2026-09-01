@@ -2,10 +2,16 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { storefrontApi } from "@/lib/api/storefront";
 import { ArrowRight, ShoppingBag } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { BIZFEST_SIGNUP_HREF } from "@/lib/marketing/bizfest-signup";
+import {
+  BIZFEST_FOUNDING_PARTNER_PLACEHOLDERS,
+  BIZFEST_PARTNERS_HREF,
+  BIZFEST_SPONSORS_HREF,
+  BIZFEST_SIGNUP_HREF,
+} from "@/lib/marketing/bizfest-signup";
 import { trackPlatformEvent } from "@/lib/analytics/platform-events";
 
 const PRIZES = [
@@ -36,6 +42,7 @@ const AUDIENCE_TAGS = [
 const NAV_LINKS = [
   { href: "#about", label: "About" },
   { href: "#prizes-detail", label: "Prizes" },
+  { href: "#partners", label: "Partners" },
   { href: "#finale", label: "Conference" },
 ] as const;
 
@@ -147,10 +154,119 @@ function GrowthMark({ className }: { className?: string }) {
   );
 }
 
+type PartnerMarqueeItem =
+  | {
+      kind: "partner";
+      id: number;
+      name: string;
+      label: string | null;
+      logo_url: string | null;
+      website_url: string | null;
+    }
+  | { kind: "placeholder"; label: string };
+
+function buildPartnerMarqueeItems(
+  partners: Array<{
+    id: number;
+    name: string;
+    label: string | null;
+    logo_url: string | null;
+    website_url: string | null;
+  }>,
+): PartnerMarqueeItem[] {
+  if (partners.length === 0) {
+    return BIZFEST_FOUNDING_PARTNER_PLACEHOLDERS.map((label) => ({ kind: "placeholder", label }));
+  }
+
+  const items: PartnerMarqueeItem[] = partners.map((partner) => ({
+    kind: "partner",
+    ...partner,
+  }));
+
+  while (items.length < 6) {
+    items.push(
+      ...partners.map((partner) => ({
+        kind: "partner" as const,
+        ...partner,
+      })),
+    );
+  }
+
+  return items;
+}
+
+function PartnerSlotCard({ item }: { item: PartnerMarqueeItem }) {
+  if (item.kind === "partner") {
+    const inner = (
+      <div
+        className="flex h-[5.5rem] w-[9.5rem] shrink-0 flex-col items-center justify-center rounded-2xl border border-border bg-canvas px-3 py-3 text-center sm:w-[10.5rem]"
+      >
+        {item.logo_url ? (
+          <img
+            src={item.logo_url}
+            alt={item.name}
+            className="h-8 max-w-full object-contain sm:h-9"
+          />
+        ) : (
+          <span className="font-modern-sans text-sm font-bold leading-tight text-ink">{item.name}</span>
+        )}
+        {item.label ? (
+          <span className="mt-1.5 text-[10px] font-medium text-ink-soft sm:text-xs">{item.label}</span>
+        ) : null}
+      </div>
+    );
+
+    if (item.website_url) {
+      return (
+        <a
+          href={item.website_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="transition hover:opacity-80"
+        >
+          {inner}
+        </a>
+      );
+    }
+
+    return inner;
+  }
+
+  return (
+    <div
+      className="flex h-[5.5rem] w-[9.5rem] shrink-0 flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-canvas px-3 py-4 text-center sm:w-[10.5rem]"
+    >
+      <span className="font-modern-sans text-[10px] font-semibold tracking-[0.14em] text-ink-soft/70 uppercase sm:text-[11px]">
+        Partner slot
+      </span>
+      <span className="mt-1.5 text-xs font-medium text-ink-soft sm:text-sm">{item.label}</span>
+    </div>
+  );
+}
+
 export function BizFestLandingPage() {
+  const [marqueeItems, setMarqueeItems] = useState<PartnerMarqueeItem[]>(() =>
+    buildPartnerMarqueeItems([]),
+  );
+
   useEffect(() => {
     trackPlatformEvent("bizfest_landing_viewed", { source: "grants" });
+    storefrontApi
+      .listBizfestPartners()
+      .then((response) => {
+        if (response?.data) {
+          setMarqueeItems(buildPartnerMarqueeItems(response.data));
+        }
+      })
+      .catch(() => {
+        /* keep placeholders */
+      });
   }, []);
+
+  const marqueeTrack = useMemo(
+    () => [...marqueeItems, ...marqueeItems],
+    [marqueeItems],
+  );
 
   return (
     <div className="bizfest relative min-h-screen overflow-x-hidden bg-canvas font-sans text-ink selection:bg-primary/20">
@@ -181,6 +297,26 @@ export function BizFestLandingPage() {
         @media (max-width: 639px) {
           .bizfest-tag {
             transform: none !important;
+          }
+        }
+        @keyframes bizfest-partner-marquee {
+          from { transform: translateX(0); }
+          to { transform: translateX(-50%); }
+        }
+        .bizfest-partner-marquee-track {
+          display: flex;
+          width: max-content;
+          animation: bizfest-partner-marquee 36s linear infinite;
+        }
+        .bizfest-partner-marquee:hover .bizfest-partner-marquee-track {
+          animation-play-state: paused;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .bizfest-partner-marquee-track {
+            animation: none;
+            width: 100%;
+            flex-wrap: wrap;
+            justify-content: center;
           }
         }
       `}</style>
@@ -421,6 +557,83 @@ export function BizFestLandingPage() {
                 <ArrowRight className="h-4 w-4" />
               </Link>
             </div>
+          </div>
+        </section>
+
+        <section
+          id="partners"
+          className="scroll-mt-24 border-t border-border bg-canvas-raised px-4 py-14 sm:px-6 sm:py-24"
+        >
+          <div className="mx-auto max-w-5xl">
+            <div className="mx-auto max-w-2xl text-center">
+              <p className="font-modern-sans text-[11px] font-semibold tracking-[0.2em] text-primary uppercase">
+                Partners &amp; sponsors
+              </p>
+              <h2 className="font-modern-sans mt-3 text-[1.75rem] font-bold tracking-tight text-ink sm:text-4xl">
+                Backing Nigerian SMEs
+              </h2>
+              <p className="mt-4 text-sm leading-relaxed text-ink-soft sm:text-base">
+                BizFest is backed by partners who believe in Nigerian SMEs — funding the festival, amplifying
+                reach, and showcasing brands at the conference &amp; expo.
+              </p>
+            </div>
+
+            <div className="mt-10 sm:mt-12">
+              <p className="text-center font-modern-sans text-[11px] font-semibold tracking-[0.2em] text-ink-soft uppercase">
+                Founding partners
+              </p>
+              <div className="bizfest-partner-marquee relative mt-6">
+                <div
+                  className="pointer-events-none absolute inset-y-0 left-0 z-10 w-8 bg-gradient-to-r from-canvas-raised to-transparent sm:w-16"
+                  aria-hidden
+                />
+                <div
+                  className="pointer-events-none absolute inset-y-0 right-0 z-10 w-8 bg-gradient-to-l from-canvas-raised to-transparent sm:w-16"
+                  aria-hidden
+                />
+                <div className="overflow-hidden">
+                  <div className="bizfest-partner-marquee-track gap-3 px-3 sm:gap-4 sm:px-4">
+                    {marqueeTrack.map((item, index) => (
+                      <PartnerSlotCard
+                        key={
+                          item.kind === "partner"
+                            ? `partner-${item.id}-${index}`
+                            : `placeholder-${item.label}-${index}`
+                        }
+                        item={item}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-10 flex flex-col items-stretch justify-center gap-3 sm:mt-12 sm:flex-row sm:items-center">
+              <Link
+                href={BIZFEST_SPONSORS_HREF}
+                className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-primary px-8 text-sm font-semibold text-primary-foreground shadow-glow transition hover:opacity-90"
+              >
+                Sponsor BizFest
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+              <Link
+                href={BIZFEST_PARTNERS_HREF}
+                className="inline-flex h-12 items-center justify-center rounded-xl border border-ink bg-transparent px-8 text-sm font-semibold text-ink transition hover:bg-ink/5"
+              >
+                Partner with us
+              </Link>
+            </div>
+            <p className="mt-4 text-center text-xs text-ink-soft">
+              Sponsors can also book{" "}
+              <Link href={`${BIZFEST_SPONSORS_HREF}?focus=booth`} className="font-medium text-ink hover:text-primary">
+                expo booths
+              </Link>
+              {" and "}
+              <Link href={`${BIZFEST_SPONSORS_HREF}?focus=space`} className="font-medium text-ink hover:text-primary">
+                exhibition spaces
+              </Link>
+              {" at the conference."}
+            </p>
           </div>
         </section>
 
