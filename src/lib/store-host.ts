@@ -92,7 +92,9 @@ export function isGrantsHost(host: string | undefined | null): boolean {
   const hostname = host.split(":")[0].toLowerCase();
   return (
     hostname === `${GRANTS_SUBDOMAIN}.${STORE_PLATFORM_DOMAIN}` ||
-    hostname === `${GRANTS_SUBDOMAIN}.localhost`
+    hostname === `www.${GRANTS_SUBDOMAIN}.${STORE_PLATFORM_DOMAIN}` ||
+    hostname === `${GRANTS_SUBDOMAIN}.localhost` ||
+    hostname === `www.${GRANTS_SUBDOMAIN}.localhost`
   );
 }
 
