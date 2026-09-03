@@ -277,4 +277,6 @@ All routes are prefixed with `/api`. Highlights:
 
 ## License
 
-Private / source-available for review unless otherwise stated in the repository license file.
+This repository is open source under the [MIT License](./LICENSE).
+
+For the OpenAI WebMCP Challenge: see [prior vs new work](./docs/webmcp-prior-vs-new.md) and the [demo script](./docs/webmcp-demo-script.md).
