@@ -188,21 +188,31 @@ Read naturally; cut pauses in edit.
 
 ## Submission text (paste into Devpost)
 
-### Why WebMCP is a strong fit
+### Why your use case is a strong fit for WebMCP
 
-Bizgrid hosts many independent storefronts. WebMCP lets agents query the **entire marketplace** through stable tools instead of fragile UI automation. Each purchase remains tied to the **correct merchant** via `store_slug` and per-store carts.
+Bizgrid is an AI commerce platform hosting many independent African merchant storefronts, each with its own catalog and Paystack checkout. Commerce is inherently structured — stores, products, prices, carts — which maps perfectly onto WebMCP's tool model. Instead of an agent guessing through fragile HTML scraping (which breaks on every UI change and can't know Paystack/cart rules), WebMCP gives agents stable, typed tools to query the **entire marketplace** at once. Crucially, every tool response carries a `store_slug`, so a purchase is always routed to the **correct merchant's** cart and checkout — which matters for real money, payouts, and delivery.
 
-### Better UX
+### How it creates a better user experience
 
-Shoppers use natural language in ChatGPT; the agent finds products across stores; the human opens one checkout link and pays with Paystack. Faster discovery, less tab-hopping, no copy-pasting bank details in chat.
+A shopper just says what they want in ChatGPT: "find me a serum under $20." The agent searches across every published store, compares real prices and stock, and returns structured results with store names — no tab-hopping between storefronts. When the shopper picks one, the agent adds it to that merchant's cart. The human then opens a single checkout link and pays normally with Paystack — the same cart the agent filled. Discovery becomes conversational, and checkout stays the familiar, trusted storefront flow the human already knows.
 
-### What was hard before
+### What people and agents can do together that was difficult or impossible before
 
-Cross-store product search and cart actions required custom integrations per merchant. WebMCP provides a browser-native tool layer on the platform homepage — one implementation, every published store.
+Platform-wide shopping was impossible before: agents could only operate inside one website at a time, scraping each storefront's HTML, and any cart action required custom per-merchant integrations. With WebMCP, a **single tool layer on the platform homepage exposes every published store**, so one agent can search across merchants, compare options, and fill the correct seller's cart — then hand the same browser cart to a human to review and pay. Agent discovers and carts; human reviews and pays. That division of labor — machine-speed search, human-trusted checkout — didn't exist before WebMCP.
 
-### Implementation (brief)
+### How we implemented WebMCP
 
-Next.js registers seven tools via `document.modelContext.registerTool` on load. Tool handlers call Laravel APIs (`/public/catalog/products`, `/public/catalog/search`, etc.). `add_to_cart` writes to the same `localStorage` cart keys each storefront already uses, so humans and agents share state.
+The Bizgrid frontend (Next.js) registers seven tools via `document.modelContext.registerTool` on page load, through an app-wide provider and an early client bootstrap so tools are discoverable before hydration. Tool handlers call the existing Laravel catalog APIs (`/public/catalog/products`, `/public/catalog/search`, etc.):
+
+- `list_stores` — all published stores
+- `list_catalog` — a store's full product catalog
+- `get_store_info` — store details
+- `search_products` — platform-wide product search
+- `get_product` — product details by `store_slug` + `product_id`
+- `add_to_cart` — add items to the correct merchant's cart
+- `get_cart` — read per-store carts
+
+`add_to_cart` writes to the same `localStorage` cart keys each storefront already uses, so agents and humans share one cart and one checkout. Code: `src/lib/webmcp/` (tool definitions, bootstrap, cart helpers, types) plus `src/components/webmcp/platform-webmcp-provider.tsx`.
 
 ---
 
@@ -213,6 +223,7 @@ Next.js registers seven tools via `document.modelContext.registerTool` on load. 
 | Empty search | Change query; or add `store_slug` filter via Prompt 1 |
 | No published stores | Publish demo store; use `/demo` merchant |
 | Agent ignores tools | Start prompt with “Use the website's WebMCP tools **only**” |
+| **Agent says tools “aren’t callable” / “not available in this chat session”** | Ask: *“Open https://www.bizgrid.shop in your browser, wait for the page to fully load, then check the **Available site tools** menu. The page publishes `list_stores`, `search_products`, `get_product`, `add_to_cart`, `get_cart`, `list_catalog`, `get_store_info` — call them directly. Do not rely on `getTools()` in the console and do not scrape HTML.”* If still empty, hard-refresh the tab and retry once. |
 | Cart empty on store page | Wrong `store_slug`; re-run `add_to_cart` |
 | `getTools()` empty | Hard refresh; check `[bizgrid/webmcp] Registered 7 tool(s)` in console |
 
