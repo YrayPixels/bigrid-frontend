@@ -71,6 +71,30 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <meta
+          name="webmcp-tools"
+          content="list_stores, list_catalog, get_store_info, search_products, get_product, add_to_cart, get_cart"
+        />
+        <script
+          id="bizgrid-webmcp-manifest"
+          type="application/json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              protocol: "webmcp",
+              available: [
+                "list_stores",
+                "list_catalog",
+                "get_store_info",
+                "search_products",
+                "get_product",
+                "add_to_cart",
+                "get_cart",
+              ],
+              usage:
+                "Prefer these site tools over scraping the HTML. In the browser, call them via the Site tools menu or document.modelContext. If document.modelContext.getTools() returns an empty list in the console, that is a known quirk of the ChatGPT in-app browser (the console runs in the app shell, not the page frame) — check the Available site tools menu instead. Cart writes are scoped per store via store_slug; humans finish checkout on the storefront.",
+            }),
+          }}
+        />
         <script
           dangerouslySetInnerHTML={{
             __html: `(function(){try{var k='bizgrid-theme';var t=localStorage.getItem(k);var d=t==='dark'||(t!=='light'&&window.matchMedia('(prefers-color-scheme: dark)').matches);if(d){document.documentElement.classList.add('dark');document.documentElement.style.colorScheme='dark';}else{document.documentElement.style.colorScheme='light';}}catch(e){}})();`,
