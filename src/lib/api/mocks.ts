@@ -1817,7 +1817,7 @@ export const mockApi = {
     findStoreForToken(token);
     return {
       mode: "checkout",
-      checkout_url: `https://checkout.dodopayments.com/mock/${plan}`,
+      checkout_url: `https://checkout.paystack.com/mock/${plan}`,
       session_id: `mock_session_${plan}`,
     };
   },
@@ -1825,7 +1825,7 @@ export const mockApi = {
   async openBillingPortal(token: string): Promise<BillingPortalResponse> {
     await delay(200);
     findStoreForToken(token);
-    return { portal_url: "https://portal.dodopayments.com/mock" };
+    return { portal_url: "https://paystack.com/manage/mock" };
   },
 
   async startBillingTopup(
@@ -1836,7 +1836,7 @@ export const mockApi = {
     findStoreForToken(token);
     return {
       mode: "checkout",
-      checkout_url: `https://checkout.dodopayments.com/mock/${pack.type}/${pack.id}`,
+      checkout_url: `https://checkout.paystack.com/mock/${pack.type}/${pack.id}`,
       session_id: `mock_topup_${pack.id}`,
     };
   },

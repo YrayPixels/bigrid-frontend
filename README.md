@@ -39,7 +39,7 @@ For an end-to-end demo, run **backend + this frontend**. The admin app is option
 | MySQL | 5.7+ / 8.x |
 | LLM API key | OpenAI, DeepSeek, and/or Gemini, configured on the **backend**. Gemini powers shopper, vision, and marketing when `GEMINI_API_KEY` is set. |
 
-Optional: Redis (`docker compose up -d` in the backend repo), Google Maps key, Paystack / Dodo keys.
+Optional: Redis (`docker compose up -d` in the backend repo), Google Maps key, Paystack keys.
 
 ## Quick start (judges / local demo)
 

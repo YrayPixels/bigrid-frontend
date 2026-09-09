@@ -242,7 +242,7 @@ export default function PlanSettingsPage() {
             <p className="font-medium text-destructive">Your free trial has ended.</p>
             <p className="mt-1 text-ink-soft">
               Your storefront stays live and can still collect payments, but payouts are paused until
-              you subscribe. Billing is handled by Dodo — choosing a plan starts your paid
+              you subscribe. Billing is handled by Paystack — choosing a plan starts your paid
               subscription immediately.
             </p>
           </div>
@@ -270,7 +270,7 @@ export default function PlanSettingsPage() {
 
         {subscription?.billing_configured === false ? (
           <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-            Subscription billing is not configured on the server yet. Add your Dodo Payments API key
+            Subscription billing is not configured on the server yet. Add your Paystack keys and plan codes
             and product IDs to enable checkout.
           </div>
         ) : null}
